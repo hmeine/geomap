@@ -185,6 +185,8 @@ class CellPyramid
            (lastCheckpointIt->first <= levelData->index()))
             return NULL;
 
+        std::cerr << "to get from level " << levelData->index() << " to " << levelIndex << ", we use checkpoint " << lastCheckpointIt->first << "\n";
+
         *levelData = lastCheckpointIt->second;
         return levelData;
     }
@@ -335,6 +337,8 @@ class CellPyramid
 
     void cutAbove(unsigned int levelIndex)
     {
+        if(currentLevel_.index() > levelIndex)
+            gotoLastCheckpointBefore(levelIndex, &currentLevel_);
         history_.erase(history_.begin() + levelIndex, history_.end());
         checkpoints_.erase(checkpoints_.upper_bound(levelIndex),
                            checkpoints_.end());
