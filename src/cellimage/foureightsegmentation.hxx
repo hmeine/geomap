@@ -1,14 +1,17 @@
 #ifndef VIGRA_FOUREIGHTSEGMENTATION_HXX
 #define VIGRA_FOUREIGHTSEGMENTATION_HXX
 
-#include "vigra/error.hxx"
-#include "vigra/stdimage.hxx"
-#include "vigra/stdimagefunctions.hxx"
-#include "vigra/labelimage.hxx"
+#include <vigra/error.hxx>
+#include <vigra/stdimage.hxx>
+#include <vigra/stdimagefunctions.hxx>
+#include <vigra/labelimage.hxx>
+#include <vigra/numerictraits.hxx>
 //#include "circulatoradaptor.hxx"
 #include "celltypes.hxx"
 #include "pixelneighborhood.hxx"
 #include "contourcirculator.hxx"
+#include "filteriterator.hxx"
+#include "cellimage.hxx"
 
 namespace vigra {
 
@@ -16,114 +19,16 @@ namespace CellImage {
 
 class FourEightSegmentation;
 
-// ??? unsigned int
-struct CellPixel
-{
-    CellType type_;
-    int label_;
-
-    CellPixel() {}
-    CellPixel(CellType type, int label = 0)
-        : type_(type), label_(label)
-    {}
-
-    inline CellType type() const { return type_; }
-    inline void setType(CellType type) { type_ = type; }
-
-    inline int label() const { return label_; }
-    inline void setLabel(int label) { label_= label; }
-    inline void setLabel(int label, CellType) { label_= label; }
-
-    inline unsigned int id() const
-        { return (unsigned int)label_ | (type_ << 30); }
-
-    bool operator==(CellPixel const & rhs) const
-        { return label_ == rhs.label_ && type_ == rhs.type_; }
-
-    bool operator!=(CellPixel const & rhs) const
-        { return label_ != rhs.label_ || type_ != rhs.type_; }
-};
-
-typedef BasicImage<CellPixel> CellImage;
-typedef vigra::NeighborhoodCirculator<CellImage::Iterator, EightNeighborCode>
-    CellImageEightCirculator;
-
-struct CellImageTypeAccessor
-{
-    typedef CellType value_type;
-
-    template<class Iterator>
-    CellType operator()(const Iterator &it) const
-    {
-        return it->type();
-    }
-
-    template<class Iterator>
-    void set(CellType type, const Iterator &it) const
-    {
-        it->setType(type);
-    }
-};
-
-struct CellImageLabelAccessor
-{
-    typedef int value_type;
-
-    template<class Iterator>
-    int operator()(const Iterator &it) const
-    {
-        return it->label();
-    }
-
-    template<class Iterator>
-    void set(int label, const Iterator &it) const
-    {
-        it->setLabel(label);
-    }
-};
-
-template<CellType type>
-struct CellImageLabelWriter
-{
-    typedef int value_type;
-
-    template<class Iterator>
-    void set(int label, const Iterator &it) const
-    {
-        it->setLabel(label, type);
-    }
-};
-
-template<class VALUETYPE>
-struct RelabelFunctor
-{
-    typedef VALUETYPE value_type;
-    typedef VALUETYPE argument_type;
-    typedef VALUETYPE result_type;
-
-    RelabelFunctor(VALUETYPE oldValue, VALUETYPE newValue)
-        : oldValue_(oldValue),
-          newValue_(newValue)
-    {}
-    
-    VALUETYPE operator()(VALUETYPE value) const
-    {
-        return (value == oldValue) ? newValue : value;
-    }
-    
-    VALUETYPE oldValue_, newValue_;
-};
-
 // -------------------------------------------------------------------
-//                            CellScanIterator
+//                            LabelScanIterator
 // -------------------------------------------------------------------
-template<class CellImageIterator, class ImageIterator>
-class CellScanIterator
+template<class LabelImageIterator, class ImageIterator = Diff2D>
+class LabelScanIterator
 {
-    CellImageIterator cellUL_, cellLR_, cellIter_;
-    typename CellImageIterator::value_type cellPixelValue_;
+    LabelImageIterator cellLR_, cellIter_;
+    typename LabelImageIterator::value_type cellPixelValue_;
     ImageIterator imageIter_;
-    int width_;
+    unsigned int width_;
 
 public:
         /** the iterator's value type
@@ -142,64 +47,63 @@ public:
         */
     typedef std::forward_iterator_tag iterator_category;
 
-    CellScanIterator()
+    LabelScanIterator()
     {}
 
-    CellScanIterator(CellImageIterator cellUL, CellImageIterator cellLR,
-                     typename CellImageIterator::value_type cellPixelValue,
-                     ImageIterator imageIter)
-        : cellUL_(cellUL), cellLR_(cellLR), cellIter_(cellUL),
+    LabelScanIterator(LabelImageIterator cellUL, LabelImageIterator cellLR,
+                      typename LabelImageIterator::value_type cellPixelValue,
+                      ImageIterator imageIter = ImageIterator())
+        : cellLR_(cellLR), cellIter_(cellUL),
           cellPixelValue_(cellPixelValue),
           imageIter_(imageIter),
           width_(cellLR.x - cellUL.x)
     {
-        if(*cellIter_ != cellPixelValue_ && cellIter_ != cellLR_)
-            ++(*this);
+        if(cellIter_ != cellLR_ && *cellIter_ != cellPixelValue_)
+            operator++();
     }
 
-    CellScanIterator & operator++()
+    LabelScanIterator & operator++()
     {
-        if(cellIter_ != cellLR_)
-        {
+        ++cellIter_.x, ++imageIter_.x;
+        while((cellIter_.x != cellLR_.x) && (*cellIter_ != cellPixelValue_))
             ++cellIter_.x, ++imageIter_.x;
-            while((cellIter_.x != cellLR_.x) && (*cellIter_ != cellPixelValue_))
-				++cellIter_.x, ++imageIter_.x;
 
-            if(cellIter_.x == cellLR_.x)
-            {
-                cellIter_.x -= width_, imageIter_.x -= width_;
-                ++cellIter_.y, ++imageIter_.y;
-
-                if(cellIter_.y != cellLR_.y)
-                {
-                    while(*cellIter_ != cellPixelValue_)
-						++cellIter_.x, ++imageIter_.x;
-                }
-                else
-                    cellIter_ = cellLR_;
-             }
+        if(cellIter_.x == cellLR_.x)
+        {
+            cellIter_.x -= width_, imageIter_.x -= width_;
+            ++cellIter_.y, ++imageIter_.y;
+            
+            if(cellIter_.y != cellLR_.y)
+                operator++();
+            else
+                cellIter_ = cellLR_;
         }
         return *this;
     }
 
-    CellScanIterator operator++(int)
+    LabelScanIterator operator++(int)
     {
-        CellScanIterator ret(*this);
+        LabelScanIterator ret(*this);
         operator++();
         return ret;
     }
 
-	bool isEnd() const
+	bool atEnd() const
 	{
 		return cellIter_ == cellLR_;
 	}
 
-	bool operator==(CellScanIterator const &other) const
+	bool inRange() const
+	{
+		return cellIter_ != cellLR_;
+	}
+
+	bool operator==(LabelScanIterator const &other) const
     {
         return cellIter_ == other.cellIter_;
     }
 
-    bool operator!=(CellScanIterator const &other) const
+    bool operator!=(LabelScanIterator const &other) const
     {
         return cellIter_ != other.cellIter_;
     }
@@ -221,7 +125,7 @@ public:
 /**
  * An EdgelIterator starts walking in the direction of the Circulator
  * given on construction and walks along CellTypeLine type'ed
- * pixels. isEnd() will become true if the iterator steps on a
+ * pixels. atEnd() will become true if the iterator steps on a
  * CellTypeVertex pixel or tries to pass one diagonally.
  *
  * It is used by the RayCirculator for jumpToOpposite() and in
@@ -230,11 +134,11 @@ public:
 class EdgelIterator
 {
     CellImageEightCirculator neighborCirc_;
-    bool isEnd_;
+    bool atEnd_;
 
 public:
     EdgelIterator(CellImageEightCirculator const & n)
-        : neighborCirc_(n), isEnd_(false)
+        : neighborCirc_(n), atEnd_(false)
     {}
 
     CellImageEightCirculator::reference operator*() const
@@ -247,9 +151,14 @@ public:
         return neighborCirc_.operator->();
     }
 
-    bool isEnd() const
+    bool atEnd() const
     {
-        return isEnd_;
+        return atEnd_;
+    }
+
+    bool inRange() const
+    {
+        return !atEnd_;
     }
 
     EdgelIterator & operator++()
@@ -261,7 +170,7 @@ public:
         {
             if(neighborCirc_->type() == CellTypeVertex)
             {
-                isEnd_ = true;
+                atEnd_ = true;
                 break;
             }
             if(neighborCirc_->type() == CellTypeLine)
@@ -275,7 +184,7 @@ public:
            neighborCirc_[1].type() == CellTypeVertex)
         {
             ++neighborCirc_;
-            isEnd_ = true;
+            atEnd_ = true;
         }
 
         return *this;
@@ -283,7 +192,7 @@ public:
 
     EdgelIterator & jumpToOpposite()
     {
-        while(!isEnd())
+        while(!atEnd())
             operator++();
         neighborCirc_.swapCenterNeighbor();
         return *this;
@@ -416,12 +325,12 @@ public:
         //return neighborCirc_.segmentation();
     }
 
-    CellImage::Iterator center() const { return neighborCirc_.center(); }
+    CellImage::traverser center() const { return neighborCirc_.center(); }
 
-    int nodeLabel() const { return neighborCirc_.center()->label(); }
-    int edgeLabel() const { return neighborCirc_->label(); }
-    int leftFaceLabel() const { return neighborCirc_[1].label(); }
-    int rightFaceLabel() const { return neighborCirc_[-1].label(); }
+    CellPixel::LabelType nodeLabel() const { return neighborCirc_.center()->label(); }
+    CellPixel::LabelType edgeLabel() const { return neighborCirc_->label(); }
+    CellPixel::LabelType leftFaceLabel() const { return neighborCirc_[1].label(); }
+    CellPixel::LabelType rightFaceLabel() const { return neighborCirc_[-1].label(); }
 
     inline int degree() const;
     inline float x() const;
@@ -519,10 +428,10 @@ struct ContourCirculator
         return ray_.segmentation();
     }
 
-    int nodeLabel() const { return ray_.nodeLabel(); }
-    int edgeLabel() const { return ray_.edgeLabel(); }
-    int leftFaceLabel() const { return ray_.leftFaceLabel(); }
-    int rightFaceLabel() const { return ray_.rightFaceLabel(); }
+    CellPixel::LabelType nodeLabel() const { return ray_.nodeLabel(); }
+    CellPixel::LabelType edgeLabel() const { return ray_.edgeLabel(); }
+    CellPixel::LabelType leftFaceLabel() const { return ray_.leftFaceLabel(); }
+    CellPixel::LabelType rightFaceLabel() const { return ray_.rightFaceLabel(); }
 
     int degree() const { return ray_.degree(); }
     float x() const { return ray_.x(); }
@@ -539,19 +448,21 @@ class FourEightSegmentation
 public:
     struct CellInfo
     {
-        int label;
+        CellPixel::LabelType label;
         Diff2D upperLeft, lowerRight;
 
-        CellInfo() : label(-1) {}
-        bool initialized() const { return label >= 0; }
+        CellInfo() : label(NumericTraits<CellPixel::LabelType>::max()) {}
+        bool initialized() const
+        { return label != NumericTraits<CellPixel::LabelType>::max(); }
     };
 
     struct NodeInfo : public CellInfo
     {
+        RayCirculator ray;
+        // remove all following members?
         float centerX, centerY;
         int size;
-        int degree;
-        RayCirculator ray;
+        unsigned char degree;
     };
 
     struct EdgeInfo : public CellInfo
@@ -569,11 +480,54 @@ public:
     typedef std::vector<EdgeInfo> EdgeList;
     typedef std::vector<FaceInfo> FaceList;
 
-    typedef NodeList::iterator NodeIterator;
-    typedef EdgeList::iterator EdgeIterator;
-    typedef FaceList::iterator FaceIterator;
+    struct FilterInitialized
+    {
+        bool operator()(CellInfo const &c) const
+        {
+            return c.initialized();
+        }
+    };
+
+    typedef FilterIterator<NodeList::iterator, FilterInitialized> NodeIterator;
+    typedef FilterIterator<EdgeList::iterator, FilterInitialized> EdgeIterator;
+    typedef FilterIterator<FaceList::iterator, FilterInitialized> FaceIterator;
 
     typedef std::vector<ContourCirculator>::iterator BoundaryComponentsIterator;
+
+    // -------------------------------------------------------------------
+    //                  FourEightSegmentation::DartTraverser
+    // -------------------------------------------------------------------
+    struct DartTraverser
+    {
+        RayCirculator dart_;
+
+        NodeInfo & startNode()
+        {
+            return dart_.segmentation()->nodeList[dart_.nodeLabel()];
+        }
+
+        NodeInfo & endNode()
+        {
+            RayCirculator reverseDart_ = dart_;
+            reverseDart_.jumpToOpposite();
+            return dart_.segmentation()->nodeList[reverseDart_.nodeLabel()];
+        }
+
+        EdgeInfo & edge()
+        {
+            return dart_.segmentation()->edgeList[dart_.edgeLabel()];
+        }
+
+        FaceInfo & leftFace()
+        {
+            return dart_.segmentation()->faceList[dart_.leftFaceLabel()];
+        }
+
+        FaceInfo & rightFace()
+        {
+            return dart_.segmentation()->faceList[dart_.rightFaceLabel()];
+        }
+    };
 
     // -------------------------------------------------------------------
     //                  FourEightSegmentation::NodeAccessor
@@ -595,7 +549,7 @@ public:
             return (*i).centerY;
         }
 
-        int label(NodeIterator & i) const
+        CellPixel::LabelType label(NodeIterator & i) const
         {
             return (*i).label;
         }
@@ -656,17 +610,17 @@ public:
             return y((*i).start);
         }
 
-        int label(RayCirculator & i) const
+        CellPixel::LabelType label(RayCirculator & i) const
         {
             return i.nodeLabel();
         }
 
-        int label(ContourCirculator & i) const
+        CellPixel::LabelType label(ContourCirculator & i) const
         {
             return i.nodeLabel();
         }
 
-        int label(EdgeIterator & i) const
+        CellPixel::LabelType label(EdgeIterator & i) const
         {
             return label((*i).start);
         }
@@ -683,12 +637,14 @@ public:
 
         NodeIterator nodeIterator(RayCirculator & i) const
         {
-            return i.segmentation()->nodeList.begin() + i.nodeLabel();
+            return NodeIterator(i.segmentation()->nodeList.begin() + i.nodeLabel(),
+                                i.segmentation()->nodeList.end());
         }
 
         NodeIterator nodeIterator(ContourCirculator & i) const
         {
-            return i.segmentation()->nodeList.begin() + i.nodeLabel();
+            return NodeIterator(i.segmentation()->nodeList.begin() + i.nodeLabel(),
+                                i.segmentation()->nodeList.end());
         }
 
         NodeIterator nodeIterator(EdgeIterator & i) const
@@ -747,17 +703,17 @@ public:
             return (*i).end.y();
         }
 
-        int label(RayCirculator i) const
+        CellPixel::LabelType label(RayCirculator i) const
         {
             return i.jumpToOpposite().nodeLabel();
         }
 
-        int label(ContourCirculator i) const
+        CellPixel::LabelType label(ContourCirculator i) const
         {
             return i.jumpToOpposite().nodeLabel();
         }
 
-        int label(EdgeIterator & i) const
+        CellPixel::LabelType label(EdgeIterator & i) const
         {
             return (*i).end.nodeLabel();
         }
@@ -769,17 +725,20 @@ public:
 
         NodeIterator nodeIterator(RayCirculator & i) const
         {
-            return i.segmentation()->nodeList.begin() + label(i);
+            return NodeIterator(i.segmentation()->nodeList.begin() + label(i),
+                                i.segmentation()->nodeList.end());
         }
 
         NodeIterator nodeIterator(ContourCirculator & i) const
         {
-            return i.segmentation()->nodeList.begin() + label(i);
+            return NodeIterator(i.segmentation()->nodeList.begin() + label(i),
+                                i.segmentation()->nodeList.end());
         }
 
         NodeIterator nodeIterator(EdgeIterator & i) const
         {
-            return (*i).end.segmentation()->nodeList.begin() + label(i);
+            return NodeIterator((*i).end.segmentation()->nodeList.begin() + label(i),
+                                (*i).end.segmentation()->nodeList.end());
         }
     };
 
@@ -788,17 +747,17 @@ public:
     // -------------------------------------------------------------------
     struct EdgeAccessor
     {
-        int label(RayCirculator & i) const
+        CellPixel::LabelType label(RayCirculator & i) const
         {
             return i.edgeLabel();
         }
 
-        int label(ContourCirculator & i) const
+        CellPixel::LabelType label(ContourCirculator & i) const
         {
             return i.edgeLabel();
         }
 
-        int label(EdgeIterator & i) const
+        CellPixel::LabelType label(EdgeIterator & i) const
         {
             return (*i).label;
         }
@@ -809,7 +768,7 @@ public:
     // -------------------------------------------------------------------
     struct FaceAccessor
     {
-        int label(FaceIterator & i) const
+        CellPixel::LabelType label(FaceIterator & i) const
         {
             return (*i).label;
         }
@@ -840,12 +799,12 @@ public:
     // -------------------------------------------------------------------
     struct FaceAtLeftAccessor
     {
-        int label(RayCirculator & i) const
+        CellPixel::LabelType label(RayCirculator & i) const
         {
             return i.leftFaceLabel();
         }
 
-        int label(ContourCirculator & i) const
+        CellPixel::LabelType label(ContourCirculator & i) const
         {
             return i.leftFaceLabel();
         }
@@ -866,12 +825,12 @@ public:
     // -------------------------------------------------------------------
     struct FaceAtRightAccessor
     {
-        int label(RayCirculator & i) const
+        CellPixel::LabelType label(RayCirculator & i) const
         {
             return i.rightFaceLabel();
         }
 
-        int label(ContourCirculator & i) const
+        CellPixel::LabelType label(ContourCirculator & i) const
         {
             return i.rightFaceLabel();
         }
@@ -895,8 +854,8 @@ public:
     {
         width_ = lr.x - ul.x;
         height_ = lr.y - ul.y;
-        int totalwidth = width_ + 4;
-        int totalheight = height_ + 4;
+        unsigned int totalwidth = width_ + 4;
+        unsigned int totalheight = height_ + 4;
 
         nodeCount_ = edgeCount_ = faceCount_ = 0;
 
@@ -908,18 +867,17 @@ public:
         // extract contours in input image and put frame around them
         BImage contourImage(totalwidth, totalheight);
         initFourEightSegmentationContourImage(ul, lr, src, contourImage);
-
         initCellImage(contourImage);
-
+        
         std::cerr << "FourEightSegmentation::label0Cells()\n";
-        int maxNodeLabel = label0Cells();
+        CellPixel::LabelType maxNodeLabel = label0Cells();
 
         std::cerr << "FourEightSegmentation::label1Cells(maxNodeLabel= "
                   << maxNodeLabel << ")\n";
-        int maxEdgeLabel = label1Cells(maxNodeLabel);
+        CellPixel::LabelType maxEdgeLabel = label1Cells(maxNodeLabel);
 
         std::cerr << "FourEightSegmentation::label2Cells()\n";
-        int maxFaceLabel = label2Cells(contourImage);
+        CellPixel::LabelType maxFaceLabel = label2Cells(contourImage);
 
         std::cerr << "FourEightSegmentation::labelCircles(maxNodeLabel= "
                   << maxNodeLabel << ", maxEdgeLabel= " << maxEdgeLabel << ")\n";
@@ -945,46 +903,116 @@ public:
         init(src.first, src.second, src.third);
     }
 
-    int width() const { return width_; }
-    int height() const { return height_; }
+    unsigned int width() const { return width_; }
+    unsigned int height() const { return height_; }
 
     // the fooCount()s tell how many fooList elements are initialized()
-    int nodeCount() const { return nodeCount_; }
-    int edgeCount() const { return edgeCount_; }
-    int faceCount() const { return faceCount_; }
+    unsigned int nodeCount() const { return nodeCount_; }
+    unsigned int edgeCount() const { return edgeCount_; }
+    unsigned int faceCount() const { return faceCount_; }
+
+    NodeIterator nodesBegin()
+        { return NodeIterator(nodeList.begin(), nodeList.end()); }
+    NodeIterator nodesEnd()
+        { return NodeIterator(nodeList.end(), nodeList.end()); }
+    NodeIterator findNode(unsigned int node)
+        { return NodeIterator(nodeList.begin() + node, nodeList.end()); }
+    NodeInfo & node(unsigned int node)
+        { return nodeList[node]; }
+
+    EdgeIterator edgesBegin()
+        { return EdgeIterator(edgeList.begin(), edgeList.end()); }
+    EdgeIterator edgesEnd()
+        { return EdgeIterator(edgeList.end(), edgeList.end()); }
+    EdgeIterator findEdge(unsigned int edge)
+        { return EdgeIterator(edgeList.begin() + edge, edgeList.end()); }
+    EdgeInfo & edge(unsigned int edge)
+        { return edgeList[edge]; }
+
+    FaceIterator facesBegin()
+        { return FaceIterator(faceList.begin(), faceList.end()); }
+    FaceIterator facesEnd()
+        { return FaceIterator(faceList.end(), faceList.end()); }
+    FaceIterator findFace(unsigned int face)
+        { return FaceIterator(faceList.begin() + face, faceList.end()); }
+    FaceInfo & face(unsigned int face)
+        { return faceList[face]; }
+
+    CellImage cellImage;
+    CellImage::traverser cells;
 
     template<class ImageIterator>
-    inline CellScanIterator<CellImage::Iterator, ImageIterator>
-    cellScanIterator(CellInfo cell, CellType cellType,
-					 ImageIterator const &upperLeft);
+    inline LabelScanIterator<CellImage::traverser, ImageIterator>
+    nodeScanIterator(int node, ImageIterator const &upperLeft)
+    {
+        return cellScanIterator(nodeList[node], CellTypeVertex, upperLeft);
+    }
 
-public:
-    CellImage cellImage;
-    CellImage::Iterator cells;
+    template<class ImageIterator>
+    inline LabelScanIterator<CellImage::traverser, ImageIterator>
+    edgeScanIterator(int edge, ImageIterator const &upperLeft)
+    {
+        return cellScanIterator(edgeList[edge], CellTypeLine, upperLeft);
+    }
+
+    template<class ImageIterator>
+    inline LabelScanIterator<CellImage::traverser, ImageIterator>
+    faceScanIterator(int face, ImageIterator const &upperLeft)
+    {
+        return cellScanIterator(faceList[face], CellTypeRegion, upperLeft);
+    }
+
+    typedef LabelScanIterator<CellImage::traverser, CellImage::traverser>
+    CellScanIterator;
+
+    void mergeFaces(DartTraverser & dart)
+    {
+        EdgeInfo &edge= dart.edge();
+        FaceInfo &face1= dart.leftFace();
+        FaceInfo &face2= dart.rightFace();
+
+        for(CellScanIterator it= edgeScanIterator(edge.label, cells + edge.upperLeft);
+            it.inRange(); ++it)
+            *it= CellPixel(CellTypeRegion, face1.label);
+        for(CellScanIterator it= faceScanIterator(face2.label, cells + face2.upperLeft);
+            it.inRange(); ++it)
+            *it= CellPixel(CellTypeRegion, face1.label);
+        // TODO: update bounding rects, contours, anchor
+    }
+
+private:
+    unsigned int nodeCount_, edgeCount_, faceCount_;
+
+    friend struct DartTraverser;
 
     NodeList nodeList;
     EdgeList edgeList;
     FaceList faceList;
 
-private:
-    unsigned int nodeCount_, edgeCount_, faceCount_;
-
     void initCellImage(BImage & contourImage);
-    int label0Cells();
-    int label1Cells(int maxNodeLabel);
-    int label2Cells(BImage & contourImage);
-    void labelCircles(int & maxNodeLabel, int & maxEdgeLabel);
+    CellPixel::LabelType label0Cells();
+    CellPixel::LabelType label1Cells(CellPixel::LabelType maxNodeLabel);
+    CellPixel::LabelType label2Cells(BImage & contourImage);
+    void labelCircles(CellPixel::LabelType & maxNodeLabel,
+                      CellPixel::LabelType & maxEdgeLabel);
 
-    void labelEdge(CellImageEightCirculator rayAtStart, int newLabel);
+    void labelEdge(CellImageEightCirculator rayAtStart,
+                   CellPixel::LabelType newLabel);
 
-    void initNodeList(int maxNodeLabel);
-    void initEdgeList(int maxEdgeLabel);
-    void initFaceList(BImage & contourImage, int maxFaceLabel);
-    void initBoundingBoxes(int maxNodeLabel, int maxEdgeLabel,
-                           int maxFaceLabel);
+    void initNodeList(CellPixel::LabelType maxNodeLabel);
+    void initEdgeList(CellPixel::LabelType maxEdgeLabel);
+    void initFaceList(BImage & contourImage, CellPixel::LabelType maxFaceLabel);
+    void initBoundingBoxes(CellPixel::LabelType maxNodeLabel,
+                           CellPixel::LabelType maxEdgeLabel,
+                           CellPixel::LabelType maxFaceLabel);
+
+    template<class ImageIterator>
+    inline LabelScanIterator<CellImage::traverser, ImageIterator>
+    cellScanIterator(CellInfo cell, CellType cellType,
+					 ImageIterator const &upperLeft);
 
 private:
-    int width_, height_;
+    unsigned int width_, height_;
 };
 
 // -------------------------------------------------------------------
@@ -992,28 +1020,28 @@ private:
 // -------------------------------------------------------------------
 inline int RayCirculator::degree() const
 {
-    return segmentation()->nodeList[nodeLabel()].degree;
+    return segmentation()->node(nodeLabel()).degree;
 }
 
 inline float RayCirculator::x() const
 {
-    return segmentation()->nodeList[nodeLabel()].centerX;
+    return segmentation()->node(nodeLabel()).centerX;
 }
 
 inline float RayCirculator::y() const
 {
-    return segmentation()->nodeList[nodeLabel()].centerY;
+    return segmentation()->node(nodeLabel()).centerY;
 }
 
 // -------------------------------------------------------------------
 //                    FourEightSegmentation functions
 // -------------------------------------------------------------------
 template<class ImageIterator>
-CellScanIterator<CellImage::Iterator, ImageIterator>
+LabelScanIterator<CellImage::traverser, ImageIterator>
 FourEightSegmentation::cellScanIterator(
     CellInfo cell, CellType cellType, ImageIterator const &upperLeft)
 {
-    return CellScanIterator<CellImage::Iterator, ImageIterator>
+    return LabelScanIterator<CellImage::traverser, ImageIterator>
         (cells + cell.upperLeft, cells + cell.lowerRight,
          CellPixel(cellType, cell.label),
          upperLeft + cell.upperLeft);
@@ -1049,24 +1077,24 @@ void initFourEightSegmentationContourImage(SrcIter ul, SrcIter lr, SrcAcc src,
 
 void FourEightSegmentation::initCellImage(BImage & contourImage)
 {
-    BImage::Iterator raw = contourImage.upperLeft() + Diff2D(1,1);
-
-    for(int y=-1; y<=height_; ++y, ++raw.y)
+    BImage::traverser rawLine = contourImage.upperLeft() + Diff2D(1,1);
+    CellImage::traverser cellLine = cellImage.upperLeft() + Diff2D(1,1);
+    for(int y=-1; y<=(int)height_; ++y, ++rawLine.y, ++cellLine.y)
     {
-        BImage::Iterator rx = raw;
-        for(int x=-1; x<=width_; ++x, ++rx.x)
+        BImage::traverser raw = rawLine;
+        CellImage::traverser cell = cellLine;
+        for(int x=-1; x<=(int)width_; ++x, ++raw.x, ++cell.x)
         {
-            if(*rx == 0)
+            if(*raw == 0)
             {
-                cells(x,y).setType(CellTypeRegion);
+                cell->setType(CellTypeRegion);
             }
             else
             {
-                vigra::NeighborhoodCirculator<BImage::Iterator, EightNeighborCode>
-                    neighbors(rx, EightNeighborCode::SouthEast);
-                vigra::NeighborhoodCirculator<BImage::Iterator, EightNeighborCode>
+                vigra::NeighborhoodCirculator<BImage::traverser, EightNeighborCode>
+                    neighbors(raw, EightNeighborCode::SouthEast);
+                vigra::NeighborhoodCirculator<BImage::traverser, EightNeighborCode>
                     end = neighbors;
-
                 int conf = 0;
                 do
                 {
@@ -1084,7 +1112,7 @@ void FourEightSegmentation::initCellImage(BImage & contourImage)
                     vigra_precondition(0, message);
                 }
 
-                cells(x,y).setType(cellConfigurations[conf]);
+                cell->setType(cellConfigurations[conf]);
             }
         }
     }
@@ -1092,16 +1120,16 @@ void FourEightSegmentation::initCellImage(BImage & contourImage)
 
 // -------------------------------------------------------------------
 
-int FourEightSegmentation::label0Cells()
+CellPixel::LabelType FourEightSegmentation::label0Cells()
 {
     BImage nodeImage(width_+4, height_+4);
-    BImage::Iterator nodes = nodeImage.upperLeft() + Diff2D(2,2);
+    BImage::traverser nodes = nodeImage.upperLeft() + Diff2D(2,2);
 
-    for(int y=-2; y<height_+2; ++y)
+    for(int y=-2; y<(int)height_+2; ++y)
     {
-        CellImage::Iterator cell = cells + Diff2D(-2, y);
+        CellImage::traverser cell = cells + Diff2D(-2, y);
 
-        for(int x=-2; x<width_+2; ++x, ++cell.x)
+        for(int x=-2; x<(int)width_+2; ++x, ++cell.x)
         {
             if(cell->type() == CellTypeVertex)
             {
@@ -1138,17 +1166,18 @@ int FourEightSegmentation::label0Cells()
 
 // -------------------------------------------------------------------
 
-int FourEightSegmentation::label1Cells(int maxNodeLabel)
+CellPixel::LabelType FourEightSegmentation::label1Cells(
+    CellPixel::LabelType maxNodeLabel)
 {
     std::vector<bool> nodeProcessed(maxNodeLabel + 1, false);
 
-    int maxEdgeLabel = 0;
+    CellPixel::LabelType maxEdgeLabel = 0;
 
-    for(int y=-1; y<=height_; ++y)
+    for(int y=-1; y<=(int)height_; ++y)
     {
-        CellImage::Iterator cell = cells + Diff2D(-1, y);
+        CellImage::traverser cell = cells + Diff2D(-1, y);
 
-        for(int x=-1; x<=width_; ++x, ++cell.x)
+        for(int x=-1; x<=(int)width_; ++x, ++cell.x)
         {
             if(cell->type() != CellTypeVertex)
                 continue;
@@ -1177,7 +1206,7 @@ int FourEightSegmentation::label1Cells(int maxNodeLabel)
 
 // -------------------------------------------------------------------
 
-int FourEightSegmentation::label2Cells(BImage & contourImage)
+CellPixel::LabelType FourEightSegmentation::label2Cells(BImage & contourImage)
 {
     // labelImageWithBackground() starts with label 1, so don't
     // include outer border (infinite regions shall have label 0)
@@ -1192,13 +1221,14 @@ int FourEightSegmentation::label2Cells(BImage & contourImage)
 
 // -------------------------------------------------------------------
 
-void FourEightSegmentation::labelCircles(int & maxNodeLabel, int & maxEdgeLabel)
+void FourEightSegmentation::labelCircles(
+    CellPixel::LabelType & maxNodeLabel, CellPixel::LabelType & maxEdgeLabel)
 {
-    for(int y=-1; y<=height_; y++)
+    for(int y=-1; y<=(int)height_; ++y)
     {
-        CellImage::Iterator cell = cells + Diff2D(-1, y);
+        CellImage::traverser cell = cells + Diff2D(-1, y);
 
-        for(int x=-1; x<=width_; x++, cell.x++)
+        for(int x=-1; x<=(int)width_; ++x, ++cell.x)
         {
             if(cell->label() != 0)
                 continue;
@@ -1228,12 +1258,12 @@ void FourEightSegmentation::labelCircles(int & maxNodeLabel, int & maxEdgeLabel)
 // -------------------------------------------------------------------
 
 void FourEightSegmentation::labelEdge(CellImageEightCirculator rayAtStart,
-                                      int newLabel)
+                                      CellPixel::LabelType newLabel)
 {
     EdgelIterator edge(rayAtStart);
 
     // follow the edge and relabel it
-    for(; !edge.isEnd(); ++edge)
+    for(; !edge.atEnd(); ++edge)
     {
         edge->setLabel(newLabel, CellTypeLine);
     }
@@ -1241,21 +1271,21 @@ void FourEightSegmentation::labelEdge(CellImageEightCirculator rayAtStart,
 
 // -------------------------------------------------------------------
 
-void FourEightSegmentation::initNodeList(int maxNodeLabel)
+void FourEightSegmentation::initNodeList(CellPixel::LabelType maxNodeLabel)
 {
     nodeList.resize(maxNodeLabel + 1);
     std::vector<int> crackCirculatedAreas(maxNodeLabel + 1, 0);
 
-    for(int y=-1; y<=height_; ++y)
+    for(int y=-1; y<=(int)height_; ++y)
     {
-        CellImage::Iterator cell = cells + Diff2D(-1, y);
+        CellImage::traverser cell = cells + Diff2D(-1, y);
 
-        for(int x=-1; x<=width_; ++x, ++cell.x)
+        for(int x=-1; x<=(int)width_; ++x, ++cell.x)
         {
             if(cell->type() != CellTypeVertex)
                 continue;
 
-            int index = cell->label();
+            CellPixel::LabelType index = cell->label();
             vigra_precondition(index < nodeList.size(),
                                "nodeList must be large enough!");
 
@@ -1304,8 +1334,7 @@ void FourEightSegmentation::initNodeList(int maxNodeLabel)
         }
     }
 
-    int i;
-    for(i=0; i < nodeList.size(); ++i)
+    for(unsigned int i=0; i < nodeList.size(); ++i)
     {
         if(!nodeList[i].initialized())
             continue;
@@ -1327,26 +1356,23 @@ void FourEightSegmentation::initNodeList(int maxNodeLabel)
 
 // -------------------------------------------------------------------
 
-void FourEightSegmentation::initEdgeList(int maxEdgeLabel)
+void FourEightSegmentation::initEdgeList(CellPixel::LabelType maxEdgeLabel)
 {
     edgeList.resize(maxEdgeLabel + 1);
 
     NodeAccessor node;
     EdgeAccessor edge;
 
-    NodeIterator n = nodeList.begin();
-    NodeIterator nend = nodeList.end();
+    NodeIterator n(nodeList.begin(), nodeList.end());
 
-    for(; n != nend; ++n)
+    for(; n.inRange(); ++n)
     {
-        if(!n->initialized())
-            continue;
         RayCirculator r = node.rayCirculator(n);
         RayCirculator rend = r;
 
         do
         {
-            int index = edge.label(r);
+            CellPixel::LabelType index = edge.label(r);
             vigra_precondition(index < edgeList.size(),
                                "edgeList must be large enough!");
             if(!edgeList[index].initialized())
@@ -1364,7 +1390,8 @@ void FourEightSegmentation::initEdgeList(int maxEdgeLabel)
 
 // -------------------------------------------------------------------
 
-void FourEightSegmentation::initFaceList(BImage & contourImage, int maxFaceLabel)
+void FourEightSegmentation::initFaceList(
+    BImage & contourImage, CellPixel::LabelType maxFaceLabel)
 {
     faceList.resize(maxFaceLabel + 1);
 
@@ -1373,7 +1400,7 @@ void FourEightSegmentation::initFaceList(BImage & contourImage, int maxFaceLabel
     int contourComponentsCount =
         labelImageWithBackground(srcImageRange(contourImage),
                                  destImage(contourLabelImage), true, 0);
-    IImage::Iterator contourLabel =
+    IImage::traverser contourLabel =
         contourLabelImage.upperLeft() + Diff2D(2, 2);
 
     std::vector<bool> contourProcessed(contourComponentsCount + 1, false);
@@ -1390,17 +1417,17 @@ void FourEightSegmentation::initFaceList(BImage & contourImage, int maxFaceLabel
 
     FaceAtLeftAccessor leftFace;
 
-    for(int y=0; y<height_; ++y)
+    for(unsigned int y=0; y<height_; ++y)
     {
-        CellImage::Iterator cell = cells + Diff2D(0, y);
-        CellImage::Iterator leftNeighbor = cells + Diff2D(-1, y);
+        CellImage::traverser cell = cells + Diff2D(0, y);
+        CellImage::traverser leftNeighbor = cells + Diff2D(-1, y);
 
-        for(int x=0; x<width_; ++x, ++cell.x, ++leftNeighbor.x)
+        for(unsigned int x=0; x<width_; ++x, ++cell.x, ++leftNeighbor.x)
         {
             if(cell->type() != CellTypeRegion)
                 continue;
 
-            int index = cell->label();
+            CellPixel::LabelType index = cell->label();
             vigra_precondition(index < faceList.size(),
                                "faceList must be large enough!");
 
@@ -1430,7 +1457,7 @@ void FourEightSegmentation::initFaceList(BImage & contourImage, int maxFaceLabel
                     vigra_precondition(leftNeighbor->type() == CellTypeLine,
                                        "leftNeighbor should be an edge");
 
-                    int edgeIndex = leftNeighbor->label();
+                    CellPixel::LabelType edgeIndex = leftNeighbor->label();
 
                     vigra_precondition(edgeList[edgeIndex].initialized(),
                                        "EdgeInfo expected to be initialized");
@@ -1479,7 +1506,7 @@ void FourEightSegmentation::initFaceList(BImage & contourImage, int maxFaceLabel
                         vigra_precondition(neighbor->type() == CellTypeLine,
                                            "neighbor expected to be an edge");
 
-                        int edgeIndex = neighbor->label();
+                        CellPixel::LabelType edgeIndex = neighbor->label();
 
                         vigra_precondition(edgeList[edgeIndex].initialized(),
                                            "EdgeInfo should be initialized");
@@ -1502,17 +1529,18 @@ void FourEightSegmentation::initFaceList(BImage & contourImage, int maxFaceLabel
 
 struct CellIndexAccessor
 {
-    typedef int value_type;
+    typedef CellPixel::LabelType value_type;
 
-    int maxNodeLabel_, maxEdgeLabel_;
+    CellPixel::LabelType maxNodeLabel_, maxEdgeLabel_;
 
-    CellIndexAccessor(int maxNodeLabel, int maxEdgeLabel)
+    CellIndexAccessor(CellPixel::LabelType maxNodeLabel,
+                      CellPixel::LabelType maxEdgeLabel)
         : maxNodeLabel_(maxNodeLabel), maxEdgeLabel_(maxEdgeLabel)
     {
     }
 
     template<class Iterator>
-    int operator()(const Iterator &it) const
+    CellPixel::LabelType operator()(const Iterator &it) const
     {
         return it->label()
             + (it->type() == CellTypeVertex ? 0 : maxNodeLabel_ + 1)
@@ -1520,8 +1548,9 @@ struct CellIndexAccessor
     }
 };
 
-void FourEightSegmentation::initBoundingBoxes(int maxNodeLabel, int maxEdgeLabel,
-                                              int maxFaceLabel)
+void FourEightSegmentation::initBoundingBoxes(
+    CellPixel::LabelType maxNodeLabel, CellPixel::LabelType maxEdgeLabel,
+    CellPixel::LabelType maxFaceLabel)
 {
     ArrayOfRegionStatistics<FindBoundingRectangle>
         bounds(maxNodeLabel + maxEdgeLabel + maxFaceLabel + 3);
@@ -1533,19 +1562,19 @@ void FourEightSegmentation::initBoundingBoxes(int maxNodeLabel, int maxEdgeLabel
 
     // copy all bounding rects into the CellInfo structs, ignoring that
     // possibly !cellList[cell].initialized() resp. !bounds[cell].valid
-    for(int node= 0; node<= maxNodeLabel; ++node)
+    for(CellPixel::LabelType node= 0; node<= maxNodeLabel; ++node)
     {
         nodeList[node].upperLeft = bounds[node].upperLeft;
         nodeList[node].lowerRight = bounds[node].lowerRight;
     }
-    int edge0 = maxNodeLabel + 1;
-    for(int edge= 0; edge<= maxEdgeLabel; ++edge)
+    CellPixel::LabelType edge0 = maxNodeLabel + 1;
+    for(CellPixel::LabelType edge= 0; edge<= maxEdgeLabel; ++edge)
     {
         edgeList[edge].upperLeft = bounds[edge + edge0].upperLeft;
         edgeList[edge].lowerRight = bounds[edge + edge0].lowerRight;
     }
-    int face0 = maxNodeLabel + maxEdgeLabel + 2;
-    for(int face= 0; face<= maxFaceLabel; ++face)
+    CellPixel::LabelType face0 = maxNodeLabel + maxEdgeLabel + 2;
+    for(CellPixel::LabelType face= 0; face<= maxFaceLabel; ++face)
     {
         faceList[face].upperLeft = bounds[face + face0].upperLeft;
         faceList[face].lowerRight = bounds[face + face0].lowerRight;
