@@ -9,11 +9,11 @@ namespace vigra {
 
 namespace cellimage {
 
-unsigned char FourEightSegmentation::findContourComponent(
+unsigned int FourEightSegmentation::findContourComponent(
     const ContourComponents &contours,
     const DartTraverser & dart)
 {
-    unsigned char result = 0;
+    unsigned int result = 0;
 
     if(contours.size() == 1)
         return result;
@@ -101,19 +101,28 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::mergeFaces(
     vigra_precondition(face1.label != face2.label,
                        "FourEightSegmentation::mergeFaces(): edge is a bridge");
 
-    bool removedEdgeIsLoop = node1.label == node2.label;
+    //bool removedEdgeIsLoop = node1.label == node2.label;
 
     // find indices of contour components to be merged
-    unsigned char contour1 = findContourComponent(face1.contours, removedDart);
-    unsigned char contour2 = findContourComponent(face2.contours, removedDart);
+    unsigned int contour1 = findContourComponent(face1.contours, removedDart);
+    unsigned int contour2 = findContourComponent(face2.contours, removedDart);
 
     // re-use an old anchor for the merged contour
-    DartTraverser newAnchor(
-        face1.contours[contour1].startNodeLabel() <
-        face2.contours[contour2].startNodeLabel() ?
-        face1.contours[contour1] : face2.contours[contour2]);
-    if(!removedEdgeIsLoop && (newAnchor.edgeLabel() == edge.label))
-        newAnchor.prevSigma();
+    DartTraverser newAnchor(face1.contours[contour1]);
+    if(newAnchor.edgeLabel() == edge.label)
+    {
+        newAnchor.nextPhi();
+        if(newAnchor.edgeLabel() == edge.label)
+        {
+            newAnchor = face2.contours[contour2];
+            if(newAnchor.edgeLabel() == edge.label)
+            {
+                newAnchor.nextPhi();
+                //if(newAnchor.edgeLabel() == edge.label)
+                //    newAnchor."makeSingular"();
+            }
+        }
+    }
 
     // relabel cells in cellImage:
     for(CellScanIterator it= edgeScanIterator(edge.label, cells, false);
@@ -133,12 +142,14 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::mergeFaces(
     for(unsigned int i = 0; i < face2.contours.size(); i++)
         if(i != contour2)
             face1.contours.push_back(face2.contours[i]);
-    if(removedEdgeIsLoop)
-        newAnchor.recheckSingularity();
+
     face1.contours[contour1] = newAnchor;
 
-    node1.anchor.recheckSingularity();
-    node2.anchor.recheckSingularity();
+    // turn anchors if they pointed to the removed edge and there's another left
+    if(--node1.degree && node1.anchor.isSingular())
+        node1.anchor.carefulNextSigma();
+    if(--node2.degree && node2.anchor.isSingular())
+        node2.anchor.carefulNextSigma();
 
     edge.uninitialize();
     --edgeCount_;
@@ -166,7 +177,7 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::removeBridge(
     newAnchor2.prevSigma();
 
     // find index of contour component to be changed
-    unsigned char contourIndex =
+    unsigned int contourIndex =
         findContourComponent(face.contours, dart);
 
     // relabel cell in cellImage:
@@ -180,10 +191,13 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::removeBridge(
     face.contours[contourIndex] = newAnchor1;
     face.contours.push_back(newAnchor2);
 
-    node1.anchor.recheckSingularity();
-    node2.anchor.recheckSingularity();
+    // turn anchors if they pointed to the removed edge and there's another left
+    if(--node1.degree && node1.anchor.isSingular())
+        node1.anchor.carefulNextSigma();
+    if(--node2.degree && node2.anchor.isSingular())
+        node2.anchor.carefulNextSigma();
 
-    // FIXME: if(!recheckSingularity()) check if node was anchor of
+    // FIXME: if(!isSingular()) check if node was anchor of
     // contour, then update entries in all neighbored faces if
     // DartTraverser pointed to the removed edge..
 
@@ -191,6 +205,76 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::removeBridge(
     --edgeCount_;
 
     return face;
+}
+
+void debugDart(const FourEightSegmentation::DartTraverser &dart)
+{
+	const char *dirStr[] = {
+		"East",
+		"NorthEast",
+		"North",
+		"NorthWest",
+		"West",
+		"SouthWest",
+		"South",
+		"SouthEast"
+	};
+
+	vigra::Point2D pos(dart.neighborCirculator().center() -
+					   dart.segmentation()->cells);
+
+	std::cerr << "DartTraverser pointing "
+			  << dirStr[(int)dart.neighborCirculator().direction()]
+			  << " from " << pos.x << ", " << pos.y;
+	if(dart.neighborCirculator().center()->type() == CellTypeVertex)
+	{
+		CellLabel nodeLabel(dart.neighborCirculator().center()->label());
+		std::cerr << " (node " << nodeLabel;
+		if(nodeLabel > dart.segmentation()->maxNodeLabel())
+			std::cerr << ", LABEL INVALID!";
+		else
+		{
+			const FourEightSegmentation::NodeInfo &node =
+				dart.segmentation()->node(nodeLabel);
+			if(!node.initialized())
+				std::cerr << ", UNINITIALIZED";
+			std::cerr << ", " << node.size << " pixels, degree " << node.degree;
+		}
+		std::cerr << ")";
+	}
+	else
+	{
+		if(dart.neighborCirculator().center()->type() == CellTypeLine)
+			std::cerr << " (CellTypeLine, label ";
+		else
+			std::cerr << " (CellTypeRegion, label ";
+		std::cerr << dart.neighborCirculator().center()->label() << ")";
+	}
+	std::cerr << " to ";
+	if(dart.neighborCirculator().base()->type() == CellTypeLine)
+	{
+		CellLabel edgeLabel(dart.neighborCirculator().base()->label());
+		std::cerr << "edge " << edgeLabel;
+		if(edgeLabel > dart.segmentation()->maxEdgeLabel())
+			std::cerr << ", LABEL INVALID!";
+		else
+		{
+			const FourEightSegmentation::EdgeInfo &edge =
+				dart.segmentation()->edge(edgeLabel);
+			if(!edge.initialized())
+				std::cerr << ", UNINITIALIZED";
+			std::cerr << ", " << edge.size << " pixels";
+		}
+		std::cerr << "\n";
+	}
+	else
+	{
+		if(dart.neighborCirculator().base()->type() == CellTypeVertex)
+			std::cerr << "CellTypeVertex pixel, label ";
+		else
+			std::cerr << "CellTypeRegion pixel, label ";
+		std::cerr << dart.neighborCirculator().base()->label() << "\n";
+	}
 }
 
 FourEightSegmentation::EdgeInfo &FourEightSegmentation::mergeEdges(
@@ -259,6 +343,46 @@ FourEightSegmentation::EdgeInfo &FourEightSegmentation::mergeEdges(
     return edge1;
 }
 
+/********************************************************************/
+
+FourEightSegmentation &FourEightSegmentation::deepCopy(
+    const FourEightSegmentation &other)
+{
+    cellImage = other.cellImage;
+    cells = cellImage.upperLeft() + Diff2D(2,2);
+
+    nodeList_ = other.nodeList_;
+    nodeCount_ = other.nodeCount_;
+    edgeList_ = other.edgeList_;
+    edgeCount_ = other.edgeCount_;
+    faceList_ = other.faceList_;
+    faceCount_ = other.faceCount_;
+
+    for(NodeIterator it= nodesBegin(); it.inRange(); ++it)
+    {
+        it->anchor.reparent(this);
+    }
+        
+    for(EdgeIterator it= edgesBegin(); it.inRange(); ++it)
+    {
+        it->start.reparent(this);
+        it->end.reparent(this);
+    }
+
+    for(FaceIterator it= facesBegin(); it.inRange(); ++it)
+    {
+        for(ContourComponentsIterator contour= it->contours.begin();
+            contour != it->contours.end(); ++contour)
+        {
+            contour->reparent(this);
+        }
+    }
+
+    return *this;
+}
+
+/********************************************************************/
+
 void FourEightSegmentation::initCellImage(BImage & contourImage)
 {
     BImage::traverser rawLine = contourImage.upperLeft() + Diff2D(1,1);
@@ -305,7 +429,7 @@ void FourEightSegmentation::initCellImage(BImage & contourImage)
     }
 }
 
-// -------------------------------------------------------------------
+/********************************************************************/
 
 CellLabel FourEightSegmentation::label0Cells()
 {
@@ -351,7 +475,7 @@ CellLabel FourEightSegmentation::label0Cells()
         destImage(cellImage, LabelWriter<CellTypeVertex>()), true, 0);
 }
 
-// -------------------------------------------------------------------
+/********************************************************************/
 
 CellLabel FourEightSegmentation::label1Cells(CellLabel maxNodeLabel)
 {
@@ -390,7 +514,7 @@ CellLabel FourEightSegmentation::label1Cells(CellLabel maxNodeLabel)
     return maxEdgeLabel;
 }
 
-// -------------------------------------------------------------------
+/********************************************************************/
 
 CellLabel FourEightSegmentation::label2Cells(BImage & contourImage)
 {
@@ -405,7 +529,7 @@ CellLabel FourEightSegmentation::label2Cells(BImage & contourImage)
         false, 1);
 }
 
-// -------------------------------------------------------------------
+/********************************************************************/
 
 void FourEightSegmentation::labelCircles(
     CellLabel & maxNodeLabel, CellLabel & maxEdgeLabel)
@@ -441,7 +565,7 @@ void FourEightSegmentation::labelCircles(
     }
 }
 
-// -------------------------------------------------------------------
+/********************************************************************/
 
 void FourEightSegmentation::labelEdge(CellImageEightCirculator rayAtStart,
                                       CellLabel newLabel)
@@ -455,7 +579,7 @@ void FourEightSegmentation::labelEdge(CellImageEightCirculator rayAtStart,
     }
 }
 
-// -------------------------------------------------------------------
+/********************************************************************/
 
 void FourEightSegmentation::initNodeList(CellLabel maxNodeLabel)
 {
@@ -480,12 +604,20 @@ void FourEightSegmentation::initNodeList(CellLabel maxNodeLabel)
                 nodeList_[index].label = index;
                 ++nodeCount_;
 
-                nodeList_[index].centerX = pos.x;
-                nodeList_[index].centerY = pos.y;
+                nodeList_[index].degree = 0;
                 nodeList_[index].size = 1;
                 nodeList_[index].anchor = DartTraverser(
                     this, CellImageEightCirculator(cell,
                                                    EightNeighborCode::West));
+                if(!nodeList_[index].anchor.isSingular())
+                {
+                    DartTraverser dart(nodeList_[index].anchor);
+                    do
+                    {
+                        ++nodeList_[index].degree;
+                    }
+                    while(dart.nextSigma() != nodeList_[index].anchor);
+                }
 
                 // calculate area from following the outer contour of the node
                 CrackContourCirculator<CellImage::traverser> crack(cell);
@@ -501,9 +633,6 @@ void FourEightSegmentation::initNodeList(CellLabel maxNodeLabel)
             }
             else
             {
-                nodeList_[index].centerX += pos.x;
-                nodeList_[index].centerY += pos.y;
-
                 // calculate area from counting the pixels of the node
                 ++nodeList_[index].size;
             }
@@ -513,25 +642,16 @@ void FourEightSegmentation::initNodeList(CellLabel maxNodeLabel)
 
     for(NodeIterator node= nodesBegin(); node.inRange(); ++node)
 	{
-		node->centerX /= node->size;
-        node->centerY /= node->size;
-
         // methods to calculate the area must yield identical values
         if(crackCirculatedAreas[node->label] != node->size)
         {
             std::cerr << "FourEightSegmentation::initNodeList(): "
-                      << "Node " << node->label << " at ("
-                      << node->centerX << ", "
-                      << node->centerY << ") has a hole:\n";
-            Point2D center((int)(node->centerX+.5), (int)(node->centerY+.5));
-            debugImage(crop(srcImageRange(cellImage),
-                            Rect2D(center.x, center.y, center.x+5, center.y+5)),
-                       std::cerr, 4);
+                      << "Node " << node->label << " has a hole!\n";
         }
     }
 }
 
-// -------------------------------------------------------------------
+/********************************************************************/
 
 void FourEightSegmentation::initEdgeList(CellLabel maxEdgeLabel)
 {
@@ -566,7 +686,7 @@ void FourEightSegmentation::initEdgeList(CellLabel maxEdgeLabel)
     }
 }
 
-// -------------------------------------------------------------------
+/********************************************************************/
 
 void FourEightSegmentation::initFaceList(
     BImage & contourImage, CellLabel maxFaceLabel)

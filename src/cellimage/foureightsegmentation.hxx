@@ -126,17 +126,17 @@ public:
         return ret;
     }
 
-	bool atEnd() const
-	{
-		return cellIter_ == cellLR_;
-	}
+    bool atEnd() const
+    {
+        return cellIter_ == cellLR_;
+    }
 
-	bool inRange() const
-	{
-		return cellIter_ != cellLR_;
-	}
+    bool inRange() const
+    {
+        return cellIter_ != cellLR_;
+    }
 
-	bool operator==(LabelScanIterator const &other) const
+    bool operator==(LabelScanIterator const &other) const
     {
         return cellIter_ == other.cellIter_;
     }
@@ -154,6 +154,11 @@ public:
     pointer operator->() const
     {
         return imageIter_.operator->();
+    }
+
+    /*explicit*/ operator SrcTraverser()
+    {
+        return imageIter_;
     }
 };
 
@@ -260,8 +265,6 @@ public:
 
         FourEightSegmentation * segmentation_;
 
-        bool isSingular_;
-
             // prevent double stop at a line pixel from different source
             // vertex pixels
         bool badDiagonalConfig() const
@@ -295,23 +298,12 @@ public:
                 // finally, pointing from vertex to line pixel
             }
 
-            recheckSingularity();
+            if(neighborCirc_->type() != CellTypeLine)
+                carefulNextSigma();
         }
 
-            /**
-             * Makes calls to isSingular() return a sane value again after
-             * the underlying cell complex has changed. Returns new, valid
-             * value of isSingular.
-             *
-             * If (still) pointing to a CellTypeLine pixel, returns with
-             * !isSingular(). Else, performs operation like nextSigma()
-             * (returning eventually pointing to a new edge with
-             * !isSingular()) but stops with (isSingular()==true) if it
-             * finds no adjacent CellTypeLine pixel.
-             */
-        bool recheckSingularity()
+        DartTraverser & carefulNextSigma()
         {
-            isSingular_ = false;
             CellImageEightCirculator nend = neighborCirc_;
             while(neighborCirc_->type() != CellTypeLine)
             {
@@ -323,31 +315,34 @@ public:
                 if(neighborCirc_ == nend)
                 {
                     // did not find any adjacent line pixel
-                    isSingular_ = true;
                     break;
                 }
             }
-            /*CellImageEightCirculator n = neighborCirc_;
-              isSingular_ = true;
-              do
-              {
-              if(n->type() != CellTypeRegion)
-              {
-              isSingular_ = false;
-              break;
-              }
-              }
-              while(++n != neighborCirc_);
+            return *this;
+        }
 
-              if(neighborCirc_->type() != CellTypeLine)
-              operator++();*/
-
-            return isSingular_;
+        DartTraverser & carefulPrevSigma()
+        {
+            CellImageEightCirculator nend = neighborCirc_;
+            while(neighborCirc_->type() != CellTypeLine)
+            {
+                if(neighborCirc_->type() == CellTypeVertex)
+                {
+                    neighborCirc_.swapCenterNeighbor();
+                }
+                tryPrevSigma();
+                if(neighborCirc_ == nend)
+                {
+                    // did not find any adjacent line pixel
+                    break;
+                }
+            }
+            return *this;
         }
 
         DartTraverser & nextAlpha()
         {
-            if(isSingular_)
+            if(isSingular())
                 return *this;
 
             EdgelIterator line(neighborCirc_);
@@ -375,7 +370,7 @@ public:
 
         DartTraverser & nextSigma()
         {
-            if(isSingular_)
+            if(isSingular(true))
                 return *this;
 
             tryNextSigma();
@@ -393,7 +388,7 @@ public:
 
         DartTraverser & prevSigma()
         {
-            if(isSingular_)
+            if(isSingular(true))
                 return *this;
 
             tryPrevSigma();
@@ -409,9 +404,18 @@ public:
             return *this;
         }
 
-        bool isSingular() const
+        bool isSingular(bool check = false) const
         {
-            return isSingular_;
+            if(!check || !segmentation_->initialized())
+            {
+                return neighborCirc_->type() != CellTypeLine;
+            }
+            else
+            {
+                if(neighborCirc_->type() != CellTypeLine)
+                    return false;
+                return startNode().degree == 0;
+            }
         }
 
         CellLabel startNodeLabel() const
@@ -544,13 +548,15 @@ public:
     struct NodeInfo : CellInfo
     {
         DartTraverser anchor;
-        // remove following members?
-        float centerX, centerY;
+        unsigned short degree;
     };
 
     struct EdgeInfo : CellInfo
     {
         DartTraverser start, end;
+
+        bool isLoop() const
+        { return start.startNodeLabel() == end.startNodeLabel(); }
     };
 
     struct FaceInfo : CellInfo
@@ -585,25 +591,32 @@ public:
 
   public:
     FourEightSegmentation(const FourEightSegmentation &other)
+    : initialized_(false)
     {
         deepCopy(other);
+        initialized_ = true;
     }
 
     template<class SrcIter, class SrcAcc>
-    FourEightSegmentation(SrcIter ul, SrcIter lr, SrcAcc src)
+    FourEightSegmentation(SrcIter ul, SrcIter lr, SrcAcc src,
+                          typename SrcAcc::value_type boundaryValue)
+    : initialized_(false)
     {
-        init(ul, lr, src);
+        init(ul, lr, src, boundaryValue);
     }
 
     template<class SrcIter, class SrcAcc>
-    FourEightSegmentation(triple<SrcIter, SrcIter, SrcAcc> src)
+    FourEightSegmentation(triple<SrcIter, SrcIter, SrcAcc> src,
+                          typename SrcAcc::value_type boundaryValue)
+    : initialized_(false)
     {
-        init(src.first, src.second, src.third);
+        init(src.first, src.second, src.third, boundaryValue);
     }
 
   protected:
     template<class SrcIter, class SrcAcc>
-    void init(SrcIter ul, SrcIter lr, SrcAcc src)
+    void init(SrcIter ul, SrcIter lr, SrcAcc src,
+              typename SrcAcc::value_type boundaryValue)
     {
         nodeCount_ = edgeCount_ = faceCount_ = 0;
 
@@ -614,7 +627,8 @@ public:
 
         // extract contours in input image and put frame around them
         BImage contourImage(cellImage.size());
-        initFourEightSegmentationContourImage(ul, lr, src, contourImage);
+        initFourEightSegmentationContourImage(ul, lr, src, contourImage,
+                                              boundaryValue);
         initCellImage(contourImage);
 
         CellLabel maxNodeLabel = label0Cells();
@@ -624,12 +638,8 @@ public:
         initNodeList(maxNodeLabel);
         initEdgeList(maxEdgeLabel);
         initFaceList(contourImage, maxFaceLabel);
-    }
 
-    template<class SrcIter, class SrcAcc>
-    void init(triple<SrcIter, SrcIter, SrcAcc> src)
-    {
-        init(src.first, src.second, src.third);
+        initialized_ = true;
     }
 
   public:
@@ -637,6 +647,8 @@ public:
     {
         return deepCopy(other);
     }
+
+    bool initialized() const { return initialized_; }
 
     // the fooCount()s tell how many fooList_ elements are initialized()
     unsigned int nodeCount() const { return nodeCount_; }
@@ -734,7 +746,7 @@ public:
         CellScanIterator;
 
   protected:
-    unsigned char findContourComponent(const ContourComponents &contours,
+    unsigned int findContourComponent(const ContourComponents &contours,
                                        const DartTraverser & dart);
 
     void removeNodeFromContours(ContourComponents &contours,
@@ -750,46 +762,15 @@ public:
     EdgeInfo &mergeEdges(const DartTraverser & dart);
 
   private:
-    FourEightSegmentation &deepCopy(const FourEightSegmentation &other)
-    {
-        cellImage = other.cellImage;
-        cells = cellImage.upperLeft() + Diff2D(2,2);
-
-        nodeList_ = other.nodeList_;
-        nodeCount_ = other.nodeCount_;
-        edgeList_ = other.edgeList_;
-        edgeCount_ = other.edgeCount_;
-        faceList_ = other.faceList_;
-        faceCount_ = other.faceCount_;
-
-        for(NodeIterator it= nodesBegin(); it.inRange(); ++it)
-        {
-            it->anchor.reparent(this);
-        }
-        
-        for(EdgeIterator it= edgesBegin(); it.inRange(); ++it)
-        {
-            it->start.reparent(this);
-            it->end.reparent(this);
-        }
-
-        for(FaceIterator it= facesBegin(); it.inRange(); ++it)
-        {
-            for(ContourComponentsIterator contour= it->contours.begin();
-                contour != it->contours.end(); ++contour)
-            {
-                contour->reparent(this);
-            }
-        }
-
-        return *this;
-    }
+    FourEightSegmentation &deepCopy(const FourEightSegmentation &other);
 
     unsigned int nodeCount_, edgeCount_, faceCount_;
 
     NodeList nodeList_;
     EdgeList edgeList_;
     FaceList faceList_;
+
+    bool initialized_;
 
     friend struct DartTraverser;
 
@@ -812,8 +793,8 @@ public:
 
     template<class SrcTraverser>
     inline LabelScanIterator<CellImage::traverser, SrcTraverser>
-    cellScanIterator(CellInfo cell, CellType cellType,
-					 SrcTraverser const &upperLeft,
+    cellScanIterator(const CellInfo &cell, CellType cellType,
+                     SrcTraverser const &upperLeft,
                      bool cropToBaseImage) const;
 };
 
@@ -823,24 +804,24 @@ public:
 template<class SrcTraverser>
 LabelScanIterator<CellImage::traverser, SrcTraverser>
 FourEightSegmentation::cellScanIterator(
-    CellInfo cell, CellType cellType, SrcTraverser const &upperLeft,
+    const CellInfo &cell, CellType cellType, SrcTraverser const &upperLeft,
     bool cropToBaseImage) const
 {
     //std::cerr << "cellScanIterator for " << CellPixel(cellType, cell.label)
     //          << " begins at " << cell.bounds.upperLeft() << std::endl;
-    /*Rect2D cellBounds = cropToBaseImage ?
-                        cell.bounds & Rect2D(Diff2D(0, 0),
-											 cellImage.size() - Diff2D(4, 4)) :
-                                             cell.bounds;*/
+    Rect2D cellBounds = cropToBaseImage ?
+                        cell.bounds & Rect2D(cellImage.size() - Diff2D(4, 4)) :
+                        cell.bounds;
     return LabelScanIterator<CellImage::traverser, SrcTraverser>
-        (cells + cell.bounds.upperLeft(), cells + cell.bounds.lowerRight(),
+        (cells + cellBounds.upperLeft(), cells + cellBounds.lowerRight(),
          CellPixel(cellType, cell.label),
-         upperLeft + cell.bounds.upperLeft());
+         upperLeft + cellBounds.upperLeft());
 }
 
 template<class SrcIter, class SrcAcc>
 void initFourEightSegmentationContourImage(SrcIter ul, SrcIter lr, SrcAcc src,
-                                           BImage & contourImage)
+                                           BImage & contourImage,
+                                           typename SrcAcc::value_type boundaryValue)
 {
     int w = lr.x - ul.x;
     int h = lr.y - ul.y;
@@ -854,17 +835,18 @@ void initFourEightSegmentationContourImage(SrcIter ul, SrcIter lr, SrcAcc src,
                     1, 1);
 
     typedef typename SrcAcc::value_type SrcType;
-    const SrcType zero = NumericTraits<SrcType>::zero();
     for(y=0; y<h; ++y, ++ul.y)
     {
         SrcIter sx = ul;
         for(x=0; x<w; ++x, ++sx.x)
         {
-            if(src(sx) == zero)
+            if(src(sx) == boundaryValue)
                 contourImage(x+2, y+2) = 1;
         }
     }
 }
+
+void debugDart(const FourEightSegmentation::DartTraverser &dart);
 
 } // namespace cellimage
 
