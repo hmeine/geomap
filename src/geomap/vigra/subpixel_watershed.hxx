@@ -24,6 +24,7 @@
 
 #include <cmath>
 #include <algorithm>
+#include <map>
 #include "vigra/mathutil.hxx"
 #include "vigra/edgedetection.hxx"
 #include "vigra/polynomial.hxx"
@@ -36,7 +37,7 @@ namespace vigra {
 enum CriticalPoint { Minimum = -1, Saddle, Maximum, Failed = 999 };
 
 template <class IMAGE, class VECTOR>
-void findCriticalPoints48Neighborhood(IMAGE const & image, 
+void findCriticalPoints48Neighborhood(IMAGE const & image,
                         VECTOR & minima, VECTOR & saddles, VECTOR & maxima,
                         bool eightneighborhood)
 {
@@ -50,7 +51,7 @@ void findCriticalPoints48Neighborhood(IMAGE const & image,
     int steps = eightneighborhood ? 8 : 4;
 
     Traverser iy = image.upperLeft() + Diff2D(1,1);
-    
+
     for(int y=1; y < h-1; ++y, ++iy.y)
     {
         Traverser ix = iy;
@@ -97,7 +98,7 @@ void findCriticalPoints48Neighborhood(IMAGE const & image,
 }
 
 template <class IMAGE, class VECTOR>
-void findCriticalPointsLinearInterpolation(IMAGE const & image, 
+void findCriticalPointsLinearInterpolation(IMAGE const & image,
                         VECTOR & minima, VECTOR & saddles, VECTOR & maxima)
 {
     typedef typename IMAGE::value_type Value;
@@ -108,9 +109,9 @@ void findCriticalPointsLinearInterpolation(IMAGE const & image,
     int h = image.height();
 
     Traverser iy = image.upperLeft() + Diff2D(1,1);
-    
+
     // The linear interpolation case is tricky because there are many possibiliries to
-    // create a saddle in the interpolated function: 
+    // create a saddle in the interpolated function:
     //      * saddle configuration in the 4-neighborhood (this is independent of the 8-neighbor values!)
     //      * all 4-neighbors are equal to the center, but the 8-neighbors are in a saddle configuration
     //      * the 4 corners of a facet are in a saddle (checker-board) configuration.
@@ -212,7 +213,7 @@ void findCriticalPointsLinearInterpolation(IMAGE const & image,
 
 template <class IMAGEVIEW>
 CriticalPoint
-findCriticalPointNewtonMethod(IMAGEVIEW const & image, 
+findCriticalPointNewtonMethod(IMAGEVIEW const & image,
                   double x, double y, double & xx, double & yy,
                   double epsilon)
 {
@@ -222,7 +223,7 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
     xx = x;
     yy = y;
     double sxx, syy;
-    for(int i=0; i<10; ++i) // do at most 10 iterations
+    for(int i=0; i<100; ++i) // do at most 100 iterations
     {
         Value dx = image.dx(xx, yy);
         Value dy = image.dy(xx, yy);
@@ -241,7 +242,8 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
         }
         xx += sxx;
         yy += syy;
-        if(!image.isInside(xx, yy))
+        //if(!image.isInside(xx, yy)) // FIXME
+        if(xx < 1 || xx > (double)(image.width()-2) || yy < 1 || yy > (double)(image.height()-2))
         {
             return Failed; // coordinates out of range
         }
@@ -255,7 +257,7 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
                     return Saddle;
                 }
                 return Failed;
-                
+
             }
             else if (d < zero)
             {
@@ -275,13 +277,13 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
 }
 
 template <class IMAGEVIEW, class VECTOR>
-void findCriticalPointsNewtonMethodOld(IMAGEVIEW const & image, 
+void findCriticalPointsNewtonMethodOld(IMAGEVIEW const & image,
                         VECTOR & minima, VECTOR & saddles, VECTOR & maxima,
                         double epsilon, unsigned int oversampling)
 {
     int w = image.width();
     int h = image.height();
-    
+
     typedef typename IMAGEVIEW::value_type Value;
     Value zero = NumericTraits<Value>::zero();
     typedef typename VECTOR::value_type Coordinate;
@@ -324,6 +326,16 @@ struct CriticalPointHolder
     CriticalPointHolder(double xx, double yy, CriticalPoint t)
         : x(xx), y(yy), type(t)
     {}
+
+    double operator[](int i) const
+    {
+        return (&x)[i];
+    }
+
+    double squaredDistance(const CriticalPointHolder &other) const
+    {
+        return sq(other.x-x) + sq(other.y-y);
+    }
 };
 
 struct CriticalPointsCompare
@@ -341,25 +353,122 @@ struct CriticalPointsCompare
     }
 };
 
+template<class Vector2D>
+class Map2D
+{
+public:
+    typedef typename Vector2D::value_type      CoordType;
+    typedef std::multimap<CoordType, Vector2D> CoordMap;
+    typedef typename CoordMap::iterator        iterator;
+    typedef typename CoordMap::const_iterator  const_iterator;
+
+    void insert(const Vector2D &vector2D)
+    {
+        vectors_.insert(
+            typename CoordMap::value_type((vector2D)[0], vector2D));
+    }
+
+    void insert(CoordType x, CoordType y)
+    {
+        vectors_.insert(
+            typename CoordMap::value_type(x, Vector2D(x, y)));
+    }
+
+    template<class Vector2DIterator>
+    void fillFrom(const Vector2DIterator &begin, const Vector2DIterator &end)
+    {
+        vectors_.clear();
+        for(Vector2DIterator it = begin; it != end; ++it)
+        {
+            vectors_.insert(typename CoordMap::value_type((*it)[0], *it));
+        }
+    }
+
+    const_iterator begin() const
+    {
+        return vectors_.begin();
+    }
+
+    const_iterator end() const
+    {
+        return vectors_.end();
+    }
+
+    iterator begin()
+    {
+        return vectors_.begin();
+    }
+
+    iterator end()
+    {
+        return vectors_.end();
+    }
+
+    const_iterator nearest(const Vector2D &v, double maxSquaredDist = NumericTraits<double>::max()) const
+    {
+        const_iterator midPos(vectors_.lower_bound(v[0]));
+        const_iterator nearestPos(end());
+
+        for(const_iterator it = midPos; it != vectors_.end(); ++it)
+        {
+            if(squaredNorm(it->first - v[0]) > maxSquaredDist)
+                break;
+
+            double dist = squaredNorm(it->second - v);
+            if(dist < maxSquaredDist)
+            {
+                nearestPos = it;
+                maxSquaredDist = dist;
+            }
+        }
+
+        if(midPos == begin())
+            return nearestPos;
+
+        for(const_iterator it = --midPos; true; --it)
+        {
+            if(squaredNorm(v[0] - it->first) > maxSquaredDist)
+                break;
+
+            double dist = squaredNorm(it->second - v);
+            if(dist < maxSquaredDist)
+            {
+                nearestPos = it;
+                maxSquaredDist = dist;
+            }
+
+            if(it == vectors_.begin())
+                break;
+        }
+
+        return nearestPos;
+    }
+
+protected:
+    CoordMap vectors_;
+};
+
 template <class IMAGEVIEW, class VECTOR>
-void findCriticalPointsNewtonMethod(IMAGEVIEW const & image, 
+void findCriticalPointsNewtonMethod(IMAGEVIEW const & image,
                         VECTOR & minima, VECTOR & saddles, VECTOR & maxima,
                         double epsilon, unsigned int oversampling)
 {
     int w = image.width();
     int h = image.height();
-    
+
     typedef typename IMAGEVIEW::value_type Value;
     Value zero = NumericTraits<Value>::zero();
     typedef typename VECTOR::value_type Coordinate;
 
     double d = 1.0 / oversampling;
+    double squareEpsilon = sq(epsilon);
 
-    ArrayVector<CriticalPointHolder> lastLine, currentLine;
-    
+    Map2D<Coordinate> points;
+
     // search for critical points
     for(int y=1; y <= h-2; ++y)
     {
+        std::cerr << ".";
         for(int x=1; x <= w-2; ++x)
         {
             for(double dy = 0.0; dy < 1.0; dy += d)
@@ -367,55 +476,41 @@ void findCriticalPointsNewtonMethod(IMAGEVIEW const & image,
                 for(double dx = 0.0; dx < 1.0; dx += d)
                 {
                     double xx, yy;
-                    CriticalPoint type = findCriticalPointNewtonMethod(image, x + dx, y + dy, xx, yy, epsilon);
-                    // allow the solution to be at most onle line above and below the current line to
-                    // make it possible to compare only two consecutive lines for duplicates
-                    if(type != Failed && yy >= y - 1.0 && yy <= y + 2.0)
+                    CriticalPoint type = findCriticalPointNewtonMethod(image, x + dx, y + dy, xx, yy, epsilon/10.0);
+                    if(type == Failed)
+                        continue;
+
+                    Coordinate c(xx, yy);
+                    if(points.nearest(c, squareEpsilon) != points.end())
+                        continue;
+
+                    if(type == Saddle)
                     {
-                        // check for duplicates in the current line
-                        CriticalPointHolder c(xx, yy, type);
-                        if(std::find_if(currentLine.begin(), currentLine.end(), CriticalPointsCompare(epsilon, c))
-                            == currentLine.end())
-                        {
-                            currentLine.push_back(c);
-                        }
+                        saddles.push_back(c);
                     }
+                    else if (type == Minimum)
+                    {
+                        minima.push_back(c);
+                    }
+                    else
+                    {
+                        maxima.push_back(c);
+                    }
+                    points.insert(c);
                 }
             }
         }
-        // check for duplicates in the lest line
-        ArrayVector<CriticalPointHolder>::iterator cli = currentLine.begin();
-        for(; cli != currentLine.end(); ++cli)
-        {
-            if(std::find_if(lastLine.begin(), lastLine.end(), CriticalPointsCompare(epsilon, *cli)) !=
-                lastLine.end())
-                    continue; // duplicate found
-            if(cli->type == Saddle)
-            {
-                saddles.push_back(Coordinate(cli->x, cli->y));
-            }
-            else if (cli->type == Minimum)
-            {
-                minima.push_back(Coordinate(cli->x, cli->y));
-            }
-            else
-            {
-                maxima.push_back(Coordinate(cli->x, cli->y));
-            }
-        }
-        lastLine.swap(currentLine);
-        currentLine.clear();
     }
 }
 
 template <class T, class VECTOR>
-void 
+void
 findCriticalPointsInFacet(
     SplineImageView<2, T> const & s, double x0, double y0,
     VECTOR & minima, VECTOR & saddles, VECTOR & maxima)
 {
     typedef typename VECTOR::value_type PointType;
-    
+
     x0 = VIGRA_CSTD::floor(x0 + 0.5);
     y0 = VIGRA_CSTD::floor(y0 + 0.5);
 
@@ -436,7 +531,7 @@ findCriticalPointsInFacet(
     double polyCoeffs[6];
     polyCoeffs[0] =  4.0*f*f*g - 2.0*d*f*h + c*h*h;
     polyCoeffs[1] = -2.0*d*d*f + 8.0*e*f*f + 8.0*c*f*g - 4.0*b*f*h + 2.0*a*h*h;
-    polyCoeffs[2] = -c*d*d - 6.0*b*d*f + 16.0*c*e*f + 4.0*c*c*g + 
+    polyCoeffs[2] = -c*d*d - 6.0*b*d*f + 16.0*c*e*f + 4.0*c*c*g +
                      8.0*a*f*g - 2.0*b*c*h + 2.0*a*d*h;
     polyCoeffs[3] = -4.0*b*c*d + 8.0*c*c*e - 4.0*b*b*f + 16.0*a*e*f + 8.0*a*c*g;
     polyCoeffs[4] = -3.0*b*b*c - 2.0*a*b*d + 16.0*a*c*e + 4.0*a*a*g;
@@ -447,13 +542,13 @@ findCriticalPointsInFacet(
     ArrayVector<double> rx;
     if(!polynomialRealRoots(px, rx))
         return;
-    
+
     double xold = -100.0;
     for(unsigned int i=0; i < rx.size(); ++i)
     {
         double x = rx[i];
-        
-        // ensure that x is in the current facet, 
+
+        // ensure that x is in the current facet,
         // and that a multilple root is only used once (this may be
         // wrong, as perhaps several y's share the same x)
         if(std::abs(x) <= 0.5 && std::abs(x-xold) >= eps)
@@ -493,7 +588,7 @@ findCriticalPointsInFacet(
 }
 
 template <class T, class VECTOR>
-void 
+void
 findCriticalPoints(
     SplineImageView<2, T> const & s,
     VECTOR & minima, VECTOR & saddles, VECTOR & maxima)
@@ -504,7 +599,7 @@ findCriticalPoints(
         {
             findCriticalPointsInFacet(s, x, y, minima, saddles, maxima);
         }
-    } 
+    }
 }
 
 namespace detail {
@@ -512,8 +607,8 @@ namespace detail {
 enum RungeKuttaResult { Success, Outside, StepToLarge };
 
 template <class T>
-RungeKuttaResult 
-rungeKuttaInitial(SplineImageView<2, T> const & s, 
+RungeKuttaResult
+rungeKuttaInitial(SplineImageView<2, T> const & s,
                   double x0, double y0, double & h, bool forward,
                   double & x, double & y)
 {
@@ -533,8 +628,8 @@ rungeKuttaInitial(SplineImageView<2, T> const & s,
 }
 
 template <class T>
-RungeKuttaResult 
-rungeKuttaInitialStepSecondOrder(SplineImageView<2, T> const & s, 
+RungeKuttaResult
+rungeKuttaInitialStepSecondOrder(SplineImageView<2, T> const & s,
                   double x0, double y0, double h,
                   double & x, double & y, double dx, double dy)
 {
@@ -553,8 +648,8 @@ rungeKuttaInitialStepSecondOrder(SplineImageView<2, T> const & s,
 }
 
 template <class T>
-RungeKuttaResult 
-rungeKuttaStepSecondOrder(SplineImageView<2, T> const & s, 
+RungeKuttaResult
+rungeKuttaStepSecondOrder(SplineImageView<2, T> const & s,
                   double x0, double y0, double h,
                   double & x, double & y)
 {
@@ -573,8 +668,8 @@ rungeKuttaStepSecondOrder(SplineImageView<2, T> const & s,
 }
 
 template <class T>
-RungeKuttaResult 
-rungeKuttaDoubleStepSecondOrder(SplineImageView<2, T> const & s, 
+RungeKuttaResult
+rungeKuttaDoubleStepSecondOrder(SplineImageView<2, T> const & s,
                   double x0, double y0, double & h,
                   double & x, double & y, double epsilon)
 {
@@ -590,7 +685,7 @@ rungeKuttaDoubleStepSecondOrder(SplineImageView<2, T> const & s,
     double dy = y2 - y1;
     double d = std::max(std::abs(dx), std::abs(dy));
     double hh = VIGRA_CSTD::pow(epsilon / d, 0.33) * h;
-    
+
     if(hh < h / 2.0)
     {
         h = hh;
@@ -614,7 +709,7 @@ rungeKuttaDoubleStepSecondOrder(SplineImageView<2, T> const & s,
 
 
 template <class IMAGEVIEW>
-void rungeKuttaStep1(IMAGEVIEW const & image, 
+void rungeKuttaStep1(IMAGEVIEW const & image,
                     double x, double y, double s, double & xx, double & yy)
 {
     xx = x;
@@ -646,7 +741,7 @@ void rungeKuttaStep1(IMAGEVIEW const & image,
 }
 
 template <class IMAGEVIEW>
-void rungeKuttaStep1b(IMAGEVIEW const & image, 
+void rungeKuttaStep1b(IMAGEVIEW const & image,
                       double x, double y, double s, double & xx, double & yy)
 {
     xx = x;
@@ -690,7 +785,7 @@ void rungeKuttaStep1b(IMAGEVIEW const & image,
 }
 
 template <class IMAGEVIEW>
-void rungeKuttaStep2(IMAGEVIEW const & image, 
+void rungeKuttaStep2(IMAGEVIEW const & image,
                     double x, double y, double s, double a, double & xx, double & yy)
 {
     xx = x;
@@ -757,7 +852,7 @@ void rungeKuttaStep2(IMAGEVIEW const & image,
 
 template <class IMAGEVIEW, class PVECTOR, class CVECTOR>
 void findEdgelChain1(IMAGEVIEW const & image, IImage const & maximage,
-                    PVECTOR const & maxima, CVECTOR & chain, 
+                    PVECTOR const & maxima, CVECTOR & chain,
                     double x, double y, double epsilon)
 {
     static int idx[] = {0, 1, 0, 1};
@@ -771,11 +866,11 @@ void findEdgelChain1(IMAGEVIEW const & image, IImage const & maximage,
     dy = image.dy(x, y);
     a = VIGRA_CSTD::atan2(-dy, dx);
     chain.push_back(Edgel(x, y, image(x, y), a));
-    
+
     // find initial step size
     d = VIGRA_CSTD::sqrt(dx*dx+dy*dy);
     s = 0.25 / d;
-   
+
     while(1)
     {
         // do Runge/Kutta double step
@@ -803,13 +898,13 @@ void findEdgelChain1(IMAGEVIEW const & image, IImage const & maximage,
             dy = image.dy(xx, yy);
             a = VIGRA_CSTD::atan2(-dy, dx);
             chain.push_back(Edgel(xx, yy, image(xx, yy), a));
-            
+
             if(chain.size() > 1000)
             {
                 std::cerr << "terminated chain: " << ox << ' ' << oy << '\n';
                 break;
             }
-            
+
             // check if we arrived at a maximum
             int ix =(int)xx;
             if(ix == w-1)
@@ -847,7 +942,7 @@ void findEdgelChain1(IMAGEVIEW const & image, IImage const & maximage,
 
 template <class IMAGEVIEW, class PVECTOR, class CVECTOR>
 void findEdgelChain2(IMAGEVIEW const & image, IImage const & maximage,
-                    PVECTOR const & maxima, CVECTOR & chain, 
+                    PVECTOR const & maxima, CVECTOR & chain,
                     double x, double y, double a, double epsilon)
 {
     static int idx[] = {0, 1, 0, 1};
@@ -858,10 +953,10 @@ void findEdgelChain2(IMAGEVIEW const & image, IImage const & maximage,
     double ox = x, oy = y;
     // add initial edgel
     chain.push_back(Edgel(x, y, image(x, y), a));
-    
+
     // find initial step size
     s = 0.25;
-   
+
     while(1)
     {
         // decide if we have to do a step based on first or second derivatives
@@ -901,7 +996,7 @@ void findEdgelChain2(IMAGEVIEW const & image, IImage const & maximage,
             // add an edgel
             if(d1 < d2)
             {
-                a1 = 0.5*VIGRA_CSTD::atan2(-2.0*image.dxy(xx,yy), (double)image.dxx(xx,yy)-image.dyy(xx,yy));        
+                a1 = 0.5*VIGRA_CSTD::atan2(-2.0*image.dxy(xx,yy), (double)image.dxx(xx,yy)-image.dyy(xx,yy));
                 if(VIGRA_CSTD::cos(a)*VIGRA_CSTD::cos(a1)+VIGRA_CSTD::sin(a)*VIGRA_CSTD::sin(a1) < 0.0)
                     a1 += M_PI;
             }
@@ -910,14 +1005,14 @@ void findEdgelChain2(IMAGEVIEW const & image, IImage const & maximage,
                 a1 = VIGRA_CSTD::atan2(-image.dy(xx,yy), image.dxx(xx,yy));
             }
             chain.push_back(Edgel(xx, yy, image(xx, yy), a1));
-            
+
             // check if we're still moving
             if(sq(x-xx)+sq(y-yy) < epsilon*epsilon || chain.size() > 1000)
             {
                 std::cerr << "terminated chain: " << ox << ' ' << oy << '\n';
                 break;
             }
-            
+
             // check if we arrived at a maximum
 #if 0
             int ix =(int)xx;
@@ -968,7 +1063,7 @@ void findEdgelChain2(IMAGEVIEW const & image, IImage const & maximage,
 
 template <class T, class VECTOR>
 void
-flowLine(SplineImageView<2, T> const & s, 
+flowLine(SplineImageView<2, T> const & s,
          VECTOR & c, bool forward, double epsilon)
 {
     typedef typename VECTOR::value_type PointType;
@@ -976,7 +1071,7 @@ flowLine(SplineImageView<2, T> const & s,
     double y0 = c[0][1];
     double h = 0.25;
     double x, y;
-    
+
     detail::RungeKuttaResult r = detail::rungeKuttaInitial(s, x0, y0, h, forward, x, y);
     if(r == detail::Outside)
         return;
@@ -987,7 +1082,7 @@ flowLine(SplineImageView<2, T> const & s,
     for(int k=0; k<1000; ++k)
     {
         double xn, yn;
-        detail::RungeKuttaResult r = 
+        detail::RungeKuttaResult r =
                     detail::rungeKuttaDoubleStepSecondOrder(s, x, y, h, xn, yn, epsilon);
         if(r == detail::Success)
         {
@@ -997,7 +1092,7 @@ flowLine(SplineImageView<2, T> const & s,
             {
                 mi.clear();
                 sa.clear();
-                ma.clear();                
+                ma.clear();
                 findCriticalPointsInFacet(s, xn, yn, mi, sa, ma);
             }
             unsigned int i = 0;
@@ -1019,10 +1114,10 @@ flowLine(SplineImageView<2, T> const & s,
             break;
         }
     }
-}    
+}
 
 template <class IMAGEVIEW, class PVECTOR, class CVECTOR>
-void findEdgelChains(IMAGEVIEW const & image, 
+void findEdgelChains(IMAGEVIEW const & image,
                      PVECTOR const & maxima, PVECTOR const & saddles,
                      CVECTOR & chains, double epsilon)
 {
@@ -1037,7 +1132,7 @@ void findEdgelChains(IMAGEVIEW const & image,
         int y = (int)(maxima[i][1] + 0.5);
         maximage(x,y) = i;
     }
-    
+
     for(unsigned int i=0; i<saddles.size(); ++i)
     {
         double x = saddles[i][0];
@@ -1046,14 +1141,14 @@ void findEdgelChains(IMAGEVIEW const & image,
         double dxy = image.dxy(x, y);
         double dyy = image.dyy(x, y);
         double a = 0.5*VIGRA_CSTD::atan2(-2.0*dxy, dxx-dyy);
-        
+
         EdgelChain forwardChain;
-        detail::findEdgelChain2(image, maximage, maxima, forwardChain, 
+        detail::findEdgelChain2(image, maximage, maxima, forwardChain,
                        x+0.25*VIGRA_CSTD::cos(a), y-0.25*VIGRA_CSTD::sin(a), a, epsilon);
         EdgelChain backwardChain;
-        detail::findEdgelChain2(image, maximage, maxima, backwardChain, 
+        detail::findEdgelChain2(image, maximage, maxima, backwardChain,
                        x-0.25*VIGRA_CSTD::cos(a), y+0.25*VIGRA_CSTD::sin(a), a + M_PI, epsilon);
-        
+
         // join chains
         chains.push_back(EdgelChain());
         EdgelChain & chain = *(chains.end()-1);
@@ -1098,30 +1193,30 @@ void polynomialRemainder(Poly const & l, Poly const & r, Poly & res)
 
 #define DEBUG 0
 
-template <class T>
+template <class SplineImageView>
 class SubPixelWatersheds
 {
   public:
     typedef TinyVector<double, 2> PointType;
     typedef ArrayVector<PointType> PointArray;
     enum RungeKuttaResult { Success, Outside, StepToLarge };
-    
+
     template <class SrcIterator, class SrcAccessor>
     SubPixelWatersheds(SrcIterator ul, SrcIterator lr, SrcAccessor src)
     : image_(ul, lr, src),
       initialStep_(0.1), storeStep_(0.5)
     {}
-    
+
     template <class SrcIterator, class SrcAccessor>
     SubPixelWatersheds(triple<SrcIterator, SrcIterator, SrcAccessor> src)
     : image_(src),
       initialStep_(0.1), storeStep_(0.5)
     {}
-    
+
     int width() const { return image_.width(); }
     int height() const { return image_.height(); }
-    
-    void findCriticalPointsInFacet(double x, double y, 
+
+    void findCriticalPointsInFacet(double x, double y,
                                    PointArray & mi, PointArray & sa, PointArray & ma);
     void findCriticalPoints();
     void createMaximage();
@@ -1137,18 +1232,18 @@ class SubPixelWatersheds
     RungeKuttaResult rungeKuttaStepSecondOrder(double x0, double y0, double h,
                                                double & x, double & y)
     {
-        return rungeKuttaStepSecondOrder(x0, y0, h, x, y, 
+        return rungeKuttaStepSecondOrder(x0, y0, h, x, y,
                                          image_.dx(x0, y0), image_.dy(x0, y0));
     }
 
     RungeKuttaResult rungeKuttaDoubleStepSecondOrder(double x0, double y0, double & h,
                                                      double & x, double & y, double epsilon)
     {
-        return rungeKuttaDoubleStepSecondOrder(x0, y0, h, x, y, epsilon, 
+        return rungeKuttaDoubleStepSecondOrder(x0, y0, h, x, y, epsilon,
                                             image_.dx(x0,y0), image_.dy(x0,y0));
     }
-    
-    SplineImageView<2, T> image_;
+
+    SplineImageView image_;
     PointArray minima_, saddles_, maxima_, edges_;
     ArrayVector<triple<int, int, int> > edgeIndices_;
     IImage maximage_;
@@ -1157,14 +1252,15 @@ class SubPixelWatersheds
 
 static int sturmcount, zeroOrder;
 
-template <class T>
-void 
-SubPixelWatersheds<T>::findCriticalPointsInFacet(double x0, double y0, 
+template <class SplineImageView>
+void
+SubPixelWatersheds<SplineImageView>::findCriticalPointsInFacet(double x0, double y0,
                                    PointArray & mi, PointArray & sa, PointArray & ma)
 {
+#if 0
     x0 = VIGRA_CSTD::floor(x0 + 0.5);
     y0 = VIGRA_CSTD::floor(y0 + 0.5);
-    
+
     DImage splineCoeffs(3,3);
     image_.coefficientArray(x0, y0, splineCoeffs);
     double j = splineCoeffs(0,0);
@@ -1183,22 +1279,23 @@ SubPixelWatersheds<T>::findCriticalPointsInFacet(double x0, double y0,
     polys[5].setEpsilon(eps);
     polys[5][0] =  4.0*f*f*g - 2.0*d*f*h + c*h*h;
     polys[5][1] = -2.0*d*d*f + 8.0*e*f*f + 8.0*c*f*g - 4.0*b*f*h + 2.0*a*h*h;
-    polys[5][2] = -c*d*d - 6.0*b*d*f + 16.0*c*e*f + 4.0*c*c*g + 
+    polys[5][2] = -c*d*d - 6.0*b*d*f + 16.0*c*e*f + 4.0*c*c*g +
                    8.0*a*f*g - 2.0*b*c*h + 2.0*a*d*h;
     polys[5][3] = -4.0*b*c*d + 8.0*c*c*e - 4.0*b*b*f + 16.0*a*e*f + 8.0*a*c*g;
     polys[5][4] = -3.0*b*b*c - 2.0*a*b*d + 16.0*a*c*e + 4.0*a*a*g;
     polys[5][5] = -2.0*a*b*b + 8.0*a*a*e;
-    
+
     polys[5].minimizeOrder();
     if(polys[5].order() == 0)
     {
         zeroOrder++;
+        std::cerr << x0 << "/" << y0 << " resulted in zero-order poly!\n";
         return;
     }
     // create the Sturm sequence and count the sign changes
     double left = polys[5](-0.5);
     double right = polys[5](0.5);
-    
+
     // if the interval bounds are zero, we go directly to root finding
     if(0)//std::abs(left) > eps && std::abs(right) > eps)
     {
@@ -1232,23 +1329,33 @@ SubPixelWatersheds<T>::findCriticalPointsInFacet(double x0, double y0,
             return; // interval [-0.5, 0.5] cannot contain a zero
         }
     }
-    
+
     ArrayVector<double> rx;
     rx.reserve(5);
-#if 0
-    std::cerr << "Poly order " << px.order() << " coeffs ";
-    for(int k = 0; k<px.order(); ++k)
-        std::cerr << px[k] << ' ';
-    std::cerr << '\n';
-#endif
-    polynomialRealRoots(polys[5], rx, false); // no root polishing necessary ?
-    
+//     if((x0 == 19) && (y0 == 12))
+//     {
+//         std::cerr << "Poly order " << polys[5].order() << " coeffs ";
+//         for(int k = 0; k<=polys[5].order(); ++k)
+//             std::cerr << polys[5][k] << ' ';
+//         std::cerr << '\n';
+//         polynomialRealRoots(polys[5], rx, true); // no root polishing necessary ?
+//     }
+//     else
+    polynomialRealRoots(polys[5], rx, true); // no root polishing necessary ?
+//     if((x0 == 19) && (y0 == 12))
+//     {
+//         std::cerr << "Solution size " << rx.size() << " coeffs ";
+//         for(int k = 0; k<rx.size(); ++k)
+//             std::cerr << rx[k] << ' ';
+//         std::cerr << '\n';
+//     }
+
     double xold = -100.0;
     for(unsigned int i=0; i < rx.size(); ++i)
     {
         double x = rx[i];
-       
-        // ensure that x is in the current facet, 
+
+        // ensure that x is in the current facet,
         // and that a multilple root is only used once (this may be
         // wrong, as perhaps several y' share the same x)
         if(std::abs(x) <= 0.5 && std::abs(x-xold) >= eps)
@@ -1287,12 +1394,14 @@ SubPixelWatersheds<T>::findCriticalPointsInFacet(double x0, double y0,
         }
         xold = x;
     }
+#endif
 }
 
-template <class T>
-void 
-SubPixelWatersheds<T>::findCriticalPoints()
+template <class SplineImageView>
+void
+SubPixelWatersheds<SplineImageView>::findCriticalPoints()
 {
+    std::cerr << "findCriticalPoints()\n";
     minima_.clear();
     saddles_.clear();
     maxima_.clear();
@@ -1300,24 +1409,26 @@ SubPixelWatersheds<T>::findCriticalPoints()
     minima_.push_back(PointType());
     saddles_.push_back(PointType());
     maxima_.push_back(PointType());
-    
-    sturmcount = 0;
-    zeroOrder = 0;
-    for(unsigned int y=1; y<image_.height()-1; ++y)
-    {
-        for(unsigned int x=1; x<image_.width()-1; ++x)
-        {
-            findCriticalPointsInFacet(x, y, minima_, saddles_, maxima_);
-        }
-    }
+
+//     sturmcount = 0;
+//     zeroOrder = 0;
+//     for(unsigned int y=1; y<image_.height()-1; ++y)
+//     {
+//         std::cerr << ".";
+//         for(unsigned int x=1; x<image_.width()-1; ++x)
+//         {
+//             findCriticalPointsInFacet(x, y, minima_, saddles_, maxima_);
+//         }
+//     }
+    findCriticalPointsNewtonMethod(image_, minima_, saddles_, maxima_, 1e-4, 2);
     createMaximage();
-    std::cerr << "Sturm fired: " << sturmcount << " times\n";
-    std::cerr << "Zero order fired: " << zeroOrder << " times\n";
+//     std::cerr << "Sturm fired: " << sturmcount << " times\n";
+//     std::cerr << "Zero order fired: " << zeroOrder << " times\n";
 }
 
-template <class T>
-void 
-SubPixelWatersheds<T>::createMaximage()
+template <class SplineImageView>
+void
+SubPixelWatersheds<SplineImageView>::createMaximage()
 {
     maximage_.resize(image_.size());
     maximage_.init(0);  // means no maximum
@@ -1325,7 +1436,7 @@ SubPixelWatersheds<T>::createMaximage()
     {
         int x = (int)VIGRA_CSTD::floor(maxima_[i][0] + 0.5);
         int y = (int)VIGRA_CSTD::floor(maxima_[i][1] + 0.5);
-        
+
         if(maximage_(x,y) == 0)
         {
             maximage_(x,y) = i;  // store index of the subpixel coordinate object
@@ -1338,22 +1449,22 @@ SubPixelWatersheds<T>::createMaximage()
     }
 }
 
-template <class T>
+template <class SplineImageView>
 double
-SubPixelWatersheds<T>::nearestMaximum(double x, double y, double dx, double dy,
+SubPixelWatersheds<SplineImageView>::nearestMaximum(double x, double y, double dx, double dy,
                                       int & resindex) const
 {
     PointType diff, p(x,y);
     double dist = NumericTraits<double>::max();
-    
+
     int xi = (int)VIGRA_CSTD::floor(x + 0.5);
     int yi = (int)VIGRA_CSTD::floor(y + 0.5);
-    
+
     int dxi = (x - xi >= 0.0)
-                 ?  1 
+                 ?  1
                  : -1;
     int dyi = (y - yi >= 0.0)
-                 ?  1 
+                 ?  1
                  : -1;
 
     for(int ys=0; ys<2; ++ys)
@@ -1398,9 +1509,9 @@ SubPixelWatersheds<T>::nearestMaximum(double x, double y, double dx, double dy,
     return dist;
 }
 
-template <class T>
-typename SubPixelWatersheds<T>::RungeKuttaResult
-SubPixelWatersheds<T>::rungeKuttaStepSecondOrder(
+template <class SplineImageView>
+typename SubPixelWatersheds<SplineImageView>::RungeKuttaResult
+SubPixelWatersheds<SplineImageView>::rungeKuttaStepSecondOrder(
                   double x0, double y0, double h,
                   double & x, double & y, double dx, double dy)
 {
@@ -1418,9 +1529,9 @@ SubPixelWatersheds<T>::rungeKuttaStepSecondOrder(
     return Success;
 }
 
-template <class T>
-typename SubPixelWatersheds<T>::RungeKuttaResult
-SubPixelWatersheds<T>::rungeKuttaDoubleStepSecondOrder(
+template <class SplineImageView>
+typename SubPixelWatersheds<SplineImageView>::RungeKuttaResult
+SubPixelWatersheds<SplineImageView>::rungeKuttaDoubleStepSecondOrder(
                   double x0, double y0, double & h,
                   double & x, double & y, double epsilon, double dx, double dy)
 {
@@ -1436,7 +1547,7 @@ SubPixelWatersheds<T>::rungeKuttaDoubleStepSecondOrder(
     dy = y2 - y1;
     double d = std::max(std::abs(dx), std::abs(dy));
     double hh = VIGRA_CSTD::pow(epsilon / d, 0.33) * h;
-    
+
     if(hh < h / 2.0)
     {
         h = hh;
@@ -1448,9 +1559,9 @@ SubPixelWatersheds<T>::rungeKuttaDoubleStepSecondOrder(
     return Success;
 }
 
-template <class T>
+template <class SplineImageView>
 int
-SubPixelWatersheds<T>::flowLine(double x, double y, bool forward, double epsilon,
+SubPixelWatersheds<SplineImageView>::flowLine(double x, double y, bool forward, double epsilon,
                                 PointArray & curve)
 {
     curve.push_back(PointType(x, y));
@@ -1473,7 +1584,7 @@ SubPixelWatersheds<T>::flowLine(double x, double y, bool forward, double epsilon
         if(DEBUG) std::cerr << "stop index, x, y " << index << ' ' << curve.back()[0] << ' ' << curve.back()[1]<< '\n';
         return index;
     }
-    
+
     x = x + dx;
     y = y + dy;
     curve.push_back(PointType(x, y));
@@ -1488,7 +1599,7 @@ if(DEBUG) std::cerr << "stop index, x, y " << index << ' ' << curve.back()[0] <<
         return index;
     }
 
-    for(int k=0; k<1000; ++k)
+    for(int k=0; k<10000; ++k)
     {
         double xn, yn;
         if(rungeKuttaDoubleStepSecondOrder(x, y, h, xn, yn, epsilon) == Success)
@@ -1517,49 +1628,60 @@ if(DEBUG) std::cerr << "stop index, x, y " << index << ' ' << curve.back()[0] <<
     return 0;
 }
 
-template <class T>
+template<class PointArray>
+struct SimplifyAccessor
+{
+    PointArray &array_;
+
+    SimplifyAccessor(PointArray &array)
+    : array_(array)
+    {}
+
+    void push_back(const typename PointArray::value_type &p) const
+    {
+        if(array_.size() < 2)
+            array_.push_back(p);
+        else
+        {
+            typename PointArray::value_type
+                diff(p - array_[array_.size()-2]),
+                ortho(-diff[1], diff[0]);
+            double dist(dot(array_[array_.size()-2] - array_.back(),
+                            ortho) / ortho.magnitude());
+            if(fabs(dist) < 2e-3)
+                array_.back() = p;
+            else
+                array_.push_back(p);
+        }
+    }
+};
+
+template <class SplineImageView>
 pair<int, int>
-SubPixelWatersheds<T>::findEdge(double x, double y, double epsilon, PointArray & edge)
+SubPixelWatersheds<SplineImageView>::findEdge(
+    double x, double y, double epsilon, PointArray & edge)
 {
     PointArray forwardCurve, backwardCurve;
-    
+
         if(DEBUG) std::cerr << "starting forward\n";
     int findex = flowLine(x, y, true, epsilon, forwardCurve);
         if(DEBUG) std::cerr << "starting backward\n";
     int bindex = flowLine(x, y, false, epsilon, backwardCurve);
-    
-    int i = forwardCurve.size() - 1;
-    if(i > 0)
-    {
-        edge.push_back(forwardCurve[i--]);
-        edge.push_back(forwardCurve[i--]);
-        for(; i >= 0 ; --i)
-        {
-            if((forwardCurve[i] - edge.back()).magnitude() >= storeStep_)
-                edge.push_back(forwardCurve[i]);
-        }
-        if(forwardCurve.front() != edge.back())
-                edge.push_back(forwardCurve.front());
-    }
-    else
-    {
-        edge.push_back(forwardCurve.front());
-    }
-    for(i = 1; i < (int)backwardCurve.size()-2; ++i)
-    {
-        if((backwardCurve[i] - edge.back()).magnitude() >= storeStep_)
-            edge.push_back(backwardCurve[i]);
-    }
-    if(i < (int)backwardCurve.size())
-        edge.push_back(backwardCurve[i++]);
-    if(i < (int)backwardCurve.size())
-        edge.push_back(backwardCurve[i++]);
+
+    // FIXME: use real polygon simplification algorithm
+    SimplifyAccessor<PointArray> edgeBuilder(edge);
+
+    for(int i = forwardCurve.size() - 1; i >= 0; --i)
+        edgeBuilder.push_back(forwardCurve[i]);
+    for(int i = 1; i < (int)backwardCurve.size(); ++i)
+        edgeBuilder.push_back(backwardCurve[i]);
+
     return pair<int, int>(findex, bindex);
 }
 
-template <class T>
+template <class SplineImageView>
 int
-SubPixelWatersheds<T>::findEdges(double threshold, double epsilon)
+SubPixelWatersheds<SplineImageView>::findEdges(double threshold, double epsilon)
 {
     edges_.clear();
     edgeIndices_.clear();
