@@ -116,41 +116,39 @@ class CellPyramid
           case RemoveEdgeWithEnds:
           {
               EdgeInfo &removedEdge = currentSegmentation_.edge(op.param_.edgeLabel());
-              bool removedEdgeIsLoop = removedEdge.start.startNodeLabel() ==
-                                       removedEdge.end.startNodeLabel();
+              NodeInfo &node1(removedEdge.start.startNode());
+              NodeInfo &node2(removedEdge.end.startNode());
 
               FaceInfo &result = (op.param_.leftFaceLabel() == op.param_.rightFaceLabel() ?
                                   removeBridgeInternal(op.param_) :
                                   mergeFacesInternal(op.param_));
 
-              if(removedEdge.start.recheckSingularity())
-                  removeIsolatedNodeInternal(removedEdge.start);
+              if(!node1.degree)
+                  removeIsolatedNodeInternal(node1.anchor);
               else
               {
-                  // recheckSingularity() modified removedEdge.start
-                  // to point to a valid edge pixel again, so it is
-                  // not really removedEdge.start anymore.. ;-)
-                  DartTraverser changedNode(removedEdge.start);
+                  DartTraverser changedNode(node1.anchor);
                   // test if the node has degree 2 and the edge is no
                   // loop:
-                  if((changedNode.nextSigma() != removedEdge.start) &&
-                     (changedNode.edgeLabel() != removedEdge.start.edgeLabel()) &&
-                     (changedNode.nextSigma() == removedEdge.start))
+                  if((changedNode.nextSigma() != node1.anchor) &&
+                     (changedNode.edgeLabel() != node1.anchor.edgeLabel()) &&
+                     (changedNode.nextSigma() == node1.anchor))
                   {
                       mergeEdgesInternal(changedNode);
                   }
               }
 
+              bool removedEdgeIsLoop = (node1.label == node2.label);
               if(!removedEdgeIsLoop)
               {
-                  if(removedEdge.end.recheckSingularity())
-                      removeIsolatedNodeInternal(removedEdge.end);
+                  if(!node2.degree)
+                      removeIsolatedNodeInternal(node2.anchor);
                   else
                   {
-                      DartTraverser changedNode(removedEdge.end);
-                      if((changedNode.nextSigma() != removedEdge.end) &&
-                         (changedNode.edgeLabel() != removedEdge.end.edgeLabel()) &&
-                         (changedNode.nextSigma() == removedEdge.end))
+                      DartTraverser changedNode(node2.anchor);
+                      if((changedNode.nextSigma() != node2.anchor) &&
+                         (changedNode.edgeLabel() != node2.anchor.edgeLabel()) &&
+                         (changedNode.nextSigma() == node2.anchor))
                       {
                           mergeEdgesInternal(changedNode);
                       }
