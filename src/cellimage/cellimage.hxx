@@ -24,6 +24,8 @@ struct CellPixel
 private:
     CellLabel typeLabel_;
 
+    friend struct CellPixelSerializer;
+
 public:
     CellPixel() {}
     CellPixel(CellType type, CellLabel label = 0)
@@ -55,7 +57,25 @@ typedef vigra::NeighborhoodCirculator<CellImage::Iterator, EightNeighborCode>
     CellImageEightCirculator;
 
 // -------------------------------------------------------------------
-//                     CellPixel/CellImage Accessors
+//                     CellPixel Serialization
+// -------------------------------------------------------------------
+struct CellPixelSerializer
+{
+    int operator()(CellPixel const &p) const
+    {
+        return p.typeLabel_;
+    }
+
+    CellPixel operator()(int i) const
+    {
+        CellPixel result;
+        result.typeLabel_ = i;
+        return result;
+    }
+};
+
+// -------------------------------------------------------------------
+//                   CellPixel/CellImage Accessors
 // -------------------------------------------------------------------
 template<class VALUE_TYPE = CellType>
 struct TypeAccessor
@@ -119,6 +139,21 @@ struct CellTypeEquals : public std::unary_function<CellType, bool>
     bool operator()(const Iterator &it) const
     {
         return it->type() == type;
+    }
+};
+
+struct CellMask : public std::unary_function<vigra::cellimage::CellPixel, bool>
+{
+    vigra::cellimage::CellPixel maskPixel_;
+    
+    CellMask(vigra::cellimage::CellPixel maskPixel)
+    : maskPixel_(maskPixel)
+    {}
+
+    template<class Iterator>
+    bool operator()(const Iterator &it) const
+    {
+        return *it == maskPixel_;
     }
 };
 

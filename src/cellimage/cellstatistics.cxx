@@ -251,21 +251,6 @@ void nodeRethinning(vigra::cellimage::FourEightSegmentation &seg,
     }
 }
 
-struct CellMask : public std::unary_function<vigra::cellimage::CellPixel, bool>
-{
-    vigra::cellimage::CellPixel maskPixel_;
-    
-    CellMask(vigra::cellimage::CellPixel maskPixel)
-    : maskPixel_(maskPixel)
-    {}
-
-    template<class Iterator>
-    bool operator()(const Iterator &it) const
-    {
-        return *it == maskPixel_;
-    }
-};
-
 struct ClearROIFunctor
 {
     int operator()(int label, vigra::BImage::PixelType maskValue) const
