@@ -2,6 +2,7 @@
 #define CELLIMAGE_MODULE_HXX
 
 #include <vigra/vigrapython.hxx>
+#include <vigra/pythonimage.hxx>
 #include "foureightsegmentation.hxx"
 
 template<class T>
@@ -26,7 +27,7 @@ struct NodeListProxy
     NodeListProxy(vigra::cellimage::FourEightSegmentation *segmentation)
     : segmentation_(segmentation)
     {}
-    
+
     static NodeListProxy create(vigra::cellimage::FourEightSegmentation *segmentation)
     {
         return NodeListProxy(segmentation);
@@ -38,7 +39,7 @@ struct NodeListProxy
     {
         return segmentation_->nodeCount();
     }
-    
+
     vigra::cellimage::FourEightSegmentation::NodeInfo &__getitem__(long index)
     {
         if(index > (long)segmentation_->maxNodeLabel())
@@ -60,7 +61,7 @@ struct EdgeListProxy
     EdgeListProxy(vigra::cellimage::FourEightSegmentation *segmentation)
     : segmentation_(segmentation)
     {}
-    
+
     static EdgeListProxy create(vigra::cellimage::FourEightSegmentation *segmentation)
     {
         return EdgeListProxy(segmentation);
@@ -72,7 +73,7 @@ struct EdgeListProxy
     {
         return segmentation_->edgeCount();
     }
-    
+
     vigra::cellimage::FourEightSegmentation::EdgeInfo &__getitem__(long index)
     {
         if(index > (long)segmentation_->maxEdgeLabel())
@@ -94,7 +95,7 @@ struct FaceListProxy
     FaceListProxy(vigra::cellimage::FourEightSegmentation *segmentation)
     : segmentation_(segmentation)
     {}
-    
+
     static FaceListProxy create(vigra::cellimage::FourEightSegmentation *segmentation)
     {
         return FaceListProxy(segmentation);
@@ -106,7 +107,7 @@ struct FaceListProxy
     {
         return segmentation_->faceCount();
     }
-    
+
     vigra::cellimage::FourEightSegmentation::FaceInfo &__getitem__(long index)
     {
         if(index > (long)segmentation_->maxFaceLabel())
