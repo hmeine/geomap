@@ -12,6 +12,13 @@
 #include "contourcirculator.hxx"
 #include "filteriterator.hxx"
 #include "cellimage.hxx"
+#include "rect2d.hxx"
+
+// temporary,debug
+#include <vigra/impex.hxx>
+#include <iostream>
+#include "debugimage.hxx"
+#include "mydebug.hxx"
 
 namespace vigra {
 
@@ -72,7 +79,7 @@ public:
         {
             cellIter_.x -= width_, imageIter_.x -= width_;
             ++cellIter_.y, ++imageIter_.y;
-            
+
             if(cellIter_.y != cellLR_.y)
                 operator++();
             else
@@ -128,7 +135,7 @@ public:
  * pixels. atEnd() will become true if the iterator steps on a
  * CellTypeVertex pixel or tries to pass one diagonally.
  *
- * It is used by the RayCirculator for jumpToOpposite() and in
+ * It is used by the DartTraverser for jumpToOpposite() and in
  * labelEdge().
  */
 class EdgelIterator
@@ -215,8 +222,6 @@ private:
     bool isSingular_;
 
 public:
-    // this default constructor is needed for NodeInfo/EdgeInfo,
-    // init() must not be called!
     RayCirculator() : segmentation_(0L) {}
 
     RayCirculator(FourEightSegmentation * segmentation,
@@ -230,7 +235,31 @@ public:
         vigra_precondition(neighborCirc_->type() != CellTypeVertex,
         "FourEightSegmentation::RayCirculator(): neighbor is a node");
 
-        CellImageEightCirculator n = neighborCirc_;
+        while(badDiagonalConfig())
+        {
+            ++neighborCirc_;
+            // pointing from vertex to vertex pixel now
+            neighborCirc_.swapCenterNeighbor();
+            // still pointing from vertex to vertex pixel
+            ++neighborCirc_;
+            // finally, pointing from vertex to line pixel
+        }
+
+        isSingular_ = false;
+        CellImageEightCirculator nend = neighborCirc_;
+        while(neighborCirc_->type() != CellTypeLine)
+        {
+            if(neighborCirc_->type() == CellTypeVertex)
+                neighborCirc_.swapCenterNeighbor();
+            tryNext();
+            if(neighborCirc_ == nend)
+            {
+                // did not find any adjacent line pixel
+                isSingular_ = true;
+                break;
+            }
+        }
+            /*CellImageEightCirculator n = neighborCirc_;
         isSingular_ = true;
         do
         {
@@ -240,7 +269,7 @@ public:
                 break;
             }
         }
-        while(++n != neighborCirc_);
+        while(++n != neighborCirc_);*/
 
         if(neighborCirc_->type() != CellTypeLine)
             operator++();
@@ -331,10 +360,6 @@ public:
     CellPixel::LabelType edgeLabel() const { return neighborCirc_->label(); }
     CellPixel::LabelType leftFaceLabel() const { return neighborCirc_[1].label(); }
     CellPixel::LabelType rightFaceLabel() const { return neighborCirc_[-1].label(); }
-
-    inline int degree() const;
-    inline float x() const;
-    inline float y() const;
 
     const CellImageEightCirculator &neighborCirculator() const
     {
@@ -433,10 +458,6 @@ struct ContourCirculator
     CellPixel::LabelType leftFaceLabel() const { return ray_.leftFaceLabel(); }
     CellPixel::LabelType rightFaceLabel() const { return ray_.rightFaceLabel(); }
 
-    int degree() const { return ray_.degree(); }
-    float x() const { return ray_.x(); }
-    float y() const { return ray_.y(); }
-
     RayCirculator const & ray() const { return ray_; }
 };
 
@@ -449,7 +470,7 @@ public:
     struct CellInfo
     {
         CellPixel::LabelType label;
-        Diff2D upperLeft, lowerRight;
+        Rect2D bounds;
 
         CellInfo() : label(NumericTraits<CellPixel::LabelType>::max()) {}
         bool initialized() const
@@ -462,7 +483,6 @@ public:
         // remove all following members?
         float centerX, centerY;
         int size;
-        unsigned char degree;
     };
 
     struct EdgeInfo : public CellInfo
@@ -497,35 +517,212 @@ public:
     // -------------------------------------------------------------------
     //                  FourEightSegmentation::DartTraverser
     // -------------------------------------------------------------------
-    struct DartTraverser
+    class DartTraverser
     {
-        RayCirculator dart_;
+        CellImageEightCirculator neighborCirc_;
+        FourEightSegmentation * segmentation_;
+        bool isSingular_;
+
+    public:
+        DartTraverser() : segmentation_(0L) {}
+
+        DartTraverser(FourEightSegmentation * segmentation,
+                      CellImageEightCirculator const & circ)
+            : neighborCirc_(circ),
+              segmentation_(segmentation)
+        {
+            vigra_precondition(neighborCirc_.center()->type() == CellTypeVertex,
+            "FourEightSegmentation::DartTraverser(): center is not a node");
+
+            vigra_precondition(neighborCirc_->type() != CellTypeVertex,
+            "FourEightSegmentation::DartTraverser(): neighbor is a node");
+
+            while(badDiagonalConfig())
+            {
+                ++neighborCirc_;
+                // pointing from vertex to vertex pixel now
+                neighborCirc_.swapCenterNeighbor();
+                // still pointing from vertex to vertex pixel
+                ++neighborCirc_;
+                // finally, pointing from vertex to line pixel
+            }
+
+            isSingular_ = false;
+            CellImageEightCirculator nend = neighborCirc_;
+            while(neighborCirc_->type() != CellTypeLine)
+            {
+                if(neighborCirc_->type() == CellTypeVertex)
+                {
+                    neighborCirc_.swapCenterNeighbor();
+                }
+                tryNextSigma();
+                if(neighborCirc_ == nend)
+                {
+                    // did not find any adjacent line pixel
+                    isSingular_ = true;
+                    break;
+                }
+            }
+            /*CellImageEightCirculator n = neighborCirc_;
+              isSingular_ = true;
+              do
+              {
+              if(n->type() != CellTypeRegion)
+              {
+              isSingular_ = false;
+              break;
+              }
+              }
+              while(++n != neighborCirc_);
+
+              if(neighborCirc_->type() != CellTypeLine)
+              operator++();*/
+        }
+
+        DartTraverser & nextAlpha()
+        {
+            if(isSingular_)
+                return *this;
+
+            EdgelIterator line(neighborCirc_);
+            line.jumpToOpposite();
+
+            neighborCirc_ = line;
+
+            return *this;
+        }
+
+        DartTraverser & prevAlpha()
+        {
+            return nextAlpha();
+        }
+
+        DartTraverser & nextPhi()
+        {
+            return nextAlpha().prevSigma();
+        }
+
+        DartTraverser & prevPhi()
+        {
+            return nextSigma().prevAlpha();
+        }
+
+        DartTraverser & nextSigma()
+        {
+            if(isSingular_)
+                return *this;
+
+            tryNextSigma();
+
+            while(neighborCirc_->type() != CellTypeLine)
+            {
+                if(neighborCirc_->type() == CellTypeVertex)
+                {
+                    neighborCirc_.swapCenterNeighbor();
+                }
+                tryNextSigma();
+            }
+            return *this;
+        }
+
+        DartTraverser & prevSigma()
+        {
+            if(isSingular_)
+                return *this;
+
+            tryPrevSigma();
+
+            while(neighborCirc_->type() != CellTypeLine)
+            {
+                if(neighborCirc_->type() == CellTypeVertex)
+                {
+                    neighborCirc_.swapCenterNeighbor();
+                }
+                tryPrevSigma();
+            }
+            return *this;
+        }
+
+        bool isSingular() const
+        {
+            return isSingular_;
+        }
 
         NodeInfo & startNode()
         {
-            return dart_.segmentation()->nodeList[dart_.nodeLabel()];
+            return segmentation_->nodeList[neighborCirc_.center()->label()];
         }
 
         NodeInfo & endNode()
         {
-            RayCirculator reverseDart_ = dart_;
-            reverseDart_.jumpToOpposite();
-            return dart_.segmentation()->nodeList[reverseDart_.nodeLabel()];
+            DartTraverser reverseDart_(*this);
+            reverseDart_.nextAlpha();
+            return reverseDart_.startNode();
         }
 
         EdgeInfo & edge()
         {
-            return dart_.segmentation()->edgeList[dart_.edgeLabel()];
+            return segmentation_->edgeList[neighborCirc_->label()];
         }
 
         FaceInfo & leftFace()
         {
-            return dart_.segmentation()->faceList[dart_.leftFaceLabel()];
+            vigra_precondition(neighborCirc_[1].type() == CellTypeRegion,
+                "insufficient algorithm for DartTraverser::rightFace()");
+            return segmentation_->faceList[neighborCirc_[1].label()];
         }
 
         FaceInfo & rightFace()
         {
-            return dart_.segmentation()->faceList[dart_.rightFaceLabel()];
+            vigra_precondition(neighborCirc_[-1].type() == CellTypeRegion,
+                "insufficient algorithm for DartTraverser::rightFace()");
+            return segmentation_->faceList[neighborCirc_[-1].label()];
+        }
+
+        bool operator==(DartTraverser const & o) const
+        {
+            return neighborCirc_ == o.neighborCirc_;
+        }
+
+        bool operator!=(DartTraverser const & o) const
+        {
+            return neighborCirc_ != o.neighborCirc_;
+        }
+
+        FourEightSegmentation * segmentation() const
+        {
+            return segmentation_;
+        }
+
+        const CellImageEightCirculator &neighborCirculator() const
+        {
+            return neighborCirc_;
+        }
+
+    private:
+        void tryNextSigma()
+        {
+            ++neighborCirc_;
+
+            if(badDiagonalConfig())
+                ++neighborCirc_;
+        }
+
+        void tryPrevSigma()
+        {
+            --neighborCirc_;
+
+            if(badDiagonalConfig())
+                --neighborCirc_;
+        }
+
+            // prevent double stop at a line pixel from different source
+            // vertex pixels
+        bool badDiagonalConfig()
+        {
+            return (neighborCirc_->type() == CellTypeLine &&
+                    (neighborCirc_[1].type() == CellTypeVertex ||
+                     neighborCirc_[-1].type() == CellTypeVertex));
         }
     };
 
@@ -534,21 +731,6 @@ public:
     // -------------------------------------------------------------------
     struct NodeAccessor
     {
-        int degree(NodeIterator & i) const
-        {
-            return (*i).degree;
-        }
-
-        float x(NodeIterator & i) const
-        {
-            return (*i).centerX;
-        }
-
-        float y(NodeIterator & i) const
-        {
-            return (*i).centerY;
-        }
-
         CellPixel::LabelType label(NodeIterator & i) const
         {
             return (*i).label;
@@ -565,51 +747,6 @@ public:
     // -------------------------------------------------------------------
     struct NodeAtStartAccessor
     {
-        int degree(RayCirculator & i) const
-        {
-            return i.degree();
-        }
-
-        int degree(ContourCirculator & i) const
-        {
-            return i.degree();
-        }
-
-        int degree(EdgeIterator & i) const
-        {
-            return degree((*i).start);
-        }
-
-        float x(RayCirculator & i) const
-        {
-            return i.x();
-        }
-
-        float y(RayCirculator & i) const
-        {
-            return i.y();
-        }
-
-        float x(ContourCirculator & i) const
-        {
-            return i.x();
-        }
-
-        float y(ContourCirculator & i) const
-        {
-            return i.y();
-        }
-
-        float x(EdgeIterator & i) const
-        {
-            return x((*i).start);
-        }
-
-        float y(EdgeIterator & i) const
-        {
-            return y((*i).start);
-        }
-
         CellPixel::LabelType label(RayCirculator & i) const
         {
             return i.nodeLabel();
@@ -658,51 +795,6 @@ public:
     // -------------------------------------------------------------------
     struct NodeAtEndAccessor
     {
-        int degree(RayCirculator i) const
-        {
-            return i.jumpToOpposite().degree();
-        }
-
-        int degree(ContourCirculator i) const
-        {
-            return i.jumpToOpposite().degree();
-        }
-
-        int degree(EdgeIterator & i) const
-        {
-            return (*i).end.degree();
-        }
-
-        float x(RayCirculator i) const
-        {
-            return i.jumpToOpposite().x();
-        }
-
-        float y(RayCirculator i) const
-        {
-            return i.jumpToOpposite().y();
-        }
-
-        float x(ContourCirculator i) const
-        {
-            return i.jumpToOpposite().x();
-        }
-
-        float y(ContourCirculator i) const
-        {
-            return i.jumpToOpposite().y();
-        }
-
-        float x(EdgeIterator & i) const
-        {
-            return (*i).end.x();
-        }
-
-        float y(EdgeIterator & i) const
-        {
-            return (*i).end.y();
-        }
-
         CellPixel::LabelType label(RayCirculator i) const
         {
             return i.jumpToOpposite().nodeLabel();
@@ -868,7 +960,7 @@ public:
         BImage contourImage(totalwidth, totalheight);
         initFourEightSegmentationContourImage(ul, lr, src, contourImage);
         initCellImage(contourImage);
-        
+
         std::cerr << "FourEightSegmentation::label0Cells()\n";
         CellPixel::LabelType maxNodeLabel = label0Cells();
 
@@ -883,6 +975,11 @@ public:
                   << maxNodeLabel << ", maxEdgeLabel= " << maxEdgeLabel << ")\n";
         labelCircles(maxNodeLabel, maxEdgeLabel);
 
+        exportImage(srcImageRange(cellImage,
+                                  CellImageTypeAccessor<unsigned char>()),
+                    ImageExportInfo("test.png"));
+        std::cerr << "** test.png saved. **\n";
+
         std::cerr << "FourEightSegmentation::initNodeList(maxNodeLabel= "
                   << maxNodeLabel << ")\n";
         initNodeList(maxNodeLabel);
@@ -893,8 +990,8 @@ public:
                   << maxFaceLabel << ")\n";
         initFaceList(contourImage, maxFaceLabel);
 
-        std::cerr << "FourEightSegmentation::initBoundingBoxes()\n";
-        initBoundingBoxes(maxNodeLabel, maxEdgeLabel, maxFaceLabel);
+            //std::cerr << "FourEightSegmentation::initBoundingBoxes()\n";
+            //initBoundingBoxes(maxNodeLabel, maxEdgeLabel, maxFaceLabel);
     }
 
     template<class SrcIter, class SrcAcc>
@@ -971,10 +1068,12 @@ public:
         FaceInfo &face1= dart.leftFace();
         FaceInfo &face2= dart.rightFace();
 
-        for(CellScanIterator it= edgeScanIterator(edge.label, cells + edge.upperLeft);
+        for(CellScanIterator it= edgeScanIterator(edge.label,
+                                                  cells + edge.bounds.upperLeft());
             it.inRange(); ++it)
             *it= CellPixel(CellTypeRegion, face1.label);
-        for(CellScanIterator it= faceScanIterator(face2.label, cells + face2.upperLeft);
+        for(CellScanIterator it= faceScanIterator(face2.label,
+                                                  cells + face2.bounds.upperLeft());
             it.inRange(); ++it)
             *it= CellPixel(CellTypeRegion, face1.label);
         // TODO: update bounding rects, contours, anchor
@@ -1016,24 +1115,6 @@ private:
 };
 
 // -------------------------------------------------------------------
-//                        RayCirculator functions
-// -------------------------------------------------------------------
-inline int RayCirculator::degree() const
-{
-    return segmentation()->node(nodeLabel()).degree;
-}
-
-inline float RayCirculator::x() const
-{
-    return segmentation()->node(nodeLabel()).centerX;
-}
-
-inline float RayCirculator::y() const
-{
-    return segmentation()->node(nodeLabel()).centerY;
-}
-
-// -------------------------------------------------------------------
 //                    FourEightSegmentation functions
 // -------------------------------------------------------------------
 template<class ImageIterator>
@@ -1042,9 +1123,9 @@ FourEightSegmentation::cellScanIterator(
     CellInfo cell, CellType cellType, ImageIterator const &upperLeft)
 {
     return LabelScanIterator<CellImage::traverser, ImageIterator>
-        (cells + cell.upperLeft, cells + cell.lowerRight,
+        (cells + cell.bounds.upperLeft(), cells + cell.bounds.lowerRight(),
          CellPixel(cellType, cell.label),
-         upperLeft + cell.upperLeft);
+         upperLeft + cell.bounds.upperLeft());
 }
 
 template<class SrcIter, class SrcAcc>
@@ -1063,7 +1144,7 @@ void initFourEightSegmentationContourImage(SrcIter ul, SrcIter lr, SrcAcc src,
                     1, 1);
 
     typedef typename SrcAcc::value_type SrcType;
-    SrcType zero = NumericTraits<SrcType>::zero();
+    const SrcType zero = NumericTraits<SrcType>::zero();
     for(y=0; y<h; ++y, ++ul.y)
     {
         SrcIter sx = ul;
@@ -1276,11 +1357,11 @@ void FourEightSegmentation::initNodeList(CellPixel::LabelType maxNodeLabel)
     nodeList.resize(maxNodeLabel + 1);
     std::vector<int> crackCirculatedAreas(maxNodeLabel + 1, 0);
 
-    for(int y=-1; y<=(int)height_; ++y)
+    for(Point2D pos= Point2D(-1, -1); pos.y<=(int)height_; ++pos.y)
     {
-        CellImage::traverser cell = cells + Diff2D(-1, y);
+        CellImage::traverser cell = cells + Diff2D(-1, pos.y);
 
-        for(int x=-1; x<=(int)width_; ++x, ++cell.x)
+        for(pos.x=-1; pos.x<=(int)width_; ++pos.x, ++cell.x)
         {
             if(cell->type() != CellTypeVertex)
                 continue;
@@ -1294,22 +1375,12 @@ void FourEightSegmentation::initNodeList(CellPixel::LabelType maxNodeLabel)
                 nodeList[index].label = index;
                 ++nodeCount_;
 
-                nodeList[index].centerX = x;
-                nodeList[index].centerY = y;
+                nodeList[index].centerX = pos.x;
+                nodeList[index].centerY = pos.y;
                 nodeList[index].size = 1;
                 nodeList[index].ray = RayCirculator(
                     this, CellImageEightCirculator(cell,
                                                    EightNeighborCode::West));
-
-                // calculate degree of the node
-                RayCirculator r = nodeList[index].ray;
-                RayCirculator rend = nodeList[index].ray;
-                nodeList[index].degree = 0;
-                do
-                {
-                    ++nodeList[index].degree;
-                }
-                while(++r != rend);
 
                 // calculate area from following the outer contour of the node
                 CrackContourCirculator<CellImage::traverser> crack(cell);
@@ -1325,31 +1396,32 @@ void FourEightSegmentation::initNodeList(CellPixel::LabelType maxNodeLabel)
             }
             else
             {
-                nodeList[index].centerX += x;
-                nodeList[index].centerY += y;
+                nodeList[index].centerX += pos.x;
+                nodeList[index].centerY += pos.y;
 
                 // calculate area from counting the pixels of the node
                 nodeList[index].size += 1;
             }
+            nodeList[index].bounds |= pos;
         }
     }
 
-    for(unsigned int i=0; i < nodeList.size(); ++i)
-    {
-        if(!nodeList[i].initialized())
-            continue;
-
-        nodeList[i].centerX /= nodeList[i].size;
-        nodeList[i].centerY /= nodeList[i].size;
+    for(NodeIterator node= nodesBegin(); node.inRange(); ++node)
+	{
+		node->centerX /= node->size;
+        node->centerY /= node->size;
 
         // methods to calculate the area must yield identical values
-        if(crackCirculatedAreas[i] != nodeList[i].size)
+        if(crackCirculatedAreas[i] != node->size)
         {
-            char msg[200];
-            sprintf(msg, "FourEightSegmentation::initNodeList(): "
-                    "Node %d at (%d, %d) has a hole", i,
-                    nodeList[i].ray.center().x, nodeList[i].ray.center().y);
-            vigra_precondition(0, msg);
+            std::cerr << "FourEightSegmentation::initNodeList(): "
+                      << "Node " << i << " at ("
+                      << node->centerX << ", "
+                      << node->centerY << ") has a hole:\n";
+            Point2D center((int)node->centerX, (int)node->centerY);
+            debugImage(crop(srcImageRange(cellImage),
+                            Rect2D(center.x, center.y, center.x+5, center.y+5)),
+                       std::cerr, 4);
         }
     }
 }
@@ -1406,6 +1478,7 @@ void FourEightSegmentation::initFaceList(
     std::vector<bool> contourProcessed(contourComponentsCount + 1, false);
 
     // process outer face
+    std::cerr << "processing outer face\n";
     faceList[0].label= 0;
     ++faceCount_;
     faceList[0].anchor = Diff2D(-2, -2);
@@ -1417,6 +1490,7 @@ void FourEightSegmentation::initFaceList(
 
     FaceAtLeftAccessor leftFace;
 
+    std::cerr << "loop over image:\n";
     for(unsigned int y=0; y<height_; ++y)
     {
         CellImage::traverser cell = cells + Diff2D(0, y);
@@ -1433,6 +1507,7 @@ void FourEightSegmentation::initFaceList(
 
             if(!faceList[index].initialized())
             {
+                std::cerr << "found face " << index << " at " << x << "," << y << "\n";
                 faceList[index].label = index;
                 ++faceCount_;
                 faceList[index].anchor = Diff2D(x,y);
@@ -1443,8 +1518,8 @@ void FourEightSegmentation::initFaceList(
                     vigra_precondition(leftNeighbor->type() == CellTypeVertex,
                                        "leftNeighbor expected to be a vertex");
 
-                    RayCirculator ray(
-                        this, CellImageEightCirculator(leftNeighbor));
+                    RayCirculator ray(this,
+                                      CellImageEightCirculator(leftNeighbor));
                     --ray;
 
                     vigra_invariant(leftFace.label(ray) == index,
@@ -1455,7 +1530,7 @@ void FourEightSegmentation::initFaceList(
                 else
                 {
                     vigra_precondition(leftNeighbor->type() == CellTypeLine,
-                                       "leftNeighbor should be an edge");
+                                       "leftNeighbor expected to be an edge");
 
                     CellPixel::LabelType edgeIndex = leftNeighbor->label();
 
@@ -1564,20 +1639,26 @@ void FourEightSegmentation::initBoundingBoxes(
     // possibly !cellList[cell].initialized() resp. !bounds[cell].valid
     for(CellPixel::LabelType node= 0; node<= maxNodeLabel; ++node)
     {
-        nodeList[node].upperLeft = bounds[node].upperLeft;
-        nodeList[node].lowerRight = bounds[node].lowerRight;
+        nodeList[node].bounds= Rect2D(bounds[node].upperLeft.x,
+                                      bounds[node].upperLeft.y,
+                                      bounds[node].lowerRight.x,
+                                      bounds[node].lowerRight.y);
     }
     CellPixel::LabelType edge0 = maxNodeLabel + 1;
     for(CellPixel::LabelType edge= 0; edge<= maxEdgeLabel; ++edge)
     {
-        edgeList[edge].upperLeft = bounds[edge + edge0].upperLeft;
-        edgeList[edge].lowerRight = bounds[edge + edge0].lowerRight;
+        edgeList[edge].bounds= Rect2D(bounds[edge + edge0].upperLeft.x,
+                                      bounds[edge + edge0].upperLeft.y,
+                                      bounds[edge + edge0].lowerRight.x,
+                                      bounds[edge + edge0].lowerRight.y);
     }
     CellPixel::LabelType face0 = maxNodeLabel + maxEdgeLabel + 2;
     for(CellPixel::LabelType face= 0; face<= maxFaceLabel; ++face)
     {
-        faceList[face].upperLeft = bounds[face + face0].upperLeft;
-        faceList[face].lowerRight = bounds[face + face0].lowerRight;
+        faceList[face].bounds= Rect2D(bounds[face + face0].upperLeft.x,
+                                      bounds[face + face0].upperLeft.y,
+                                      bounds[face + face0].lowerRight.x,
+                                      bounds[face + face0].lowerRight.y);
     }
 }
 
