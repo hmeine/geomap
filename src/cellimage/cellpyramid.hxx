@@ -24,8 +24,6 @@ class CellPyramid
     typedef typename Segmentation::DartTraverser DartTraverser;
 
   protected:
-    friend class CellPyramid<Segmentation, CellStatistics>::Level;
-
     enum OperationType { RemoveIsolatedNode,
                          MergeFaces,
                          RemoveBridge,
@@ -245,9 +243,11 @@ class CellPyramid
                   return result;
               }
               case Composite:
-                  ; 
+                  ;
             }
 
+            std::cerr << "Unknown operation type " << op.type
+                      << " in CellPyramid<>::performOperation!\n";
             vigra_fail("Unknown operation type in CellPyramid<>::performOperation!");
             return segmentation_.face(0);
         }
@@ -259,6 +259,8 @@ class CellPyramid
     };
 
   protected:
+    friend class CellPyramid<Segmentation, CellStatistics>::Level;
+
     typedef std::map<unsigned int, Level>
         CheckpointMap;
     typedef std::vector<Operation>
