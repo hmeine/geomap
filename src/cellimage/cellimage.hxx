@@ -9,10 +9,10 @@ namespace vigra {
 
 namespace cellimage {
 
-enum CellType { CellTypeError = -1,
-                CellTypeRegion = 0,
+enum CellType { CellTypeRegion = 0,
                 CellTypeLine = 1,
-                CellTypeVertex = 2 };
+                CellTypeVertex = 2,
+                CellTypeError = 3 };
 
 // -------------------------------------------------------------------
 //                          CellPixel, CellImage
@@ -22,27 +22,31 @@ typedef unsigned int CellLabel;
 struct CellPixel
 {
 private:
-    CellType type_;
-    CellLabel label_;
+    CellLabel typeLabel_;
 
 public:
     CellPixel() {}
     CellPixel(CellType type, CellLabel label = 0)
-        : type_(type), label_(label)
+    : typeLabel_(label | (type << 30))
     {}
 
-    inline CellType type() const { return type_; }
-    inline void setType(CellType type) { type_ = type; }
+    inline CellType type() const
+        { return (CellType)(typeLabel_ >> 30); }
+    inline void setType(CellType type)
+        { typeLabel_ = label() | (type << 30); }
 
-    inline CellLabel label() const { return label_; }
-    inline void setLabel(CellLabel label) { label_= label; }
-    inline void setLabel(CellLabel label, CellType) { label_= label; }
+    inline CellLabel label() const
+        { return typeLabel_ & 0x3fffffff; }
+    inline void setLabel(CellLabel label)
+        { typeLabel_ = label | (type() << 30); }
+    inline void setLabel(CellLabel label, CellType type)
+        { typeLabel_ = label | (type << 30); }
 
     bool operator==(CellPixel const & rhs) const
-        { return label_ == rhs.label_ && type_ == rhs.type_; }
+        { return typeLabel_ == rhs.typeLabel_; }
 
     bool operator!=(CellPixel const & rhs) const
-        { return label_ != rhs.label_ || type_ != rhs.type_; }
+        { return typeLabel_ != rhs.typeLabel_; }
 };
 
 typedef BasicImage<CellPixel> CellImage;
