@@ -198,13 +198,13 @@ int main(int argc, char ** argv)
         {
             /*exportImage(
                 srcImageRange(segmentation.cellImage,
-                              CellImage::CellImageTypeAccessor()),
+                              CellImage::TypeAccessor()),
                 ImageExportInfo("cellTypeImage.xv"));
                 std::cout << "Wrote cellTypeImage.xv" << std::endl;*/
 
             exportImage(
                 srcImageRange(segmentation.cellImage,
-                              CellImage::CellImageLabelAccessor()),
+                              CellImage::LabelAccessor()),
                 ImageExportInfo("cellLabelImage.xv"));
             std::cout << "Wrote cellLabelImage.xv" << std::endl;
         }
