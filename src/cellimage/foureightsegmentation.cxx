@@ -7,6 +7,10 @@
 #include "debugimage.hxx"
 #include "crop.hxx"
 
+#ifndef NDEBUG
+#  warning Consistency checks will be done after every Euler operation!
+#endif
+
 namespace vigra {
 
 namespace cellimage {
@@ -390,6 +394,8 @@ FourEightSegmentation &FourEightSegmentation::deepCopy(
 
 void FourEightSegmentation::checkConsistency()
 {
+	std::cerr << "{CHECKING CONSISTENCY}\n";
+
 	bool consistent = true;
 	// std::cerr << "checking nodes...\n";
 	for(NodeIterator it= nodesBegin(); it != nodesEnd(); ++it)
