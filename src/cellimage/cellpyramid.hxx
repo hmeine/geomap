@@ -21,17 +21,15 @@ class CellPyramid
 
     struct Level
     {
-        unsigned int   level;
+        unsigned int   levelIndex;
         Segmentation   segmentation;
         CellStatistics cellStatistics;
 
         Level(unsigned int l,
               const Segmentation &s,
               const CellStatistics &c)
-        : level(l), segmentation(s), cellStatistics(c)
+        : levelIndex(l), segmentation(s), cellStatistics(c)
         {}
-
-        
     };
 
   private:
@@ -61,6 +59,7 @@ class CellPyramid
     History history_;
 
     Level currentLevel_;
+    unsigned int nextCheckpointLevelIndex_;
 
     FaceInfo &removeIsolatedNodeInternal(const DartTraverser & dart)
     {
@@ -173,117 +172,123 @@ class CellPyramid
         return levelData->segmentation.face(0);
     }
 
-        /** Returns false (and does not change currentLevel()) if
-         * currentLevel() is a "better" position for reaching level
+        /** Returns false (and does not change currentLevelIndex()) if
+         * currentLevel() is a "better" position for reaching levelIndex
          * than the last checkpoint, that is:
          *
-         * lastCheckpointIt->first < currentLevel() < level
+         * lastCheckpointIt->first < currentLevelIndex() < levelIndex
          */
-    bool gotoLastCheckpointBefore(unsigned int level,
+    bool gotoLastCheckpointBefore(unsigned int levelIndex,
                                   Level *levelData)
     {
-        vigra_precondition(level < levelCount(),
+        vigra_precondition(levelIndex < levelCount(),
                            "trying to access non-existing level (too high index)!");
 
         typename CheckpointMap::iterator lastCheckpointIt =
-            checkpoints_.upper_bound(level);
+            checkpoints_.upper_bound(levelIndex);
         --lastCheckpointIt;
 
-        if((levelData->level < level) && (lastCheckpointIt->first < levelData->level))
+        if((levelData->levelIndex < levelIndex) &&
+           (lastCheckpointIt->first < levelData->levelIndex))
             return false;
 
         *levelData = lastCheckpointIt->second;
         return true;
     }
 
-    CellInfo &changeLevelInternal(unsigned int gotoLevel,
-                                  Level *levelData)
+    CellInfo &changeLevelIndexInternal(unsigned int gotoLevelIndex,
+                                       Level *levelData)
     {
-        gotoLastCheckpointBefore(gotoLevel, levelData);
+        gotoLastCheckpointBefore(gotoLevelIndex, levelData);
 
         CellInfo *result = &levelData->segmentation.face(0);
 
-        while(levelData->level < gotoLevel)
+        while(levelData->levelIndex < gotoLevelIndex)
         {
-            result = &performOperation(history_[levelData->level], levelData);
-            ++levelData->level;
+            result = &performOperation(history_[levelData->levelIndex], levelData);
+            ++levelData->levelIndex;
         }
+
+        if(gotoLevelIndex == nextCheckpointLevelIndex_)
+            storeCheckpoint();
 
         return *result;
     }
 
   public:
-    Level &makeCheckpoint()
+    void storeCheckpoint()
     {
-        if(!checkpoints_.count(currentLevel()))
-            checkpoints_.insert(std::make_pair(currentLevel(), currentLevel_));
-        return checkpoints_.find(currentLevel())->second;
-    }
+        if(!checkpoints_.count(currentLevelIndex()))
+            checkpoints_.insert(std::make_pair(currentLevelIndex(), currentLevel_));
 
-    void checkpointChanged(unsigned int which)
-    {
-        typename CheckpointMap::iterator lastCheckpointIt =
-            checkpoints_.upper_bound(currentLevel());
-        if((--lastCheckpointIt)->first == which)
-        {
-            unsigned int oldLevel = currentLevel();
-            currentLevel_ = lastCheckpointIt->second;
-            changeLevelInternal(oldLevel, &currentLevel_);
-        }
+        unsigned int totalCellCount =
+            currentLevel_.segmentation.nodeCount() +
+            currentLevel_.segmentation.edgeCount() +
+            currentLevel_.segmentation.faceCount();
+        if(totalCellCount > 30)
+            nextCheckpointLevelIndex_ = currentLevelIndex() + totalCellCount / 3;
+        else
+            nextCheckpointLevelIndex_ = currentLevelIndex() + 10;
     }
 
     CellPyramid(const Segmentation &level0,
                 const CellStatistics &level0Stats = CellStatistics())
-    : currentLevel_(0, level0, level0Stats)
+    : currentLevel_(0, level0, level0Stats),
+      nextCheckpointLevelIndex_(0)
     {
-        makeCheckpoint();
+        storeCheckpoint();
     }
 
     FaceInfo &removeIsolatedNode(const DartTraverser & dart)
     {
         history_.push_back(Operation(RemoveIsolatedNode, dart));
-        return static_cast<FaceInfo &>(changeLevelInternal(levelCount()-1,
-                                                           &currentLevel_));
+        return static_cast<FaceInfo &>(changeLevelIndexInternal(levelCount()-1,
+                                                                &currentLevel_));
     }
 
     FaceInfo &mergeFaces(const DartTraverser & dart)
     {
         history_.push_back(Operation(MergeFaces, dart));
-        return static_cast<FaceInfo &>(changeLevelInternal(levelCount()-1,
-                                                           &currentLevel_));
+        return static_cast<FaceInfo &>(changeLevelIndexInternal(levelCount()-1,
+                                                                &currentLevel_));
     }
 
     FaceInfo &removeBridge(const DartTraverser & dart)
     {
         history_.push_back(Operation(RemoveBridge, dart));
-        return static_cast<FaceInfo &>(changeLevelInternal(levelCount()-1,
-                                                           &currentLevel_));
+        return static_cast<FaceInfo &>(changeLevelIndexInternal(levelCount()-1,
+                                                                &currentLevel_));
     }
 
     EdgeInfo &mergeEdges(const DartTraverser & dart)
     {
         history_.push_back(Operation(MergeEdges, dart));
-        return static_cast<EdgeInfo &>(changeLevelInternal(levelCount()-1,
-                                                           &currentLevel_));
+        return static_cast<EdgeInfo &>(changeLevelIndexInternal(levelCount()-1,
+                                                                &currentLevel_));
     }
 
     FaceInfo &removeEdge(const DartTraverser & dart)
     {
         history_.push_back(Operation(RemoveEdge, dart));
-        return static_cast<FaceInfo &>(changeLevelInternal(levelCount()-1,
-                                                           &currentLevel_));
+        return static_cast<FaceInfo &>(changeLevelIndexInternal(levelCount()-1,
+                                                                &currentLevel_));
     }
 
     FaceInfo &removeEdgeWithEnds(const DartTraverser & dart)
     {
         history_.push_back(Operation(RemoveEdgeWithEnds, dart));
-        return static_cast<FaceInfo &>(changeLevelInternal(levelCount()-1,
-                                                           &currentLevel_));
+        return static_cast<FaceInfo &>(changeLevelIndexInternal(levelCount()-1,
+                                                                &currentLevel_));
     }
 
-    const unsigned int currentLevel() const
+    const Level &currentLevel() const
     {
-        return currentLevel_.level;
+        return currentLevel_;
+    }
+
+    const unsigned int currentLevelIndex() const
+    {
+        return currentLevel_.levelIndex;
     }
 
     const Segmentation &currentSegmentation() const
@@ -296,28 +301,28 @@ class CellPyramid
         return currentLevel_.cellStatistics;
     }
 
-    const Level &gotoLevel(unsigned int level)
+    const Level &gotoLevel(unsigned int levelIndex)
     {
-        changeLevelInternal(level, &currentLevel_);
+        changeLevelIndexInternal(levelIndex, &currentLevel_);
         return currentLevel_;
     }
 
         /** Do a maximum of maxSteps operations to reach given level.
-         * Returns true if that was enough, that is (currentLevel() ==
-         * level)
+         * Returns true if that was enough, that is (currentLevelIndex() ==
+         * levelIndex)
          */
-    bool approachLevel(unsigned int level, unsigned int maxSteps = 20)
+    bool approachLevel(unsigned int levelIndex, unsigned int maxSteps = 20)
     {
         unsigned int step =
-            gotoLastCheckpointBefore(level, &currentLevel_) ? 1 : 0;
+            gotoLastCheckpointBefore(levelIndex, &currentLevel_) ? 1 : 0;
 
-        while((step++ < maxSteps) && (currentLevel_.level < level))
+        while((step++ < maxSteps) && (currentLevel_.levelIndex < levelIndex))
         {
-            performOperation(history_[currentLevel_.level], &currentLevel_);
-            ++currentLevel_.level;
+            performOperation(history_[currentLevel_.levelIndex], &currentLevel_);
+            ++currentLevel_.levelIndex;
         }
 
-        return (currentLevel_.level == level);
+        return (currentLevel_.levelIndex == levelIndex);
     }
 
     unsigned int levelCount() const
@@ -327,8 +332,8 @@ class CellPyramid
 
     void cutHead()
     {
-        history_.erase(history_.begin() + currentLevel_.level, history_.end());
-        checkpoints_.erase(checkpoints_.upper_bound(currentLevel_.level),
+        history_.erase(history_.begin() + currentLevel_.levelIndex, history_.end());
+        checkpoints_.erase(checkpoints_.upper_bound(currentLevel_.levelIndex),
                            checkpoints_.end());
     }
 };
