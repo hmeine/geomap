@@ -38,13 +38,15 @@ CellStatistics::CellStatistics(const Segmentation &initialSegmentation,
   // border to segDataBounds added below
   lastChanges_(segDataBounds)
 {
+	std::cerr << "CellStatistics():\n";
+
     segDataBounds.addBorder(
         (segmentationData->preparedOriginal_.width() -
          initialSegmentation.cellImage.width()) / 2,
         (segmentationData->preparedOriginal_.height() -
          initialSegmentation.cellImage.height()) / 2);
 
-    std::cerr << "initializing face statistics (max face label: "
+    std::cerr << "  initializing face statistics (max face label: "
               << initialSegmentation.maxFaceLabel() << ")\n";
 
     faceStatistics_.resize(initialSegmentation.maxFaceLabel() + 1);
@@ -57,13 +59,12 @@ CellStatistics::CellStatistics(const Segmentation &initialSegmentation,
                     faceStatistics_[faceIt->label]);
     }
 
-    std::cerr << "finding node centers.. (max node label: "
+    std::cerr << "  finding node centers.. (max node label: "
               << initialSegmentation.maxNodeLabel() << ")\n";
     nodeCenters_.resize(initialSegmentation.maxNodeLabel() + 1);
     Segmentation::ConstNodeIterator nodeIt = initialSegmentation.nodesBegin();
     for(; nodeIt.inRange(); ++nodeIt)
     {
-        //std::cerr << "finding center of node " << nodeIt->label << "..\n";
         vigra::cellimage::LabelScanIterator<
             vigra::cellimage::CellImage::traverser, vigra::Point2D>
             nodeScanner(
@@ -72,24 +73,20 @@ CellStatistics::CellStatistics(const Segmentation &initialSegmentation,
 
         for(; nodeScanner.inRange(); ++nodeScanner)
         {
-            //std::cerr << "  has pixel at " << *nodeScanner << std::endl;
             nodeCenters_[nodeIt->label][0] += nodeScanner->x;
             nodeCenters_[nodeIt->label][1] += nodeScanner->y;
         }
         nodeCenters_[nodeIt->label] /= nodeIt->size;
-        //std::cerr << "  center: " << nodeCenters_[nodeIt->label] << "..\n";
     }
 
 	if(!configurationDirections_.size())
 	{
-		std::cerr << "initializing configurationDirections\n";
+		std::cerr << "  initializing configurationDirections\n";
 		configurationDirections_.resize(256);
 		for(unsigned char i= 1; i<255; ++i)
 		{
 			vigra::EightNeighborOffsetCirculator circ;
 			unsigned char code = i;
-
-			//std::cerr << "  " << (int)i;
 
 			// combine bits at start and end of code to one block:
 			while((code&1) && (code&128))
@@ -108,7 +105,6 @@ CellStatistics::CellStatistics(const Segmentation &initialSegmentation,
 			// no second block of bits? no edge configuration -> skip
 			if(!code)
 			{
-				//std::cerr << " is vertex config: only one block of bits\n";
 				continue;
 			}
 
@@ -122,20 +118,16 @@ CellStatistics::CellStatistics(const Segmentation &initialSegmentation,
 			// third block of bits? no edge configuration -> skip
 			if(code)
 			{
-				//std::cerr << " is vertex config: > 2 blocks of bits\n";
 				continue;
 			}
 
 			configurationDirections_[i] =
 				Float2D(diff2.x - diff1.x, diff2.y - diff1.y);
 			configurationDirections_[i] /= configurationDirections_[i].magnitude();
-			/*std::cerr << " has direction "
-			  << configurationDirections_[i][0] << " / "
-			  << configurationDirections_[i][1] << "\n";*/
 		}
 	}
 
-    std::cerr << "initializing meanEdgeGradients\n";
+    std::cerr << "  initializing meanEdgeGradients\n";
 
     edgeStatistics_.resize(initialSegmentation.maxEdgeLabel() + 1);
 
@@ -154,7 +146,7 @@ CellStatistics::CellStatistics(const Segmentation &initialSegmentation,
         }
     }
 
-    std::cerr << "initializing tree of merged edges\n";
+    std::cerr << "  initializing tree of merged edges\n";
     mergedEdges_.resize(initialSegmentation.maxEdgeLabel() + 1);
     //std::iota(mergedEdges_.begin(), mergedEdges_.end(), 0);
     for(unsigned int i = 0; i < mergedEdges_.size(); ++i)
