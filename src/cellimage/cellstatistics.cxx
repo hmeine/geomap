@@ -66,8 +66,7 @@ CellStatistics::CellStatistics(const Segmentation &initialSegmentation,
     Segmentation::ConstNodeIterator nodeIt = initialSegmentation.nodesBegin();
     for(; nodeIt.inRange(); ++nodeIt)
     {
-        vigra::cellimage::LabelScanIterator<
-            vigra::cellimage::CellImage::traverser, vigra::Point2D>
+		Segmentation::ScanIterator<vigra::Point2D>::type
             nodeScanner(
                 initialSegmentation.nodeScanIterator(
                     nodeIt->label, vigra::Point2D(0, 0), false));
@@ -193,8 +192,9 @@ void nodeRethinning(vigra::cellimage::GeoMap &seg,
     vigra::cellimage::CellPixel
         nodePixel(vigra::cellimage::CellTypeVertex, nodeLabel);
 
-    for(GeoMap::CellScanIterator nodeScanner =
-            seg.nodeScanIterator(nodeLabel, seg.cells, false);
+	// a const_traverser would be enough, but seg.cells is non-const:
+    for(GeoMap::ScanIterator<vigra::cellimage::CellImage::traverser>::type
+			nodeScanner = seg.nodeScanIterator(nodeLabel, seg.cells, false);
         nodeScanner.inRange(); ++nodeScanner)
     {
         vigra::cellimage::CellImageEightCirculator
