@@ -88,7 +88,7 @@ void gradientMagnitude(triple<SIter, SIter, SAcc> src,
                        pair<DIter, DAcc> dest)
 {
     gradientMagnitude(src.first, src.second, src.third,
-                         dest.first, dest.second);
+                      dest.first, dest.second);
 }
 
 } // namespace vigra
