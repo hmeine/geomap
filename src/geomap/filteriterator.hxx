@@ -23,6 +23,7 @@
 #define VIGRA_FILTERITERATOR_HXX
 
 #include <iterator>
+#include <vigra/imageiterator.hxx>
 
 namespace vigra {
 
@@ -124,7 +125,7 @@ public:
 
     pointer operator->() const
     {
-        return iter_.operator->();
+        return &(operator*());
     }
 };
 
@@ -266,7 +267,7 @@ public:
         }
         return *this;
     }
-    
+
         /** Move to the next pixel fulfilling the predicate or to the
          * end position given to the constructor (post-increment).
          */
