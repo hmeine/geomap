@@ -234,15 +234,6 @@ public:
 
         GeoMap *segmentation_;
 
-            // prevent double stop at a line pixel from different source
-            // vertex pixels
-        bool badDiagonalConfig() const
-        {
-            return (neighborCirc_->type() == CellTypeLine &&
-                    (neighborCirc_[1].type() == CellTypeVertex ||
-                     neighborCirc_[-1].type() == CellTypeVertex));
-        }
-
     public:
         DartTraverser() : segmentation_(0L) {}
 
@@ -280,6 +271,7 @@ public:
                 if(neighborCirc_->type() == CellTypeVertex)
                 {
                     neighborCirc_.swapCenterNeighbor();
+                    ++neighborCirc_;
                 }
                 tryNextSigma();
                 if(neighborCirc_ == nend)
@@ -299,6 +291,7 @@ public:
                 if(neighborCirc_->type() == CellTypeVertex)
                 {
                     neighborCirc_.swapCenterNeighbor();
+                    --neighborCirc_;
                 }
                 tryPrevSigma();
                 if(neighborCirc_ == nend)
@@ -360,6 +353,7 @@ public:
                 if(neighborCirc_->type() == CellTypeVertex)
                 {
                     neighborCirc_.swapCenterNeighbor();
+                    ++neighborCirc_;
                 }
                 tryNextSigma();
             }
@@ -378,6 +372,7 @@ public:
                 if(neighborCirc_->type() == CellTypeVertex)
                 {
                     neighborCirc_.swapCenterNeighbor();
+                    --neighborCirc_;
                 }
                 tryPrevSigma();
             }
@@ -520,6 +515,15 @@ public:
 
             if(badDiagonalConfig())
                 --neighborCirc_;
+        }
+
+            // prevent double stop at a line pixel from different source
+            // vertex pixels
+        bool badDiagonalConfig() const
+        {
+            return (neighborCirc_->type() == CellTypeLine &&
+                    (neighborCirc_[1].type() == CellTypeVertex ||
+                     neighborCirc_[-1].type() == CellTypeVertex));
         }
     };
 
