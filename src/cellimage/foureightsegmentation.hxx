@@ -455,8 +455,12 @@ public:
         Rect2D bounds;
 
         CellInfo() : label(NumericTraits<CellPixel::LabelType>::max()) {}
+
         bool initialized() const
         { return label != NumericTraits<CellPixel::LabelType>::max(); }
+
+        void uninitialize()
+        { label = NumericTraits<CellPixel::LabelType>::max(); }
     };
 
     struct NodeInfo : public CellInfo
@@ -544,9 +548,6 @@ public:
         std::cerr << "FourEightSegmentation::initFaceList(maxFaceLabel= "
                   << maxFaceLabel << ")\n";
         initFaceList(contourImage, maxFaceLabel);
-
-            //std::cerr << "FourEightSegmentation::initBoundingBoxes()\n";
-            //initBoundingBoxes(maxNodeLabel, maxEdgeLabel, maxFaceLabel);
     }
 
     template<class SrcIter, class SrcAcc>
@@ -623,6 +624,7 @@ public:
         FaceInfo &face1= dart.leftFace();
         FaceInfo &face2= dart.rightFace();
 
+        // relabel cells in cellImage:
         for(CellScanIterator it= edgeScanIterator(edge.label,
                                                   cells + edge.bounds.upperLeft());
             it.inRange(); ++it)
@@ -631,7 +633,15 @@ public:
                                                   cells + face2.bounds.upperLeft());
             it.inRange(); ++it)
             *it= CellPixel(CellTypeRegion, face1.label);
-        // TODO: update bounding rects, contours, anchor
+        
+        // update bounds:
+        face1.bounds |= edge.bounds;
+        face1.bounds |= face2.bounds;
+
+        // TODO: update contours, anchor
+
+        edge.uninitialize();
+        face2.uninitialize();
     }
 
 private:
