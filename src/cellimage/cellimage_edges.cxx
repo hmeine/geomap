@@ -12,7 +12,7 @@ void defineEdges()
         .def("next", (FourEightSegmentation::EdgeInfo &(*)(FourEightSegmentation::EdgeIterator &))&nextIterPos,
              // this is not really true, since the true owner would be
              // the FourEightSegmentation object (however, it's
-             // lifetime is expected to be long enough:
+             // lifetime is expected to be long enough):
              return_internal_reference<>());
 
     class_<EdgeListProxy>("EdgeList", no_init)
