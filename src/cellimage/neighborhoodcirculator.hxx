@@ -12,8 +12,8 @@ public:
     typedef typename ImageIterator::value_type value_type;
 
     Neighborhood8Circulator(ImageIterator const & it,
-         EightNeighborCoding::Directions d = EightNeighborCoding::East)
-    : ImageIterator(it), neighbor(d)
+                            EightNeighborCoding::Directions d = EightNeighborCoding::East)
+        : ImageIterator(it), neighbor(d)
     {
         operator+=(neighbor.diff());
     }
@@ -72,8 +72,8 @@ public:
     typedef typename ImageIterator::value_type value_type;
 
     Neighborhood4Circulator(ImageIterator const & it,
-         EightNeighborCoding::Directions d = EightNeighborCoding::East)
-    : ImageIterator(it), neighbor(d)
+                            EightNeighborCoding::Directions d = EightNeighborCoding::East)
+        : ImageIterator(it), neighbor(d)
     {
         operator+=(neighbor.diff());
     }
@@ -114,11 +114,6 @@ public:
     bool operator!=(Neighborhood4Circulator const & rhs) const
     {
         return neighbor != rhs.neighbor;
-    }
-
-    value_type & operator*()
-    {
-        return ImageIterator::operator*();
     }
 
     value_type operator*() const

@@ -27,7 +27,7 @@ class NeighborhoodCirculator
 protected:
     FourEightSegmentation *segmentation_;
     Diff2D center_;
-    EightNeighborCoding neighbor_;
+    EightNeighborOffsetCirculator neighbor_;
 
 public:
     // FIXME: where is this default constructor needed?
@@ -38,7 +38,7 @@ public:
 
     NeighborhoodCirculator(FourEightSegmentation * segmentation,
                            Diff2D const & center,
-                           EightNeighborCoding::Directions dir = EightNeighborCoding::East)
+                           EightNeighborCode::Direction dir = EightNeighborCode::East)
         : segmentation_(segmentation), center_(center), neighbor_(dir)
     {}
 
@@ -142,9 +142,9 @@ public:
         return center_ + diff();
     }
 
-    EightNeighborCoding::Directions directionCode() const
+    EightNeighborCode::Direction directionCode() const
     {
-        return *neighbor_;
+        return neighbor_.direction();
     }
 
     bool isDiagonal() const
@@ -302,7 +302,7 @@ public:
     RayCirculator() {}
 
     RayCirculator(FourEightSegmentation * seg, Diff2D const & loc,
-                  EightNeighborCoding::Directions dir = EightNeighborCoding::East)
+                  EightNeighborCode::Direction dir = EightNeighborCode::East)
         : neighborCirc_(seg, loc, dir)
     {
         init();
@@ -368,7 +368,7 @@ public:
 
         EdgelIterator line(neighborCirc_);
         line.jumpToOpposite();
-        
+
         neighborCirc_ = line;
 
         return *this;
@@ -577,7 +577,7 @@ public:
     typedef FaceList::iterator FaceIterator;
 
     typedef std::vector<ContourCirculator>::iterator BoundaryComponentsIterator;
-    
+
     // -------------------------------------------------------------------
     //                  FourEightSegmentation::NodeAccessor
     // -------------------------------------------------------------------
@@ -808,7 +808,7 @@ public:
     };
 
     // -------------------------------------------------------------------
-    //               FourEightSegmentation::FaceAtLeftAccessor 
+    //               FourEightSegmentation::FaceAtLeftAccessor
     // -------------------------------------------------------------------
     struct FaceAtLeftAccessor
     {
@@ -1007,12 +1007,12 @@ inline unsigned char NeighborhoodCirculator::neighborCell() const
 
 inline unsigned char NeighborhoodCirculator::forwardNeighborCell() const
 {
-    return segmentation_->cells[center() + neighbor_.nextDiff()];
+    return segmentation_->cells[*(neighbor_ + 1)];
 }
 
 inline unsigned char NeighborhoodCirculator::backwardNeighborCell() const
 {
-    return segmentation_->cells[center() + neighbor_.prevDiff()];
+    return segmentation_->cells[*(neighbor_ - 1)];
 }
 
 inline int NeighborhoodCirculator::label() const
@@ -1027,12 +1027,12 @@ inline int NeighborhoodCirculator::neighborLabel() const
 
 inline int NeighborhoodCirculator::forwardNeighborLabel() const
 {
-    return segmentation_->labels[center() + neighbor_.nextDiff()];
+    return segmentation_->labels[*(neighbor_ + 1)];
 }
 
 inline int NeighborhoodCirculator::backwardNeighborLabel() const
 {
-    return segmentation_->labels[center() + neighbor_.prevDiff()];
+    return segmentation_->labels[*(neighbor_ - 1)];
 }
 
 // -------------------------------------------------------------------
@@ -1100,13 +1100,13 @@ void FourEightSegmentation::initCellImage(BImage & contourImage)
             }
             else
             {
-                EightNeighborCoding neighbors(EightNeighborCoding::SouthEast);
-                EightNeighborCoding end = neighbors;
+                EightNeighborOffsetCirculator neighbors(EightNeighborCode::SouthEast);
+                EightNeighborOffsetCirculator end = neighbors;
 
                 int conf = 0;
                 do
                 {
-                    conf = (conf << 1) | rx[neighbors.diff()];
+                    conf = (conf << 1) | rx[*neighbors];
                 }
                 while(--neighbors != end);
 
@@ -1192,7 +1192,7 @@ int FourEightSegmentation::label1Cells(int number_of_nodes)
 
             nodeProcessed[labels(x,y)] = 1;
 
-            RayCirculator rayAtStart(this, Diff2D(x,y), EightNeighborCoding::West);
+            RayCirculator rayAtStart(this, Diff2D(x,y), EightNeighborCode::West);
             RayCirculator rayEnd = rayAtStart;
 
             do
@@ -1291,7 +1291,7 @@ void FourEightSegmentation::initNodeList(int number_of_nodes)
                 nodeList[index].x = x;
                 nodeList[index].y = y;
                 nodeList[index].size = 1;
-                nodeList[index].ray = RayCirculator(this, Diff2D(x,y), EightNeighborCoding::West);
+                nodeList[index].ray = RayCirculator(this, Diff2D(x,y), EightNeighborCode::West);
 
                 // calculate degree of the node
                 RayCirculator r = nodeList[index].ray;
@@ -1305,7 +1305,7 @@ void FourEightSegmentation::initNodeList(int number_of_nodes)
 
                 // calculate area from following the outer contour of the node
                 NeighborhoodCirculator
-                    neighbor(this, Diff2D(x,y), EightNeighborCoding::West);
+                    neighbor(this, Diff2D(x,y), EightNeighborCode::West);
                 CrackCirculator crack(neighbor);
                 CrackCirculator crackend(crack);
 
@@ -1397,7 +1397,7 @@ void FourEightSegmentation::initFaceList(BImage & contourImage, int number_of_fa
     // process outer face
     faceList[0].label= 0;
     faceList[0].anchor = Diff2D(-2, -2);
-    RayCirculator ray(this, Diff2D(-1, -1), EightNeighborCoding::West);
+    RayCirculator ray(this, Diff2D(-1, -1), EightNeighborCode::West);
     --ray;
     faceList[0].contours.push_back(ContourCirculator(ray));
     contourProcessed[contourLabel(-1, -1)] = true;
@@ -1424,7 +1424,7 @@ void FourEightSegmentation::initFaceList(BImage & contourImage, int number_of_fa
                 if(cells(x-1,y) == CellConfigurationsVertex)
                 {
                     // this is the node
-                    RayCirculator ray(this, Diff2D(x-1, y), EightNeighborCoding::East);
+                    RayCirculator ray(this, Diff2D(x-1, y), EightNeighborCode::East);
                     --ray;
 
                     vigra_invariant(leftface.label(ray) == index, "FourEightSegmentation::initFaceList()");
@@ -1451,7 +1451,7 @@ void FourEightSegmentation::initFaceList(BImage & contourImage, int number_of_fa
             {
                 // look for inner contours
                 NeighborhoodCirculator
-                    neighbor(this, Diff2D(x,y), EightNeighborCoding::East);
+                    neighbor(this, Diff2D(x,y), EightNeighborCode::East);
                 NeighborhoodCirculator
                     nend = neighbor;
 

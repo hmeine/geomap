@@ -5,6 +5,9 @@ CXXFLAGS := -g -I. -I../../test/include
 watershed: watershed.o
 	$(CXX) -o watershed watershed.o `vigra-config --impex-lib`
 
+testneighborhood: testneighborhood.o
+	$(CXX) -o testneighborhood testneighborhood.o
+
 test: test.o
 	$(CXX) -o test test.o `vigra-config --impex-lib`
 	./test
@@ -14,5 +17,5 @@ clean::
 	rm -rf Debug ii_files
 
 ifneq "$(MAKECMDGOALS)" "clean"
-include $(patsubst %.o, %.d, watershed.o test.o)
+include $(patsubst %.o, %.d, watershed.o test.o testneighborhood.o)
 endif

@@ -1,7 +1,7 @@
 #ifndef VIGRA_FINDSADDLES_HXX
 #define VIGRA_FINDSADDLES_HXX
 
-#include "neighborhoodcirculator.hxx"
+#include "pixelneighborhood.hxx"
 
 namespace vigra {
 
@@ -29,16 +29,16 @@ void findSaddles(SIter sul, SIter slr, SAcc src,
         {
             TmpType grads[8];
 
-            Neighborhood8Circulator<SIter> neigh(scur);
+            NeighborhoodCirculator<SIter, EightNeighborOffsetCirculator>
+                neigh(scur);
 
-            int i = 0;
-            for(i=0; i<8; ++i, ++neigh)
+            for(int i=0; i<8; ++i, ++neigh)
             {
                 grads[i] = *neigh - *scur;
             }
 
             int up = 0;
-            for(i=0; i<8; ++i)
+            for(int i=0; i<8; ++i)
             {
                 if(zero < grads[i]*grads[(i+7)%8]) continue;
 
