@@ -474,28 +474,60 @@ inline void CellStatistics::postMergeEdges(Segmentation::EdgeInfo &edge)
 
                 do
                 {
-                    std::cerr << ".";
+                    std::cerr << "." << (cellImageCirc.base() - edge.start.segmentation()->cells);
                     if(*cellImageCirc == *cellImageCirc.center())
                     {
-                        std::cerr << "1st cp, ";
-                        if(cellImageCirc[2] == *cellImageCirc.center())
+                        if(((cellImageCirc[2] == *cellImageCirc.center()) ||
+                            (cellImageCirc[3] == *cellImageCirc.center()))
+                           && (gradCirc[1] > gradientValue))
                         {
-                            std::cerr << "2nd cp, ";
-                            if(gradCirc[1] > gradientValue)
-                            {
-                                std::cerr << "better:\n";
+                            std::cerr << "better:\n";
 
-                                ++cellImageCirc;
+                            ++cellImageCirc;
                                 
-                                vigra::cellimage::CellImageEightCirculator
-                                    newNeighborCirc(cellImageCirc);
-                                newNeighborCirc.moveCenterToNeighbor();
-                                if((*newNeighborCirc == *cellImageCirc) &&
-                                   (newNeighborCirc[1] == *cellImageCirc) &&
-                                   (newNeighborCirc[-1] == *cellImageCirc))
-                                {
+                            vigra::cellimage::CellImageEightCirculator
+                                newNeighborCirc(cellImageCirc);
+                            newNeighborCirc.moveCenterToNeighbor();
+                            if((*newNeighborCirc == *cellImageCirc) &&
+                               (newNeighborCirc[1] == *cellImageCirc) &&
+                               (newNeighborCirc[-1] == *cellImageCirc))
+                            {
                                 vigra::cellimage::CellPixel
-                                    regionPixel(cellImageCirc[-3]);
+                                    regionPixel(cellImageCirc[-4]);
+                                reassociate(*edge.start.segmentation(),
+                                            cellImageCirc.base(),
+                                            *cellImageCirc.center());
+                                reassociate(*edge.start.segmentation(),
+                                            cellImageCirc.center(),
+                                            regionPixel);
+
+                                --cellImageCirc;
+                                nodePoints_.push_back(*it + cellImageCirc.diff());
+                                cellImageCirc += 2;
+                                if(*newNeighborCirc == *cellImageCirc)
+                                    ++cellImageCirc;
+                                nodePoints_.push_back(*it + cellImageCirc.diff());
+                                break;
+                            } else {
+                                // this is our loop variable! (and its inc'ed by 2)
+                                --cellImageCirc;
+                            }
+                        } else if((cellImageCirc[-3] == *cellImageCirc.center())
+                                  && (gradCirc[-11] > gradientValue))
+                        {
+                            std::cerr << "better down:\n";
+
+                            --cellImageCirc;
+                                
+                            vigra::cellimage::CellImageEightCirculator
+                                newNeighborCirc(cellImageCirc);
+                            newNeighborCirc.moveCenterToNeighbor();
+                            if((*newNeighborCirc == *cellImageCirc) &&
+                               (newNeighborCirc[1] == *cellImageCirc) &&
+                               (newNeighborCirc[-1] == *cellImageCirc))
+                            {
+                                vigra::cellimage::CellPixel
+                                    regionPixel(cellImageCirc[-4]);
                                 reassociate(*edge.start.segmentation(),
                                             cellImageCirc.base(),
                                             *cellImageCirc.center());
@@ -505,10 +537,12 @@ inline void CellStatistics::postMergeEdges(Segmentation::EdgeInfo &edge)
 
                                 ++cellImageCirc;
                                 nodePoints_.push_back(*it + cellImageCirc.diff());
-                                cellImageCirc -= 2;
+                                cellImageCirc -= 3;
                                 nodePoints_.push_back(*it + cellImageCirc.diff());
                                 break;
-                                }
+                            } else {
+                                // this is our loop variable! (and its inc'ed by 2)
+                                ++cellImageCirc;
                             }
                         }
                     }
