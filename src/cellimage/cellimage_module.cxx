@@ -85,6 +85,7 @@ BOOST_PYTHON_MODULE_INIT(cellimage)
 
     definePyramid();
 
+    def("validateDart", &validateDart);
     def("debugDart", &debugDart);
 
     def("createFourEightSegmentation", createFourEightSegmentation,

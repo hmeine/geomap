@@ -1,6 +1,6 @@
 #include "cellimage_module.hxx"
 #include "cellstatistics.hxx"
-#define private public
+#define protected public
 #include "cellpyramid.hxx"
 
 using namespace vigra;
@@ -43,10 +43,15 @@ void definePyramid()
 			 return_internal_reference<>())
 		.def("removeEdgeWithEnds", &FourEightPyramid::removeEdgeWithEnds,
 			 return_internal_reference<>())
-		.def("currentLevel", (FourEightPyramid::Level &(FourEightPyramid::*)(void))
-			 &FourEightPyramid::currentLevel, return_internal_reference<>())
-		.def("cutHead", &FourEightPyramid::cutHead)
+		.def("topLevel", (FourEightPyramid::Level &(FourEightPyramid::*)(void))
+			 &FourEightPyramid::topLevel, return_internal_reference<>())
+		.def("__get__", (FourEightPyramid::Level *(FourEightPyramid::*)(unsigned int))
+			 &FourEightPyramid::getLevel, return_value_policy<manage_new_object>())
 		.def("__len__", &FourEightPyramid::levelCount)
+		.def("cutAbove", (void(FourEightPyramid::*)(const FourEightPyramid::Level &))
+			 &FourEightPyramid::cutAbove)
+		.def("cutAbove", (void(FourEightPyramid::*)(unsigned int))
+			 &FourEightPyramid::cutAbove)
 		.def_readonly("history", &FourEightPyramid::history_));
 
 	class_<FourEightPyramid::Level>("Level", no_init)
@@ -54,7 +59,10 @@ void definePyramid()
 		.def("segmentation", &FourEightPyramid::Level::segmentation,
 			 return_internal_reference<>())
 		.def("cellStatistics", &FourEightPyramid::Level::cellStatistics,
-			 return_internal_reference<>());
+			 return_internal_reference<>())
+		.def("approachLevel", &FourEightPyramid::Level::approachLevel)
+		.def("gotoLevel", &FourEightPyramid::Level::gotoLevel)
+		.def("cutHead", &FourEightPyramid::Level::cutHead);
 
 	enum_<FourEightPyramid::OperationType>("OperationType")
 		.value("RemoveIsolatedNode", FourEightPyramid::RemoveIsolatedNode)
