@@ -8,7 +8,8 @@ TARGET = hourglassmodule.la
 MODULE = $(patsubst %.la,%.so,$(TARGET))
 
 OBJS = \
-    hourglassmodule.lo
+    hourglassmodule.lo \
+    ../../interactive2/build.$(PLATFORM)/src/vigracmodule/.libs/pythonimage.o
 
 IMPEX_LIB = `vigra-config --impex_lib`
 
