@@ -78,8 +78,6 @@ BOOST_PYTHON_MODULE_INIT(cellimage)
 
     //scope fourEightSegmentation =
     class_<FourEightSegmentation>("FourEightSegmentation", no_init)
-        .def("width", &FourEightSegmentation::width)
-        .def("height", &FourEightSegmentation::height)
         .def("nodeCount", &FourEightSegmentation::nodeCount)
         .def("maxNodeLabel", &FourEightSegmentation::maxNodeLabel)
         .def("nodes", &NodeListProxy::create)
