@@ -6,8 +6,9 @@
 #include "vigra/stdimagefunctions.hxx"
 #include "vigra/labelimage.hxx"
 //#include "circulatoradaptor.hxx"
-#include "configurations.h"
+#include "celltypes.hxx"
 #include "pixelneighborhood.hxx"
+#include "contourcirculator.hxx"
 
 namespace vigra {
 
@@ -15,22 +16,28 @@ namespace FourEightSegmentation {
 
 class FourEightSegmentation;
 
+// ??? unsigned int
 struct CellPixel
 {
-    CellConfiguration type_;
+    CellType type_;
     int label_;
 
     CellPixel() {}
-    CellPixel(CellConfiguration type, int label = 0)
+    CellPixel(CellType type, int label = 0)
         : type_(type), label_(label)
     {}
 
-    inline CellConfiguration type() const { return type_; }
-    inline void setType(CellConfiguration type) { type_ = type; }
+    inline CellType type() const { return type_; }
+    inline void setType(CellType type) { type_ = type; }
 
     inline int label() const { return label_; }
     inline void setLabel(int label) { label_= label; }
-    inline void setLabel(int label, CellConfiguration) { label_= label; }
+    inline void setLabel(int label, CellType) { label_= label; }
+    
+    inline int id() const { return label_ | (type_ << 29); }
+    
+    bool operator==(CellPixel const & rhs) const
+        { return label_ == rhs.label_ && type_ == rhs.type_; }
 };
 
 typedef BasicImage<CellPixel> CellImage;
@@ -54,7 +61,7 @@ struct CellImageLabelAccessor
     }
 };
 
-template<CellConfiguration type>
+template<CellType type>
 struct CellImageLabelWriter
 {
     typedef int value_type;
@@ -67,79 +74,13 @@ struct CellImageLabelWriter
 };
 
 // -------------------------------------------------------------------
-//                            CrackCirculator
-// -------------------------------------------------------------------
-class CrackCirculator
-{
-protected:
-    CellImageEightCirculator neighborCirc_;
-    int typeLabel_;
-    Diff2D pos_;
-
-public:
-    CrackCirculator(CellImageEightCirculator const & n)
-        : neighborCirc_(n),
-          typeLabel_(n.center()->type()),
-          pos_(0, 0)
-    {
-        neighborCirc_.turnLeft();
-    }
-
-    CrackCirculator & operator++()
-    {
-        pos_ += neighborCirc_.diff();
-
-        neighborCirc_--;
-
-        if(neighborCirc_->type() == typeLabel_)
-        {
-            neighborCirc_.moveCenterToNeighbor(); // TODO: simplify moveCenterToNeighbor()s
-            --neighborCirc_;
-        }
-        else
-        {
-            neighborCirc_.moveCenterToNeighbor(); // jump out
-            neighborCirc_ += 3;
-            if(neighborCirc_->type() == typeLabel_)
-            {
-                neighborCirc_.moveCenterToNeighbor();
-                neighborCirc_.turnRight();
-            }
-            else
-            {
-                neighborCirc_.moveCenterToNeighbor();
-                neighborCirc_.turnLeft();
-                neighborCirc_.moveCenterToNeighbor();
-                neighborCirc_.turnRight();
-            }
-        }
-
-        return *this;
-    }
-
-    bool operator==(CrackCirculator const & o) const
-    {
-        return neighborCirc_ == o.neighborCirc_;
-    }
-
-    bool operator!=(CrackCirculator const & o) const
-    {
-        return neighborCirc_ != o.neighborCirc_;
-    }
-
-    Diff2D const & diff() const { return neighborCirc_.diff(); }
-
-    Diff2D pos() const { return pos_; }
-};
-
-// -------------------------------------------------------------------
 //                             EdgelIterator
 // -------------------------------------------------------------------
 /**
  * An EdgelIterator starts walking in the direction of the Circulator
- * given on construction and walks along CellConfigurationLine type'ed
+ * given on construction and walks along CellTypeLine type'ed
  * pixels. isEnd() will become true if the iterator steps on a
- * CellConfigurationVertex pixel or tries to pass one diagonally.
+ * CellTypeVertex pixel or tries to pass one diagonally.
  *
  * It is used by the RayCirculator for jumpToOpposite() and in
  * labelLine().
@@ -171,12 +112,12 @@ public:
 
         while(1)
         {
-            if(neighborCirc_->type() == CellConfigurationVertex)
+            if(neighborCirc_->type() == CellTypeVertex)
             {
                 isEnd_ = true;
                 break;
             }
-            if(neighborCirc_->type() == CellConfigurationLine)
+            if(neighborCirc_->type() == CellTypeLine)
             {
                 break;
             }
@@ -184,7 +125,7 @@ public:
         }
 
         if(neighborCirc_.isDiagonal() &&
-           neighborCirc_[1].type() == CellConfigurationVertex)
+           neighborCirc_[1].type() == CellTypeVertex)
         {
             ++neighborCirc_;
             isEnd_ = true;
@@ -226,17 +167,17 @@ public:
         : neighborCirc_(circ),
           segmentation_(segmentation)
     {
-        vigra_precondition(neighborCirc_.center()->type() == CellConfigurationVertex,
+        vigra_precondition(neighborCirc_.center()->type() == CellTypeVertex,
         "FourEightSegmentation::RayCirculator(): center is not a node");
 
-        vigra_precondition(neighborCirc_->type() != CellConfigurationVertex,
+        vigra_precondition(neighborCirc_->type() != CellTypeVertex,
         "FourEightSegmentation::RayCirculator(): neighbor is a node");
 
         CellImageEightCirculator n = neighborCirc_;
         isSingular_ = true;
         do
         {
-            if(n->type() != CellConfigurationRegion)
+            if(n->type() != CellTypeRegion)
             {
                 isSingular_ = false;
                 break;
@@ -244,7 +185,7 @@ public:
         }
         while(++n != neighborCirc_);
 
-        if(neighborCirc_->type() != CellConfigurationLine)
+        if(neighborCirc_->type() != CellTypeLine)
             operator++();
     }
 
@@ -254,9 +195,9 @@ public:
 
         tryNext();
 
-        while(neighborCirc_->type() != CellConfigurationLine)
+        while(neighborCirc_->type() != CellTypeLine)
         {
-            if(neighborCirc_->type() == CellConfigurationVertex)
+            if(neighborCirc_->type() == CellTypeVertex)
             {
                 neighborCirc_.swapCenterNeighbor();
             }
@@ -278,9 +219,9 @@ public:
 
         tryPrev();
 
-        while(neighborCirc_->type() != CellConfigurationLine)
+        while(neighborCirc_->type() != CellTypeLine)
         {
-            if(neighborCirc_->type() == CellConfigurationVertex)
+            if(neighborCirc_->type() == CellTypeVertex)
             {
                 neighborCirc_.swapCenterNeighbor();
             }
@@ -359,9 +300,9 @@ private:
     // vertex pixels
     bool badDiagonalConfig()
     {
-        return (neighborCirc_->type() == CellConfigurationLine &&
-                (neighborCirc_[1].type() == CellConfigurationVertex ||
-                 neighborCirc_[-1].type() == CellConfigurationVertex));
+        return (neighborCirc_->type() == CellTypeLine &&
+                (neighborCirc_[1].type() == CellTypeVertex ||
+                 neighborCirc_[-1].type() == CellTypeVertex));
     }
 };
 
@@ -807,7 +748,7 @@ public:
         int totalheight = height_ + 4;
 
         cellImage.resize(totalwidth, totalheight);
-        cellImage = CellPixel(CellConfigurationRegion, 0);
+        cellImage = CellPixel(CellTypeRegion, 0);
 
         cells = cellImage.upperLeft() + Diff2D(2,2);
 
@@ -952,7 +893,7 @@ void FourEightSegmentation::initCellImage(BImage & contourImage)
         {
             if(*rx == 0)
             {
-                cells(x,y).setType(CellConfigurationRegion);
+                cells(x,y).setType(CellTypeRegion);
             }
             else
             {
@@ -968,7 +909,7 @@ void FourEightSegmentation::initCellImage(BImage & contourImage)
                 }
                 while(--neighbors != end);
 
-                if(cellConfigurations[conf] == CellConfigurationError)
+                if(cellConfigurations[conf] == CellTypeError)
                 {
                     char message[200];
                     sprintf(message, "FourEightSegmentation::init(): "
@@ -1000,7 +941,7 @@ int FourEightSegmentation::label0Cells()
         CellImage::Iterator cell = cells + Diff2D(-2, y);
         for(int x=-2; x<width_+2; ++x, ++cell.x)
         {
-            if(cell->type() == CellConfigurationVertex)
+            if(cell->type() == CellTypeVertex)
             {
                 std::cout << "node found at " << x << ", " << y << " " << std::endl;
 
@@ -1012,7 +953,7 @@ int FourEightSegmentation::label0Cells()
 
                 do
                 {
-                    if(n->type() == CellConfigurationLine && n[1].type() == CellConfigurationLine)
+                    if(n->type() == CellTypeLine && n[1].type() == CellTypeLine)
                     {
                         char msg[200];
                         sprintf(msg, "initFourEightSegmentation(): "
@@ -1031,7 +972,7 @@ int FourEightSegmentation::label0Cells()
     }
 
     return labelImageWithBackground(srcImageRange(nodeImage),
-                                    destImage(cellImage, CellImageLabelWriter<CellConfigurationVertex>()), true, 0);
+                                    destImage(cellImage, CellImageLabelWriter<CellTypeVertex>()), true, 0);
 }
 
 // -------------------------------------------------------------------
@@ -1049,7 +990,7 @@ int FourEightSegmentation::label1Cells(int nodeCount)
         CellImage::Iterator cell = cells + Diff2D(-1, y);
         for(int x=-1; x<=width_; ++x, ++cell.x)
         {
-            if(cell->type() != CellConfigurationVertex)
+            if(cell->type() != CellTypeVertex)
                 continue;
             if(nodeProcessed[cell->label()])
                 continue;
@@ -1084,7 +1025,7 @@ int FourEightSegmentation::label2Cells(BImage & contourImage)
 {
     std::cerr << "FourEightSegmentation::label2Cells()\n";
     return labelImageWithBackground(srcImageRange(contourImage),
-                                    destImage(cellImage, CellImageLabelWriter<CellConfigurationRegion>()),
+                                    destImage(cellImage, CellImageLabelWriter<CellTypeRegion>()),
                                     false, 1);
 }
 
@@ -1107,14 +1048,14 @@ void FourEightSegmentation::labelCircles(int & nodeCount, int & edgeCount)
             // found a circle
 
             // mark first point as node
-            (*cell) = CellPixel(CellConfigurationVertex, ++nodeCount);
+            (*cell) = CellPixel(CellTypeVertex, ++nodeCount);
 
             CellImageEightCirculator rayAtStart(cell);
             CellImageEightCirculator rayEnd = rayAtStart;
 
             do
             {
-                if(rayAtStart->type() != CellConfigurationLine)
+                if(rayAtStart->type() != CellTypeLine)
                     continue;
                 if(rayAtStart->label() != 0)
                     continue;
@@ -1137,7 +1078,7 @@ void FourEightSegmentation::labelLine(CellImageEightCirculator rayAtStart,
     // follow the line and relabel it
     for(;!line.isEnd(); ++line)
     {
-        line.location()->setLabel(newLabel, CellConfigurationLine);
+        line.location()->setLabel(newLabel, CellTypeLine);
     }
 }
 
@@ -1155,7 +1096,7 @@ void FourEightSegmentation::initNodeList(int nodeCount)
         CellImage::Iterator cell = cells + Diff2D(-1, y);
         for(x=-1; x<=width_; ++x, ++cell.x)
         {
-            if(cell->type() != CellConfigurationVertex)
+            if(cell->type() != CellTypeVertex)
                 continue;
 
             int index = cell->label();
@@ -1186,11 +1127,8 @@ void FourEightSegmentation::initNodeList(int nodeCount)
                 while(++r != rend);
 
                 // calculate area from following the outer contour of the node
-                CellImageEightCirculator
-                    neighbor(cell, EightNeighborCode::West);
-
-                CrackCirculator crack(neighbor);
-                CrackCirculator crackend(crack);
+                CrackContourCirculator<CellImage::traverser> crack(cell);
+                CrackContourCirculator<CellImage::traverser> crackend(crack);
                 do
                 {
                     std::cerr << "crack.diff(): (" << crack.diff().x << ", " << crack.diff().y << ") "
@@ -1300,7 +1238,7 @@ void FourEightSegmentation::initFaceList(BImage & contourImage, int number_of_fa
     {
         for(x=0; x<width_; ++x)
         {
-            if(cells(x,y).type() != CellConfigurationRegion)
+            if(cells(x,y).type() != CellTypeRegion)
                 continue;
 
             int index = cells(x,y).label();
@@ -1311,7 +1249,7 @@ void FourEightSegmentation::initFaceList(BImage & contourImage, int number_of_fa
                 faceList[index].anchor = Diff2D(x,y);
 
                 // find incident node
-                if(cells(x-1,y).type() == CellConfigurationVertex)
+                if(cells(x-1,y).type() == CellTypeVertex)
                 {
                     // this is the node
                     RayCirculator ray(this, CellImageEightCirculator(cells + Diff2D(x-1, y)));
@@ -1353,7 +1291,7 @@ void FourEightSegmentation::initFaceList(BImage & contourImage, int number_of_fa
                     contourProcessed[bindex] = true;
 
                     // find incident node
-                    if(neighbor->type() == CellConfigurationVertex)
+                    if(neighbor->type() == CellTypeVertex)
                     {
                         // this is the node
                         CellImageEightCirculator n = neighbor;
