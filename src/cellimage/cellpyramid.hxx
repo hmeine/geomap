@@ -46,30 +46,21 @@ class CellPyramid
         : type(opType), param(paramDart.serialize())
         {}
 
-            // FIXME: this should maybe not be the default constructor?
+            // FIXME: maybe this should not be the default constructor?
         Operation()
         : type(Composite), opList(new std::vector<Operation>)
         {}
 
-            // deep copy, expects *this to be uninitialized
-        void assign(const Operation &other)
-        {
-            if((type = other.type) == Composite)
-                opList = new History(other.opList->begin(), other.opList->end());
-            else
-                param = other.param;
-        }
-
         Operation(const Operation &other)
         {
-            assign(const_cast<Operation &>(other));
+            assign(other);
         }
 
         Operation &operator =(const Operation &other)
         {
             if(type == Composite)
                 delete opList;
-            assign(const_cast<Operation &>(other));
+            assign(other);
             return *this;
         }
 
@@ -77,6 +68,16 @@ class CellPyramid
         {
             if(type == Composite)
                 delete opList;
+        }
+
+      private:
+            // deep copy, expects *this to be uninitialized
+        void assign(const Operation &other)
+        {
+            if((type = other.type) == Composite)
+                opList = new History(other.opList->begin(), other.opList->end());
+            else
+                param = other.param;
         }
     }; // struct Operation
 
@@ -316,7 +317,7 @@ class CellPyramid
                 throw;
             }
         }
-        if(topLevel_.subIndex_ >= nextCheckpointLevelIndex_)
+        if(!composing_ && (topLevel_.subIndex_ >= nextCheckpointLevelIndex_))
             storeCheckpoint(topLevel_);
         return *result;
     }
