@@ -15,7 +15,7 @@ test: test.o
 	./test
 
 clean::
-	rm -f *.o test core res.xv *.plg *ilk
+	rm -f *.o watershed testneighborhood test core res.xv *.plg *ilk
 	rm -rf Debug ii_files
 
 ifneq "$(MAKECMDGOALS)" "clean"
