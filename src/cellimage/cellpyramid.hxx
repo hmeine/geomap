@@ -8,6 +8,7 @@
  * - performOperation() does not increase index_ (because I liked to
  *   return...; directly for efficiency, but cannot ++index_ before
  *   that because of exception safety) :-(
+ * - cutHead() calls storeCheckpoint to restore nextCheckpointLevelIndex_
  */
 
 namespace vigra {
@@ -237,7 +238,7 @@ class CellPyramid
             result = &topLevel_.performOperation(history_.back());
             ++topLevel_.index_;
             if(topLevel_.index() == nextCheckpointLevelIndex_)
-                storeCheckpoint();
+                storeCheckpoint(topLevel_);
         }
         catch(...)
         {
@@ -247,22 +248,32 @@ class CellPyramid
         return *result;
     }
 
-  public:
-    void storeCheckpoint()
+        // called after adjusting topLevel_ to remove levels above
+    void cutHead()
     {
-        if(!checkpoints_.count(topLevel().index()))
-            checkpoints_.insert(std::make_pair(topLevel().index(), topLevel_));
+        history_.erase(history_.begin() + topLevel_.index(), history_.end());
+        checkpoints_.erase(checkpoints_.upper_bound(topLevel_.index()),
+                           checkpoints_.end());
+        typename CheckpointMap::iterator lastCheckpointIt = checkpoints_.end();
+        storeCheckpoint((--lastCheckpointIt)->second);
+    }
+
+  public:
+    void storeCheckpoint(const Level &level)
+    {
+        if(!checkpoints_.count(level.index()))
+            checkpoints_.insert(std::make_pair(topLevel().index(), level));
 
         unsigned int totalCellCount =
-            topLevel_.segmentation().nodeCount() +
-            topLevel_.segmentation().edgeCount() +
-            topLevel_.segmentation().faceCount();
+            level.segmentation().nodeCount() +
+            level.segmentation().edgeCount() +
+            level.segmentation().faceCount();
         if(totalCellCount > 30)
-            nextCheckpointLevelIndex_ = topLevel().index() + totalCellCount / 4;
+            nextCheckpointLevelIndex_ = level.index() + totalCellCount / 4;
         else
-            nextCheckpointLevelIndex_ = topLevel().index() + 10;
+            nextCheckpointLevelIndex_ = level.index() + 10;
 
-        std::cerr << "--- stored checkpoint at level #" << topLevel().index()
+        std::cerr << "--- stored checkpoint at level #" << level.index()
                   << ", " << totalCellCount << " cells total left ---\n";
     }
 
@@ -271,7 +282,7 @@ class CellPyramid
     : topLevel_(0, level0, level0Stats, this),
       nextCheckpointLevelIndex_(0)
     {
-        storeCheckpoint();
+        storeCheckpoint(topLevel_);
     }
 
     FaceInfo &removeIsolatedNode(const DartTraverser & dart)
@@ -342,9 +353,7 @@ class CellPyramid
         if(topLevel_.index() != level.index())
         {
             topLevel_ = level;
-            history_.erase(history_.begin() + level.index(), history_.end());
-            checkpoints_.erase(checkpoints_.upper_bound(level.index()),
-                               checkpoints_.end());
+            cutHead();
         }
     }
 
@@ -355,9 +364,7 @@ class CellPyramid
         if(topLevel_.index() != levelIndex)
         {
             topLevel_.gotoLevel(levelIndex);
-            history_.erase(history_.begin() + levelIndex, history_.end());
-            checkpoints_.erase(checkpoints_.upper_bound(levelIndex),
-                               checkpoints_.end());
+            cutHead();
         }
     }
 };
