@@ -21,6 +21,7 @@ typedef vigra::BasicImage<bool> EdgelImage;
 struct SegmentationData
 {
     OriginalImage preparedOriginal_;
+    OriginalImage smoothedOriginal_;
     GradientImage gradientMagnitude_;
     EdgeDirImage  edgeDirection_;
     EdgeDirImage  edgeDirGradient_;
@@ -162,7 +163,7 @@ struct CellStatistics
     bool protectEdge(vigra::cellimage::CellLabel edgeLabel,
                      EdgeProtection::FlagType flag, bool protect = true) const
     {
-        bool result = 
+        bool result =
             edgeProtection->protectEdge(edgeLabel, flag, protect);;
         if(mergedEdges_[edgeLabel] != edgeLabel)
             result =
