@@ -592,6 +592,9 @@ void FourEightSegmentation::initCellImage(BImage & contourImage,
     }
 
     cellImage(1, 1).setType(CellTypeVertex, 0); // FIXME: for faceList_[0].anchor
+#ifndef NDEBUG
+    std::cerr << "*** RUN-TIME WARNING: slowness results from missing NDEBUG flag during compilation of foureightsegmentation.cxx! ***\n";
+#endif
 }
 
 /********************************************************************/
