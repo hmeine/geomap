@@ -2,7 +2,6 @@
 #define FILTERITERATOR_HXX
 
 #include <iterator>
-#include <vigra/iteratortraits.hxx>
 
 namespace vigra {
 
@@ -15,15 +14,15 @@ class FilterIterator
 public:
         /** the iterator's value type
         */
-    typedef typename Iterator::value_type value_type;
+    typedef typename std::iterator_traits<Iterator>::value_type value_type;
 
         /** the iterator's reference type (return type of <TT>*iter</TT>)
         */
-    typedef typename Iterator::reference reference;
+    typedef typename std::iterator_traits<Iterator>::reference reference;
 
         /** the iterator's pointer type (return type of <TT>operator-></TT>)
         */
-    typedef typename Iterator::pointer pointer;
+    typedef typename std::iterator_traits<Iterator>::pointer pointer;
 
         /** the iterator tag (forward_iterator_tag)
         */
