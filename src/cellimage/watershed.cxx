@@ -37,12 +37,12 @@
 using namespace vigra;
 using namespace vigra::functor;
 
-void showNode(FourEightSegmentation & seg, int label)
+void showNode(FourEightSegmentation::FourEightSegmentation & seg, int label)
 {
-    FourEightSegmentation::NodeAccessor node;
-    FourEightSegmentation::EdgeAccessor edge;
-    FourEightSegmentation::NodeAtEndAccessor endnode;
-    FourEightSegmentation::NodeIterator n = seg.findNode(label);
+    FourEightSegmentation::FourEightSegmentation::NodeAccessor node;
+    FourEightSegmentation::FourEightSegmentation::EdgeAccessor edge;
+    FourEightSegmentation::FourEightSegmentation::NodeAtEndAccessor endnode;
+    FourEightSegmentation::FourEightSegmentation::NodeIterator n = seg.findNode(label);
 
     std::cout << "Label: " << node.label(n) << ", Location: (" <<
 		node.x(n) << ", " << node.y(n) << ")" << std::endl;
@@ -204,25 +204,23 @@ int main(int argc, char ** argv)
         seededRegionGrowing(srcImageRange(grad), srcImage(labels),
                             destImage(labels), gradstat, 100000);
 
-        FourEightSegmentation segmentation;
+        FourEightSegmentation::FourEightSegmentation segmentation;
 
         segmentation.init(srcImageRange(labels));
 
-
-#if 0
-        exportImage(srcImageRange(segmentation.cellimage), ImageExportInfo("cells.xv"));
+#if 1
+        exportImage(srcImageRange(segmentation.cellImage), ImageExportInfo("cellImage.xv"));
         std::cout << "Wrote cells.xv" << std::endl;
 
-        exportImage(srcIterRange(segmentation.labelsUpperLeft(),segmentation.labelsLowerRight()),
-                                 ImageExportInfo("borderlab.xv"));
+        exportImage(srcImageRange(segmentation.labelImage), ImageExportInfo("labelImage.xv"));
         std::cout << "Wrote borderlab.xv" << std::endl;
 
 #endif /* #if 0 */
 
         std::cout <<
-			"Nodes: " << segmentation.numberOfNodes() << endl <<
-			"Edges: " << segmentation.numberOfEdges() << endl <<
-			"Faces: " << segmentation.numberOfFaces() << endl;
+			"Nodes: " << segmentation.nodeCount() << std::endl <<
+			"Edges: " << segmentation.edgeCount() << std::endl <<
+			"Faces: " << segmentation.faceCount() << std::endl;
 
         // initialize a functor to determine the average gray-value or color
         // for each region (catchment basin) just found

@@ -5,23 +5,24 @@
 #include "vigra/stdimage.hxx"
 #include "vigra/stdimagefunctions.hxx"
 #include "vigra/labelimage.hxx"
+//#include "circulatoradaptor.hxx"
 #include "configurations.h"
 #include "pixelneighborhood.hxx"
 
 namespace vigra {
 
+namespace FourEightSegmentation {
+
 class FourEightSegmentation;
 
-/***********************************************************************/
-/*                                                                     */
-/*            FourEightSegmentationNeighborhoodCirculator              */
-/*                                                                     */
-/***********************************************************************/
+// -------------------------------------------------------------------
+//                         NeighborhoodCirculator
+// -------------------------------------------------------------------
 
     // sits on center(), points to location() (diff is diff()), can
     // turn/jumpToOpposite, gives cells/labels of center(), location()
     // and forward/backward neighbors
-class FourEightSegmentationNeighborhoodCirculator
+class NeighborhoodCirculator
 {
 protected:
     FourEightSegmentation *segmentation_;
@@ -29,54 +30,64 @@ protected:
     EightNeighborCoding neighbor_;
 
 public:
-        // FIXME: where is this default constructor needed?
-        // what should it (not) do?
-    FourEightSegmentationNeighborhoodCirculator()
+    // FIXME: where is this default constructor needed?
+    // what should it (not) do?
+    NeighborhoodCirculator()
         : segmentation_(0)
     {}
 
-    FourEightSegmentationNeighborhoodCirculator(
-        FourEightSegmentation * seg,
-        Diff2D const & loc,
-        EightNeighborCoding::Directions dir = EightNeighborCoding::East)
-        : segmentation_(seg), center_(loc), neighbor_(dir)
+    NeighborhoodCirculator(FourEightSegmentation * segmentation,
+                           Diff2D const & center,
+                           EightNeighborCoding::Directions dir = EightNeighborCoding::East)
+        : segmentation_(segmentation), center_(center), neighbor_(dir)
     {}
 
-    FourEightSegmentationNeighborhoodCirculator & operator++()
+    // accessor functions for cell types and labels from
+    // segmentation_
+    inline unsigned char cell() const;
+    inline unsigned char neighborCell() const;
+    inline unsigned char forwardNeighborCell() const;
+    inline unsigned char backwardNeighborCell() const;
+    inline int label() const;
+    inline int neighborLabel() const;
+    inline int forwardNeighborLabel() const;
+    inline int backwardNeighborLabel() const;
+
+    NeighborhoodCirculator & operator++()
     {
         ++neighbor_;
         return *this;
     }
-    FourEightSegmentationNeighborhoodCirculator operator++(int)
+    NeighborhoodCirculator operator++(int)
     {
-        FourEightSegmentationNeighborhoodCirculator ret(*this);
+        NeighborhoodCirculator ret(*this);
         operator++();
         return ret;
     }
-    FourEightSegmentationNeighborhoodCirculator & operator+=(int d)
+    NeighborhoodCirculator & operator+=(int d)
     {
         neighbor_ += d;
         return *this;
     }
 
-    FourEightSegmentationNeighborhoodCirculator & operator--()
+    NeighborhoodCirculator & operator--()
     {
         --neighbor_;
         return *this;
     }
-    FourEightSegmentationNeighborhoodCirculator operator--(int)
+    NeighborhoodCirculator operator--(int)
     {
-        FourEightSegmentationNeighborhoodCirculator ret(*this);
+        NeighborhoodCirculator ret(*this);
         operator--();
         return ret;
     }
-    FourEightSegmentationNeighborhoodCirculator & operator-=(int d)
+    NeighborhoodCirculator & operator-=(int d)
     {
         neighbor_ -= d;
         return *this;
     }
 
-    FourEightSegmentationNeighborhoodCirculator & jumpToOpposite()
+    NeighborhoodCirculator & jumpToOpposite()
     {
         center_ += diff();
         neighbor_.turnRound();
@@ -84,30 +95,34 @@ public:
         return *this;
     }
 
-    FourEightSegmentationNeighborhoodCirculator & turnRight()
+    NeighborhoodCirculator & turnRight()
     {
-        neighbor_.turnRight(); return *this;
+        neighbor_.turnRight();
+        return *this;
     }
-    FourEightSegmentationNeighborhoodCirculator & turnLeft()
+    NeighborhoodCirculator & turnLeft()
     {
-        neighbor_.turnLeft(); return *this;
+        neighbor_.turnLeft();
+        return *this;
     }
-    FourEightSegmentationNeighborhoodCirculator & turnRound()
+    NeighborhoodCirculator & turnRound()
     {
-        neighbor_.turnRound(); return *this;
-    }
-
-    FourEightSegmentationNeighborhoodCirculator & translate(Diff2D const & d)
-    {
-        center_ += d; return *this;
+        neighbor_.turnRound();
+        return *this;
     }
 
-    bool operator==(FourEightSegmentationNeighborhoodCirculator const & o) const
+    NeighborhoodCirculator & translate(Diff2D const & d)
+    {
+        center_ += d;
+        return *this;
+    }
+
+    bool operator==(NeighborhoodCirculator const & o) const
     {
         return center_ == o.center_ && neighbor_ == o.neighbor_;
     }
 
-    bool operator!=(FourEightSegmentationNeighborhoodCirculator const & o) const
+    bool operator!=(NeighborhoodCirculator const & o) const
     {
         return center_ != o.center_ || neighbor_ != o.neighbor_;
     }
@@ -141,265 +156,265 @@ public:
     {
         return segmentation_;
     }
-
-    inline int cell() const;
-    inline int label() const;
-    inline int neighborCell() const;
-    inline int neighborLabel() const;
-    inline int forwardNeighborLabel() const;
-    inline int backwardNeighborLabel() const;
-    inline int forwardNeighborCell() const;
-    inline int backwardNeighborCell() const;
 };
 
-
-/***********************************************************************/
-/*                                                                     */
-/*              FourEightSegmentationCrackCirculator                   */
-/*                                                                     */
-/***********************************************************************/
-
-    // walks 
-class FourEightSegmentationCrackCirculator
+// -------------------------------------------------------------------
+//                            CrackCirculator
+// -------------------------------------------------------------------
+class CrackCirculator
 {
 protected:
-    FourEightSegmentationNeighborhoodCirculator neighbor;
+    NeighborhoodCirculator neighborCirc_;
     int label;
     Diff2D pos_;
 
 public:
-    FourEightSegmentationCrackCirculator(
-        FourEightSegmentationNeighborhoodCirculator const & n)
-        : neighbor(n),
+    CrackCirculator(NeighborhoodCirculator const & n)
+        : neighborCirc_(n),
           label(n.cell()),
           pos_(0, 0)
     {
-        neighbor.turnLeft();
+        neighborCirc_.turnLeft();
     }
 
-    FourEightSegmentationCrackCirculator & operator++()
+    CrackCirculator & operator++()
     {
-        pos_ += neighbor.diff();
+        pos_ += neighborCirc_.diff();
 
-        neighbor--;
-        neighbor.translate(neighbor.diff());
+        neighborCirc_--;
+        neighborCirc_.translate(neighborCirc_.diff());
 
-        if(neighbor.cell() == label)
+        if(neighborCirc_.cell() == label)
         {
-            --neighbor;
+            --neighborCirc_;
         }
         else
         {
-            neighbor += 3;
-            neighbor.translate(neighbor.diff());
-            if(neighbor.cell() == label)
+            neighborCirc_ += 3;
+            neighborCirc_.translate(neighborCirc_.diff());
+            if(neighborCirc_.cell() == label)
             {
-                neighbor.turnRight();
+                neighborCirc_.turnRight();
             }
             else
             {
-                neighbor += 2;
-                neighbor.translate(neighbor.diff());
-                neighbor.turnRight();
+                neighborCirc_ += 2;
+                neighborCirc_.translate(neighborCirc_.diff());
+                neighborCirc_.turnRight();
             }
         }
 
         return *this;
     }
 
-    bool operator==(FourEightSegmentationCrackCirculator const & o) const
+    bool operator==(CrackCirculator const & o) const
     {
-        return neighbor == o.neighbor;
+        return neighborCirc_ == o.neighborCirc_;
     }
 
-    bool operator!=(FourEightSegmentationCrackCirculator const & o) const
+    bool operator!=(CrackCirculator const & o) const
     {
-        return neighbor != o.neighbor;
+        return neighborCirc_ != o.neighborCirc_;
     }
 
-    Diff2D const & diff() const { return neighbor.diff(); }
+    Diff2D const & diff() const { return neighborCirc_.diff(); }
 
     Diff2D const & pos() const { return pos_; }
 };
 
-/***********************************************************************/
-/*                                                                     */
-/*                FourEightSegmentationEdgelIterator                   */
-/*                                                                     */
-/***********************************************************************/
-
-struct FourEightSegmentationEdgelIterator
+// -------------------------------------------------------------------
+//                             EdgelIterator
+// -------------------------------------------------------------------
+class EdgelIterator
 {
-    FourEightSegmentationNeighborhoodCirculator neighbor;
-    bool is_end;
+    NeighborhoodCirculator neighborCirc_;
+    bool isEnd_;
 
-    FourEightSegmentationEdgelIterator(
-        FourEightSegmentationNeighborhoodCirculator const & n)
-    : neighbor(n), is_end(false)
+public:
+    EdgelIterator(NeighborhoodCirculator const & n)
+        : neighborCirc_(n), isEnd_(false)
     {}
 
-    FourEightSegmentationEdgelIterator & operator++()
+    Diff2D location() const
     {
-        neighbor.jumpToOpposite();
-        neighbor.turnLeft();
+        return neighborCirc_.location();
+    }
+
+    bool isEnd() const
+    {
+        return isEnd_;
+    }
+
+    EdgelIterator & operator++()
+    {
+        neighborCirc_.jumpToOpposite();
+        neighborCirc_.turnLeft();
 
         while(1)
         {
-            if(neighbor.neighborCell() == CellConfigurationsVertex)
+            if(neighborCirc_.neighborCell() == CellConfigurationsVertex)
             {
-                is_end = true;
+                isEnd_ = true;
                 break;
             }
-            if(neighbor.neighborCell() == CellConfigurationsLine)
+            if(neighborCirc_.neighborCell() == CellConfigurationsLine)
             {
                 break;
             }
-            ++neighbor;
+            ++neighborCirc_;
         }
 
-        if(neighbor.isDiagonal() &&
-           neighbor.forwardNeighborCell() == CellConfigurationsVertex)
+        if(neighborCirc_.isDiagonal() &&
+           neighborCirc_.forwardNeighborCell() == CellConfigurationsVertex)
         {
-            ++neighbor;
-            is_end = true;
+            ++neighborCirc_;
+            isEnd_ = true;
         }
 
         return *this;
     }
 
-    bool isEnd() const { return is_end; }
+    EdgelIterator & jumpToOpposite()
+    {
+        while(!isEnd())
+            operator++();
+        neighborCirc_.jumpToOpposite();
+        return *this;
+    }
 
-    Diff2D location() const { return neighbor.location(); }
+    operator NeighborhoodCirculator()
+    {
+        return neighborCirc_;
+    }
 };
 
-/***********************************************************************/
-/*                                                                     */
-/*                 FourEightSegmentationRayCirculator                  */
-/*                                                                     */
-/***********************************************************************/
-
-struct FourEightSegmentationRayCirculator
+// -------------------------------------------------------------------
+//                             RayCirculator
+// -------------------------------------------------------------------
+struct RayCirculator
 {
-  private:
-    FourEightSegmentationNeighborhoodCirculator neighbor;
+private:
+    NeighborhoodCirculator neighborCirc_;
     bool is_singular;
 
-  public:
-    FourEightSegmentationRayCirculator() {}
+public:
+    // default constructor needed for NodeInfo/EdgeInfo, init() must not be called!
+    RayCirculator() {}
 
-    FourEightSegmentationRayCirculator(FourEightSegmentation * seg, Diff2D const & loc,
-           EightNeighborCoding::Directions dir = EightNeighborCoding::East)
-    : neighbor(seg, loc, dir)
+    RayCirculator(FourEightSegmentation * seg, Diff2D const & loc,
+                  EightNeighborCoding::Directions dir = EightNeighborCoding::East)
+        : neighborCirc_(seg, loc, dir)
     {
         init();
     }
 
-    FourEightSegmentationRayCirculator(FourEightSegmentationNeighborhoodCirculator const & n)
-    : neighbor(n)
+    RayCirculator(NeighborhoodCirculator const & n)
+        : neighborCirc_(n)
     {
         init();
     }
 
-    FourEightSegmentationRayCirculator & operator++()
+    RayCirculator & operator++()
     {
         if(is_singular) return *this;
 
         tryNext();
 
-        while(neighbor.neighborCell() != CellConfigurationsLine)
+        while(neighborCirc_.neighborCell() != CellConfigurationsLine)
         {
-            if(neighbor.neighborCell() == CellConfigurationsVertex)
+            if(neighborCirc_.neighborCell() == CellConfigurationsVertex)
             {
-                neighbor.jumpToOpposite();
+                neighborCirc_.jumpToOpposite();
             }
             tryNext();
         }
         return *this;
     }
 
-    FourEightSegmentationRayCirculator operator++(int)
+    RayCirculator operator++(int)
     {
-        FourEightSegmentationRayCirculator ret(*this);
+        RayCirculator ret(*this);
         operator++();
         return ret;
     }
 
-    FourEightSegmentationRayCirculator & operator--()
+    RayCirculator & operator--()
     {
         if(is_singular) return *this;
 
         tryPrev();
 
-        while(neighbor.neighborCell() != CellConfigurationsLine)
+        while(neighborCirc_.neighborCell() != CellConfigurationsLine)
         {
-            if(neighbor.neighborCell() == CellConfigurationsVertex)
+            if(neighborCirc_.neighborCell() == CellConfigurationsVertex)
             {
-                neighbor.jumpToOpposite();
+                neighborCirc_.jumpToOpposite();
             }
             tryPrev();
         }
         return *this;
     }
 
-    FourEightSegmentationRayCirculator operator--(int)
+    RayCirculator operator--(int)
     {
-        FourEightSegmentationRayCirculator ret(*this);
+        RayCirculator ret(*this);
         operator--();
         return ret;
     }
 
-    FourEightSegmentationRayCirculator & jumpToOpposite()
+    RayCirculator & jumpToOpposite()
     {
         if(is_singular) return *this;
 
-        FourEightSegmentationEdgelIterator line(neighbor);
-
-        while(!line.isEnd())
-        {
-            ++line;
-        }
-
-        neighbor = line.neighbor.jumpToOpposite();
+        EdgelIterator line(neighborCirc_);
+        line.jumpToOpposite();
+        
+        neighborCirc_ = line;
 
         return *this;
     }
 
-    bool operator==(FourEightSegmentationRayCirculator const & o) const
+    bool operator==(RayCirculator const & o) const
     {
-        return neighbor == o.neighbor;
+        return neighborCirc_ == o.neighborCirc_;
     }
 
-    bool operator!=(FourEightSegmentationRayCirculator const & o) const
+    bool operator!=(RayCirculator const & o) const
     {
-        return neighbor != o.neighbor;
+        return neighborCirc_ != o.neighborCirc_;
     }
 
-    FourEightSegmentation * segmentation() const { return neighbor.segmentation(); }
+    FourEightSegmentation * segmentation() const
+    {
+        return neighborCirc_.segmentation();
+    }
 
-    Diff2D const & center() const { return neighbor.center(); }
+    Diff2D const & center() const { return neighborCirc_.center(); }
 
-    int nodeLabel() const { return neighbor.label(); }
-    int edgeLabel() const { return neighbor.neighborLabel(); }
-    int leftFaceLabel() const { return neighbor.forwardNeighborLabel(); }
-    int rightFaceLabel() const { return neighbor.backwardNeighborLabel(); }
+    int nodeLabel() const { return neighborCirc_.label(); }
+    int edgeLabel() const { return neighborCirc_.neighborLabel(); }
+    int leftFaceLabel() const { return neighborCirc_.forwardNeighborLabel(); }
+    int rightFaceLabel() const { return neighborCirc_.backwardNeighborLabel(); }
 
     inline int degree() const;
     inline float x() const;
     inline float y() const;
 
-  private:
+    const NeighborhoodCirculator &neighborhoodCirculator() const
+    {
+        return neighborCirc_;
+    }
 
-    friend class FourEightSegmentation;
-
+private:
     void init()
     {
-        vigra_precondition(neighbor.cell() == CellConfigurationsVertex,
-        "FourEightSegmentationRayCirculator(): center is not a node");
+        vigra_precondition(neighborCirc_.cell() == CellConfigurationsVertex,
+        "FourEightSegmentation::RayCirculator(): center is not a node");
 
-        vigra_precondition(neighbor.neighborCell() != CellConfigurationsVertex,
-        "FourEightSegmentationRayCirculator(): neighbor is a node");
+        vigra_precondition(neighborCirc_.neighborCell() != CellConfigurationsVertex,
+        "FourEightSegmentation::RayCirculator(): neighbor is a node");
 
-        FourEightSegmentationNeighborhoodCirculator n = neighbor;
+        NeighborhoodCirculator n = neighborCirc_;
         is_singular = true;
         do
         {
@@ -409,94 +424,97 @@ struct FourEightSegmentationRayCirculator
                 break;
             }
         }
-        while(++n != neighbor);
+        while(++n != neighborCirc_);
 
-        if(neighbor.neighborCell() != CellConfigurationsLine) operator++();
+        if(neighborCirc_.neighborCell() != CellConfigurationsLine) operator++();
     }
 
     void tryNext()
     {
-        ++neighbor;
+        ++neighborCirc_;
 
-        if(badDiagonalConfig()) ++neighbor;
+        if(badDiagonalConfig()) ++neighborCirc_;
     }
 
     void tryPrev()
     {
-        --neighbor;
+        --neighborCirc_;
 
-        if(badDiagonalConfig()) --neighbor;
+        if(badDiagonalConfig()) --neighborCirc_;
     }
 
-        // prevent double stop at a line pixel from different source
-        // vertex pixels
+    // prevent double stop at a line pixel from different source
+    // vertex pixels
     bool badDiagonalConfig()
     {
-        return (neighbor.neighborCell() == CellConfigurationsLine &&
-                (neighbor.forwardNeighborCell() == CellConfigurationsVertex ||
-                 neighbor.backwardNeighborCell() == CellConfigurationsVertex));
+        return (neighborCirc_.neighborCell() == CellConfigurationsLine &&
+                (neighborCirc_.forwardNeighborCell() == CellConfigurationsVertex ||
+                 neighborCirc_.backwardNeighborCell() == CellConfigurationsVertex));
     }
 };
 
 /***********************************************************************/
 /*                                                                     */
-/*               FourEightSegmentationContourCirculator                */
+/*               ContourCirculator                */
 /*                                                                     */
 /***********************************************************************/
 
-struct FourEightSegmentationContourCirculator
+struct ContourCirculator
 {
-    FourEightSegmentationRayCirculator ray_;
+    RayCirculator ray_;
 
-    FourEightSegmentationContourCirculator(FourEightSegmentationRayCirculator r)
+    ContourCirculator(RayCirculator r)
     : ray_(r)
     {}
 
-    FourEightSegmentationContourCirculator & operator++()
+    ContourCirculator & operator++()
     {
         ray_.jumpToOpposite();
         --ray_;
         return *this;
     }
 
-    FourEightSegmentationContourCirculator operator++(int)
+    ContourCirculator operator++(int)
     {
-        FourEightSegmentationContourCirculator ret(*this);
+        ContourCirculator ret(*this);
         operator++();
         return ret;
     }
 
-    FourEightSegmentationContourCirculator & operator--()
+    ContourCirculator & operator--()
     {
         ++ray_;
         ray_.jumpToOpposite();
         return *this;
     }
 
-    FourEightSegmentationContourCirculator operator--(int)
+    ContourCirculator operator--(int)
     {
-        FourEightSegmentationContourCirculator ret(*this);
+        ContourCirculator ret(*this);
         operator--();
         return ret;
     }
 
-    FourEightSegmentationContourCirculator & jumpToOpposite()
+    ContourCirculator & jumpToOpposite()
     {
         ray_.jumpToOpposite();
         return *this;
     }
 
-    bool operator==(FourEightSegmentationContourCirculator const & o) const
+    bool operator==(ContourCirculator const & o) const
     {
         return ray_ == o.ray_;
     }
 
-    bool operator!=(FourEightSegmentationContourCirculator const & o) const
+    bool operator!=(ContourCirculator const & o) const
     {
         return ray_ != o.ray_;
     }
 
-    FourEightSegmentation * segmentation() const { return ray_.segmentation(); }
+    FourEightSegmentation * segmentation() const
+    {
+        return ray_.segmentation();
+    }
 
     int nodeLabel() const { return ray_.nodeLabel(); }
     int edgeLabel() const { return ray_.edgeLabel(); }
@@ -507,7 +525,7 @@ struct FourEightSegmentationContourCirculator
     float x() const { return ray_.x(); }
     float y() const { return ray_.y(); }
 
-    FourEightSegmentationRayCirculator const & ray() const { return ray_; }
+    RayCirculator const & ray() const { return ray_; }
 };
 
 /***********************************************************************/
@@ -518,20 +536,11 @@ struct FourEightSegmentationContourCirculator
 
 class FourEightSegmentation
 {
-  public:
-
+public:
     typedef BImage::Iterator CellImageIterator;
     typedef IImage::Iterator LabelImageIterator;
-    typedef FourEightSegmentationRayCirculator RayCirculator;
-    typedef FourEightSegmentationContourCirculator ContourCirculator;
 
-    friend class FourEightSegmentationNeighborhoodCirculator;
-    friend class FourEightSegmentationRayCirculator;
-
-  private:
-
-    typedef FourEightSegmentationNeighborhoodCirculator NeighborhoodCirculator;
-
+private:
     struct NodeInfo
     {
         int label;
@@ -540,7 +549,9 @@ class FourEightSegmentation
         int degree;
         RayCirculator ray;
 
-        NodeInfo() : label(-1) {}
+        NodeInfo()
+            : label(-1)
+        {}
 
         bool notInitialized() const { return label < 0; }
     };
@@ -550,7 +561,9 @@ class FourEightSegmentation
         int label;
         RayCirculator start, end;
 
-        EdgeInfo() : label(-1) {}
+        EdgeInfo()
+            : label(-1)
+        {}
 
         bool notInitialized() const { return label < 0; }
     };
@@ -561,7 +574,9 @@ class FourEightSegmentation
         Diff2D anchor;
         std::vector<ContourCirculator> contours;
 
-        FaceInfo() : label(-1) {}
+        FaceInfo()
+            : label(-1)
+        {}
 
         bool notInitialized() const { return label < 0; }
     };
@@ -915,23 +930,32 @@ class FourEightSegmentation
     /*                 FourEightSegmentation functions                     */
     /*                                                                     */
     /***********************************************************************/
-
-    FourEightSegmentation()
-    {}
-
     template <class SrcIter, class SrcAcc>
     void init(SrcIter ul, SrcIter lr, SrcAcc src)
     {
-        resize(lr.x - ul.x, lr.y - ul.y);
+        width_ = lr.x - ul.x;
+        height_ = lr.y - ul.y,
+        totalwidth_ = width_ + 4;
+        totalheight_ = height_ + 4;
 
-        BImage rawborders(totalwidth_, totalheight_);
-        initFourEightSegmentationRawBorders(ul, lr, src, rawborders);
+        cellImage.resize(totalwidth_, totalheight_);
+        cellImage = CellConfigurationsRegion;
 
-        initCellImage(rawborders);
+        labelImage.resize(totalwidth_, totalheight_);
+        labelImage = 0;
+
+        cells = cellImage.upperLeft() + Diff2D(2,2);
+        labels = labelImage.upperLeft() + Diff2D(2,2);
+
+        // extract contours in input image and put frame around them
+        BImage contourImage(totalwidth_, totalheight_);
+        initFourEightSegmentationContourImage(ul, lr, src, contourImage);
+
+        initCellImage(contourImage);
 
         int nodeCount = label0Cells();
         int edgeCount = label1Cells(nodeCount);
-        int faceCount = label2Cells(rawborders);
+        int faceCount = label2Cells(contourImage);
 
         labelCircles(nodeCount, edgeCount);
 
@@ -939,7 +963,7 @@ class FourEightSegmentation
 
         initNodeList(nodeCount);
         initEdgeList(edgeCount);
-        initFaceList(rawborders, faceCount);
+        initFaceList(contourImage, faceCount);
     }
 
     template <class SrcIter, class SrcAcc>
@@ -968,48 +992,31 @@ class FourEightSegmentation
     int width() const { return width_; }
     int height() const { return height_; }
 
-    int numberOfNodes() const { return nodeList.size(); }
-    int numberOfEdges() const { return edgeList.size(); }
-    int numberOfFaces() const { return faceList.size(); }
-
-  private:
-
-    NodeInfo const & node(int i) const { return nodeList[i]; }
-    EdgeInfo const & edge(int i) const { return edgeList[i]; }
-    FaceInfo const & face(int i) const { return faceList[i]; }
-
-    void resize(int w, int h)
-    {
-        width_ = w;
-        height_ = h,
-        totalwidth_ = w + 4;
-        totalheight_ = h + 4;
-
-        cellImage.resize(totalwidth_, totalheight_);
-        cellImage = CellConfigurationsRegion;
-
-        labelImage.resize(totalwidth_, totalheight_);
-        labelImage = 0;
-
-        cells = cellImage.upperLeft() + Diff2D(2,2);
-        labels = labelImage.upperLeft() + Diff2D(2,2);
-    }
-
-    void initCellImage(BImage & rawborders);
-    int label0Cells();
-    int label1Cells(int nodeCount);
-    int label2Cells(BImage & rawborders);
-    void labelCircles(int & nodeCount, int & edgeCount);
-    void labelLine(FourEightSegmentationNeighborhoodCirculator rayAtStart, int new_label);
-    void decrementLabels();
-    void initNodeList(int nodeCount);
-    void initEdgeList(int edgeCount);
-    void initFaceList(BImage & rawborders, int faceCount);
+    int nodeCount() const { return nodeList.size(); }
+    int edgeCount() const { return edgeList.size(); }
+    int faceCount() const { return faceList.size(); }
 
     BImage cellImage;
     BImage::Iterator cells;
     IImage labelImage;
     IImage::Iterator labels;
+
+private:
+    NodeInfo const & node(int i) const { return nodeList[i]; }
+    EdgeInfo const & edge(int i) const { return edgeList[i]; }
+    FaceInfo const & face(int i) const { return faceList[i]; }
+
+    void initCellImage(BImage & contourImage);
+    int label0Cells();
+    int label1Cells(int nodeCount);
+    int label2Cells(BImage & contourImage);
+    void labelCircles(int & nodeCount, int & edgeCount);
+    void labelLine(NeighborhoodCirculator rayAtStart, int new_label);
+    void decrementLabels();
+    void initNodeList(int nodeCount);
+    void initEdgeList(int edgeCount);
+    void initFaceList(BImage & contourImage, int faceCount);
+
     int width_, height_, totalwidth_, totalheight_;
 
     NodeList nodeList;
@@ -1019,90 +1026,91 @@ class FourEightSegmentation
 
 /***********************************************************************/
 /*                                                                     */
-/*           FourEightSegmentationNeighborhoodCirculator               */
+/*           NeighborhoodCirculator               */
 /*                                                                     */
 /***********************************************************************/
 
-inline int FourEightSegmentationNeighborhoodCirculator::cell() const
+inline unsigned char NeighborhoodCirculator::cell() const
 {
     return segmentation_->cells[center()];
 }
 
-inline int FourEightSegmentationNeighborhoodCirculator::label() const
-{
-    return segmentation_->labels[center()];
-}
-
-inline int FourEightSegmentationNeighborhoodCirculator::neighborCell() const
+inline unsigned char NeighborhoodCirculator::neighborCell() const
 {
     return segmentation_->cells[location()];
 }
 
-inline int FourEightSegmentationNeighborhoodCirculator::neighborLabel() const
-{
-    return segmentation_->labels[location()];
-}
-
-inline int FourEightSegmentationNeighborhoodCirculator::forwardNeighborLabel() const
-{
-    return segmentation_->labels[center() + neighbor_.nextDiff()];
-}
-
-inline int FourEightSegmentationNeighborhoodCirculator::backwardNeighborLabel() const
-{
-    return segmentation_->labels[center() + neighbor_.prevDiff()];
-}
-
-inline int FourEightSegmentationNeighborhoodCirculator::forwardNeighborCell() const
+inline unsigned char NeighborhoodCirculator::forwardNeighborCell() const
 {
     return segmentation_->cells[center() + neighbor_.nextDiff()];
 }
 
-inline int FourEightSegmentationNeighborhoodCirculator::backwardNeighborCell() const
+inline unsigned char NeighborhoodCirculator::backwardNeighborCell() const
 {
     return segmentation_->cells[center() + neighbor_.prevDiff()];
 }
 
+inline int NeighborhoodCirculator::label() const
+{
+    return segmentation_->labels[center()];
+}
+
+inline int NeighborhoodCirculator::neighborLabel() const
+{
+    return segmentation_->labels[location()];
+}
+
+inline int NeighborhoodCirculator::forwardNeighborLabel() const
+{
+    return segmentation_->labels[center() + neighbor_.nextDiff()];
+}
+
+inline int NeighborhoodCirculator::backwardNeighborLabel() const
+{
+    return segmentation_->labels[center() + neighbor_.prevDiff()];
+}
+
 /***********************************************************************/
 /*                                                                     */
-/*                 FourEightSegmentationRayCirculator                  */
+/*                 RayCirculator                  */
 /*                                                                     */
 /***********************************************************************/
 
-inline int FourEightSegmentationRayCirculator::degree() const
+inline int RayCirculator::degree() const
 {
     return segmentation()->node(nodeLabel()).degree;
 }
 
-inline float FourEightSegmentationRayCirculator::x() const
+inline float RayCirculator::x() const
 {
     return segmentation()->node(nodeLabel()).x;
 }
 
-inline float FourEightSegmentationRayCirculator::y() const
+inline float RayCirculator::y() const
 {
     return segmentation()->node(nodeLabel()).y;
 }
 
 /***********************************************************************/
 /*                                                                     */
-/*                 initFourEightSegmentationRawBorders                 */
+/*                 initFourEightSegmentationContourImage                 */
 /*                                                                     */
 /***********************************************************************/
 
 template <class SrcIter, class SrcAcc>
-void initFourEightSegmentationRawBorders(SrcIter ul, SrcIter lr, SrcAcc src,
-                               BImage & rawborders)
+void initFourEightSegmentationContourImage(SrcIter ul, SrcIter lr, SrcAcc src,
+                                           BImage & contourImage)
 {
     int w = lr.x - ul.x;
     int h = lr.y - ul.y;
     int x,y;
 
-    rawborders = 0;
-    initImageBorder(srcIterRange(rawborders.upperLeft()+Diff2D(1,1),
-                                 rawborders.lowerRight()-Diff2D(1,1),
-                                 rawborders.accessor()),
-                                 1,1);
+    initImageBorder(destImageRange(contourImage),
+                    1, 0);
+    initImageBorder(srcIterRange(contourImage.upperLeft()+Diff2D(1,1),
+                                 contourImage.lowerRight()-Diff2D(1,1),
+                                 contourImage.accessor()),
+                    1, 1);
 
     typedef typename SrcAcc::value_type SrcType;
     SrcType zero = NumericTraits<SrcType>::zero();
@@ -1111,7 +1119,7 @@ void initFourEightSegmentationRawBorders(SrcIter ul, SrcIter lr, SrcAcc src,
         SrcIter sx = ul;
         for(x=0; x<w; ++x, ++sx.x)
         {
-            if(src(sx) == zero)  rawborders(x+2, y+2) = 1;
+            if(src(sx) == zero)  contourImage(x+2, y+2) = 1;
         }
     }
 }
@@ -1123,9 +1131,9 @@ void initFourEightSegmentationRawBorders(SrcIter ul, SrcIter lr, SrcAcc src,
 /***********************************************************************/
 
 void
-FourEightSegmentation::initCellImage(BImage & rawborders)
+FourEightSegmentation::initCellImage(BImage & contourImage)
 {
-    BImage::Iterator raw = rawborders.upperLeft() + Diff2D(1,1);
+    BImage::Iterator raw = contourImage.upperLeft() + Diff2D(1,1);
 
     int x,y;
 
@@ -1172,9 +1180,9 @@ FourEightSegmentation::initCellImage(BImage & rawborders)
 /*                                                                     */
 /***********************************************************************/
 
-int FourEightSegmentation::label2Cells(BImage & rawborders)
+int FourEightSegmentation::label2Cells(BImage & contourImage)
 {
-    return labelImageWithBackground(srcImageRange(rawborders), destImage(labelImage), false, 1);
+    return labelImageWithBackground(srcImageRange(contourImage), destImage(labelImage), false, 1);
 }
 
 /***********************************************************************/
@@ -1199,8 +1207,8 @@ int FourEightSegmentation::label0Cells()
                 nodes(x,y) = 1;
 
                 // test for forbidden configuration
-                FourEightSegmentationNeighborhoodCirculator n(this, Diff2D(x,y));
-                FourEightSegmentationNeighborhoodCirculator nend = n;
+                NeighborhoodCirculator n(this, Diff2D(x,y));
+                NeighborhoodCirculator nend = n;
 
                 do
                 {
@@ -1232,11 +1240,10 @@ int FourEightSegmentation::label0Cells()
 /*                                                                     */
 /***********************************************************************/
 
-void FourEightSegmentation::labelLine(
-       FourEightSegmentationNeighborhoodCirculator rayAtStart,
-       int new_label)
+void FourEightSegmentation::labelLine(NeighborhoodCirculator rayAtStart,
+                                      int new_label)
 {
-    FourEightSegmentationEdgelIterator line(rayAtStart);
+    EdgelIterator line(rayAtStart);
 
     // follow the line and relabel it
     for(;!line.isEnd(); ++line)
@@ -1263,8 +1270,10 @@ int FourEightSegmentation::label1Cells(int number_of_nodes)
     {
         for(x=-1; x<=width_; ++x)
         {
-            if(cells(x,y) != CellConfigurationsVertex)  continue;
-            if(nodeProcessed[labels(x,y)])  continue;
+            if(cells(x,y) != CellConfigurationsVertex)
+                continue;
+            if(nodeProcessed[labels(x,y)])
+                continue;
 
             nodeProcessed[labels(x,y)] = 1;
 
@@ -1273,9 +1282,10 @@ int FourEightSegmentation::label1Cells(int number_of_nodes)
 
             do
             {
-                if(rayAtStart.edgeLabel() != 0) continue;
+                if(rayAtStart.edgeLabel() != 0)
+                    continue;
 
-                labelLine(rayAtStart.neighbor, ++number_of_edges);
+                labelLine(rayAtStart.neighborhoodCirculator(), ++number_of_edges);
             }
             while(++rayAtStart != rayEnd);
         }
@@ -1298,7 +1308,8 @@ void FourEightSegmentation::labelCircles(int & number_of_nodes, int & number_of_
     {
         for(x=-1; x<=width_; ++x)
         {
-            if(labels(x,y) != 0)  continue;
+            if(labels(x,y) != 0)
+                continue;
 
             // found a circle
 
@@ -1306,13 +1317,15 @@ void FourEightSegmentation::labelCircles(int & number_of_nodes, int & number_of_
             cells(x,y) = CellConfigurationsVertex;
             labels(x,y) = ++number_of_nodes;
 
-            FourEightSegmentationNeighborhoodCirculator rayAtStart(this, Diff2D(x,y));
-            FourEightSegmentationNeighborhoodCirculator rayEnd = rayAtStart;
+            NeighborhoodCirculator rayAtStart(this, Diff2D(x,y));
+            NeighborhoodCirculator rayEnd = rayAtStart;
 
             do
             {
-                if(rayAtStart.neighborCell() != CellConfigurationsLine) continue;
-                if(rayAtStart.neighborLabel() != 0) continue;
+                if(rayAtStart.neighborCell() != CellConfigurationsLine)
+                    continue;
+                if(rayAtStart.neighborLabel() != 0)
+                    continue;
 
                 labelLine(rayAtStart, ++number_of_edges);
             }
@@ -1321,13 +1334,9 @@ void FourEightSegmentation::labelCircles(int & number_of_nodes, int & number_of_
     }
 }
 
-
-/***********************************************************************/
-/*                                                                     */
-/*              FourEightSegmentation::decrementLabels                 */
-/*                                                                     */
-/***********************************************************************/
-
+// -------------------------------------------------------------------
+//                 FourEightSegmentation::decrementLabels
+// -------------------------------------------------------------------
 void FourEightSegmentation::decrementLabels()
 {
     IImage::ScanOrderIterator i = labelImage.begin();
@@ -1336,12 +1345,9 @@ void FourEightSegmentation::decrementLabels()
     for(; i != iend; ++i) --(*i);
 }
 
-/***********************************************************************/
-/*                                                                     */
-/*                 FourEightSegmentation::initNodeList                 */
-/*                                                                     */
-/***********************************************************************/
-
+// -------------------------------------------------------------------
+//                  FourEightSegmentation::initNodeList
+// -------------------------------------------------------------------
 void FourEightSegmentation::initNodeList(int number_of_nodes)
 {
     nodeList.resize(number_of_nodes, NodeInfo());
@@ -1353,7 +1359,8 @@ void FourEightSegmentation::initNodeList(int number_of_nodes)
     {
         for(x=-1; x<=width_; ++x)
         {
-            if(cells(x,y) != CellConfigurationsVertex)  continue;
+            if(cells(x,y) != CellConfigurationsVertex)
+                continue;
 
             int index = labels(x,y);
 
@@ -1377,10 +1384,10 @@ void FourEightSegmentation::initNodeList(int number_of_nodes)
                 while(++r != rend);
 
                 // calculate area from following the outer contour of the node
-                FourEightSegmentationNeighborhoodCirculator
-                         neighbor(this, Diff2D(x,y), EightNeighborCoding::West);
-                FourEightSegmentationCrackCirculator crack(neighbor);
-                FourEightSegmentationCrackCirculator crackend(crack);
+                NeighborhoodCirculator
+                    neighbor(this, Diff2D(x,y), EightNeighborCoding::West);
+                CrackCirculator crack(neighbor);
+                CrackCirculator crackend(crack);
 
                 do
                 {
@@ -1462,17 +1469,17 @@ void FourEightSegmentation::initEdgeList(int number_of_edges)
 /*                                                                     */
 /***********************************************************************/
 
-void FourEightSegmentation::initFaceList(BImage & rawborders, int number_of_faces)
+void FourEightSegmentation::initFaceList(BImage & contourImage, int number_of_faces)
 {
     faceList.resize(number_of_faces, FaceInfo());
 
-    IImage borderlabels(totalwidth_, totalheight_);
-    IImage::Iterator borderlab = borderlabels.upperLeft() + Diff2D(2,2);
-    borderlabels = 0;
-    int countBorderComponents =
-        labelImageWithBackground(srcImageRange(rawborders), destImage(borderlabels), true, 0);
+    IImage contourlabels(totalwidth_, totalheight_);
+    IImage::Iterator contourlab = contourlabels.upperLeft() + Diff2D(2,2);
+    contourlabels = 0;
+    int countContourComponents =
+        labelImageWithBackground(srcImageRange(contourImage), destImage(contourlabels), true, 0);
 
-    std::vector<bool> borderProcessed(countBorderComponents + 1, false);
+    std::vector<bool> contourProcessed(countContourComponents + 1, false);
 
     // process outer face
     faceList[0].label= 0;
@@ -1480,7 +1487,7 @@ void FourEightSegmentation::initFaceList(BImage & rawborders, int number_of_face
     RayCirculator ray(this, Diff2D(-1, -1), EightNeighborCoding::West);
     --ray;
     faceList[0].contours.push_back(ContourCirculator(ray));
-    borderProcessed[borderlab(-1, -1)] = true;
+    contourProcessed[contourlab(-1, -1)] = true;
 
     FaceAtLeftAccessor leftface;
 
@@ -1490,7 +1497,8 @@ void FourEightSegmentation::initFaceList(BImage & rawborders, int number_of_face
     {
         for(x=0; x<width_; ++x)
         {
-            if(cells(x,y) != CellConfigurationsRegion)  continue;
+            if(cells(x,y) != CellConfigurationsRegion)
+                continue;
 
             int index = labels(x,y);
 
@@ -1529,24 +1537,25 @@ void FourEightSegmentation::initFaceList(BImage & rawborders, int number_of_face
             else
             {
                 // look for inner contours
-                FourEightSegmentationNeighborhoodCirculator
+                NeighborhoodCirculator
                     neighbor(this, Diff2D(x,y), EightNeighborCoding::East);
-                FourEightSegmentationNeighborhoodCirculator
+                NeighborhoodCirculator
                     nend = neighbor;
 
                 do
                 {
-                    int bindex = borderlab[neighbor.location()];
-                    if(bindex == 0 || borderProcessed[bindex]) continue;
+                    int bindex = contourlab[neighbor.location()];
+                    if(bindex == 0 || contourProcessed[bindex])
+                        continue;
 
                     // found an inner contour
-                    borderProcessed[bindex] = true;
+                    contourProcessed[bindex] = true;
 
                     // find incident node
                     if(cells[neighbor.location()] == CellConfigurationsVertex)
                     {
                         // this is the node
-                        FourEightSegmentationNeighborhoodCirculator n = neighbor;
+                        NeighborhoodCirculator n = neighbor;
                         n.jumpToOpposite();
                         RayCirculator ray(n);
                         --ray;
@@ -1570,13 +1579,14 @@ void FourEightSegmentation::initFaceList(BImage & rawborders, int number_of_face
 
                         faceList[index].contours.push_back(c);
                     }
-
                 }
                 while(++neighbor != nend);
             }
         }
     }
 }
+
+} // namespace FourEightSegmentation
 
 } // namespace vigra
 
