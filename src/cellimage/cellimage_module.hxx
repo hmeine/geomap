@@ -41,6 +41,11 @@ struct NodeListProxy
     
     vigra::cellimage::FourEightSegmentation::NodeInfo &__getitem__(long index)
     {
+        if(index > (long)segmentation_->maxNodeLabel())
+        {
+            PyErr_SetObject(PyExc_IndexError, vigra::ownedPyObject(index));
+            python::throw_error_already_set();
+        }
         return segmentation_->node(index);
     }
 
@@ -70,6 +75,11 @@ struct EdgeListProxy
     
     vigra::cellimage::FourEightSegmentation::EdgeInfo &__getitem__(long index)
     {
+        if(index > (long)segmentation_->maxEdgeLabel())
+        {
+            PyErr_SetObject(PyExc_IndexError, vigra::ownedPyObject(index));
+            python::throw_error_already_set();
+        }
         return segmentation_->edge(index);
     }
 
@@ -99,6 +109,11 @@ struct FaceListProxy
     
     vigra::cellimage::FourEightSegmentation::FaceInfo &__getitem__(long index)
     {
+        if(index > (long)segmentation_->maxFaceLabel())
+        {
+            PyErr_SetObject(PyExc_IndexError, vigra::ownedPyObject(index));
+            python::throw_error_already_set();
+        }
         return segmentation_->face(index);
     }
 
