@@ -1,22 +1,29 @@
 #ifndef CELLPYRAMID_HXX
 #define CELLPYRAMID_HXX
 
+#include <vector>
+
 namespace vigra {
 
-template<class Segmentation, class CellStatistics>
+template<class SEGMENTATION, class CELLSTATISTICS>
 class CellPyramid
 {
-    struct Level
-    {
-        unsigned int level;
-        Segmentation segmentation;
-    };
+  public:
+    typedef SEGMENTATION Segmentation;
+    typedef CELLSTATISTICS CellStatistics;
 
     typedef typename Segmentation::CellInfo CellInfo;
     typedef typename Segmentation::NodeInfo NodeInfo;
     typedef typename Segmentation::EdgeInfo EdgeInfo;
     typedef typename Segmentation::FaceInfo FaceInfo;
     typedef typename Segmentation::DartTraverser DartTraverser;
+
+  private:
+    struct Level
+    {
+        unsigned int level;
+        Segmentation segmentation;
+    };
 
     enum OperationType { RemoveIsolatedNode,
                          MergeFaces,
@@ -256,7 +263,7 @@ class CellPyramid
 
     void cutHead()
     {
-        history_.erase(history.begin() + currentLevel_, history.end());
+        history_.erase(history_.begin() + currentLevel_, history_.end());
         checkpoints_.erase(checkpoints_.upper_bound(currentLevel_),
                            checkpoints_.end());
     }
