@@ -197,9 +197,14 @@ public:
         return *this;
     }
 
-    operator CellImageEightCirculator()
+    const CellImageEightCirculator &neighborCirculator() const
     {
         return neighborCirc_;
+    }
+
+    const CellImageEightCirculator::base_type &base() const
+    {
+        return neighborCirc_.base();
     }
 };
 
@@ -320,7 +325,7 @@ public:
             EdgelIterator line(neighborCirc_);
             line.jumpToOpposite();
 
-            neighborCirc_ = line;
+            neighborCirc_ = line.neighborCirculator();
 
             return *this;
         }
