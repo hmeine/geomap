@@ -27,11 +27,180 @@
 #include "vigra/mathutil.hxx"
 #include "vigra/edgedetection.hxx"
 #include "vigra/polynomial.hxx"
+#include "vigra/eigensystem.hxx"
 #include "vigra/splineimageview.hxx"
+#include "vigra/pixelneighborhood.hxx"
 
 namespace vigra {
 
 enum CriticalPoint { Minimum = -1, Saddle, Maximum, Failed = 999 };
+
+template <class IMAGE, class VECTOR>
+void findCriticalPoints48Neighborhood(IMAGE const & image, 
+                        VECTOR & minima, VECTOR & saddles, VECTOR & maxima,
+                        bool eightneighborhood)
+{
+    typedef typename IMAGE::value_type Value;
+    typedef typename IMAGE::const_traverser Traverser;
+    typedef typename VECTOR::value_type Coordinate;
+
+    int w = image.width();
+    int h = image.height();
+    int d = eightneighborhood ? 1 : 2;
+    int steps = eightneighborhood ? 8 : 4;
+
+    Traverser iy = image.upperLeft() + Diff2D(1,1);
+    
+    for(int y=1; y < h-1; ++y, ++iy.y)
+    {
+        Traverser ix = iy;
+        for(int x=1; x < w-1; ++x, ++ix.x)
+        {
+            NeighborhoodCirculator<Traverser, EightNeighborCode> c(ix);
+            Value v = *ix, z = NumericTraits<Value>::zero(), s;
+            int i;
+            for(i = 0; i < steps; ++i, c += d)
+            {
+                s = sign(v - *c);
+                if(s != z)
+                    break;
+            }
+            if(i == steps)
+                continue; // plateau
+            int countSignChanges = 0, countZeros = 0;
+            for(i = 0, c += d; i < steps; ++i, c += d)
+            {
+                Value ss = sign(v - *c);
+                if(s * ss < z)
+                {
+                    ++countSignChanges;
+                    s = ss;
+                }
+                else if(ss == z)
+                    ++countZeros;
+            }
+
+            if(countSignChanges >= 4)
+            {
+                saddles.push_back(Coordinate(x, y));
+            }
+            else if(countSignChanges == 0 && countZeros == 0 && s < z)
+            {
+                minima.push_back(Coordinate(x, y));
+            }
+            else if(countSignChanges == 0 && countZeros == 0 && s > z)
+            {
+                maxima.push_back(Coordinate(x, y));
+            }
+        }
+    }
+}
+
+template <class IMAGE, class VECTOR>
+void findCriticalPointsLinearInterpolation(IMAGE const & image, 
+                        VECTOR & minima, VECTOR & saddles, VECTOR & maxima)
+{
+    typedef typename IMAGE::value_type Value;
+    typedef typename IMAGE::const_traverser Traverser;
+    typedef typename VECTOR::value_type Coordinate;
+
+    int w = image.width();
+    int h = image.height();
+
+    Traverser iy = image.upperLeft() + Diff2D(1,1);
+    
+    // The linear interpolation case is tricky because there are many possibiliries to
+    // create a saddle in the interpolated function: 
+    //      * saddle configuration in the 4-neighborhood (this is independent of the 8-neighbor values!)
+    //      * all 4-neighbors are equal to the center, but the 8-neighbors are in a saddle configuration
+    //      * the 4 corners of a facet are in a saddle (checker-board) configuration.
+    // It can be shown that other configurations cannot lead to a saddle.
+    // Extrema can only be encountered at sampling points, i.e. at facet break points,
+    // because the facet function a*x*y + b*x + c*y + d cannot have extrema.
+    for(int y=1; y < h-1; ++y, ++iy.y)
+    {
+        Traverser ix = iy;
+        for(int x=1; x < w-1; ++x, ++ix.x)
+        {
+            NeighborhoodCirculator<Traverser, EightNeighborCode> c(ix);
+            Value v = *ix, z = NumericTraits<Value>::zero(), s;
+            int i;
+            for(i = 0; i < 4; ++i, c += 2)
+            {
+                s = sign(v - *c);
+                if(s != z)
+                    break;
+            }
+            if(i == 4)
+            {
+                // 4-neighbor plateau => check for 8-neighbor saddle
+                for(i = 0, c += 1; i < 4; ++i, c += 2)
+                {
+                    s = sign(v - *c);
+                    if(s != z)
+                        break;
+                }
+                if(i == 4)
+                    continue; // true plateau
+                int countSignChanges = 0;
+                for(i = 0, c += 2; i < 4; ++i, c += 2)
+                {
+                    Value ss = sign(v - *c);
+                    if(s * ss < z)
+                    {
+                        ++countSignChanges;
+                        s = ss;
+                    }
+                }
+                if(countSignChanges == 4)
+                {
+                    saddles.push_back(Coordinate(x, y));
+                }
+            }
+            else
+            {
+                int countSignChanges = 0, countZeros = 0;
+                for(i = 0, c += 2; i < 4; ++i, c += 2)
+                {
+                    Value ss = sign(v - *c);
+                    if(s * ss < z)
+                    {
+                        ++countSignChanges;
+                        s = ss;
+                    }
+                    else if(ss == z)
+                        ++countZeros;
+
+                }
+                if(countSignChanges == 4)
+                {
+                    saddles.push_back(Coordinate(x, y));
+                }
+                else if(countSignChanges == 0 && countZeros == 0 && s < z)
+                {
+                    minima.push_back(Coordinate(x, y));
+                }
+                else if(countSignChanges == 0 && countZeros == 0 && s > z)
+                {
+                    maxima.push_back(Coordinate(x, y));
+                }
+            }
+            if(x == w - 2 || y == h - 2)
+                continue; // don't check the border facets
+            // check for saddle (checker board configuration) in the lower right facet
+            c.turnTo(EightNeighborhood::South);
+            Value v1 = *c; ++c;
+            Value v2 = *c; ++c;
+            Value v3 = *c;
+            if((v > v1 && v > v3 && v2 > v1 && v2 > v3) ||
+               (v < v1 && v < v3 && v2 < v1 && v2 < v3))
+            {
+                Value sv = v - v1 + v2 - v3;
+                saddles.push_back(Coordinate((v - v1) / sv, (v - v3) / sv));
+            }
+        }
+    }
+}
 
 template <class IMAGEVIEW>
 CriticalPoint
@@ -99,8 +268,8 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
 
 template <class IMAGEVIEW, class VECTOR>
 void findCriticalPointsNewtonMethod(IMAGEVIEW const & image, 
-                        VECTOR & minima, VECTOR & maxima, VECTOR & saddles,
-                        double epsilon)
+                        VECTOR & minima, VECTOR & saddles, VECTOR & maxima,
+                        double epsilon, unsigned int oversampling)
 {
     int w = image.width();
     int h = image.height();
@@ -108,18 +277,20 @@ void findCriticalPointsNewtonMethod(IMAGEVIEW const & image,
     typedef typename IMAGEVIEW::value_type Value;
     Value zero = NumericTraits<Value>::zero();
     typedef typename VECTOR::value_type Coordinate;
+
+    double d = 1.0 / oversampling;
     
-    for(int y=1; y<h-1; ++y)
+    for(double y=1.0; y <= h-2.0; y += d)
     {
-        for(int x=1; x<w-1; ++x)
+        for(double x=1.0; x <= w-2.0; x += d)
         {
             double xx, yy;
             CriticalPoint type = findCriticalPointNewtonMethod(image, x, y, xx, yy, epsilon);
             if(type == Failed)
                 continue;
-            if(VIGRA_CSTD::abs(xx - x) > 0.5 || VIGRA_CSTD::abs(yy - y) > 0.5)
+            if(VIGRA_CSTD::abs(xx - x) > 0.5*d || VIGRA_CSTD::abs(yy - y) > 0.5*d)
             {
-                continue; // out of current pixel region
+                continue; // out of current starting point region
             }
             if(type == Saddle)
             {
@@ -148,6 +319,8 @@ findCriticalPointsInFacet(
     x0 = VIGRA_CSTD::floor(x0 + 0.5);
     y0 = VIGRA_CSTD::floor(y0 + 0.5);
 
+    fprintf(stderr, "findCriticalPointsInFacet()\n");
+
     DImage splineCoeffs(3,3);
     s.coefficientArray(x0, y0, splineCoeffs);
     double j = splineCoeffs(0,0);
@@ -172,8 +345,17 @@ findCriticalPointsInFacet(
     double eps = 1.0e-7;
     Polynomial<double> px(polyCoeffs, 6 , eps);
     px.minimizeOrder();
-    std::vector<double> rx;
-    polynomialRealRoots(px, rx);
+    ArrayVector<double> rx;
+    if(!polynomialRealRoots(px, rx, false))
+        return;
+    
+    if(x0 == 90 && y0 == 100)
+    {
+        std::cerr << TinyVectorView<double, 9>(&splineCoeffs(0,0)) << "\n";
+        std::cerr << TinyVectorView<double, 6>(&px[0]) << "\n";
+        for(int i=0; i<rx.size();++i)
+            std::cerr << rx[i] << "\n";
+    }
     
     double xold = -100.0;
     for(unsigned int i=0; i < rx.size(); ++i)
@@ -182,7 +364,7 @@ findCriticalPointsInFacet(
         
         // ensure that x is in the current facet, 
         // and that a multilple root is only used once (this may be
-        // wrong, as perhaps several y' share the same x)
+        // wrong, as perhaps several y's share the same x)
         if(std::abs(x) <= 0.5 && std::abs(x-xold) >= eps)
         {
             double cy = 2*f + 2*c*x + 2*a*x*x;
