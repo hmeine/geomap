@@ -430,7 +430,7 @@ FourEightSegmentation &FourEightSegmentation::deepCopy(
     {
         it->anchor.reparent(this);
     }
-        
+
     for(EdgeIterator it= edgesBegin(); it.inRange(); ++it)
     {
         it->start.reparent(this);
@@ -453,17 +453,19 @@ FourEightSegmentation &FourEightSegmentation::deepCopy(
 
 void FourEightSegmentation::initCellImage(BImage & contourImage)
 {
-    BImage::traverser rawLine = contourImage.upperLeft() + Diff2D(1,1);
-    CellImage::traverser cellLine = cellImage.upperLeft() + Diff2D(1,1);
-    for(int y=-1; y < cellImage.height()-3; ++y, ++rawLine.y, ++cellLine.y)
+    CellPixel regionPixel(CellTypeRegion, 0);
+
+    BImage::traverser rawLine = contourImage.upperLeft();
+    CellImage::traverser cellLine = cellImage.upperLeft();
+    for(int y=-2; y < cellImage.height()-2; ++y, ++rawLine.y, ++cellLine.y)
     {
         BImage::traverser raw = rawLine;
         CellImage::traverser cell = cellLine;
-        for(int x=-1; x < cellImage.width()-3; ++x, ++raw.x, ++cell.x)
+        for(int x=-2; x < cellImage.width()-2; ++x, ++raw.x, ++cell.x)
         {
             if(*raw == 0)
             {
-                cell->setType(CellTypeRegion);
+                *cell = regionPixel;
             }
             else
             {
@@ -484,14 +486,14 @@ void FourEightSegmentation::initCellImage(BImage & contourImage)
                                     Rect2D(x, y, x+5, y+5)),
                                std::cerr);
                     char message[200];
-                    sprintf(message, "FourEightSegmentation::init(): "
+                    snprintf(message, 200, "FourEightSegmentation::init(): "
                             "Configuration at (%d, %d) must be thinned further (found configuration %d)",
                             x, y, conf);
 
                     vigra_precondition(0, message);
                 }
 
-                cell->setType(cellConfigurations[conf]);
+                cell->setType(cellConfigurations[conf], 0);
             }
         }
     }
@@ -523,7 +525,7 @@ CellLabel FourEightSegmentation::label0Cells()
                     if(n->type() == CellTypeLine && n[1].type() == CellTypeLine)
                     {
                         char msg[200];
-                        sprintf(msg, "initFourEightSegmentation(): "
+                        sprintf(msg, "label0Cells(): "
                                 "Node at (%d, %d) has two incident edgels from the same edge (direction: %d)",
                                 x, y, n - nend);
                         vigra_precondition(0, msg);
@@ -579,6 +581,7 @@ CellLabel FourEightSegmentation::label1Cells(CellLabel maxNodeLabel)
         }
     }
 
+    std::cerr << "found maxEdgeLabel " << maxEdgeLabel << "\n";
     return maxEdgeLabel;
 }
 
@@ -649,6 +652,25 @@ void FourEightSegmentation::labelEdge(CellImageEightCirculator rayAtStart,
 
 /********************************************************************/
 
+struct HoleRemover
+{
+    const CellPixel &p_;
+    mutable unsigned int size_;
+
+    HoleRemover(const CellPixel &p) : p_(p), size_(0) {}
+
+    const CellPixel &operator()(const CellPixel &) const
+    {
+        ++size_;
+        return p_;
+    }
+
+    unsigned int size() const
+    {
+        return size_;
+    }
+};
+
 void FourEightSegmentation::initNodeList(CellLabel maxNodeLabel)
 {
     nodeList_.resize(maxNodeLabel + 1);
@@ -664,7 +686,7 @@ void FourEightSegmentation::initNodeList(CellLabel maxNodeLabel)
                 continue;
 
             CellLabel index = cell->label();
-            vigra_precondition(index < nodeList_.size(),
+			vigra_precondition(index < nodeList_.size(),
                                "nodeList_ must be large enough!");
 
             if(!nodeList_[index].initialized())
@@ -713,11 +735,11 @@ void FourEightSegmentation::initNodeList(CellLabel maxNodeLabel)
         // methods to calculate the area must yield identical values
         if(crackCirculatedAreas[node->label] != node->size)
         {
-            std::cerr << "FourEightSegmentation::initNodeList(): "
-                      << "Node " << node->label << " has a "
-                      << (crackCirculatedAreas[node->label] - node->size)
-                      << "-pixel hole, stuffing..\n";
-            
+//             std::cerr << "FourEightSegmentation::initNodeList(): "
+//                       << "Node " << node->label << " has a "
+//                       << (crackCirculatedAreas[node->label] - node->size)
+//                       << "-pixel hole, stuffing..\n";
+
             CellImage::traverser bul(cells + node->bounds.upperLeft());
             CellImage::traverser blr(cells + node->bounds.lowerRight());
 
@@ -737,17 +759,17 @@ void FourEightSegmentation::initNodeList(CellLabel maxNodeLabel)
             }
             while(++crack != crackend);
 
-            std::cerr << "found " << outerRegions.size() << " outer regions:\n";
-            for(std::set<CellLabel>::iterator it= outerRegions.begin();
-                it != outerRegions.end(); ++it)
-            {
-                std::cerr << *it << ", ";
-            }
-            std::cerr << "\n";
-            debugImage(crop(srcIterRange(cells, cells), node->bounds),
-                       std::cerr, 4);
+//             std::cerr << "found " << outerRegions.size() << " outer regions:\n";
+//             for(std::set<CellLabel>::iterator it= outerRegions.begin();
+//                 it != outerRegions.end(); ++it)
+//             {
+//                 std::cerr << *it << ", ";
+//             }
+//             std::cerr << "\n";
+//             debugImage(crop(srcIterRange(cells, cells), node->bounds),
+//                        std::cerr, 4);
 
-            for(; bul.y < blr.y; ++bul.y)
+            for(bul = cells + node->bounds.upperLeft(); bul.y < blr.y; ++bul.y)
             {
                 for(anchor= bul; anchor.x < blr.x-1; ++anchor.x)
                 {
@@ -756,21 +778,28 @@ void FourEightSegmentation::initNodeList(CellLabel maxNodeLabel)
                         ++anchor.x;
                         if((anchor->type() == CellTypeRegion) &&
                            !outerRegions.count(anchor->label()))
-                            goto HoleFound;
+                        {
+//                             std::cerr << "found hole label: " << *anchor;
+                            HoleRemover holeRemover(nodePixel);
+                            transformImageIf(crop(srcIterRange(cells, cells), node->bounds),
+                                             crop(maskIter(cells, CellMask(*anchor)), node->bounds),
+                                             crop(destIter(cells), node->bounds),
+                                             holeRemover);
+
+                            node->size += holeRemover.size();
+//                             std::cerr << " (" << holeRemover.size() << " pixels)\n";
+
+                            if(crackCirculatedAreas[node->label] == node->size)
+                                goto HolesStuffed; // double break
+                        }
                         else
                             --anchor.x;
                     }
                 }
             }
 
-        HoleFound:
-            if((anchor.y < blr.y) && (anchor.x < blr.x))
-            {
-                std::cerr << "found hole label: " << *anchor << "\n";
-                initImageIf(crop(destIterRange(cells, cells), node->bounds),
-                            crop(maskIter(cells, CellMask(*anchor)), node->bounds),
-                            nodePixel);
-            }
+        HolesStuffed:
+            ;
         }
     }
 }
@@ -781,19 +810,18 @@ void FourEightSegmentation::initEdgeList(CellLabel maxEdgeLabel)
 {
     edgeList_.resize(maxEdgeLabel + 1);
 
-    NodeIterator n(nodeList_.begin(), nodeList_.end());
-
-    for(; n.inRange(); ++n)
+    for(NodeIterator n = nodesBegin(); n.inRange(); ++n)
     {
         DartTraverser dart = n->anchor;
         if(dart.isSingular())
             continue;
         DartTraverser dartEnd = dart;
 
+        int debugCount = 0;
         do
         {
             CellLabel label = dart.edgeLabel();
-            vigra_precondition(label < edgeList_.size(),
+			vigra_precondition(index < edgeList_.size(),
                                "edgeList_ must be large enough!");
             if(!edgeList_[label].initialized())
             {
@@ -804,6 +832,21 @@ void FourEightSegmentation::initEdgeList(CellLabel maxEdgeLabel)
                 edgeList_[label].end.nextAlpha();
                 // correct size and bounds will be collected by initFaceList()
                 edgeList_[label].size = 0;
+            }
+
+            if(++debugCount == 40)
+            {
+                std::cerr << "node " << n->label << " has degree > 40??\n"
+                          << "  bounds: " << n->bounds << "\n";
+                Rect2D dr(n->bounds);
+                dr |= Point2D(dartEnd.neighborCirculator().base() - cells);
+                dr |= Point2D(dart.neighborCirculator().base() - cells);
+                std::cerr << "debugging rect " << dr << " including "
+                          << Point2D(dartEnd.neighborCirculator().base() - cells) << "\n";
+                debugImage(crop(srcIterRange(cells, cells), dr),
+                           std::cerr, 4);
+                std::cerr << "dartEnd: "; debugDart(dartEnd);
+                std::cerr << "dart:    "; debugDart(dart);
             }
         }
         while(dart.nextSigma() != dartEnd);
@@ -858,9 +901,8 @@ void FourEightSegmentation::initFaceList(
             }
 
             CellLabel index = cell->label();
-            vigra_precondition(index < faceList_.size(),
+			vigra_precondition(index < faceList_.size(),
                                "faceList_ must be large enough!");
-
             if(!faceList_[index].initialized())
             {
                 //std::cerr << "found face " << index << " at " << pos.x << "," << pos.y << "\n";

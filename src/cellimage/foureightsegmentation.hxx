@@ -43,12 +43,12 @@ class ComposeFunctor
     Operation1 op1;
     Operation2 op2;
   public:
-    ComposeFunctor(const Operation1& x = Operation1(),
-                   const Operation2& y = Operation2())
+    ComposeFunctor(const Operation1 &x = Operation1(),
+                   const Operation2 &y = Operation2())
     : op1(x), op2(y) {}
 
     typename Operation1::result_type
-    operator()(const typename Operation2::argument_type& x) const
+    operator()(const typename Operation2::argument_type &x) const
     {
         return op1(op2(x));
     }
@@ -97,7 +97,7 @@ public:
             operator++();
     }
 
-    LabelScanIterator & operator++()
+    LabelScanIterator &operator++()
     {
         ++cellIter_.x, ++imageIter_.x;
         while((cellIter_.x != cellLR_.x) && (*cellIter_ != cellPixelValue_))
@@ -179,7 +179,7 @@ class EdgelIterator
     bool atEnd_;
 
 public:
-    EdgelIterator(CellImageEightCirculator const & n)
+    EdgelIterator(CellImageEightCirculator const &n)
         : neighborCirc_(n), atEnd_(false)
     {}
 
@@ -203,7 +203,7 @@ public:
         return !atEnd_;
     }
 
-    EdgelIterator & operator++()
+    EdgelIterator &operator++()
     {
         neighborCirc_.moveCenterToNeighbor();
         neighborCirc_.turnRight();
@@ -232,7 +232,7 @@ public:
         return *this;
     }
 
-    EdgelIterator & jumpToOpposite()
+    EdgelIterator &jumpToOpposite()
     {
         while(!atEnd())
             operator++();
@@ -246,9 +246,11 @@ public:
     }
 };
 
-// -------------------------------------------------------------------
-//                         FourEightSegmentation
-// -------------------------------------------------------------------
+/********************************************************************/
+/*                                                                  */
+/*                      FourEightSegmentation                       */
+/*                                                                  */
+/********************************************************************/
 class FourEightSegmentation
 {
 public:
@@ -256,14 +258,16 @@ public:
     struct EdgeInfo;
     struct FaceInfo;
 
-    // -------------------------------------------------------------------
-    //                  FourEightSegmentation::DartTraverser
-    // -------------------------------------------------------------------
+    /********************************************************************/
+    /*                                                                  */
+    /*               FourEightSegmentation::DartTraverser               */
+    /*                                                                  */
+    /********************************************************************/
     class DartTraverser
     {
         CellImageEightCirculator neighborCirc_;
 
-        FourEightSegmentation * segmentation_;
+        FourEightSegmentation *segmentation_;
 
             // prevent double stop at a line pixel from different source
             // vertex pixels
@@ -277,8 +281,8 @@ public:
     public:
         DartTraverser() : segmentation_(0L) {}
 
-        DartTraverser(FourEightSegmentation * segmentation,
-                      CellImageEightCirculator const & circ)
+        DartTraverser(FourEightSegmentation *segmentation,
+                      CellImageEightCirculator const &circ)
             : neighborCirc_(circ),
               segmentation_(segmentation)
         {
@@ -302,7 +306,7 @@ public:
                 carefulNextSigma();
         }
 
-        DartTraverser & carefulNextSigma()
+        DartTraverser &carefulNextSigma()
         {
             CellImageEightCirculator nend = neighborCirc_;
             while(neighborCirc_->type() != CellTypeLine)
@@ -321,7 +325,7 @@ public:
             return *this;
         }
 
-        DartTraverser & carefulPrevSigma()
+        DartTraverser &carefulPrevSigma()
         {
             CellImageEightCirculator nend = neighborCirc_;
             while(neighborCirc_->type() != CellTypeLine)
@@ -340,7 +344,7 @@ public:
             return *this;
         }
 
-        DartTraverser & nextAlpha()
+        DartTraverser &nextAlpha()
         {
             if(isSingular())
                 return *this;
@@ -353,22 +357,22 @@ public:
             return *this;
         }
 
-        DartTraverser & prevAlpha()
+        DartTraverser &prevAlpha()
         {
             return nextAlpha();
         }
 
-        DartTraverser & nextPhi()
+        DartTraverser &nextPhi()
         {
             return nextAlpha().prevSigma();
         }
 
-        DartTraverser & prevPhi()
+        DartTraverser &prevPhi()
         {
             return nextSigma().prevAlpha();
         }
 
-        DartTraverser & nextSigma()
+        DartTraverser &nextSigma()
         {
             if(isSingular(true))
                 return *this;
@@ -386,7 +390,7 @@ public:
             return *this;
         }
 
-        DartTraverser & prevSigma()
+        DartTraverser &prevSigma()
         {
             if(isSingular(true))
                 return *this;
@@ -438,58 +442,63 @@ public:
         CellLabel leftFaceLabel() const
         {
             vigra_precondition(neighborCirc_[1].type() == CellTypeRegion,
-                "insufficient algorithm for DartTraverser::rightFace()");
+                "insufficient algorithm for DartTraverser::leftFaceLabel()");
             return neighborCirc_[1].label();
         }
 
         CellLabel rightFaceLabel() const
         {
             vigra_precondition(neighborCirc_[-1].type() == CellTypeRegion,
-                "insufficient algorithm for DartTraverser::rightFace()");
+                "insufficient algorithm for DartTraverser::rightFaceLabel()");
             return neighborCirc_[-1].label();
         }
 
-        NodeInfo & startNode() const
+        NodeInfo &startNode() const
         {
             return segmentation_->nodeList_[startNodeLabel()];
         }
 
-        NodeInfo & endNode() const
+        NodeInfo &endNode() const
         {
             return segmentation_->nodeList_[endNodeLabel()];
         }
 
-        EdgeInfo & edge() const
+        EdgeInfo &edge() const
         {
             return segmentation_->edgeList_[edgeLabel()];
         }
 
-        FaceInfo & leftFace() const
+        FaceInfo &leftFace() const
         {
             return segmentation_->faceList_[leftFaceLabel()];
         }
 
-        FaceInfo & rightFace() const
+        FaceInfo &rightFace() const
         {
             return segmentation_->faceList_[rightFaceLabel()];
         }
 
-        bool operator==(DartTraverser const & o) const
+        bool operator==(DartTraverser const &o) const
         {
             return neighborCirc_ == o.neighborCirc_;
         }
 
-        bool operator!=(DartTraverser const & o) const
+        bool operator!=(DartTraverser const &o) const
         {
             return neighborCirc_ != o.neighborCirc_;
         }
 
-        FourEightSegmentation * segmentation() const
+        const CellImageEightCirculator &neighborCirculator() const
+        {
+            return neighborCirc_;
+        }
+
+        FourEightSegmentation *segmentation() const
         {
             return segmentation_;
         }
 
-        void reparent(FourEightSegmentation * segmentation)
+        void reparent(FourEightSegmentation *segmentation)
         {
             neighborCirc_ = CellImageEightCirculator(
                 segmentation->cells +
@@ -498,10 +507,24 @@ public:
             segmentation_ = segmentation;
         }
 
-        const CellImageEightCirculator &neighborCirculator() const
+        typedef unsigned int Serialized;
+
+        Serialized serialize() const
         {
-            return neighborCirc_;
+            Diff2D cPos(neighborCirc_.center() -
+                        segmentation_->cellImage.upperLeft());
+            return (int)neighborCirc_.direction() << 28 | // needs 3 bits
+                cPos.x << 14 | cPos.y;
         }
+
+        DartTraverser(FourEightSegmentation *segmentation,
+                      Serialized serialized)
+        : neighborCirc_(segmentation->cellImage.upperLeft() +
+                        Diff2D((serialized >> 14) & 0x3fff,
+                               serialized & 0x3fff),
+                        (CellImageEightCirculator::Direction)(serialized >> 28)),
+          segmentation_(segmentation)
+        {}
 
     private:
         void tryNextSigma()
@@ -557,6 +580,9 @@ public:
 
         bool isLoop() const
         { return start.startNodeLabel() == end.startNodeLabel(); }
+
+        bool isBridge() const
+        { return start.leftFaceLabel() == start.rightFaceLabel(); }
     };
 
     struct FaceInfo : CellInfo
@@ -651,7 +677,7 @@ public:
 
     bool initialized() const { return initialized_; }
 
-    // the fooCount()s tell how many fooList_ elements are initialized()
+        // the fooCount()s tell how many fooList_ elements are initialized()
     unsigned int nodeCount() const { return nodeCount_; }
     CellLabel maxNodeLabel() const { return nodeList_.size(); }
     unsigned int edgeCount() const { return edgeCount_; }
@@ -659,13 +685,14 @@ public:
     unsigned int faceCount() const { return faceCount_; }
     CellLabel maxFaceLabel() const { return faceList_.size(); }
 
+        // node access
     NodeIterator nodesBegin()
         { return NodeIterator(nodeList_.begin(), nodeList_.end()); }
     NodeIterator nodesEnd()
         { return NodeIterator(nodeList_.end(), nodeList_.end()); }
     NodeIterator findNode(unsigned int node)
         { return NodeIterator(nodeList_.begin() + node, nodeList_.end()); }
-    NodeInfo & node(unsigned int node)
+    NodeInfo &node(unsigned int node)
         { return nodeList_[node]; }
 
     ConstNodeIterator nodesBegin() const
@@ -674,16 +701,17 @@ public:
         { return ConstNodeIterator(nodeList_.end(), nodeList_.end()); }
     ConstNodeIterator findNode(unsigned int node) const
         { return ConstNodeIterator(nodeList_.begin() + node, nodeList_.end()); }
-    const NodeInfo & node(unsigned int node) const
+    const NodeInfo &node(unsigned int node) const
         { return nodeList_[node]; }
 
+        // edge access
     EdgeIterator edgesBegin()
         { return EdgeIterator(edgeList_.begin(), edgeList_.end()); }
     EdgeIterator edgesEnd()
         { return EdgeIterator(edgeList_.end(), edgeList_.end()); }
     EdgeIterator findEdge(unsigned int edge)
         { return EdgeIterator(edgeList_.begin() + edge, edgeList_.end()); }
-    EdgeInfo & edge(unsigned int edge)
+    EdgeInfo &edge(unsigned int edge)
         { return edgeList_[edge]; }
 
     ConstEdgeIterator edgesBegin() const
@@ -692,16 +720,17 @@ public:
         { return ConstEdgeIterator(edgeList_.end(), edgeList_.end()); }
     ConstEdgeIterator findEdge(unsigned int edge) const
         { return ConstEdgeIterator(edgeList_.begin() + edge, edgeList_.end()); }
-    const EdgeInfo & edge(unsigned int edge) const
+    const EdgeInfo &edge(unsigned int edge) const
         { return edgeList_[edge]; }
 
+        // face access
     FaceIterator facesBegin()
         { return FaceIterator(faceList_.begin(), faceList_.end()); }
     FaceIterator facesEnd()
         { return FaceIterator(faceList_.end(), faceList_.end()); }
     FaceIterator findFace(unsigned int face)
         { return FaceIterator(faceList_.begin() + face, faceList_.end()); }
-    FaceInfo & face(unsigned int face)
+    FaceInfo &face(unsigned int face)
         { return faceList_[face]; }
 
     ConstFaceIterator facesBegin() const
@@ -710,11 +739,12 @@ public:
         { return ConstFaceIterator(faceList_.end(), faceList_.end()); }
     ConstFaceIterator findFace(unsigned int face) const
         { return ConstFaceIterator(faceList_.begin() + face, faceList_.end()); }
-    const FaceInfo & face(unsigned int face) const
+    const FaceInfo &face(unsigned int face) const
         { return faceList_[face]; }
 
+        // cellimage access
     CellImage cellImage;
-    CellImage::traverser cells;
+    CellImage::traverser cells; // points to cellImage[2, 2] which is coord (0, 0)
 
     template<class SrcTraverser>
     inline LabelScanIterator<CellImage::traverser, SrcTraverser>
@@ -748,19 +778,19 @@ public:
 
   protected:
     unsigned int findContourComponent(const ContourComponents &contours,
-                                       const DartTraverser & dart);
+                                      const DartTraverser &dart);
 
     void removeNodeFromContours(ContourComponents &contours,
                                 CellLabel nodeLabel);
 
   public:
-    FaceInfo &removeIsolatedNode(const DartTraverser & dart);
+    FaceInfo &removeIsolatedNode(const DartTraverser &dart);
 
-    FaceInfo &mergeFaces(const DartTraverser & dart);
+    FaceInfo &mergeFaces(const DartTraverser &dart);
 
-    FaceInfo &removeBridge(const DartTraverser & dart);
+    FaceInfo &removeBridge(const DartTraverser &dart);
 
-    EdgeInfo &mergeEdges(const DartTraverser & dart);
+    EdgeInfo &mergeEdges(const DartTraverser &dart);
 
   private:
     FourEightSegmentation &deepCopy(const FourEightSegmentation &other);
@@ -775,19 +805,19 @@ public:
 
     friend struct DartTraverser;
 
-    void initCellImage(BImage & contourImage);
+    void initCellImage(BImage &contourImage);
     CellLabel label0Cells();
     CellLabel label1Cells(CellLabel maxNodeLabel);
-    CellLabel label2Cells(BImage & contourImage);
-    void labelCircles(CellLabel & maxNodeLabel,
-                      CellLabel & maxEdgeLabel);
+    CellLabel label2Cells(BImage &contourImage);
+    void labelCircles(CellLabel &maxNodeLabel,
+                      CellLabel &maxEdgeLabel);
 
     void labelEdge(CellImageEightCirculator rayAtStart,
                    CellLabel newLabel);
 
     void initNodeList(CellLabel maxNodeLabel);
     void initEdgeList(CellLabel maxEdgeLabel);
-    void initFaceList(BImage & contourImage, CellLabel maxFaceLabel);
+    void initFaceList(BImage &contourImage, CellLabel maxFaceLabel);
     void initBoundingBoxes(CellLabel maxNodeLabel,
                            CellLabel maxEdgeLabel,
                            CellLabel maxFaceLabel);
@@ -821,7 +851,7 @@ FourEightSegmentation::cellScanIterator(
 
 template<class SrcIter, class SrcAcc>
 void initFourEightSegmentationContourImage(SrcIter ul, SrcIter lr, SrcAcc src,
-                                           BImage & contourImage,
+                                           BImage &contourImage,
                                            typename SrcAcc::value_type boundaryValue)
 {
     int w = lr.x - ul.x;
