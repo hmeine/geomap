@@ -21,6 +21,8 @@ class CellPyramid
     enum OperationType { RemoveIsolatedNode,
                          MergeFaces,
                          RemoveBridge,
+                         MergeEdges,
+                         // composed Operations:
                          RemoveEdge,
                          RemoveEdgeWithEnds };
 
@@ -37,12 +39,13 @@ class CellPyramid
         CheckpointMap;
     CheckpointMap checkpoints_;
 
-    typedef std::vector<Operation> History;
+    typedef std::vector<Operation>
+        History;
     History history_;
 
-    unsigned int currentLevel_;
-    Segmentation currentSegmentation_;
-    CellStatistics   currentCellStatistics_;
+    unsigned int   currentLevel_;
+    Segmentation   currentSegmentation_;
+    CellStatistics currentCellStatistics_;
 
     FaceInfo &removeIsolatedNodeInternal(const DartTraverser & dart)
     {
@@ -68,6 +71,14 @@ class CellPyramid
         return result;
     }
 
+    EdgeInfo &mergeEdgesInternal(const DartTraverser & dart)
+    {
+        currentCellStatistics_.preMergeEdges(dart);
+        EdgeInfo &result(currentSegmentation_.mergeEdges(dart));
+        currentCellStatistics_.postMergeEdges(dart, result);
+        return result;
+    }
+
     CellInfo &performOperation(Operation &op)
     {
         switch(op.type_)
@@ -84,6 +95,10 @@ class CellPyramid
           {
               return removeBridgeInternal(op.param_);
           }
+          case MergeEdges:
+          {
+              return mergeEdgesInternal(op.param_);
+          }
           case RemoveEdge:
           {
               return (op.param_.leftFaceLabel() == op.param_.rightFaceLabel() ?
@@ -93,6 +108,8 @@ class CellPyramid
           case RemoveEdgeWithEnds:
           {
               EdgeInfo &removedEdge = currentSegmentation_.edge(op.param_.edgeLabel());
+              bool removedEdgeIsLoop = removedEdge.start.startNodeLabel() ==
+                                       removedEdge.end.startNodeLabel();
 
               FaceInfo &result = (op.param_.leftFaceLabel() == op.param_.rightFaceLabel() ?
                                   removeBridgeInternal(op.param_) :
@@ -100,9 +117,37 @@ class CellPyramid
 
               if(removedEdge.start.recheckSingularity())
                   removeIsolatedNodeInternal(removedEdge.start);
+              else
+              {
+                  // recheckSingularity() modified removedEdge.start
+                  // to point to a valid edge pixel again, so it is
+                  // not really removedEdge.start anymore.. ;-)
+                  DartTraverser changedNode(removedEdge.start);
+                  // test if the DartTraverser has degree 2 and the
+                  // edge is no loop:
+                  if((changedNode.nextSigma() != removedEdge.start) &&
+                     (changedNode.edgeLabel() != removedEdge.start.edgeLabel()) &&
+                     (changedNode.nextSigma() == removedEdge.start))
+                  {
+                      mergeEdgesInternal(changedNode);
+                  }
+              }
 
-              if(removedEdge.end.recheckSingularity())
-                  removeIsolatedNodeInternal(removedEdge.end);
+              if(!removedEdgeIsLoop)
+              {
+                  if(removedEdge.end.recheckSingularity())
+                      removeIsolatedNodeInternal(removedEdge.end);
+                  else
+                  {
+                      DartTraverser changedNode(removedEdge.end);
+                      if((changedNode.nextSigma() != removedEdge.end) &&
+                         (changedNode.edgeLabel() != removedEdge.end.edgeLabel()) &&
+                         (changedNode.nextSigma() == removedEdge.end))
+                      {
+                          mergeEdgesInternal(changedNode);
+                      }
+                  }
+              }
 
               return result;
           }
@@ -141,7 +186,6 @@ class CellPyramid
   public:
     void storeCheckpoint()
     {
-        std::cerr << "storeCheckpoint()\n";
         checkpoints_.insert(std::make_pair(levelCount()-1, std::make_pair(currentSegmentation_, currentCellStatistics_)));
     }
 
@@ -169,6 +213,12 @@ class CellPyramid
     {
         history_.push_back(Operation(RemoveBridge, dart));
         return static_cast<FaceInfo &>(gotoLevel(levelCount()-1));
+    }
+
+    EdgeInfo &mergeEdges(const DartTraverser & dart)
+    {
+        history_.push_back(Operation(MergeEdges, dart));
+        return static_cast<EdgeInfo &>(gotoLevel(levelCount()-1));
     }
 
     FaceInfo &removeEdge(const DartTraverser & dart)
@@ -202,6 +252,13 @@ class CellPyramid
     {
         gotoLevel(level);
         return currentSegmentation_;
+    }
+
+    void cutHead()
+    {
+        history_.erase(history.begin() + currentLevel_, history.end());
+        checkpoints_.erase(checkpoints_.upper_bound(currentLevel_),
+                           checkpoints_.end());
     }
 
     unsigned int levelCount() const
