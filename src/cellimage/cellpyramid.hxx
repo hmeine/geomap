@@ -5,9 +5,6 @@
 #include <map>
 
 /* Known design weaknesses:
- * - performOperation() does not increase index_ (because I liked to
- *   return...; directly for efficiency, but cannot ++index_ before
- *   that because of exception safety) :-(
  * - cutHead() calls storeCheckpoint to restore nextCheckpointLevelIndex_
  */
 
@@ -35,15 +32,51 @@ class CellPyramid
                          MergeEdges,
                          // composed Operations:
                          RemoveEdge,
-                         RemoveEdgeWithEnds };
+                         RemoveEdgeWithEnds,
+                         Composite };
 
     struct Operation
     {
-        OperationType                      type;
-        typename DartTraverser::Serialized param;
+        OperationType type;
+        union
+        {
+            typename DartTraverser::Serialized param;
+            std::vector<Operation>            *opList;
+        };
 
         Operation(OperationType opType, DartTraverser paramDart)
-        : type(opType), param(paramDart.serialize()) {}
+        : type(opType), param(paramDart.serialize())
+        {}
+
+        Operation()
+        : type(Composite), opList(new std::vector<Operation>)
+        {}
+
+            // deep copy
+        void assign(const Operation &other)
+        {
+            if((type = other.type) == Composite)
+                opList = new History(other.opList->begin(), other.opList->end());
+            else
+                param = other.param;
+        }
+
+        Operation(const Operation &other)
+        {
+            assign(const_cast<Operation &>(other));
+        }
+
+        Operation &operator =(const Operation &other)
+        {
+            assign(const_cast<Operation &>(other));
+            return *this;
+        }
+
+        ~Operation()
+        {
+            if(type == Composite)
+                delete opList;
+        }
     };
 
   public:
@@ -158,6 +191,15 @@ class CellPyramid
 
         CellInfo &performOperation(Operation &op)
         {
+            if(op.type == Composite)
+            {
+                CellInfo *result = NULL;
+                for(typename History::iterator it = op.opList->begin();
+                    it != op.opList->end(); ++it)
+                    result = &performOperation(*it);
+                return *result;
+            }
+
             DartTraverser param(&segmentation_, op.param);
 
             switch(op.type)
@@ -202,6 +244,8 @@ class CellPyramid
 
                   return result;
               }
+              case Composite:
+                  ; 
             }
 
             vigra_fail("Unknown operation type in CellPyramid<>::performOperation!");
@@ -224,25 +268,43 @@ class CellPyramid
     History       history_;
     Level         topLevel_;
     unsigned int  nextCheckpointLevelIndex_;
+    unsigned int  composing_;
 
     CellInfo &addAndPerformOperation(OperationType t, const DartTraverser &p)
     {
-        vigra_precondition(topLevel_.index() == levelCount()-1,
-            "addAndPerformOperation(): topLevel_ is not the top level anymore");
+//         vigra_precondition(topLevel_.index() == levelCount()-1,
+//             "addAndPerformOperation(): topLevel_ is not the top level anymore");
 
         CellInfo *result = NULL;
-        try
+        if(!composing_)
         {
-            history_.push_back(Operation(t, p));
-            result = &topLevel_.performOperation(history_.back());
-            ++topLevel_.index_;
-            if(topLevel_.index() == nextCheckpointLevelIndex_)
-                storeCheckpoint(topLevel_);
+            try
+            {
+                history_.push_back(Operation(t, p));
+                result = &topLevel_.performOperation(history_.back());
+                ++topLevel_.index_;
+                if(topLevel_.index() == nextCheckpointLevelIndex_)
+                    storeCheckpoint(topLevel_);
+            }
+            catch(...)
+            {
+                cutAbove(topLevel_.index());
+                throw;
+            }
         }
-        catch(...)
+        else
         {
-            cutAbove(topLevel_.index());
-            throw;
+            History &opList(*history_.back().opList);
+            try
+            {
+                opList.push_back(Operation(t, p));
+                result = &topLevel_.performOperation(opList.back());
+            }
+            catch(...)
+            {
+                opList.pop_back();
+                throw;
+            }
         }
         return *result;
     }
@@ -279,7 +341,8 @@ class CellPyramid
     CellPyramid(const Segmentation &level0,
                 const CellStatistics &level0Stats = CellStatistics())
     : topLevel_(0, level0, level0Stats, this),
-      nextCheckpointLevelIndex_(0)
+      nextCheckpointLevelIndex_(0),
+      composing_(0)
     {
         storeCheckpoint(topLevel_);
     }
@@ -318,6 +381,40 @@ class CellPyramid
     {
         return static_cast<FaceInfo &>(
             addAndPerformOperation(RemoveEdgeWithEnds, dart));
+    }
+
+    void beginComposite()
+    {
+        if(!composing_)
+            history_.push_back(Operation());
+        ++composing_;
+    }
+
+    void changeIntoComposite()
+    {
+        if(!composing_)
+        {
+            Operation &last(history_.back());
+            Operation tmp(last);         // copy old
+            last = Operation();          // create composite
+            last.opList->push_back(tmp); // and re-fill with old
+        }
+        ++composing_;
+    }
+
+    void endComposite()
+    {
+        if(!--composing_)
+        {
+            Operation &last(history_.back());
+            if(last.opList->size() == 1)
+            {
+                History *h = last.opList;
+                last = (*h)[0];
+                delete h;
+            }
+            ++topLevel_.index_;
+        }
     }
 
     Level &topLevel()
