@@ -4,7 +4,7 @@
 #include <iostream>
 #include <iomanip>
 #include "cellimage.hxx"
-#include "rect2d.hxx"
+#include <vigra/rect2d.hxx>
 
 inline std::ostream &operator <<(std::ostream &s, vigra::Diff2D const &d)
 {
@@ -38,13 +38,30 @@ inline std::ostream &operator <<(std::ostream &s,
     switch(p.type())
     {
     case vigra::cellimage::CellTypeRegion:
-        s << "\033[1;34m" << std::setw(width) << p.label() << "\033[0m";
-        break;
-    case vigra::cellimage::CellTypeLine:
         s << p.label();
         break;
-    default:
+    case vigra::cellimage::CellTypeLine:
         s << "\033[1;31m" << std::setw(width) << p.label() << "\033[0m";
+        break;
+    default:
+        s << "\033[1;34m" << std::setw(width) << p.label() << "\033[0m";
+    }
+    return s;
+}
+
+inline std::ostream &operator <<(std::ostream &s,
+                                 const vigra::cellimage::CellType &p)
+{
+    switch(p)
+    {
+    case vigra::cellimage::CellTypeRegion:
+        s << " ";
+        break;
+    case vigra::cellimage::CellTypeLine:
+        s << "\033[1;31m*\033[0m";
+        break;
+    default:
+        s << "\033[1;34m*\033[0m";
     }
     return s;
 }
