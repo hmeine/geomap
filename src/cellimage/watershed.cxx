@@ -20,12 +20,12 @@
 /************************************************************************/
 
 #include <iostream>
-#include "vigra/stdimage.hxx"
-#include "vigra/stdimagefunctions.hxx"
-#include "vigra/distancetransform.hxx"
-#include "vigra/convolution.hxx"
-#include "vigra/functorfactory.hxx"
-#include "vigra/labelimage.hxx"
+#include <vigra/stdimage.hxx>
+#include <vigra/stdimagefunctions.hxx>
+#include <vigra/distancetransform.hxx>
+#include <vigra/convolution.hxx>
+#include <vigra/functorexpression.hxx>
+#include <vigra/labelimage.hxx>
 #include "seededregiongrowing.hxx"
 #include "vigra/localminmax.hxx"
 #include "vigra/impex.hxx"
@@ -34,6 +34,8 @@
 #include "gradient.hxx"
 #include "findsaddles.hxx"
 
+using namespace vigra;
+using namespace vigra::functor;
 
 void showNode(FourEightSegmentation & seg, int label)
 {
@@ -41,20 +43,20 @@ void showNode(FourEightSegmentation & seg, int label)
     FourEightSegmentation::EdgeAccessor edge;
     FourEightSegmentation::NodeAtEndAccessor endnode;
     FourEightSegmentation::NodeIterator n = seg.findNode(label);
-    
-    cout << "Label: " << node.label(n) << ", Location: (" << 
-            node.x(n) << ", " << node.y(n) << ")" << endl;
-            
+
+    std::cout << "Label: " << node.label(n) << ", Location: (" <<
+		node.x(n) << ", " << node.y(n) << ")" << std::endl;
+
     FourEightSegmentation::RayCirculator ray = node.rayCirculator(n);
     FourEightSegmentation::RayCirculator rend = ray;
-    
+
     do
     {
-        cout << "( " << edge.label(ray) << ", " << endnode.label(ray) << ") ";
+        std::cout << "( " << edge.label(ray) << ", " << endnode.label(ray) << ") ";
     }
     while(++ray != rend);
-    
-    cout << endl;
+
+    std::cout << std::endl;
 }
 
 int main(int argc, char ** argv)
@@ -62,48 +64,48 @@ int main(int argc, char ** argv)
     if(argc != 2)
     {
         std::cout << "Usage: " << argv[0] << " infile" << std::endl;
-        std::cout << "(supported fomats: " << vigraImpexListFormats() << ")" << 
+        std::cout << "(supported fomats: " << impexListFormats() << ")" <<
                      std::endl;
-        
+
         return 1;
     }
     try
     {
         ImageImportInfo info(argv[1]);
-        
-        precondition(info.isGrayscale(), "Unable to process color images");
-        
+
+        vigra_precondition(info.isGrayscale(), "Unable to process color images");
+
         int w = info.width();
         int h = info.height();
         int x,y;
-        
+
         // create input image
         FImage in(w, h);
-        
+
         importImage(info, destImage(in));
-        
+
         FImage gradx(w, h), grady(w, h), hess(w,h), grad(w, h);
-        
+
 
 #if 0
         Kernel1D<float> symgrad;
         symgrad.initSymmetricGradient();
-        
+
         separableConvolveX(srcImageRange(in), destImage(gradx), kernel1d(symgrad));
         separableConvolveY(srcImageRange(in), destImage(grady), kernel1d(symgrad));
 #endif /* #if 0 */
 
-        
+
 
 #if 0
         recursiveFirstDerivativeX(srcImageRange(in), destImage(gradx), 0.8);
         recursiveSmoothY(srcImageRange(gradx), destImage(gradx), 0.8);
-        
+
         recursiveFirstDerivativeY(srcImageRange(in), destImage(grady), 0.8);
         recursiveSmoothX(srcImageRange(grady), destImage(grady), 0.8);
-        
+
         gradientMagnitude(srcImageRange(gradx), srcImage(grady), destImage(grad));
-        
+
 #endif /* #if 0 */
 
         gradientMagnitude(srcImageRange(in), destImage(grad));
@@ -113,31 +115,31 @@ int main(int argc, char ** argv)
         std::cout << "Wrote grad.xv" << std::endl;
 #endif /* #if 0 */
 
-        
+
         IImage labels(w, h), seeds(w, h), seeds1(w,h);
         seeds = 0;
         labels = 0;
-        
+
         extendedLocalMinima(srcImageRange(grad), destImage(seeds), 1);
-        
+
         determinantOfHessian(srcImageRange(in), destImage(hess));
-        
+
         combineTwoImages(srcImageRange(hess), srcImage(seeds), destImage(seeds),
-                         ifThenElse(Arg1() < 0, Param(0), Arg2()));
-        
+                         ifThenElse(Arg1() < Param(0), Param(0), Arg2()));
+
         float threshold;
-        cout << "Threshold ? ";
-        cin >> threshold;
-        
-        combineTwoImages(srcImageRange(grad), srcImage(seeds), destImage(seeds1), 
-                         ifThenElse(Arg1() < threshold, Param(1), Arg2()));
-        
-        int raw_region_label = 
+        std::cout << "Threshold ? ";
+        std::cin >> threshold;
+
+        combineTwoImages(srcImageRange(grad), srcImage(seeds), destImage(seeds1),
+                         ifThenElse(Arg1() < Param(threshold), Param(1), Arg2()));
+
+        int raw_region_label =
             labelImageWithBackground(srcImageRange(seeds1), destImage(labels), true, 0);
-        
+
         ArrayOfRegionStatistics<FindMinMax<float> > minmax(raw_region_label);
         inspectTwoImages(srcImageRange(seeds), srcImage(labels), minmax);
-        
+
         for(y=0; y<h; ++y)
         {
             for(x=0; x<w; ++x)
@@ -151,25 +153,25 @@ int main(int argc, char ** argv)
                 {
                     seeds(x,y) = 1;
                 }
-                
+
                 labels(x,y) = 0;
             }
         }
-        
+
         exportImage(srcImageRange(seeds), ImageExportInfo("seeds.xv"));
         std::cout << "Wrote seeds.xv" << std::endl;
 
-        int max_region_label = 
+        int max_region_label =
             labelImageWithBackground(srcImageRange(seeds), destImage(labels), false, 0);
-        
+
         // create a statistics functor for region growing
-        ArrayOfRegionStatistics<SeedRgDirectValueFunctor<float> > 
-                                              gradstat(max_region_label);
+        ArrayOfRegionStatistics<SeedRgDirectValueFunctor<float> >
+			gradstat(max_region_label);
 
         // perform region growing, starting from the minima of the gradient magnitude;
         // as the feature (first input) image contains the gradient magnitude,
         // this calculates the catchment basin of each minimum
-        seededRegionGrowing(srcImageRange(grad), srcImage(labels), 
+        seededRegionGrowing(srcImageRange(grad), srcImage(labels),
                             destImage(labels), gradstat, 100000);
 
         // remove regions of size 1
@@ -179,7 +181,7 @@ int main(int argc, char ** argv)
             {
                 int lab = labels(x,y);
                 if(lab == 0) continue;
-                
+
                 int dx[] = {1, 0, -1, 0};
                 int dy[] = {0, -1, 0, 1};
                 int i;
@@ -187,43 +189,44 @@ int main(int argc, char ** argv)
                 {
                     int xx = x + dx[i];
                     int yy = y + dy[i];
-                    
+
                     if(xx >= 0 && xx < w && yy >= 0 && yy < h)
                     {
                         if(labels(xx,yy) == lab) break;
                     }
                 }
-                
+
                 if(i == 4) labels(x,y) = 0;
             }
         }
 
         // repeat region growing
-        seededRegionGrowing(srcImageRange(grad), srcImage(labels), 
+        seededRegionGrowing(srcImageRange(grad), srcImage(labels),
                             destImage(labels), gradstat, 100000);
 
         FourEightSegmentation segmentation;
-        
+
         segmentation.init(srcImageRange(labels));
-        
+
 
 #if 0
         exportImage(srcImageRange(segmentation.cellimage), ImageExportInfo("cells.xv"));
         std::cout << "Wrote cells.xv" << std::endl;
 
-        exportImage(srcIterRange(segmentation.labelsUpperLeft(),segmentation.labelsLowerRight()), 
+        exportImage(srcIterRange(segmentation.labelsUpperLeft(),segmentation.labelsLowerRight()),
                                  ImageExportInfo("borderlab.xv"));
         std::cout << "Wrote borderlab.xv" << std::endl;
-        
+
 #endif /* #if 0 */
 
-        cout << "Nodes: " << segmentation.numberOfNodes() << endl <<
-                "Edges: " << segmentation.numberOfEdges() << endl <<
-                "Faces: " << segmentation.numberOfFaces() << endl;
-                
+        std::cout <<
+			"Nodes: " << segmentation.numberOfNodes() << endl <<
+			"Edges: " << segmentation.numberOfEdges() << endl <<
+			"Faces: " << segmentation.numberOfFaces() << endl;
+
         // initialize a functor to determine the average gray-value or color
         // for each region (catchment basin) just found
-        ArrayOfRegionStatistics<FindAverage<float> > 
+        ArrayOfRegionStatistics<FindAverage<float> >
                                               averages(max_region_label);
 
         // calculate the averages
@@ -232,13 +235,13 @@ int main(int argc, char ** argv)
         FindAverage<float> zero;
         zero(0);
         averages[0] = zero;
-        
+
         // write the averages into the destination image (the functor 'averages'
         // acts as a look-up table)
         BImage out(w,h);
         transformImage(srcImageRange(labels), destImage(out), averages);
-        
-    
+
+
         // mark the watershaed (region boundaries) black
 
 #if 0
@@ -249,18 +252,19 @@ int main(int argc, char ** argv)
         BImage saddle(w,h);
         saddle = 0;
         localMinima(srcImageRange(hess), destImage(saddle), 1);
-        combineTwoImages(srcImageRange(saddle), srcImage(hess), 
-                         destImage(saddle), ifThenElse(Arg2() < -1.0, Arg1(), Param(0)));
+        combineTwoImages(srcImageRange(saddle), srcImage(hess),
+                         destImage(saddle),
+						 ifThenElse(Arg2() < Param(-1.0), Arg1(), Param(0)));
         initImageIf(destImageRange(out), maskImage(saddle), 255);
-        
+
         exportImage(srcImageRange(out), ImageExportInfo("res.xv"));
         std::cout << "Wrote res.xv" << std::endl;
     }
-    catch (VigraStdException & e)
+    catch (std::exception & e)
     {
         std::cout << e.what() << std::endl;
         return 1;
     }
-    
+
     return 0;
 }

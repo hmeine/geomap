@@ -8,7 +8,7 @@ namespace vigra {
 template <class ImageIterator>
 class Neighborhood8Circulator : private ImageIterator
 {
-  public:
+public:
     typedef typename ImageIterator::value_type value_type;
 
     Neighborhood8Circulator(ImageIterator const & it,
@@ -61,8 +61,7 @@ class Neighborhood8Circulator : private ImageIterator
         return ImageIterator::operator*();
     }
 
-  private:
-
+private:
     EightNeighborCoding neighbor;
 };
 
