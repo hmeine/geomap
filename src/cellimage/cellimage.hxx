@@ -4,6 +4,7 @@
 #include "celltypes.hxx"
 #include <vigra/basicimage.hxx>
 #include <vigra/pixelneighborhood.hxx>
+#include <functional>
 
 namespace vigra {
 
@@ -49,9 +50,10 @@ typedef vigra::NeighborhoodCirculator<CellImage::Iterator, EightNeighborCode>
 //                     CellPixel/CellImage Accessors
 // -------------------------------------------------------------------
 template<class VALUE_TYPE = CellType>
-struct CellImageTypeAccessor
+struct TypeAccessor
 {
     typedef VALUE_TYPE value_type;
+    typedef VALUE_TYPE result_type;
 
     template<class Iterator>
     value_type operator()(const Iterator &it) const
@@ -66,7 +68,7 @@ struct CellImageTypeAccessor
     }
 };
 
-struct CellImageLabelAccessor
+struct LabelAccessor
 {
     typedef CellPixel::LabelType value_type;
 
@@ -84,7 +86,7 @@ struct CellImageLabelAccessor
 };
 
 template<CellType type>
-struct CellImageLabelWriter
+struct LabelWriter
 {
     typedef CellPixel::LabelType value_type;
 
@@ -92,6 +94,21 @@ struct CellImageLabelWriter
     void set(CellPixel::LabelType label, const Iterator &it) const
     {
         it->setLabel(label, type);
+    }
+};
+
+template<CellType t_>
+struct CellTypeMask : public std::unary_function<CellType, bool>
+{
+    bool operator()(CellType t) const
+    {
+        return t == t_;
+    }
+
+    template<class Iterator>
+    bool operator()(const Iterator &it) const
+    {
+        return it->type() == t_;
     }
 };
 
