@@ -979,8 +979,8 @@ SubPixelWatersheds<T>::createMaximage()
     maximage_.init(0);  // means no maximum
     for(unsigned int i = 1; i<maxima_.size(); ++i)
     {
-        int x = VIGRA_CSTD::floor(maxima_[i][0] + 0.5);
-        int y = VIGRA_CSTD::floor(maxima_[i][1] + 0.5);
+        int x = (int)VIGRA_CSTD::floor(maxima_[i][0] + 0.5);
+        int y = (int)VIGRA_CSTD::floor(maxima_[i][1] + 0.5);
         
         if(maximage_(x,y) == 0)
         {
