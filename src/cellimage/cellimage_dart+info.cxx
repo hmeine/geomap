@@ -50,6 +50,7 @@ void defineCellInfos()
 
     class_<FourEightSegmentation::CellInfo>("CellInfo", no_init)
         .def_readonly("label", &FourEightSegmentation::CellInfo::label)
+        .def_readwrite("bounds", &FourEightSegmentation::NodeInfo::bounds)
         .def_readwrite("size", &FourEightSegmentation::NodeInfo::size)
         .def("initialized", &FourEightSegmentation::CellInfo::initialized)
         .def("uninitialize", &FourEightSegmentation::CellInfo::uninitialize);
@@ -57,8 +58,7 @@ void defineCellInfos()
     class_<FourEightSegmentation::NodeInfo,
            bases<FourEightSegmentation::CellInfo> >("NodeInfo", no_init)
         .def_readwrite("anchor", &FourEightSegmentation::NodeInfo::anchor)
-        .def_readonly("centerX", &FourEightSegmentation::NodeInfo::centerX)
-        .def_readonly("centerY", &FourEightSegmentation::NodeInfo::centerY);
+        .def_readwrite("degree", &FourEightSegmentation::NodeInfo::degree);
 
     class_<FourEightSegmentation::EdgeInfo,
            bases<FourEightSegmentation::CellInfo> >("EdgeInfo", no_init)
