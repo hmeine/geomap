@@ -34,10 +34,13 @@ void FourEightSegmentation::initCellImage(BImage & contourImage)
 
                 if(cellConfigurations[conf] == CellTypeError)
                 {
+                    debugImage(crop(srcImageRange(contourImage),
+                                    Rect2D(x, y, x+5, y+5)),
+                               std::cerr);
                     char message[200];
                     sprintf(message, "FourEightSegmentation::init(): "
-                            "Configuration at (%d, %d) must be thinned further",
-                            x, y);
+                            "Configuration at (%d, %d) must be thinned further (found configuration %d)",
+                            x, y, conf);
 
                     vigra_precondition(0, message);
                 }
