@@ -1,8 +1,8 @@
 #include "filteriterator.hxx"
-#include "imagefilteriterator.hxx"
 #include <vigra/stdimagefunctions.hxx>
 #include <unittest.hxx>
 #include <algorithm>
+#include <functional>
 #include <iostream>
 
 struct FilterEven : public std::unary_function<int, bool>
