@@ -43,16 +43,18 @@ void definePyramid()
 			 return_internal_reference<>())
 		.def("removeEdgeWithEnds", &FourEightPyramid::removeEdgeWithEnds,
 			 return_internal_reference<>())
-		.def("currentLevel", &FourEightPyramid::currentLevel)
-		.def("currentSegmentation", &FourEightPyramid::currentSegmentation,
-			 return_internal_reference<>())
-		.def("currentCellStatistics", &FourEightPyramid::currentCellStatistics,
-			 return_internal_reference<>())
-		.def("__getitem__", &FourEightPyramid::segmentation,
-			 return_internal_reference<>())
+		.def("currentLevel", (FourEightPyramid::Level &(FourEightPyramid::*)(void))
+			 &FourEightPyramid::currentLevel, return_internal_reference<>())
 		.def("cutHead", &FourEightPyramid::cutHead)
 		.def("__len__", &FourEightPyramid::levelCount)
 		.def_readonly("history", &FourEightPyramid::history_));
+
+	class_<FourEightPyramid::Level>("Level", no_init)
+		.def("index", &FourEightPyramid::Level::index)
+		.def("segmentation", &FourEightPyramid::Level::segmentation,
+			 return_internal_reference<>())
+		.def("cellStatistics", &FourEightPyramid::Level::cellStatistics,
+			 return_internal_reference<>());
 
 	enum_<FourEightPyramid::OperationType>("OperationType")
 		.value("RemoveIsolatedNode", FourEightPyramid::RemoveIsolatedNode)
@@ -61,10 +63,10 @@ void definePyramid()
 		.value("MergeEdges", FourEightPyramid::MergeEdges)
 		.value("RemoveEdge", FourEightPyramid::RemoveEdge)
 		.value("RemoveEdgeWithEnds", FourEightPyramid::RemoveEdgeWithEnds);
-	
+
 	class_<FourEightPyramid::Operation>("Operation", no_init)
-		.def_readonly("type", &FourEightPyramid::Operation::type_)
-		.def_readonly("param", &FourEightPyramid::Operation::param_);
+		.def_readonly("type", &FourEightPyramid::Operation::type)
+		.def_readonly("param", &FourEightPyramid::Operation::param);
 
 	class_<FourEightPyramid::History>("History", no_init)
 		.def("__len__", &FourEightPyramid::History::size)
