@@ -11,38 +11,42 @@
 #include "hessematrix.hxx"
 #include "gradient.hxx"
 #include "findsaddles.hxx"
+#include "mydebug.hxx"
 #include "debugimage.hxx"
 #include "cellimage.hxx"
-#include "mydebug.hxx"
 
 using namespace vigra;
 using namespace vigra::functor;
 
+static const unsigned char imageData[] =
+    { 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+      255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+      255, 255, 255, 255, 255, 139,  52,   6,   6,  52, 139, 255, 255, 255, 255, 255,
+      255, 255, 255, 221,  52,   0,   0,   0,   0,   0,   0,  52, 221, 255, 255, 255,
+      255, 255, 255,  52,   0,   0,   0,   0,   0,   0,   0,   0,  52, 255, 255, 255,
+      255, 255, 139,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, 139, 255, 255,
+      255, 255,  52,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  52, 255, 255,
+      255, 255,   6,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   6, 255, 255,
+      255, 255,   6,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   6, 255, 255,
+      255, 255,  52,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  52, 255, 255,
+      255, 255, 139,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, 139, 255, 255,
+      255, 255, 255,  52,   0,   0,   0,   0,   0,   0,   0,   0,  52, 255, 255, 255,
+      255, 255, 255, 221,  52,   0,   0,   0,   0,   0,   0,  52, 221, 255, 255, 255,
+      255, 255, 255, 255, 255, 139,  52,   6,   6,  52, 139, 255, 255, 255, 255, 255,
+      255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+      255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255 };
+
 int main(int argc, char ** argv)
 {
-    if(argc != 2)
-    {
-        std::cout << "Usage: " << argv[0] << " infile" << std::endl;
-        std::cout << "(supported fomats: " << impexListFormats() << ")" <<
-                     std::endl;
-
-        return 1;
-    }
     try
     {
-        ImageImportInfo info(argv[1]);
-
-        vigra_precondition(info.isGrayscale(), "Unable to process color images");
-
-        int w = info.width();
-        int h = info.height();
-
-        // create input image
-        FImage in(w, h);
-        importImage(info, destImage(in));
+        vigra::BImage image(16, 16);
+        std::copy(imageData, imageData + 256, image.begin());
+        int w = image.width();
+        int h = image.height();
 
         FImage grad(w, h);
-        gradientMagnitude(srcImageRange(in), destImage(grad));
+        gradientMagnitude(srcImageRange(image), destImage(grad));
 
         IImage seeds(w, h);
         seeds = 0;
@@ -50,7 +54,7 @@ int main(int argc, char ** argv)
         extendedLocalMinima(srcImageRange(grad), destImage(seeds), 1);
 
         FImage hess(w,h);
-        determinantOfHessian(srcImageRange(in), destImage(hess));
+        determinantOfHessian(srcImageRange(image), destImage(hess));
 
         combineTwoImages(srcImageRange(hess), srcImage(seeds), destImage(seeds),
                          ifThenElse(Arg1() < Param(0), Param(0), Arg2()));
@@ -63,7 +67,7 @@ int main(int argc, char ** argv)
 
         // create a statistics functor for region growing
         ArrayOfRegionStatistics<SeedRgDirectValueFunctor<float> >
-			gradstat(maxFaceLabel);
+            gradstat(maxFaceLabel);
 
         // perform region growing, starting from the minima of the
         // gradient magnitude; as the feature (first input) image
@@ -94,53 +98,51 @@ int main(int argc, char ** argv)
             debugImage(srcImageRange(segmentation.cellImage));
 
         std::cout << segmentation.nodeCount() << " nodes:" << std::endl;
-        for(int node= 0; node< segmentation.nodeList.size(); ++node)
-            if(segmentation.nodeList[node].initialized())
-                std::cout << "  " << node << ": at "
-                          << segmentation.nodeList[node].centerX << ","
-                          << segmentation.nodeList[node].centerY << "  from "
-                          << segmentation.nodeList[node].upperLeft << " to "
-                          << segmentation.nodeList[node].lowerRight << std::endl;
-		
+        for(CellImage::FourEightSegmentation::NodeIterator
+                node= segmentation.nodesBegin(); node.inRange(); ++node)
+            std::cout << "  " << node->label << ": at "
+                      << node->centerX << ","
+                      << node->centerY << "  from "
+                      << node->upperLeft << " to "
+                      << node->lowerRight << std::endl;
+        
         std::cout << segmentation.edgeCount() << " edges:" << std::endl;
-        for(int edge= 0; edge< segmentation.edgeList.size(); ++edge)
-            if(segmentation.edgeList[edge].initialized())
-			{
-				vigra::FindAverage<vigra::FImage::PixelType> average;
-				if(edge>4)
-					vigra::inspectCell(segmentation.cellScanIterator
-									   (segmentation.edgeList[edge], CellTypeLine,
-										in.upperLeft()),
-									   average);
-
-                std::cout << "  " << edge << ": from "
-                          << segmentation.edgeList[edge].upperLeft << " to "
-                          << segmentation.edgeList[edge].lowerRight
-						  << ", average: " << average() << std::endl;
-			}
-		
+        for(CellImage::FourEightSegmentation::EdgeIterator
+                edge= segmentation.edgesBegin(); edge.inRange(); ++edge)
+        {
+            vigra::FindAverage<vigra::FImage::PixelType> average;
+            if(edge->label>4)
+                vigra::CellImage::inspectCell
+                    (segmentation.edgeScanIterator(edge->label, image.upperLeft()),
+                     average);
+            
+            std::cout << "  " << edge->label << ": from "
+                      << edge->upperLeft << " to "
+                      << edge->lowerRight
+                      << ", average: " << average() << std::endl;
+        }
+        
         std::cout << segmentation.faceCount() << " faces:" << std::endl;
-        for(int face= 0; face< segmentation.faceList.size(); ++face)
-            if(segmentation.faceList[face].initialized())
-			{
-				vigra::FindAverage<vigra::FImage::PixelType> average;
-				if(face>0)
-					vigra::inspectCell(segmentation.cellScanIterator
-									   (segmentation.faceList[face], CellTypeRegion,
-										in.upperLeft()),
-									   average);
-
-                std::cout << "  " << face << ": from "
-                          << segmentation.faceList[face].upperLeft << " to "
-                          << segmentation.faceList[face].lowerRight
-						  << ", average: " << average() << std::endl;
-			}
+        for(CellImage::FourEightSegmentation::FaceIterator
+                face= segmentation.facesBegin(); face.inRange(); ++face)
+        {
+            vigra::FindAverage<vigra::FImage::PixelType> average;
+            if(face->label>0)
+                vigra::CellImage::inspectCell
+                    (segmentation.faceScanIterator(face->label, image.upperLeft()),
+                     average);
+            
+            std::cout << "  " << face->label << ": from "
+                      << face->upperLeft << " to "
+                      << face->lowerRight
+                      << ", average: " << average() << std::endl;
+        }
     }
     catch (std::exception & e)
     {
         std::cout << e.what() << std::endl;
         return 1;
     }
-
+    
     return 0;
 }
