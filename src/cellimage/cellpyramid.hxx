@@ -123,7 +123,7 @@ class CellPyramid
                                   removeBridgeInternal(op.param_) :
                                   mergeFacesInternal(op.param_));
 
-              if(removedEdge.start.isSingular())
+              if(removedEdge.start.recheckSingularity())
                   removeIsolatedNodeInternal(removedEdge.start);
               else
               {
@@ -131,8 +131,8 @@ class CellPyramid
                   // to point to a valid edge pixel again, so it is
                   // not really removedEdge.start anymore.. ;-)
                   DartTraverser changedNode(removedEdge.start);
-                  // test if the DartTraverser has degree 2 and the
-                  // edge is no loop:
+                  // test if the node has degree 2 and the edge is no
+                  // loop:
                   if((changedNode.nextSigma() != removedEdge.start) &&
                      (changedNode.edgeLabel() != removedEdge.start.edgeLabel()) &&
                      (changedNode.nextSigma() == removedEdge.start))
@@ -143,7 +143,7 @@ class CellPyramid
 
               if(!removedEdgeIsLoop)
               {
-                  if(removedEdge.end.isSingular())
+                  if(removedEdge.end.recheckSingularity())
                       removeIsolatedNodeInternal(removedEdge.end);
                   else
                   {
@@ -263,23 +263,16 @@ class CellPyramid
         return currentSegmentation_;
     }
 
-    void cutHead()
-    {
-        std::cerr << "CellPyramid::cutHead() above currentLevel_="
-                  << currentLevel_ << ":\n  before: ";
-        std::cerr << history_.size() << " history entries, ";
-        std::cerr << checkpoints_.size() << " checkpoints\n";
-        history_.erase(history_.begin() + currentLevel_, history_.end());
-        checkpoints_.erase(checkpoints_.upper_bound(currentLevel_),
-                           checkpoints_.end());
-        std::cerr << "  after:  ";
-        std::cerr << history_.size() << " history entries, ";
-        std::cerr << checkpoints_.size() << " checkpoints\n";
-    }
-
     unsigned int levelCount() const
     {
         return history_.size() + 1;
+    }
+
+    void cutHead()
+    {
+        history_.erase(history_.begin() + currentLevel_, history_.end());
+        checkpoints_.erase(checkpoints_.upper_bound(currentLevel_),
+                           checkpoints_.end());
     }
 };
 
