@@ -447,11 +447,23 @@ public:
 
         bool operator==(DartTraverser const &o) const throw ()
         {
-            return neighborCirc_ == o.neighborCirc_;
+            // FIXME: think about singular darts - I would like to
+            // save this comparison for efficiency, however I don't
+            // know where to turn singular DTs to a canonical
+            // direction nor do I know a good name for another
+            // comparison function.
+            // ATM we don't need correct equality checks for singular
+            // darts.
+
+            //if(!isSingular())
+                return neighborCirc_ == o.neighborCirc_;
+            //else
+                //return startNodeLabel() == o.startNodeLabel();
         }
 
         bool operator!=(DartTraverser const &o) const throw ()
         {
+            // see op==
             return neighborCirc_ != o.neighborCirc_;
         }
 
