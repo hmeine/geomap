@@ -33,8 +33,8 @@
 #include "hessematrix.hxx"
 #include "gradient.hxx"
 #include "findsaddles.hxx"
-#include "debugimage.hxx"
 #include "mydebug.hxx"
+#include "debugimage.hxx"
 
 using namespace vigra;
 using namespace vigra::functor;
@@ -45,7 +45,7 @@ void showNode(CellImage::FourEightSegmentation & seg, int label)
     CellImage::FourEightSegmentation::EdgeAccessor edge;
     CellImage::FourEightSegmentation::NodeAtEndAccessor endnode;
     CellImage::FourEightSegmentation::NodeIterator
-        n = seg.nodeList.begin() + label;
+        n = seg.findNode(label);
 
     std::cout << "Label: " << node.label(n) << ", Location: (" <<
 		node.x(n) << ", " << node.y(n) << ")" << std::endl;
