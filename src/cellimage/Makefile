@@ -3,7 +3,13 @@ include ../../interactive/config/Makefile.include
 CXXFLAGS = -g -Wall -Wno-deprecated
 CPPFLAGS += -I. -I../../test/include
 
-CELLIMAGE_OBJS = cellimage_module.lo
+CELLIMAGE_OBJS = \
+	cellimage_module.lo \
+	cellimage_nodes.lo \
+	cellimage_edges.lo \
+	cellimage_faces.lo \
+	cellimage_dart+info.lo \
+	foureightsegmentation.lo
 CELLIMAGE_TARGET = cellimage.la
 
 ALL_TARGETS = testfoureight watershed testiterator testrect $(CELLIMAGE_TARGET)
@@ -17,11 +23,11 @@ install: $(CELLIMAGE_TARGET)
 $(CELLIMAGE_TARGET): $(CELLIMAGE_OBJS)
 	$(LINKCXXMODULE) -o $(CELLIMAGE_TARGET) $(CELLIMAGE_OBJS) $(BOOST_PYTHON_LIB)
 
-testfoureight: testfoureight.o
-	$(CXX) -o testfoureight testfoureight.o `vigra-config --impex-lib`
+testfoureight: testfoureight.o foureightsegmentation.o
+	$(CXX) -o testfoureight testfoureight.o foureightsegmentation.o `vigra-config --impex-lib`
 
-watershed: watershed.o
-	$(CXX) -o watershed watershed.o `vigra-config --impex-lib`
+watershed: watershed.o foureightsegmentation.o
+	$(CXX) -o watershed watershed.o foureightsegmentation.o `vigra-config --impex-lib`
 
 testiterator: testiterator.o
 	$(CXX) -o testiterator testiterator.o
