@@ -16,10 +16,6 @@
 
 #include <functional>
 
-// temporary,debug
-#include "mydebug.hxx"
-#include "debugimage.hxx"
-
 namespace vigra {
 
 namespace cellimage {
@@ -523,6 +519,13 @@ public:
 
     // -------------------------------------------------------------------
 
+    typedef std::vector<DartTraverser>
+        ContourComponents;
+    typedef std::vector<DartTraverser>::iterator
+        ContourComponentsIterator;
+    typedef std::vector<DartTraverser>::const_iterator
+        ConstContourComponentsIterator;
+
     struct CellInfo
     {
         CellLabel label;
@@ -552,7 +555,7 @@ public:
 
     struct FaceInfo : CellInfo
     {
-        std::vector<DartTraverser> contours;
+        ContourComponents contours;
     };
 
     typedef std::vector<NodeInfo> NodeList;
@@ -579,11 +582,6 @@ public:
         ConstEdgeIterator;
     typedef FilterIterator<FaceList::const_iterator, FilterInitialized>
         ConstFaceIterator;
-
-    typedef std::vector<DartTraverser>::iterator
-        ContourComponentsIterator;
-    typedef std::vector<DartTraverser>::const_iterator
-        ConstContourComponentsIterator;
 
   public:
     FourEightSegmentation(const FourEightSegmentation &other)
@@ -736,8 +734,11 @@ public:
         CellScanIterator;
 
   protected:
-    unsigned char findContourComponent(const std::vector<DartTraverser> &contours,
+    unsigned char findContourComponent(const ContourComponents &contours,
                                        const DartTraverser & dart);
+
+    void removeNodeFromContours(ContourComponents &contours,
+                                CellLabel nodeLabel);
 
   public:
     FaceInfo &removeIsolatedNode(const DartTraverser & dart);
