@@ -1,14 +1,18 @@
 #ifndef CELLIMAGE_HXX
 #define CELLIMAGE_HXX
 
-#include "celltypes.hxx"
 #include <vigra/basicimage.hxx>
 #include <vigra/pixelneighborhood.hxx>
 #include <functional>
 
 namespace vigra {
 
-namespace CellImage {
+namespace cellimage {
+
+enum CellType { CellTypeError = -1,
+                CellTypeRegion = 0,
+                CellTypeLine = 1,
+                CellTypeVertex = 2 };
 
 // -------------------------------------------------------------------
 //                          CellPixel, CellImage
@@ -181,7 +185,7 @@ void transformCell(SrcEndIterator srcEndIterator,
         *destEndIterator = f(*srcEndIterator);
 }
 
-} // namespace CellImage
+} // namespace cellimage
 
 } // namespace vigra
 
