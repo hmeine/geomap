@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <map>
+#include "crc32.hxx"
 
 /* Known design weaknesses:
  * - cutHead() calls storeCheckpoint to restore nextCheckpointLevelIndex_
@@ -92,13 +93,6 @@ class CellPyramid
         const Pyramid *pyramid() const
             { return pyramid_; }
 
-        Level(unsigned int l,
-              const Segmentation &s,
-              const CellStatistics &c,
-              const Pyramid *p)
-        : index_(l), segmentation_(s), cellStatistics_(c), pyramid_(p)
-        {}
-
             /** Do a maximum of maxSteps operations to reach given level.
              * Returns true if that was enough, that is (topLevel().index() ==
              * levelIndex)
@@ -129,6 +123,12 @@ class CellPyramid
         }
 
       protected:
+        Level(const Segmentation &s,
+              const CellStatistics &c,
+              const Pyramid *p)
+        : index_(0), subIndex_(0), segmentation_(s), cellStatistics_(c), pyramid_(p)
+        {}
+
             /** Returns false (and does not change this level) if the given
              * levelData is a "better" position for reaching levelIndex
              * than the last checkpoint, that is:
@@ -145,8 +145,15 @@ class CellPyramid
             if((index() <= levelIndex) && (lastCheckpointIt->first <= index()))
                 return false;
 
+            CRC32 crcOld, crcNew;
+            crcOld((const char *)&(*segmentation().cells), 100000);
+            crcNew((const char *)&(*lastCheckpointIt->second.segmentation().cells), 100000);
+
             std::cerr << "to get from level " << index() << " to " << levelIndex
-                      << ", we use checkpoint " << lastCheckpointIt->first << "\n";
+                      << ", we use checkpoint " << lastCheckpointIt->first
+                      << "  (subindex " << lastCheckpointIt->second.subIndex_
+                      << "); crc: " << std::hex << crcOld()
+                      << " -> " << crcNew() << std::dec << "\n";
 
             operator=(lastCheckpointIt->second);
             return true;
@@ -157,6 +164,7 @@ class CellPyramid
             cellStatistics_.preRemoveIsolatedNode(dart);
             FaceInfo &result(segmentation_.removeIsolatedNode(dart));
             cellStatistics_.postRemoveIsolatedNode(result);
+            ++subIndex_;
             return result;
         }
 
@@ -165,6 +173,7 @@ class CellPyramid
             cellStatistics_.preMergeFaces(dart);
             FaceInfo &result(segmentation_.mergeFaces(dart));
             cellStatistics_.postMergeFaces(result);
+            ++subIndex_;
             return result;
         }
 
@@ -173,6 +182,7 @@ class CellPyramid
             cellStatistics_.preRemoveBridge(dart);
             FaceInfo &result(segmentation_.removeBridge(dart));
             cellStatistics_.postRemoveBridge(result);
+            ++subIndex_;
             return result;
         }
 
@@ -181,6 +191,7 @@ class CellPyramid
             cellStatistics_.preMergeEdges(dart);
             EdgeInfo &result(segmentation_.mergeEdges(dart));
             cellStatistics_.postMergeEdges(result);
+            ++subIndex_;
             return result;
         }
 
@@ -249,7 +260,7 @@ class CellPyramid
             return segmentation_.face(0);
         }
 
-        unsigned int   index_;
+        unsigned int   index_, subIndex_;
         Segmentation   segmentation_;
         CellStatistics cellStatistics_;
         const Pyramid *pyramid_;
@@ -282,8 +293,6 @@ class CellPyramid
                 history_.push_back(Operation(t, p));
                 result = &topLevel_.performOperation(history_.back());
                 ++topLevel_.index_;
-                if(topLevel_.index() == nextCheckpointLevelIndex_)
-                    storeCheckpoint(topLevel_);
             }
             catch(...)
             {
@@ -305,6 +314,8 @@ class CellPyramid
                 throw;
             }
         }
+        if(topLevel_.subIndex_ >= nextCheckpointLevelIndex_)
+            storeCheckpoint(topLevel_);
         return *result;
     }
 
@@ -325,24 +336,28 @@ class CellPyramid
             level.segmentation().nodeCount() +
             level.segmentation().edgeCount() +
             level.segmentation().faceCount();
-        if(totalCellCount > 30)
-            nextCheckpointLevelIndex_ = level.index() + totalCellCount / 4;
-        else
-            nextCheckpointLevelIndex_ = level.index() + 10;
+        nextCheckpointLevelIndex_ =
+            level.subIndex_ + std::max(totalCellCount / 4, (unsigned)10);
 
         if(!checkpoints_.count(level.index()))
         {
-            checkpoints_.insert(std::make_pair(topLevel().index(), level));
+            checkpoints_.insert(std::make_pair(level.index(), level));
 
-            std::cerr << "--- stored checkpoint at level #" << level.index()
-                      << ", next scheduled for level " << nextCheckpointLevelIndex_
+            CRC32 crc;
+            crc((const char *)&(*level.segmentation().cells), 100000);
+
+            std::cerr << "--- stored checkpoint at level " << level.index()
+                      << ", crc: " << std::hex << crc() << std::dec
+                      << " (subindex " << level.subIndex_
+                      << "), next scheduled for subindex "
+                      << nextCheckpointLevelIndex_
                       << " (" << totalCellCount << " cells total left) ---\n";
         }
     }
 
     CellPyramid(const Segmentation &level0,
                 const CellStatistics &level0Stats = CellStatistics())
-    : topLevel_(0, level0, level0Stats, this),
+    : topLevel_(level0, level0Stats, this),
       nextCheckpointLevelIndex_(0),
       composing_(0)
     {
