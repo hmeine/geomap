@@ -36,6 +36,8 @@ public:
         { return (CellType)(typeLabel_ >> 30); }
     inline void setType(CellType type)
         { typeLabel_ = label() | (type << 30); }
+    inline void setType(CellType type, CellLabel label)
+        { typeLabel_ = label | (type << 30); }
 
     inline CellLabel label() const
         { return typeLabel_ & 0x3fffffff; }
@@ -97,6 +99,8 @@ struct TypeAccessor
 };
 
 typedef TypeAccessor<unsigned char> TypeAsByteAccessor;
+
+typedef TypeAccessor<> CellTypeAccessor;
 
 struct LabelAccessor
 {
