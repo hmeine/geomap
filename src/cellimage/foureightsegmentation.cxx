@@ -821,7 +821,7 @@ void FourEightSegmentation::initEdgeList(CellLabel maxEdgeLabel)
         do
         {
             CellLabel label = dart.edgeLabel();
-			vigra_precondition(index < edgeList_.size(),
+			vigra_precondition(label < edgeList_.size(),
                                "edgeList_ must be large enough!");
             if(!edgeList_[label].initialized())
             {
