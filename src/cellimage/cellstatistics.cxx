@@ -7,6 +7,7 @@
 #include "seededregiongrowing.hxx"
 #include <vigra/transformimage.hxx>
 #include <vigra/flatmorphology.hxx>
+#include <vigra/pixelneighborhood.hxx>
 
 #include <functional>
 
@@ -99,6 +100,58 @@ CellStatistics::CellStatistics(const Segmentation &initialSegmentation,
             faceVariance_[it->label]= vigra::NumericTraits<float>::epsilon();
         }
     }
+
+	std::cerr << "initializing configurationDirections\n";
+	configurationDirections_.resize(256);
+	for(unsigned char i= 1; i<255; ++i)
+	{
+		vigra::EightNeighborOffsetCirculator circ;
+		unsigned char code = i;
+
+		//std::cerr << "  " << (int)i;
+
+		// combine bits at start and end of code to one block:
+		while((code&1) && (code&128))
+		{
+			++circ;
+			code = (code >> 1) | 128;
+		}
+
+		// collect(==sum up) diff()s to first block of bits:
+		vigra::Diff2D diff1(0, 0);
+		for(; (code&1) == 0; code >>= 1, ++circ)
+			;
+		for(; (code&1) != 0; code >>= 1, ++circ)
+			diff1 += *circ;
+
+		 // no second block of bits? no edge configuration -> skip
+		if(!code)
+		{
+			//std::cerr << " is vertex config: only one block of bits\n";
+			continue;
+		}
+
+		// collect(==sum up) diff()s to second block of bits:
+		vigra::Diff2D diff2(0, 0);
+		for(; (code&1) == 0; code >>= 1, ++circ)
+			;
+		for(; (code&1) != 0; code >>= 1, ++circ)
+			diff2 += *circ;
+
+		 // third block of bits? no edge configuration -> skip
+		if(code)
+		{
+			//std::cerr << " is vertex config: > 2 blocks of bits\n";
+			continue;
+		}
+
+		configurationDirections_[i] =
+			Float2D(diff2.x - diff1.x, diff2.y - diff1.y);
+		configurationDirections_[i] /= configurationDirections_[i].magnitude();
+		/*std::cerr << " has direction "
+				  << configurationDirections_[i][0] << " / "
+				  << configurationDirections_[i][1] << "\n";*/
+	}
 
     std::cerr << "initializing meanEdgeGradients\n";
 
