@@ -21,7 +21,7 @@ public:
     Neighborhood8Circulator & operator++()
     {
         operator+=(neighbor.relativeNext());
-        ++neighbor;
+        neighbor++;
         return *this;
     }
 
@@ -35,7 +35,7 @@ public:
     Neighborhood8Circulator & operator--()
     {
         operator+=(neighbor.relativePrev());
-        --neighbor;
+        neighbor++;
         return *this;
     }
 
@@ -68,7 +68,7 @@ private:
 template <class ImageIterator>
 class Neighborhood4Circulator : private ImageIterator
 {
-  public:
+public:
     typedef typename ImageIterator::value_type value_type;
 
     Neighborhood4Circulator(ImageIterator const & it,
@@ -81,7 +81,7 @@ class Neighborhood4Circulator : private ImageIterator
     Neighborhood4Circulator & operator++()
     {
         operator+=(neighbor.relativeNext());
-        ++neighbor;
+        neighbor++;
         return *this;
     }
 
@@ -126,8 +126,7 @@ class Neighborhood4Circulator : private ImageIterator
         return ImageIterator::operator*();
     }
 
-  private:
-
+private:
     FourNeighborCoding neighbor;
 };
 
