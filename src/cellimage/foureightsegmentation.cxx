@@ -676,7 +676,6 @@ CellLabel FourEightSegmentation::label1Cells(CellLabel maxNodeLabel)
         }
     }
 
-    std::cerr << "found maxEdgeLabel " << maxEdgeLabel << "\n";
     return maxEdgeLabel;
 }
 
