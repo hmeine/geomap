@@ -164,15 +164,16 @@ CellStatistics &CellStatistics::operator=(const CellStatistics &other)
 	faceStatistics_ = other.faceStatistics_;
 	edgeStatistics_ = other.edgeStatistics_;
 	mergedEdges_ = other.mergedEdges_;
+	edgels_ = other.edgels_;
 	nodeCenters_ = other.nodeCenters_;
 
 	segmentationData = other.segmentationData;
 	edgeProtection = other.edgeProtection;
+	segDataBounds = other.segDataBounds;
 
 	lastChanges_ =
 		vigra::Rect2D(vigra::Point2D(-2, -2),
-					  segmentationData->gradientMagnitude_.size() +
-					  vigra::Diff2D(4, 4));
+					  segDataBounds.size() + vigra::Diff2D(4, 4));
 	return *this;
 }
 
