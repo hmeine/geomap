@@ -75,7 +75,7 @@ class CellPyramid
             if(type == Composite)
                 delete opList;
         }
-    };
+    }; // struct Operation
 
     class Level
     {
@@ -256,7 +256,7 @@ class CellPyramid
         Segmentation   segmentation_;
         CellStatistics cellStatistics_;
         Pyramid       *pyramid_;
-    };
+    }; // class Level
 
   protected:
     friend class CellPyramid<Segmentation, CellStatistics>::Level;
@@ -324,9 +324,6 @@ class CellPyramid
   public:
     void storeCheckpoint(const Level &level)
     {
-        if(!checkpoints_.count(level.index()))
-            checkpoints_.insert(std::make_pair(topLevel().index(), level));
-
         unsigned int totalCellCount =
             level.segmentation().nodeCount() +
             level.segmentation().edgeCount() +
@@ -336,8 +333,13 @@ class CellPyramid
         else
             nextCheckpointLevelIndex_ = level.index() + 10;
 
-        std::cerr << "--- stored checkpoint at level #" << level.index()
-                  << ", " << totalCellCount << " cells total left ---\n";
+        if(!checkpoints_.count(level.index()))
+        {
+            checkpoints_.insert(std::make_pair(topLevel().index(), level));
+
+            std::cerr << "--- stored checkpoint at level #" << level.index()
+                      << ", " << totalCellCount << " cells total left ---\n";
+        }
     }
 
     CellPyramid(const Segmentation &level0,
