@@ -431,6 +431,8 @@ class CellPyramid
 
     Level *getLevel(unsigned int levelIndex)
     {
+        vigra_precondition(levelIndex < levelCount(),
+                           "getLevel(): invalid level index given");
         typename CheckpointMap::iterator lastCheckpointIt =
             checkpoints_.upper_bound(levelIndex);
         --lastCheckpointIt;
@@ -459,7 +461,7 @@ class CellPyramid
     {
         vigra_precondition(topLevel_.index() == levelCount()-1,
                            "cutAbove(): topLevel_ is not the top level anymore");
-        if(topLevel_.index() != levelIndex)
+        if(topLevel_.index() > levelIndex)
         {
             topLevel_.gotoLevel(levelIndex);
             cutHead();
