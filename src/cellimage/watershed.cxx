@@ -208,7 +208,7 @@ int main(int argc, char ** argv)
 
         segmentation.init(srcImageRange(labels));
 
-#if 1
+#if 0
 		exportImage(srcImageRange(segmentation.cellImage), ImageExportInfo("cellImage.xv"));
 		std::cout << "Wrote cells.xv" << std::endl;
 
