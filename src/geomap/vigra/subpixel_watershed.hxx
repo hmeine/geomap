@@ -883,17 +883,16 @@ SubPixelWatersheds<T>::findCriticalPointsInFacet(double x0, double y0,
     double c = splineCoeffs(1,2);
     double a = splineCoeffs(2,2);
 
-    double polyCoeffs[6];
-    polyCoeffs[0] =  4.0*f*f*g - 2.0*d*f*h + c*h*h;
-    polyCoeffs[1] = -2.0*d*d*f + 8.0*e*f*f + 8.0*c*f*g - 4.0*b*f*h + 2.0*a*h*h;
-    polyCoeffs[2] = -c*d*d - 6.0*b*d*f + 16.0*c*e*f + 4.0*c*c*g + 
-                     8.0*a*f*g - 2.0*b*c*h + 2.0*a*d*h;
-    polyCoeffs[3] = -4.0*b*c*d + 8.0*c*c*e - 4.0*b*b*f + 16.0*a*e*f + 8.0*a*c*g;
-    polyCoeffs[4] = -3.0*b*b*c - 2.0*a*b*d + 16.0*a*c*e + 4.0*a*a*g;
-    polyCoeffs[5] = -2.0*a*b*b + 8.0*a*a*e;
-    
     double eps = 1.0e-7;
-    Polynomial<double> px(polyCoeffs, 6 , eps);
+    StaticPolynomial<5, double> px((unsigned)5 , eps);
+    px[0] =  4.0*f*f*g - 2.0*d*f*h + c*h*h;
+    px[1] = -2.0*d*d*f + 8.0*e*f*f + 8.0*c*f*g - 4.0*b*f*h + 2.0*a*h*h;
+    px[2] = -c*d*d - 6.0*b*d*f + 16.0*c*e*f + 4.0*c*c*g + 
+            8.0*a*f*g - 2.0*b*c*h + 2.0*a*d*h;
+    px[3] = -4.0*b*c*d + 8.0*c*c*e - 4.0*b*b*f + 16.0*a*e*f + 8.0*a*c*g;
+    px[4] = -3.0*b*b*c - 2.0*a*b*d + 16.0*a*c*e + 4.0*a*a*g;
+    px[5] = -2.0*a*b*b + 8.0*a*a*e;
+    
     ArrayVector<double> rx;
 #if 0
     std::cerr << "Poly order " << px.order() << " coeffs ";
