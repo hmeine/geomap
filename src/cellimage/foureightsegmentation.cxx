@@ -5,6 +5,7 @@
 #include <set>
 #include "mydebug.hxx"
 #include "debugimage.hxx"
+#include "crop.hxx"
 
 namespace vigra {
 
@@ -142,8 +143,8 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::removeIsolatedNode(
         it.inRange(); ++it)
         *it= CellPixel(CellTypeRegion, face.label);
 
-    // update bounds:
-    face.bounds |= node.bounds;
+    // updating bounds not necessary since all of the node's neighbors
+    // are already face pixels, so the bounds should not change
     face.size += node.size;
 
     node.uninitialize();
@@ -167,30 +168,15 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::mergeFaces(
     NodeInfo &node2= edge.end.startNode();
 
     vigra_precondition(face1.label != face2.label,
-                       "FourEightSegmentation::mergeFaces(): edge is a bridge");
-
-    //bool removedEdgeIsLoop = node1.label == node2.label;
+        "FourEightSegmentation::mergeFaces(): dart is singular or edge is a bridge");
 
     // find indices of contour components to be merged
     unsigned int contour1 = findContourComponent(face1.contours, removedDart);
     unsigned int contour2 = findContourComponent(face2.contours, removedDart);
 
     // re-use an old anchor for the merged contour
-    DartTraverser newAnchor(face1.contours[contour1]);
-    if(newAnchor.edgeLabel() == edge.label)
-    {
-        newAnchor.nextPhi();
-        if(newAnchor.edgeLabel() == edge.label)
-        {
-            newAnchor = face2.contours[contour2];
-            if(newAnchor.edgeLabel() == edge.label)
-            {
-                newAnchor.nextPhi();
-                //if(newAnchor.edgeLabel() == edge.label)
-                //    newAnchor."makeSingular"();
-            }
-        }
-    }
+    if(face1.contours[contour1].edgeLabel() == edge.label)
+        face1.contours[contour1].nextPhi();
 
     // relabel cells in cellImage:
     for(CellScanIterator it= edgeScanIterator(edge.label, cells, false);
@@ -211,18 +197,19 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::mergeFaces(
         if(i != contour2)
             face1.contours.push_back(face2.contours[i]);
 
-    face1.contours[contour1] = newAnchor;
-
-    // turn anchors if they pointed to the removed edge and there's another left
+    // turn node anchors if they pointed to the removed edge and
+    // there's another left
     if(--node1.degree && node1.anchor.isSingular())
         node1.anchor.carefulNextSigma();
-    if(--node2.degree && node2.anchor.isSingular())
-        node2.anchor.carefulNextSigma();
+    if(node2.label != node1.label)
+        if(--node2.degree && node2.anchor.isSingular())
+            node2.anchor.carefulNextSigma();
 
     edge.uninitialize();
     --edgeCount_;
     face2.uninitialize();
     --faceCount_;
+    // FIXME: also update maxFaceLabel / maxEdgeLabel
 
     return face1;
 }
@@ -238,10 +225,10 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::removeBridge(
     vigra_precondition(face.label == dart.rightFaceLabel(),
                        "FourEightSegmentation::removeBridge(): edge is not a bridge");
 
-    DartTraverser newAnchor1(dart);
+    // prepare new anchors
+    DartTraverser newAnchor1(edge.start);
     newAnchor1.prevSigma();
-    DartTraverser newAnchor2(dart);
-    newAnchor2.nextAlpha();
+    DartTraverser newAnchor2(edge.end);
     newAnchor2.prevSigma();
 
     // find index of contour component to be changed
@@ -253,96 +240,25 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::removeBridge(
         it.inRange(); ++it)
         *it= CellPixel(CellTypeRegion, face.label);
 
-    // update bounds:
+    // update bounds and size:
     face.bounds |= edge.bounds;
+    face.size += edge.size;
 
+    // update anchors
     face.contours[contourIndex] = newAnchor1;
     face.contours.push_back(newAnchor2);
 
-    // turn anchors if they pointed to the removed edge and there's another left
+    // turn node anchors if they pointed to the removed edge and
+    // there's another one left
     if(--node1.degree && node1.anchor.isSingular())
         node1.anchor.carefulNextSigma();
     if(--node2.degree && node2.anchor.isSingular())
         node2.anchor.carefulNextSigma();
 
-    // FIXME: if(!isSingular()) check if node was anchor of
-    // contour, then update entries in all neighbored faces if
-    // DartTraverser pointed to the removed edge..
-
     edge.uninitialize();
     --edgeCount_;
 
     return face;
-}
-
-void debugDart(const FourEightSegmentation::DartTraverser &dart)
-{
-	const char *dirStr[] = {
-		"East",
-		"NorthEast",
-		"North",
-		"NorthWest",
-		"West",
-		"SouthWest",
-		"South",
-		"SouthEast"
-	};
-
-	vigra::Point2D pos(dart.neighborCirculator().center() -
-					   dart.segmentation()->cells);
-
-	std::cerr << "DartTraverser pointing "
-			  << dirStr[(int)dart.neighborCirculator().direction()]
-			  << " from " << pos.x << ", " << pos.y;
-	if(dart.neighborCirculator().center()->type() == CellTypeVertex)
-	{
-		CellLabel nodeLabel(dart.neighborCirculator().center()->label());
-		std::cerr << " (node " << nodeLabel;
-		if(nodeLabel > dart.segmentation()->maxNodeLabel())
-			std::cerr << ", LABEL INVALID!";
-		else
-		{
-			const FourEightSegmentation::NodeInfo &node =
-				dart.segmentation()->node(nodeLabel);
-			if(!node.initialized())
-				std::cerr << ", UNINITIALIZED";
-			std::cerr << ", " << node.size << " pixels, degree " << node.degree;
-		}
-		std::cerr << ")";
-	}
-	else
-	{
-		if(dart.neighborCirculator().center()->type() == CellTypeLine)
-			std::cerr << " (CellTypeLine, label ";
-		else
-			std::cerr << " (CellTypeRegion, label ";
-		std::cerr << dart.neighborCirculator().center()->label() << ")";
-	}
-	std::cerr << " to ";
-	if(dart.neighborCirculator().base()->type() == CellTypeLine)
-	{
-		CellLabel edgeLabel(dart.neighborCirculator().base()->label());
-		std::cerr << "edge " << edgeLabel;
-		if(edgeLabel > dart.segmentation()->maxEdgeLabel())
-			std::cerr << ", LABEL INVALID!";
-		else
-		{
-			const FourEightSegmentation::EdgeInfo &edge =
-				dart.segmentation()->edge(edgeLabel);
-			if(!edge.initialized())
-				std::cerr << ", UNINITIALIZED";
-			std::cerr << ", " << edge.size << " pixels";
-		}
-		std::cerr << "\n";
-	}
-	else
-	{
-		if(dart.neighborCirculator().base()->type() == CellTypeVertex)
-			std::cerr << "CellTypeVertex pixel, label ";
-		else
-			std::cerr << "CellTypeRegion pixel, label ";
-		std::cerr << dart.neighborCirculator().base()->label() << "\n";
-	}
 }
 
 FourEightSegmentation::EdgeInfo &FourEightSegmentation::mergeEdges(
@@ -374,8 +290,19 @@ FourEightSegmentation::EdgeInfo &FourEightSegmentation::mergeEdges(
     if(dart1.leftFaceLabel() != dart1.rightFaceLabel())
         removeNodeFromContours(dart1.rightFace().contours, dart1.startNodeLabel());
 
+    // update start, end
     dart1.nextAlpha();
     dart2.nextAlpha();
+    if(dart1.startNodeLabel() < dart2.startNodeLabel())
+    {
+        edge1.start = dart1;
+        edge1.end = dart2;
+    }
+    else
+    {
+        edge1.start = dart2;
+        edge1.end = dart1;
+    }
 
     // relabel cells in cellImage:
     for(CellScanIterator it= nodeScanIterator(node.label, cells, false);
@@ -390,18 +317,6 @@ FourEightSegmentation::EdgeInfo &FourEightSegmentation::mergeEdges(
     edge1.size += node.size;
     edge1.bounds |= edge2.bounds;
     edge1.size += edge2.size;
-
-    // update start, end
-    if(dart1.startNodeLabel() < dart2.startNodeLabel())
-    {
-        edge1.start = dart1;
-        edge1.end = dart2;
-    }
-    else
-    {
-        edge1.start = dart2;
-        edge1.end = dart1;
-    }
 
     node.uninitialize();
     --nodeCount_;
@@ -497,6 +412,8 @@ void FourEightSegmentation::initCellImage(BImage & contourImage)
             }
         }
     }
+
+    cellImage(1, 1).setType(CellTypeVertex, 0); // FIXME: for faceList_[0].anchor
 }
 
 /********************************************************************/
@@ -512,7 +429,11 @@ CellLabel FourEightSegmentation::label0Cells()
 
         for(int x=-2; x < cellImage.width()-2; ++x, ++cell.x)
         {
-            if(cell->type() == CellTypeVertex)
+            if(cell->type() != CellTypeVertex)
+            {
+                nodes(x,y) = 0;
+            }
+            else
             {
                 nodes(x,y) = 1;
 
@@ -532,10 +453,6 @@ CellLabel FourEightSegmentation::label0Cells()
                     }
                 }
                 while(++n != nend);
-            }
-            else
-            {
-                nodes(x,y) = 0;
             }
         }
     }
@@ -686,7 +603,7 @@ void FourEightSegmentation::initNodeList(CellLabel maxNodeLabel)
                 continue;
 
             CellLabel index = cell->label();
-			vigra_precondition(index < nodeList_.size(),
+            vigra_precondition(index < nodeList_.size(),
                                "nodeList_ must be large enough!");
 
             if(!nodeList_[index].initialized())
@@ -731,7 +648,7 @@ void FourEightSegmentation::initNodeList(CellLabel maxNodeLabel)
     }
 
     for(NodeIterator node= nodesBegin(); node.inRange(); ++node)
-	{
+    {
         // methods to calculate the area must yield identical values
         if(crackCirculatedAreas[node->label] != node->size)
         {
@@ -821,7 +738,7 @@ void FourEightSegmentation::initEdgeList(CellLabel maxEdgeLabel)
         do
         {
             CellLabel label = dart.edgeLabel();
-			vigra_precondition(label < edgeList_.size(),
+            vigra_precondition(label < edgeList_.size(),
                                "edgeList_ must be large enough!");
             if(!edgeList_[label].initialized())
             {
@@ -876,7 +793,6 @@ void FourEightSegmentation::initFaceList(
     faceList_[0].bounds |= Point2D(-2, -2);
     faceList_[0].bounds |= Point2D(-2, -2) + cellImage.size();
     faceList_[0].size = NumericTraits<unsigned int>::max();
-    //faceList_[0].anchor = Diff2D(-2, -2); FIXME: are the contour-anchors enough?
     DartTraverser anchor(this, CellImageEightCirculator(cells + Diff2D(-1, -1),
                                                         EightNeighborCode::West));
     faceList_[0].contours.push_back(anchor.prevSigma());
@@ -884,7 +800,7 @@ void FourEightSegmentation::initFaceList(
 
     for(Point2D pos= Point2D(-1, -1); pos.y < cellImage.height()-3; ++pos.y)
     {
-		pos.x= -1;
+        pos.x= -1;
         CellImage::traverser cell = cells + pos;
         CellImage::traverser leftNeighbor = cell - Diff2D(1, 0);
 
@@ -901,7 +817,7 @@ void FourEightSegmentation::initFaceList(
             }
 
             CellLabel index = cell->label();
-			vigra_precondition(index < faceList_.size(),
+            vigra_precondition(index < faceList_.size(),
                                "faceList_ must be large enough!");
             if(!faceList_[index].initialized())
             {
@@ -1003,6 +919,76 @@ void FourEightSegmentation::initFaceList(
                 while(++neighbor != nend);
             }
         }
+    }
+}
+
+void debugDart(const FourEightSegmentation::DartTraverser &dart)
+{
+    const char *dirStr[] = {
+        "East",
+        "NorthEast",
+        "North",
+        "NorthWest",
+        "West",
+        "SouthWest",
+        "South",
+        "SouthEast"
+    };
+
+    vigra::Point2D pos(dart.neighborCirculator().center() -
+                       dart.segmentation()->cells);
+
+    std::cerr << "DartTraverser pointing "
+              << dirStr[(int)dart.neighborCirculator().direction()]
+              << " from " << pos.x << ", " << pos.y;
+    if(dart.neighborCirculator().center()->type() == CellTypeVertex)
+    {
+        CellLabel nodeLabel(dart.neighborCirculator().center()->label());
+        std::cerr << " (node " << nodeLabel;
+        if(nodeLabel > dart.segmentation()->maxNodeLabel())
+            std::cerr << ", LABEL INVALID!";
+        else
+        {
+            const FourEightSegmentation::NodeInfo &node =
+                dart.segmentation()->node(nodeLabel);
+            if(!node.initialized())
+                std::cerr << ", UNINITIALIZED";
+            std::cerr << ", " << node.size << " pixels, degree " << node.degree;
+        }
+        std::cerr << ")";
+    }
+    else
+    {
+        if(dart.neighborCirculator().center()->type() == CellTypeLine)
+            std::cerr << " (CellTypeLine, label ";
+        else
+            std::cerr << " (CellTypeRegion, label ";
+        std::cerr << dart.neighborCirculator().center()->label() << ")";
+    }
+    std::cerr << " to ";
+    if(dart.neighborCirculator().base()->type() == CellTypeLine)
+    {
+        CellLabel edgeLabel(dart.neighborCirculator().base()->label());
+        std::cerr << "edge " << edgeLabel;
+        if(edgeLabel > dart.segmentation()->maxEdgeLabel())
+            std::cerr << ", LABEL INVALID!";
+        else
+        {
+            const FourEightSegmentation::EdgeInfo &edge =
+                dart.segmentation()->edge(edgeLabel);
+            if(!edge.initialized())
+                std::cerr << ", UNINITIALIZED";
+            std::cerr << ", " << edge.size << " pixels";
+        }
+        std::cerr << "\n";
+    }
+    else
+    {
+        if(dart.neighborCirculator().base()->type() == CellTypeVertex)
+            std::cerr << "CellTypeVertex pixel, label ";
+        else
+            std::cerr << "CellTypeRegion pixel, label ";
+        std::cerr << dart.neighborCirculator().base()->label() << "\n";
     }
 }
 
