@@ -23,7 +23,6 @@ class CellPyramid
     typedef typename Segmentation::FaceInfo FaceInfo;
     typedef typename Segmentation::DartTraverser DartTraverser;
 
-  protected:
     enum OperationType { RemoveIsolatedNode,
                          MergeFaces,
                          RemoveBridge,
@@ -46,6 +45,7 @@ class CellPyramid
         : type(opType), param(paramDart.serialize())
         {}
 
+            // FIXME: this should maybe not be the default constructor?
         Operation()
         : type(Composite), opList(new std::vector<Operation>)
         {}
@@ -77,7 +77,6 @@ class CellPyramid
         }
     };
 
-  public:
     class Level
     {
       public:
@@ -141,7 +140,8 @@ class CellPyramid
              */
         bool gotoLastCheckpointBefore(unsigned int levelIndex)
         {
-            typename Pyramid::CheckpointMap::iterator lastCheckpointIt =
+            typedef typename Pyramid::CheckpointMap CheckpointMap;
+            typename CheckpointMap::iterator lastCheckpointIt =
                 pyramid_->checkpoints_.upper_bound(levelIndex);
             --lastCheckpointIt;
 
@@ -444,6 +444,19 @@ class CellPyramid
     unsigned int levelCount() const
     {
         return history_.size() + 1;
+    }
+
+    typedef typename History::const_iterator
+        HistoryIterator;
+
+    HistoryIterator historyBegin() const
+    {
+        return history_.begin();
+    }
+
+    HistoryIterator historyEnd() const
+    {
+        return history_.end();
     }
 
     void cutAbove(const Level &level)
