@@ -1,6 +1,6 @@
 include ../../interactive/config/Makefile.include
 
-CXXFLAGS = -g -Wall -Wno-deprecated
+CXXFLAGS = -Wall -Wno-deprecated -O2 -DNDEBUG
 CPPFLAGS += -I. -I../../test/include
 
 CELLIMAGE_OBJS = \
