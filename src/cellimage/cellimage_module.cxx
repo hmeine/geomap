@@ -76,8 +76,8 @@ BOOST_PYTHON_MODULE_INIT(cellimage)
         .def("get", &getPixelXY)
         .def("set", &setPixelXY);
 
-    //scope fourEightSegmentation =
-    class_<FourEightSegmentation>("FourEightSegmentation", no_init)
+    scope fourEightSegmentation(
+		class_<FourEightSegmentation>("FourEightSegmentation", no_init)
         .def("nodeCount", &FourEightSegmentation::nodeCount)
         .def("maxNodeLabel", &FourEightSegmentation::maxNodeLabel)
         .def("nodes", &NodeListProxy::create)
@@ -92,7 +92,7 @@ BOOST_PYTHON_MODULE_INIT(cellimage)
         .def("mergeFaces", &FourEightSegmentation::mergeFaces,
              return_internal_reference<>())
         .def("removeBridge", &FourEightSegmentation::removeBridge,
-             return_internal_reference<>());
+             return_internal_reference<>()));
 
     def("createFourEightSegmentation", createFourEightSegmentation,
         return_value_policy<manage_new_object>());
