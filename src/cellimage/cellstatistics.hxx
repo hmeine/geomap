@@ -25,6 +25,7 @@ struct SegmentationData
     GradientImage gradientMagnitude_;
     EdgeDirImage  edgeDirection_;
     EdgeDirImage  edgeDirGradient_;
+
     bool       doEdgeRethinning;
     bool       doRemoveDegree2Nodes;
     bool       doMergeCompleteRegions;
@@ -44,15 +45,6 @@ struct SegmentationData
 
 namespace std { void swap(SegmentationData &a, SegmentationData &b); }
 
-struct CountEdgels
-{
-    unsigned int count;
-
-    CountEdgels(): count(0) {}
-    void operator()(bool e) { if(e) ++count; }
-    unsigned int operator()() const { return count; }
-};
-
 /********************************************************************/
 
 enum { EPBorder = 1, EPCanny = 2, EPManual = 4 };
@@ -64,7 +56,6 @@ class EdgeProtection
 
   protected:
     std::vector<FlagType> edgeProtection_;
-    unsigned int          timestamp_;
 
   public:
     EdgeProtection(unsigned int size)
@@ -77,15 +68,9 @@ class EdgeProtection
         if((bool)(edgeProtection_[edgeLabel] & flag) != protect)
         {
             edgeProtection_[edgeLabel] ^= flag;
-            ++timestamp_;
             return true;
         }
         return false;
-    }
-
-    unsigned int timestamp() const
-    {
-        return timestamp_;
     }
 
     bool edgeProtected(vigra::cellimage::CellLabel edgeLabel) const
@@ -104,6 +89,17 @@ class EdgeProtection
     {
         return (bool)(edgeProtection_[edgeLabel] & flag);
     }
+};
+
+/********************************************************************/
+
+struct CountEdgels
+{
+    unsigned int count;
+
+    CountEdgels(): count(0) {}
+    void operator()(bool e) { if(e) ++count; }
+    unsigned int operator()() const { return count; }
 };
 
 /********************************************************************/
@@ -130,24 +126,24 @@ struct CellStatistics
     std::vector<vigra::TinyVector<float, 2> >
         nodeCenters_;
 
-    static std::vector<Float2D> configurationDirections_;
-
-    CellStatistics(const Segmentation &initialSegmentation,
-                   SegmentationData *segmentationData,
-                   EdgeProtection *edgeProtection);
-
         // members storing source data
     SegmentationData *segmentationData;
     EdgeProtection   *edgeProtection;
 
 	vigra::Rect2D     segDataBounds;
 
+    static std::vector<Float2D> configurationDirections_;
+
+    CellStatistics(const Segmentation &initialSegmentation,
+                   SegmentationData *segmentationData,
+                   EdgeProtection *edgeProtection);
+
   protected:
     mutable vigra::Rect2D lastChanges_;
 
         // temporary data for storage between preXXX- and postXXX-calls
-    FaceStatistics tempFaceStatistics_;
-    EdgeStatistics tempEdgeStatistics_;
+    FaceStatistics              tempFaceStatistics_;
+    EdgeStatistics              tempEdgeStatistics_;
     vigra::cellimage::CellLabel node1Label_, node2Label_;
     vigra::cellimage::CellLabel edge1Label_, edge2Label_;
 
@@ -171,7 +167,12 @@ struct CellStatistics
                      EdgeProtection::FlagType flag, bool protect = true) const
     {
         bool result =
-            edgeProtection->protectEdge(edgeLabel, flag, protect);;
+            edgeProtection->protectEdge(edgeLabel, flag, protect);
+//         if(result && protect)
+//         {
+//             edgeProtection->lastValidLevel =
+//                 std::min(edgeProtection->lastValidLevel, edgeRemoveLevels_[edgeLabel]);
+//         }
         if(mergedEdges_[edgeLabel] != edgeLabel)
             result =
                 protectEdge(mergedEdges_[edgeLabel], flag, protect) || result;
@@ -238,8 +239,7 @@ void edgeRethinning(vigra::cellimage::GeoMap &seg,
 
 inline void CellStatistics::preRemoveIsolatedNode(
     const Segmentation::DartTraverser &)
-{
-}
+{}
 
 inline void CellStatistics::postRemoveIsolatedNode(
     Segmentation::FaceInfo &face)
