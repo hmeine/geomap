@@ -3,7 +3,6 @@
 
 #include <vector>
 #include <map>
-#include "crc32.hxx"
 
 /* Known design weaknesses:
  * - cutHead() calls storeCheckpoint to restore nextCheckpointLevelIndex_
@@ -148,15 +147,10 @@ class CellPyramid
             if((index() <= levelIndex) && (lastCheckpointIt->first <= index()))
                 return false;
 
-            CRC32 crcOld, crcNew;
-            crcOld((const char *)&(*segmentation().cells), 100000);
-            crcNew((const char *)&(*lastCheckpointIt->second.segmentation().cells), 100000);
-
             std::cerr << "to get from level " << index() << " to " << levelIndex
                       << ", we use checkpoint " << lastCheckpointIt->first
                       << "  (subindex " << lastCheckpointIt->second.subIndex_
-                      << "); crc: " << std::hex << crcOld()
-                      << " -> " << crcNew() << std::dec << "\n";
+                     << ")\n";
 
             operator=(lastCheckpointIt->second);
             return true;
@@ -346,11 +340,7 @@ class CellPyramid
         {
             checkpoints_.insert(std::make_pair(level.index(), level));
 
-            CRC32 crc;
-            crc((const char *)&(*level.segmentation().cells), 100000);
-
             std::cerr << "--- stored checkpoint at level " << level.index()
-                      << ", crc: " << std::hex << crc() << std::dec
                       << " (subindex " << level.subIndex_
                       << "), next scheduled for subindex "
                       << nextCheckpointLevelIndex_
