@@ -82,7 +82,7 @@ FourEightSegmentation::FourEightSegmentation(const CellImage &importImage)
     initialized_ = true;
 }
 
-unsigned int FourEightSegmentation::findContourComponent(
+unsigned int FourEightSegmentation::findComponentAnchor(
     const FaceInfo &face,
     const DartTraverser & dart)
 {
@@ -135,7 +135,7 @@ unsigned int FourEightSegmentation::findContourComponent(
         } while(dart2.nextPhi() != *contour);
     }
 
-    vigra_fail("findContourComponent: dart not found in any contour");
+    vigra_fail("findComponentAnchor: dart not found in any contour");
     return 0;
 }
 
@@ -160,7 +160,7 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::removeIsolatedNode(
     NodeInfo &node= dart.startNode();
     FaceInfo &face= dart.leftFace();
 
-    face.contours.erase(face.contours.begin() + findContourComponent(face, dart));
+    face.contours.erase(face.contours.begin() + findComponentAnchor(face, dart));
 
     for(CellScanIterator it= nodeScanIterator(node.label, cells, false);
         it.inRange(); ++it)
@@ -198,8 +198,8 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::mergeFaces(
         "FourEightSegmentation::mergeFaces(): dart is singular or edge is a bridge");
 
     // find indices of contour components to be merged
-    unsigned int contour1 = findContourComponent(survivor, removedDart);
-    unsigned int contour2 = findContourComponent(mergedFace, removedDart);
+    unsigned int contour1 = findComponentAnchor(survivor, removedDart);
+    unsigned int contour2 = findComponentAnchor(mergedFace, removedDart);
 
     // re-use an old anchor for the merged contour
     if(survivor.contours[contour1].edgeLabel() == mergedEdge.label)
@@ -271,7 +271,7 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::removeBridge(
     newAnchor2.prevSigma();
 
     // update anchors
-    unsigned int contourIndex = findContourComponent(face, dart);
+    unsigned int contourIndex = findComponentAnchor(face, dart);
     face.contours[contourIndex] = newAnchor1;
     face.contours.push_back(newAnchor2);
 

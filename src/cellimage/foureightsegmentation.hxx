@@ -756,8 +756,8 @@ public:
         CellScanIterator;
 
   protected:
-    unsigned int findContourComponent(const FaceInfo &face,
-                                      const DartTraverser &dart);
+    unsigned int findComponentAnchor(const FaceInfo &face,
+                                     const DartTraverser &dart);
 
     void removeNodeFromContours(ContourComponents &contours,
                                 CellLabel nodeLabel);
