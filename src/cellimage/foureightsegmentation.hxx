@@ -295,7 +295,7 @@ struct RayCirculator
 {
 private:
     NeighborhoodCirculator neighborCirc_;
-    bool is_singular;
+    bool isSingular_;
 
 public:
     // default constructor needed for NodeInfo/EdgeInfo, init() must not be called!
@@ -316,7 +316,7 @@ public:
 
     RayCirculator & operator++()
     {
-        if(is_singular) return *this;
+        if(isSingular_) return *this;
 
         tryNext();
 
@@ -340,7 +340,7 @@ public:
 
     RayCirculator & operator--()
     {
-        if(is_singular) return *this;
+        if(isSingular_) return *this;
 
         tryPrev();
 
@@ -364,7 +364,7 @@ public:
 
     RayCirculator & jumpToOpposite()
     {
-        if(is_singular) return *this;
+        if(isSingular_) return *this;
 
         EdgelIterator line(neighborCirc_);
         line.jumpToOpposite();
@@ -415,18 +415,19 @@ private:
         "FourEightSegmentation::RayCirculator(): neighbor is a node");
 
         NeighborhoodCirculator n = neighborCirc_;
-        is_singular = true;
+        isSingular_ = true;
         do
         {
             if(n.neighborCell() != CellConfigurationsRegion)
             {
-                is_singular = false;
+                isSingular_ = false;
                 break;
             }
         }
         while(++n != neighborCirc_);
 
-        if(neighborCirc_.neighborCell() != CellConfigurationsLine) operator++();
+        if(neighborCirc_.neighborCell() != CellConfigurationsLine)
+            operator++();
     }
 
     void tryNext()
@@ -453,18 +454,15 @@ private:
     }
 };
 
-/***********************************************************************/
-/*                                                                     */
-/*               ContourCirculator                */
-/*                                                                     */
-/***********************************************************************/
-
+// -------------------------------------------------------------------
+//                           ContourCirculator
+// -------------------------------------------------------------------
 struct ContourCirculator
 {
     RayCirculator ray_;
 
     ContourCirculator(RayCirculator r)
-    : ray_(r)
+        : ray_(r)
     {}
 
     ContourCirculator & operator++()
@@ -528,12 +526,9 @@ struct ContourCirculator
     RayCirculator const & ray() const { return ray_; }
 };
 
-/***********************************************************************/
-/*                                                                     */
-/*                      FourEightSegmentation                          */
-/*                                                                     */
-/***********************************************************************/
-
+// -------------------------------------------------------------------
+//                         FourEightSegmentation
+// -------------------------------------------------------------------
 class FourEightSegmentation
 {
 public:
@@ -549,11 +544,8 @@ private:
         int degree;
         RayCirculator ray;
 
-        NodeInfo()
-            : label(-1)
-        {}
-
-        bool notInitialized() const { return label < 0; }
+        NodeInfo() : label(-1) {}
+        bool initialized() const { return label >= 0; }
     };
 
     struct EdgeInfo
@@ -561,11 +553,8 @@ private:
         int label;
         RayCirculator start, end;
 
-        EdgeInfo()
-            : label(-1)
-        {}
-
-        bool notInitialized() const { return label < 0; }
+        EdgeInfo() : label(-1) {}
+        bool initialized() const { return label >= 0; }
     };
 
     struct FaceInfo
@@ -574,30 +563,24 @@ private:
         Diff2D anchor;
         std::vector<ContourCirculator> contours;
 
-        FaceInfo()
-            : label(-1)
-        {}
-
-        bool notInitialized() const { return label < 0; }
+        FaceInfo() : label(-1) {}
+        bool initialized() const { return label >= 0; }
     };
 
     typedef std::vector<NodeInfo> NodeList;
     typedef std::vector<EdgeInfo> EdgeList;
     typedef std::vector<FaceInfo> FaceList;
 
-  public:
+public:
     typedef NodeList::iterator NodeIterator;
     typedef EdgeList::iterator EdgeIterator;
     typedef FaceList::iterator FaceIterator;
 
     typedef std::vector<ContourCirculator>::iterator BoundaryComponentsIterator;
-
-    /***********************************************************************/
-    /*                                                                     */
-    /*              FourEightSegmentation::NodeAccessor                    */
-    /*                                                                     */
-    /***********************************************************************/
-
+    
+    // -------------------------------------------------------------------
+    //                  FourEightSegmentation::NodeAccessor
+    // -------------------------------------------------------------------
     struct NodeAccessor
     {
         int degree(NodeIterator & i) const
@@ -626,12 +609,9 @@ private:
         }
     };
 
-    /***********************************************************************/
-    /*                                                                     */
-    /*          FourEightSegmentation::NodeAtStartAccessor                 */
-    /*                                                                     */
-    /***********************************************************************/
-
+    // -------------------------------------------------------------------
+    //               FourEightSegmentation::NodeAtStartAccessor
+    // -------------------------------------------------------------------
     struct NodeAtStartAccessor
     {
         int degree(RayCirculator & i) const
@@ -720,12 +700,9 @@ private:
         }
     };
 
-    /***********************************************************************/
-    /*                                                                     */
-    /*           FourEightSegmentation::NodeAtEndAccessor                  */
-    /*                                                                     */
-    /***********************************************************************/
-
+    // -------------------------------------------------------------------
+    //                FourEightSegmentation::NodeAtEndAccessor
+    // -------------------------------------------------------------------
     struct NodeAtEndAccessor
     {
         int degree(RayCirculator i) const
@@ -809,12 +786,9 @@ private:
         }
     };
 
-    /***********************************************************************/
-    /*                                                                     */
-    /*              FourEightSegmentation::EdgeAccessor                    */
-    /*                                                                     */
-    /***********************************************************************/
-
+    // -------------------------------------------------------------------
+    //                  FourEightSegmentation::EdgeAccessor
+    // -------------------------------------------------------------------
     struct EdgeAccessor
     {
         int label(RayCirculator & i) const
@@ -833,12 +807,9 @@ private:
         }
     };
 
-    /***********************************************************************/
-    /*                                                                     */
-    /*            FourEightSegmentation::FaceAtLeftAccessor                */
-    /*                                                                     */
-    /***********************************************************************/
-
+    // -------------------------------------------------------------------
+    //               FourEightSegmentation::FaceAtLeftAccessor 
+    // -------------------------------------------------------------------
     struct FaceAtLeftAccessor
     {
         int label(RayCirculator & i) const
@@ -862,12 +833,9 @@ private:
         }
     };
 
-    /***********************************************************************/
-    /*                                                                     */
-    /*            FourEightSegmentation::FaceAtRightAccessor               */
-    /*                                                                     */
-    /***********************************************************************/
-
+    // -------------------------------------------------------------------
+    //               FourEightSegmentation::FaceAtRightAccessor
+    // -------------------------------------------------------------------
     struct FaceAtRightAccessor
     {
         int label(RayCirculator & i) const
@@ -891,12 +859,9 @@ private:
         }
     };
 
-    /***********************************************************************/
-    /*                                                                     */
-    /*              FourEightSegmentation::FaceAccessor                    */
-    /*                                                                     */
-    /***********************************************************************/
-
+    // -------------------------------------------------------------------
+    //                  FourEightSegmentation::FaceAccessor
+    // -------------------------------------------------------------------
     struct FaceAccessor
     {
         int label(FaceIterator & i) const
@@ -925,30 +890,27 @@ private:
         }
     };
 
-    /***********************************************************************/
-    /*                                                                     */
-    /*                 FourEightSegmentation functions                     */
-    /*                                                                     */
-    /***********************************************************************/
+    // -------------------------------------------------------------------
+
     template <class SrcIter, class SrcAcc>
     void init(SrcIter ul, SrcIter lr, SrcAcc src)
     {
         width_ = lr.x - ul.x;
-        height_ = lr.y - ul.y,
-        totalwidth_ = width_ + 4;
-        totalheight_ = height_ + 4;
+        height_ = lr.y - ul.y;
+        int totalwidth = width_ + 4;
+        int totalheight = height_ + 4;
 
-        cellImage.resize(totalwidth_, totalheight_);
+        cellImage.resize(totalwidth, totalheight);
         cellImage = CellConfigurationsRegion;
 
-        labelImage.resize(totalwidth_, totalheight_);
+        labelImage.resize(totalwidth, totalheight);
         labelImage = 0;
 
         cells = cellImage.upperLeft() + Diff2D(2,2);
         labels = labelImage.upperLeft() + Diff2D(2,2);
 
         // extract contours in input image and put frame around them
-        BImage contourImage(totalwidth_, totalheight_);
+        BImage contourImage(totalwidth, totalheight);
         initFourEightSegmentationContourImage(ul, lr, src, contourImage);
 
         initCellImage(contourImage);
@@ -959,7 +921,11 @@ private:
 
         labelCircles(nodeCount, edgeCount);
 
-        decrementLabels();
+        // decrement labels:
+        IImage::ScanOrderIterator i = labelImage.begin();
+        IImage::ScanOrderIterator iend = labelImage.end();
+        for(; i != iend; ++i)
+            --(*i);
 
         initNodeList(nodeCount);
         initEdgeList(edgeCount);
@@ -1001,35 +967,34 @@ private:
     IImage labelImage;
     IImage::Iterator labels;
 
-private:
     NodeInfo const & node(int i) const { return nodeList[i]; }
     EdgeInfo const & edge(int i) const { return edgeList[i]; }
     FaceInfo const & face(int i) const { return faceList[i]; }
 
+private:
     void initCellImage(BImage & contourImage);
     int label0Cells();
     int label1Cells(int nodeCount);
     int label2Cells(BImage & contourImage);
     void labelCircles(int & nodeCount, int & edgeCount);
-    void labelLine(NeighborhoodCirculator rayAtStart, int new_label);
-    void decrementLabels();
+
+    void labelLine(NeighborhoodCirculator rayAtStart, int newLabel);
+
     void initNodeList(int nodeCount);
     void initEdgeList(int edgeCount);
     void initFaceList(BImage & contourImage, int faceCount);
 
-    int width_, height_, totalwidth_, totalheight_;
+private:
+    int width_, height_;
 
     NodeList nodeList;
     EdgeList edgeList;
     FaceList faceList;
 };
 
-/***********************************************************************/
-/*                                                                     */
-/*           NeighborhoodCirculator               */
-/*                                                                     */
-/***********************************************************************/
-
+// -------------------------------------------------------------------
+//                    NeighborhoodCirculator functions
+// -------------------------------------------------------------------
 inline unsigned char NeighborhoodCirculator::cell() const
 {
     return segmentation_->cells[center()];
@@ -1070,12 +1035,9 @@ inline int NeighborhoodCirculator::backwardNeighborLabel() const
     return segmentation_->labels[center() + neighbor_.prevDiff()];
 }
 
-/***********************************************************************/
-/*                                                                     */
-/*                 RayCirculator                  */
-/*                                                                     */
-/***********************************************************************/
-
+// -------------------------------------------------------------------
+//                        RayCirculator functions
+// -------------------------------------------------------------------
 inline int RayCirculator::degree() const
 {
     return segmentation()->node(nodeLabel()).degree;
@@ -1091,12 +1053,9 @@ inline float RayCirculator::y() const
     return segmentation()->node(nodeLabel()).y;
 }
 
-/***********************************************************************/
-/*                                                                     */
-/*                 initFourEightSegmentationContourImage                 */
-/*                                                                     */
-/***********************************************************************/
-
+// -------------------------------------------------------------------
+//                    FourEightSegmentation functions
+// -------------------------------------------------------------------
 template <class SrcIter, class SrcAcc>
 void initFourEightSegmentationContourImage(SrcIter ul, SrcIter lr, SrcAcc src,
                                            BImage & contourImage)
@@ -1124,14 +1083,7 @@ void initFourEightSegmentationContourImage(SrcIter ul, SrcIter lr, SrcAcc src,
     }
 }
 
-/***********************************************************************/
-/*                                                                     */
-/*                FourEightSegmentation::initCellImage                 */
-/*                                                                     */
-/***********************************************************************/
-
-void
-FourEightSegmentation::initCellImage(BImage & contourImage)
+void FourEightSegmentation::initCellImage(BImage & contourImage)
 {
     BImage::Iterator raw = contourImage.upperLeft() + Diff2D(1,1);
 
@@ -1174,26 +1126,11 @@ FourEightSegmentation::initCellImage(BImage & contourImage)
     }
 }
 
-/***********************************************************************/
-/*                                                                     */
-/*                 FourEightSegmentation::label2Cells                  */
-/*                                                                     */
-/***********************************************************************/
-
-int FourEightSegmentation::label2Cells(BImage & contourImage)
-{
-    return labelImageWithBackground(srcImageRange(contourImage), destImage(labelImage), false, 1);
-}
-
-/***********************************************************************/
-/*                                                                     */
-/*                FourEightSegmentation::extract0Cells                 */
-/*                                                                     */
-/***********************************************************************/
+// -------------------------------------------------------------------
 
 int FourEightSegmentation::label0Cells()
 {
-    BImage nodeImage(totalwidth_, totalheight_);
+    BImage nodeImage(width_+4, height_+4);
     BImage::Iterator nodes = nodeImage.upperLeft() + Diff2D(2,2);
 
     int x,y;
@@ -1234,29 +1171,7 @@ int FourEightSegmentation::label0Cells()
     return labelImageWithBackground(srcImageRange(nodeImage), destImage(labelImage), true, 0);
 }
 
-/***********************************************************************/
-/*                                                                     */
-/*                  FourEightSegmentation::labelLine                   */
-/*                                                                     */
-/***********************************************************************/
-
-void FourEightSegmentation::labelLine(NeighborhoodCirculator rayAtStart,
-                                      int new_label)
-{
-    EdgelIterator line(rayAtStart);
-
-    // follow the line and relabel it
-    for(;!line.isEnd(); ++line)
-    {
-        labels[line.location()] = new_label;
-    }
-}
-
-/***********************************************************************/
-/*                                                                     */
-/*                 FourEightSegmentation::label1Cells                  */
-/*                                                                     */
-/***********************************************************************/
+// -------------------------------------------------------------------
 
 int FourEightSegmentation::label1Cells(int number_of_nodes)
 {
@@ -1294,11 +1209,14 @@ int FourEightSegmentation::label1Cells(int number_of_nodes)
     return number_of_edges;
 }
 
-/***********************************************************************/
-/*                                                                     */
-/*                FourEightSegmentation::labelCircles                  */
-/*                                                                     */
-/***********************************************************************/
+// -------------------------------------------------------------------
+
+int FourEightSegmentation::label2Cells(BImage & contourImage)
+{
+    return labelImageWithBackground(srcImageRange(contourImage), destImage(labelImage), false, 1);
+}
+
+// -------------------------------------------------------------------
 
 void FourEightSegmentation::labelCircles(int & number_of_nodes, int & number_of_edges)
 {
@@ -1335,19 +1253,21 @@ void FourEightSegmentation::labelCircles(int & number_of_nodes, int & number_of_
 }
 
 // -------------------------------------------------------------------
-//                 FourEightSegmentation::decrementLabels
-// -------------------------------------------------------------------
-void FourEightSegmentation::decrementLabels()
-{
-    IImage::ScanOrderIterator i = labelImage.begin();
-    IImage::ScanOrderIterator iend = labelImage.end();
 
-    for(; i != iend; ++i) --(*i);
+void FourEightSegmentation::labelLine(NeighborhoodCirculator rayAtStart,
+                                      int newLabel)
+{
+    EdgelIterator line(rayAtStart);
+
+    // follow the line and relabel it
+    for(;!line.isEnd(); ++line)
+    {
+        labels[line.location()] = newLabel;
+    }
 }
 
 // -------------------------------------------------------------------
-//                  FourEightSegmentation::initNodeList
-// -------------------------------------------------------------------
+
 void FourEightSegmentation::initNodeList(int number_of_nodes)
 {
     nodeList.resize(number_of_nodes, NodeInfo());
@@ -1364,7 +1284,7 @@ void FourEightSegmentation::initNodeList(int number_of_nodes)
 
             int index = labels(x,y);
 
-            if(nodeList[index].notInitialized())
+            if(!nodeList[index].initialized())
             {
                 nodeList[index].label = labels(x,y);
 
@@ -1427,11 +1347,7 @@ void FourEightSegmentation::initNodeList(int number_of_nodes)
     }
 }
 
-/***********************************************************************/
-/*                                                                     */
-/*                 FourEightSegmentation::initEdgeList                 */
-/*                                                                     */
-/***********************************************************************/
+// -------------------------------------------------------------------
 
 void FourEightSegmentation::initEdgeList(int number_of_edges)
 {
@@ -1451,7 +1367,7 @@ void FourEightSegmentation::initEdgeList(int number_of_edges)
         do
         {
             int index = edge.label(r);
-            if(edgeList[index].notInitialized())
+            if(!edgeList[index].initialized())
             {
                 edgeList[index].label = index;
                 edgeList[index].start = r;
@@ -1463,21 +1379,18 @@ void FourEightSegmentation::initEdgeList(int number_of_edges)
     }
 }
 
-/***********************************************************************/
-/*                                                                     */
-/*                 FourEightSegmentation::initFaceList                 */
-/*                                                                     */
-/***********************************************************************/
+// -------------------------------------------------------------------
 
 void FourEightSegmentation::initFaceList(BImage & contourImage, int number_of_faces)
 {
     faceList.resize(number_of_faces, FaceInfo());
 
-    IImage contourlabels(totalwidth_, totalheight_);
-    IImage::Iterator contourlab = contourlabels.upperLeft() + Diff2D(2,2);
-    contourlabels = 0;
+    IImage contourLabelImage(width_+4, height_+4);
+    IImage::Iterator contourLabel = contourLabelImage.upperLeft() + Diff2D(2,2);
+    contourLabelImage = 0;
     int countContourComponents =
-        labelImageWithBackground(srcImageRange(contourImage), destImage(contourlabels), true, 0);
+        labelImageWithBackground(srcImageRange(contourImage),
+                                 destImage(contourLabelImage), true, 0);
 
     std::vector<bool> contourProcessed(countContourComponents + 1, false);
 
@@ -1487,7 +1400,7 @@ void FourEightSegmentation::initFaceList(BImage & contourImage, int number_of_fa
     RayCirculator ray(this, Diff2D(-1, -1), EightNeighborCoding::West);
     --ray;
     faceList[0].contours.push_back(ContourCirculator(ray));
-    contourProcessed[contourlab(-1, -1)] = true;
+    contourProcessed[contourLabel(-1, -1)] = true;
 
     FaceAtLeftAccessor leftface;
 
@@ -1502,7 +1415,7 @@ void FourEightSegmentation::initFaceList(BImage & contourImage, int number_of_fa
 
             int index = labels(x,y);
 
-            if(faceList[index].notInitialized())
+            if(!faceList[index].initialized())
             {
                 faceList[index].label = index;
                 faceList[index].anchor = Diff2D(x,y);
@@ -1544,7 +1457,7 @@ void FourEightSegmentation::initFaceList(BImage & contourImage, int number_of_fa
 
                 do
                 {
-                    int bindex = contourlab[neighbor.location()];
+                    int bindex = contourLabel[neighbor.location()];
                     if(bindex == 0 || contourProcessed[bindex])
                         continue;
 
