@@ -58,8 +58,11 @@ public:
           imageIter_(imageIter),
           width_(cellLR.x - cellUL.x)
     {
-        if(cellIter_ != cellLR_ && *cellIter_ != cellPixelValue_)
-            operator++();
+        if(!((cellLR.x > cellUL.x) && (cellLR.y > cellUL.y)))
+            cellIter_ = cellLR_;
+        else
+            if(cellIter_ != cellLR_ && *cellIter_ != cellPixelValue_)
+                operator++();
     }
 
     LabelScanIterator &operator++()
@@ -819,11 +822,11 @@ FourEightSegmentation::cellScanIterator(
     const CellInfo &cell, CellType cellType, SrcTraverser const &upperLeft,
     bool cropToBaseImage) const
 {
-    //std::cerr << "cellScanIterator for " << CellPixel(cellType, cell.label)
-    //          << " begins at " << cell.bounds.upperLeft() << std::endl;
     Rect2D cellBounds = cropToBaseImage ?
                         cell.bounds & Rect2D(cellImage.size() - Diff2D(4, 4)) :
                         cell.bounds;
+//     std::cerr << "cellScanIterator for " << CellPixel(cellType, cell.label)
+//               << " walks over " << cellBounds << std::endl;
     return LabelScanIterator<CellImage::traverser, SrcTraverser>
         (cells + cellBounds.upperLeft(), cells + cellBounds.lowerRight(),
          CellPixel(cellType, cell.label),
