@@ -51,7 +51,7 @@ class CellPyramid
         : type(Composite), opList(new std::vector<Operation>)
         {}
 
-            // deep copy
+            // deep copy, expects *this to be uninitialized
         void assign(const Operation &other)
         {
             if((type = other.type) == Composite)
@@ -67,6 +67,8 @@ class CellPyramid
 
         Operation &operator =(const Operation &other)
         {
+            if(type == Composite)
+                delete opList;
             assign(const_cast<Operation &>(other));
             return *this;
         }
