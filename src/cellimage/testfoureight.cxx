@@ -1,157 +1,165 @@
 #include <iostream>
 #include <vigra/stdimage.hxx>
 #include <vigra/stdimagefunctions.hxx>
-#include <vigra/distancetransform.hxx>
-#include <vigra/functorexpression.hxx>
 #include <vigra/labelimage.hxx>
-#include <vigra/localminmax.hxx>
 #include <vigra/impex.hxx>
-#include "seededregiongrowing.hxx"
 #include "foureightsegmentation.hxx"
-#include "hessematrix.hxx"
-#include "gradient.hxx"
-#include "findsaddles.hxx"
 #include "mydebug.hxx"
 #include "debugimage.hxx"
+#include "crop.hxx"
 #include "cellimage.hxx"
+#include <unittest.hxx>
 
 using namespace vigra;
 using namespace vigra::functor;
+using namespace vigra::cellimage;
 
-static const unsigned char imageData[] =
-    { 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
-      255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
-      255, 255, 255, 255, 255, 139,  52,   6,   6,  52, 139, 255, 255, 255, 255, 255,
-      255, 255, 255, 221,  52,   0,   0,   0,   0,   0,   0,  52, 221, 255, 255, 255,
-      255, 255, 255,  52,   0,   0,   0,   0,   0,   0,   0,   0,  52, 255, 255, 255,
-      255, 255, 139,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, 139, 255, 255,
-      255, 255,  52,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  52, 255, 255,
-      255, 255,   6,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   6, 255, 255,
-      255, 255,   6,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   6, 255, 255,
-      255, 255,  52,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  52, 255, 255,
-      255, 255, 139,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, 139, 255, 255,
-      255, 255, 255, 221,  52,   0,   0,   0,   0,   0,   0,  52, 221, 255, 255, 255,
-      255, 255, 255, 255, 255, 139,  52,   6,   6,  52, 139, 255, 255, 255, 255, 255,
-      255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
-      255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255 };
+typedef FourEightSegmentation::DartTraverser DartTraverser;
+
+template<class ARRAY>
+std::ostream &outputArray(std::ostream &s, ARRAY &d, unsigned int len)
+{
+    s << "{";
+    for(unsigned int i= 0; i < len - 1; ++i)
+        s << d[i] << ", ";
+    if(len)
+        s << d[len - 1];
+    s << "}";
+    return s;
+}
+
+template<class T>
+std::ostream &operator <<(std::ostream &s, std::vector<T> d)
+{
+    outputArray(s, d, d.size());
+    return s;
+}
+
+void testNodeDegrees(FourEightSegmentation &seg,
+                     unsigned int expected[], unsigned int sizeofExpected)
+{
+    unsigned int lenExpected = sizeofExpected / sizeof(unsigned int);
+    shouldEqual(lenExpected, seg.nodeCount());
+    bool goodLen = lenExpected == seg.nodeCount();
+    if(!goodLen)
+        std::cerr << "wrong number (" << lenExpected
+                  << ") of node degrees expected, nodeCount is "
+                  << seg.nodeCount() << "\n";
+    std::vector<unsigned int> real(seg.nodeCount());
+    unsigned int pos = 0;
+    bool goodData = true;
+    for(FourEightSegmentation::NodeIterator
+            node= seg.nodesBegin(); node.inRange(); ++node, ++pos)
+    {
+        real[pos] = node->degree;
+        if(goodLen && (expected[pos] != real[pos]))
+        {
+            std::cerr << "wrong degree for node " << node->label
+                      << " (position " << pos << "): got "
+                      << real[pos] << ", expected " << expected[pos] << "\n";
+            goodData = false;
+        }
+    }
+    if(!(goodLen && goodData))
+    {
+        std::cerr << "EXPECTED ";
+        outputArray(std::cerr, expected, lenExpected) << ",\n"
+            "GOT " << real << std::endl;
+    }
+    should(goodData);
+}
+
+void validateAnchors(FourEightSegmentation &seg)
+{
+    for(FourEightSegmentation::NodeIterator
+            node= seg.nodesBegin(); node.inRange(); ++node)
+    {
+        shouldEqual(node->anchor.isSingular(), node->degree == 0);
+    }
+}
+
+struct FourEightSegmentationTest
+{
+    cellimage::FourEightSegmentation *segmentation;
+
+    FourEightSegmentationTest()
+    {
+        BImage image;
+        ImageImportInfo info("testboundaries.png");
+        image.resize(info.size());
+        importImage(info, destImage(image));
+
+        std::cerr << "creating FourEightSegmentation from testboundaries.png..";
+        segmentation = new FourEightSegmentation(srcImageRange(image), 0,
+												 CellTypeVertex);
+        std::cerr << "done.\n";
+
+        debugImage(srcImageRange(segmentation->cellImage), std::cerr, 2);
+    }
+
+    void test()
+    {
+        validateAnchors(*segmentation);
+
+        unsigned int nodeDegrees[] =
+            {2, 2, 2, 2, 3, 2, 4, 3, 2, 3, 3, 2, 4, 2, 2, 2, 2, 2, 2};
+        testNodeDegrees(*segmentation, nodeDegrees, sizeof(nodeDegrees));
+    }
+};
+
+struct ConsistencyTest
+{
+    cellimage::FourEightSegmentation *segmentation;
+	
+    ConsistencyTest()
+    {
+        IImage image;
+        ImageImportInfo info("labels.xv");
+        image.resize(info.size());
+        importImage(info, destImage(image));
+
+        std::cerr << "creating FourEightSegmentation from labels.xv..";
+        segmentation = new FourEightSegmentation(srcImageRange(image), 0,
+												 CellTypeVertex);
+        std::cerr << "done.\n";
+    }
+
+	void debugRange()
+	{
+		debugImage(crop(srcImageRange(segmentation->cellImage),
+						Rect2D(309, 136, 323, 157)), std::cerr, 4);
+	}
+
+	void test()
+	{
+		segmentation->mergeFaces(segmentation->edge(1357).start);
+		segmentation->mergeFaces(segmentation->edge(1423).start);
+		segmentation->mergeEdges(segmentation->node(873).anchor);
+		segmentation->mergeEdges(segmentation->node(883).anchor);
+		segmentation->mergeFaces(segmentation->edge(1478).start);
+		segmentation->mergeEdges(segmentation->node(934).anchor);
+		segmentation->mergeEdges(segmentation->node(911).anchor);
+		segmentation->mergeFaces(segmentation->edge(1521).start);
+		segmentation->mergeEdges(segmentation->node(917).anchor);
+	}
+};
+
+struct FourEightSegmentationTestSuite
+: public vigra::test_suite
+{
+    FourEightSegmentationTestSuite()
+    : vigra::test_suite("FourEightSegmentationTestSuite")
+    {
+        add(testCase(&FourEightSegmentationTest::test));
+        add(testCase(&ConsistencyTest::test));
+    }
+};
 
 int main(int argc, char ** argv)
 {
-    try
-    {
-        BImage image;
-        if(argc>1)
-        {
-            ImageImportInfo info(argv[1]);
-            image.resize(info.size());
-            if(info.isGrayscale())
-                importImage(info, destImage(image));
-            else
-            {
-                vigra::BRGBImage temp(info.size());
-                importImage(info, destImage(temp));
-                copyImage(srcImageRange(temp, vigra::RGBToGrayAccessor
-                                        <vigra::BRGBImage::PixelType>()),
-                          destImage(image));
-            }
-        }
-        else
-        {
-            image.resize(16, 16);
-            std::copy(imageData, imageData + 256, image.begin());
-        }
-        int w = image.width();
-        int h = image.height();
+    FourEightSegmentationTestSuite fourEightSegmentationTestSuite;
+    int failed = fourEightSegmentationTestSuite.run();
+    std::cout << fourEightSegmentationTestSuite.report() << std::endl;
 
-        FImage grad(w, h);
-        gradientMagnitude(srcImageRange(image), destImage(grad));
-
-        IImage seeds(w, h);
-        seeds = 0;
-
-        extendedLocalMinima(srcImageRange(grad), destImage(seeds), 1);
-
-        FImage hess(w,h);
-        determinantOfHessian(srcImageRange(image), destImage(hess));
-
-        combineTwoImages(srcImageRange(hess), srcImage(seeds), destImage(seeds),
-                         ifThenElse(Arg1() < Param(0), Param(0), Arg2()));
-
-        IImage labels(w, h);
-        labels = 0;
-        int maxFaceLabel =
-            labelImageWithBackground(srcImageRange(seeds), destImage(labels),
-                                     false, 0);
-
-        // create a statistics functor for region growing
-        ArrayOfRegionStatistics<SeedRgDirectValueFunctor<float> >
-            gradstat(maxFaceLabel);
-
-        // perform region growing, starting from the minima of the
-        // gradient magnitude; as the feature (first input) image
-        // contains the gradient magnitude, this calculates the
-        // catchment basin of each minimum
-        seededRegionGrowing(srcImageRange(grad), srcImage(labels),
-                            destImage(labels), gradstat, 100000);
-
-        cellimage::FourEightSegmentation segmentation(srcImageRange(labels));
-
-        if(segmentation.cellImage.height()>40)
-        {
-            exportImage(srcImageRange(segmentation.cellImage,
-                                      cellimage::TypeAsByteAccessor()),
-                        ImageExportInfo("cellTypeImage.xv"));
-            std::cout << "Wrote cellTypeImage.xv" << std::endl;
-
-            exportImage(srcImageRange(segmentation.cellImage,
-                                      cellimage::LabelAccessor()),
-                        ImageExportInfo("cellLabelImage.xv"));
-            std::cout << "Wrote cellLabelImage.xv" << std::endl;
-        }
-        else
-            debugImage(srcImageRange(segmentation.cellImage), std::cerr, 2);
-
-        std::cout << segmentation.nodeCount() << " nodes:" << std::endl;
-        for(cellimage::FourEightSegmentation::NodeIterator
-                node= segmentation.nodesBegin(); node.inRange(); ++node)
-            std::cout << "  " << node->label << ": at "
-                      << node->centerX << ","
-                      << node->centerY << ", "
-                      << node->bounds << std::endl;
-        
-        std::cout << segmentation.edgeCount() << " edges:" << std::endl;
-        for(cellimage::FourEightSegmentation::EdgeIterator
-                edge= segmentation.edgesBegin(); edge.inRange(); ++edge)
-        {
-            FindAverage<FImage::PixelType> average;
-            if(edge->start.leftFaceLabel() && edge->start.rightFaceLabel())
-                inspectCell
-                    (segmentation.edgeScanIterator(edge->label, image.upperLeft()),
-                     average);
-            
-            std::cout << "  " << edge->label << ": " << edge->bounds
-					  << ", average: " << average() << std::endl;
-        }
-        
-        std::cout << segmentation.faceCount() << " faces:" << std::endl;
-        for(cellimage::FourEightSegmentation::FaceIterator
-                face= segmentation.facesBegin(); face.inRange(); ++face)
-        {
-            FindAverage<FImage::PixelType> average;
-            if(face->label>0)
-                inspectCell
-                    (segmentation.faceScanIterator(face->label, image.upperLeft()),
-                     average);
-            
-            std::cout << "  " << face->label << ": " << face->bounds
-                      << ", average: " << average() << std::endl;
-        }
-    }
-    catch (std::exception & e)
-    {
-        std::cout << e.what() << std::endl;
-        return 1;
-    }
-    
-    return 0;
+    return failed;
 }
