@@ -43,10 +43,6 @@ struct CellStatistics
     SegmentationData *segmentationData_;
     mutable vigra::Rect2D lastChanges_;
 
-        // user input data
-    std::vector<bool>
-        edgeProtection_;
-
         // members storing statistics
     std::vector<OriginalImage::PixelType>
         faceMeans_;
@@ -54,6 +50,8 @@ struct CellStatistics
         faceVariance_; // sigma squared
     std::vector<GradientImage::PixelType>
         meanEdgeGradients_;
+    std::vector<vigra::cellimage::CellLabel>
+        mergedEdges_;
     std::vector<vigra::TinyVector<float, 2> >
         nodeCenters_;
 
@@ -68,17 +66,7 @@ struct CellStatistics
     StatisticFunctor<GradientImage::PixelType> tempStatistics_;
     vigra::FindAverage<OriginalImage::PixelType> tempAverage_;
     vigra::cellimage::CellLabel node1Label_, node2Label_;
-
-    bool protectEdge(const Segmentation::EdgeInfo &edge, bool protect = true)
-    {
-        if(edgeProtection_[edge.label] != protect)
-        {
-            edgeProtection_[edge.label] = protect;
-            lastChanges_ |= edge.bounds;
-            return true;
-        }
-        return false;
-    }
+    vigra::cellimage::CellLabel edge1Label_, edge2Label_;
 
     void preRemoveIsolatedNode(const Segmentation::DartTraverser &)
     {}
@@ -148,29 +136,28 @@ struct CellStatistics
 
     void preMergeEdges(const Segmentation::DartTraverser &dart)
     {
+        Segmentation::DartTraverser d(dart);
+        d.nextSigma();
+        edge1Label_ = dart.edgeLabel();
+        edge2Label_ = d.edgeLabel();
+
         if(!dart.leftFaceLabel() || !dart.rightFaceLabel())
         {
             tempAverage_.count = 1;
             tempAverage_.sum = vigra::NumericTraits<GradientImage::PixelType>::max();
             return;
         }
-        Segmentation::DartTraverser d(dart);
         tempAverage_.count = 0;
         tempAverage_.sum = 0.0f;
         inspectCell(dart.segmentation()->edgeScanIterator
-                    (d.edgeLabel(), segmentationData_->gradientMagnitude_.upperLeft()),
+                    (edge1Label_, segmentationData_->gradientMagnitude_.upperLeft()),
                     tempAverage_);
-        d.nextSigma();
         inspectCell(dart.segmentation()->edgeScanIterator
-                    (d.edgeLabel(), segmentationData_->gradientMagnitude_.upperLeft()),
+                    (edge2Label_, segmentationData_->gradientMagnitude_.upperLeft()),
                     tempAverage_);
         inspectCell(dart.segmentation()->nodeScanIterator
                     (d.startNodeLabel(), segmentationData_->gradientMagnitude_.upperLeft()),
                     tempAverage_);
-        bool resultEdgeProtection =
-            edgeProtection_[dart.edgeLabel()] || edgeProtection_[d.edgeLabel()];
-        edgeProtection_[dart.edgeLabel()] = resultEdgeProtection;
-        edgeProtection_[d.edgeLabel()] = resultEdgeProtection;
     }
     void postMergeEdges(const Segmentation::DartTraverser &dart,
                         Segmentation::EdgeInfo &edge)

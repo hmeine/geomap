@@ -11,6 +11,7 @@
 
 #include <functional>
 #include <algorithm>
+#include <numeric>
 
 template<class RegionStatistics, class LabelType = int>
 class ArrayOfIdenticalStatistics
@@ -197,8 +198,11 @@ CellStatistics::CellStatistics(const Segmentation &initialSegmentation,
         }
     }
 
-    edgeProtection_.resize(initialSegmentation.maxEdgeLabel() + 1);
-	std::fill(edgeProtection_.begin(), edgeProtection_.end(), false);
+	std::cerr << "initializing tree of merged edges\n";
+    mergedEdges_.resize(initialSegmentation.maxEdgeLabel() + 1);
+	//std::iota(mergedEdges_.begin(), mergedEdges_.end(), 0);
+	for(unsigned int i = 0; i < mergedEdges_.size(); ++i)
+		mergedEdges_[i] = i;
 }
 
 struct FetchRegionsFunctor
