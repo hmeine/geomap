@@ -527,6 +527,7 @@ public:
     {
         CellLabel label;
         Rect2D bounds;
+        unsigned int size;
 
         CellInfo() : label(NumericTraits<CellLabel>::max()) {}
 
@@ -540,9 +541,8 @@ public:
     struct NodeInfo : CellInfo
     {
         DartTraverser anchor;
-        // remove all following members?
+        // remove following members?
         float centerX, centerY;
-        unsigned int size;
     };
 
     struct EdgeInfo : CellInfo
@@ -553,7 +553,6 @@ public:
     struct FaceInfo : CellInfo
     {
         std::vector<DartTraverser> contours;
-        unsigned int size;
     };
 
     typedef std::vector<NodeInfo> NodeList;
@@ -604,6 +603,7 @@ public:
         init(src.first, src.second, src.third);
     }
 
+  protected:
     template<class SrcIter, class SrcAcc>
     void init(SrcIter ul, SrcIter lr, SrcAcc src)
     {
@@ -634,6 +634,7 @@ public:
         init(src.first, src.second, src.third);
     }
 
+  public:
     FourEightSegmentation &operator=(const FourEightSegmentation &other)
     {
         return deepCopy(other);
@@ -734,151 +735,18 @@ public:
     typedef LabelScanIterator<CellImage::traverser, CellImage::traverser>
         CellScanIterator;
 
-    FaceInfo &removeIsolatedNode(const DartTraverser & dart)
-    {
-        vigra_precondition(dart.isSingular(),
-                           "removeIsolatedNode: node is not singular");
+  protected:
+    unsigned char findContourComponent(const std::vector<DartTraverser> &contours,
+                                       const DartTraverser & dart);
 
-        NodeInfo &node= dart.startNode();
-        FaceInfo &face= dart.leftFace();
+  public:
+    FaceInfo &removeIsolatedNode(const DartTraverser & dart);
 
-        for(CellScanIterator it= nodeScanIterator(node.label, cells, false);
-            it.inRange(); ++it)
-            *it= CellPixel(CellTypeRegion, face.label);
+    FaceInfo &mergeFaces(const DartTraverser & dart);
 
-        // update bounds:
-        face.bounds |= node.bounds;
-        face.size += node.size;
+    FaceInfo &removeBridge(const DartTraverser & dart);
 
-        node.uninitialize();
-        --nodeCount_;
-
-        return face;
-    }
-
-    FaceInfo &mergeFaces(const DartTraverser & dart)
-    {
-        // merge smaller face into larger one:
-        DartTraverser removedDart = dart;
-        if(dart.leftFace().size < dart.rightFace().size)
-            removedDart.nextAlpha();
-
-        EdgeInfo &edge= removedDart.edge();
-        FaceInfo &face1= removedDart.leftFace();
-        FaceInfo &face2= removedDart.rightFace();
-
-        vigra_precondition(face1.label != face2.label,
-            "FourEightSegmentation::mergeFaces(): edge is a bridge");
-
-        unsigned int edgeSize = 0;
-
-        // relabel cells in cellImage:
-        for(CellScanIterator it= edgeScanIterator(edge.label, cells, false);
-            it.inRange(); ++it)
-        {
-            *it= CellPixel(CellTypeRegion, face1.label);
-            ++edgeSize;
-        }
-        for(CellScanIterator it= faceScanIterator(face2.label, cells, false);
-            it.inRange(); ++it)
-            *it= CellPixel(CellTypeRegion, face1.label);
-
-        // update bounds:
-        face1.bounds |= edge.bounds;
-        face1.size += edgeSize;
-        face1.bounds |= face2.bounds;
-        face1.size += face2.size;
-
-        // TODO: update contours, anchor
-
-        edge.uninitialize();
-        --edgeCount_;
-        face2.uninitialize();
-        --faceCount_;
-
-        return face1;
-    }
-
-    FaceInfo &removeBridge(const DartTraverser & dart)
-    {
-        EdgeInfo &edge= dart.edge();
-        FaceInfo &face1= dart.leftFace();
-        FaceInfo &face2= dart.rightFace();
-
-        vigra_precondition(face1.label == face2.label,
-            "FourEightSegmentation::removeBridge(): edge is not a bridge");
-
-        // relabel cell in cellImage:
-        for(CellScanIterator it= edgeScanIterator(edge.label, cells, false);
-            it.inRange(); ++it)
-            *it= CellPixel(CellTypeRegion, face1.label);
-
-        // update bounds:
-        face1.bounds |= edge.bounds;
-
-        // TODO: update contours, anchor
-
-        edge.uninitialize();
-        --edgeCount_;
-
-        return face1;
-    }
-
-    EdgeInfo &mergeEdges(const DartTraverser & dart)
-    {
-        // merge smaller edge into larger one:
-        DartTraverser dart1(dart);
-        dart1.nextSigma();
-        if(dart.edge().bounds.area() < dart1.edge().bounds.area())
-            dart1.nextSigma();
-
-        DartTraverser dart2(dart1);
-        EdgeInfo &edge2 = dart2.edge();
-        NodeInfo &node = dart1.startNode();
-        dart1.nextSigma();
-        EdgeInfo &edge1 = dart1.edge();
-            
-        vigra_precondition(edge1.label != edge2.label,
-            "FourEightSegmentation::mergeEdges(): node has degree one!");
-
-        unsigned int edgeSize = 0;
-
-        // relabel cells in cellImage:
-        for(CellScanIterator it= nodeScanIterator(node.label, cells, false);
-            it.inRange(); ++it)
-            *it= CellPixel(CellTypeLine, edge1.label);
-        for(CellScanIterator it= edgeScanIterator(edge2.label, cells, false);
-            it.inRange(); ++it)
-        {
-            *it= CellPixel(CellTypeLine, edge1.label);
-            ++edgeSize;
-        }
-
-        // update bounds:
-        edge1.bounds |= node.bounds;
-        edge1.bounds |= edge2.bounds;
-
-        // update start, end
-        dart1.nextAlpha();
-        dart2.nextAlpha();
-        if(dart1.startNodeLabel() < dart2.startNodeLabel())
-        {
-            edge1.start = dart1;
-            edge1.end = dart2;
-        }
-        else
-        {
-            edge1.start = dart2;
-            edge1.end = dart1;
-        }
-
-        node.uninitialize();
-        --nodeCount_;
-        edge2.uninitialize();
-        --edgeCount_;
-
-        return edge1;
-    }
+    EdgeInfo &mergeEdges(const DartTraverser & dart);
 
   private:
     FourEightSegmentation &deepCopy(const FourEightSegmentation &other)

@@ -5,6 +5,240 @@ namespace vigra {
 
 namespace cellimage {
 
+unsigned char FourEightSegmentation::findContourComponent(
+    const std::vector<DartTraverser> &contours,
+    const DartTraverser & dart)
+{
+    unsigned char result = 0;
+
+    if(contours.size() == 1)
+        return result;
+
+    if(dart.isSingular())
+    {
+        for(ConstContourComponentsIterator contour= contours.begin();
+            contour != contours.end(); ++contour, ++result)
+            if(contour->startNodeLabel() == dart.startNodeLabel())
+                return result;
+    }
+
+    for(ConstContourComponentsIterator contour= contours.begin();
+        contour != contours.end(); ++contour, ++result)
+        if(contour->edgeLabel() == dart.edgeLabel())
+            return result;
+
+    // argl, we have to circulate through all contours now..
+    result = 0;
+    for(ConstContourComponentsIterator contour= contours.begin();
+        contour != contours.end(); ++contour, ++result)
+    {
+        DartTraverser dart(*contour);
+        while(dart.nextPhi() != *contour)
+        {
+            if(contour->edgeLabel() == dart.edgeLabel())
+                return result;
+        }
+    }
+
+    vigra_fail("findContourComponent: dart not found in any contour!");
+    return 0;
+}
+
+FourEightSegmentation::FaceInfo &FourEightSegmentation::removeIsolatedNode(
+    const DartTraverser & dart)
+{
+    vigra_precondition(dart.isSingular(),
+                       "removeIsolatedNode: node is not singular");
+
+    NodeInfo &node= dart.startNode();
+    FaceInfo &face= dart.leftFace();
+
+    face.contours.erase(face.contours.begin() +
+                        findContourComponent(face.contours, dart));
+
+    for(CellScanIterator it= nodeScanIterator(node.label, cells, false);
+        it.inRange(); ++it)
+        *it= CellPixel(CellTypeRegion, face.label);
+
+
+    // update bounds:
+    face.bounds |= node.bounds;
+    face.size += node.size;
+
+    node.uninitialize();
+    --nodeCount_;
+
+    return face;
+}
+
+FourEightSegmentation::FaceInfo &FourEightSegmentation::mergeFaces(
+    const DartTraverser & dart)
+{
+    // merge smaller face into larger one:
+    DartTraverser removedDart = dart;
+    if(dart.leftFace().size < dart.rightFace().size)
+        removedDart.nextAlpha();
+
+    EdgeInfo &edge= removedDart.edge();
+    FaceInfo &face1= removedDart.leftFace();
+    FaceInfo &face2= removedDart.rightFace();
+
+    vigra_precondition(face1.label != face2.label,
+                       "FourEightSegmentation::mergeFaces(): edge is a bridge");
+
+    bool removedEdgeIsLoop =
+        edge.start.startNodeLabel() == edge.end.startNodeLabel();
+
+    // find indices of contour components to be merged
+    unsigned char contour1 = findContourComponent(face1.contours, removedDart);
+    unsigned char contour2 = findContourComponent(face2.contours, removedDart);
+
+    // re-use an old anchor for the merged contour
+    DartTraverser newAnchor(
+        face1.contours[contour1].startNodeLabel() <
+        face2.contours[contour2].startNodeLabel() ?
+        face1.contours[contour1] : face2.contours[contour2]);
+    if(!removedEdgeIsLoop && (newAnchor.edgeLabel() == edge.label))
+        newAnchor.prevSigma();
+
+    // relabel cells in cellImage:
+    for(CellScanIterator it= edgeScanIterator(edge.label, cells, false);
+        it.inRange(); ++it)
+        *it= CellPixel(CellTypeRegion, face1.label);
+    for(CellScanIterator it= faceScanIterator(face2.label, cells, false);
+        it.inRange(); ++it)
+        *it= CellPixel(CellTypeRegion, face1.label);
+
+    // update bounds:
+    face1.bounds |= edge.bounds;
+    face1.size += edge.size;
+    face1.bounds |= face2.bounds;
+    face1.size += face2.size;
+
+    // update contours
+    for(unsigned int i = 0; i < face2.contours.size(); i++)
+        if(i != contour2)
+            face1.contours.push_back(face2.contours[i]);
+    if(removedEdgeIsLoop)
+        newAnchor.recheckSingularity();
+    face1.contours[contour1] = newAnchor;
+
+    // FIXME: fix order of contours (outer first)
+
+    edge.uninitialize();
+    --edgeCount_;
+    face2.uninitialize();
+    --faceCount_;
+
+    return face1;
+}
+
+FourEightSegmentation::FaceInfo &FourEightSegmentation::removeBridge(
+    const DartTraverser & dart)
+{
+    EdgeInfo &edge= dart.edge();
+    FaceInfo &face= dart.leftFace();
+
+    vigra_precondition(face.label == dart.rightFaceLabel(),
+                       "FourEightSegmentation::removeBridge(): edge is not a bridge");
+
+    DartTraverser newAnchor1(dart);
+    newAnchor1.prevSigma();
+    DartTraverser newAnchor2(dart);
+    newAnchor2.nextAlpha();
+    newAnchor2.prevSigma();
+
+    // find index of contour component to be changed
+    unsigned char contourIndex =
+        findContourComponent(face.contours, dart);
+
+    // relabel cell in cellImage:
+    for(CellScanIterator it= edgeScanIterator(edge.label, cells, false);
+        it.inRange(); ++it)
+        *it= CellPixel(CellTypeRegion, face.label);
+
+    // update bounds:
+    face.bounds |= edge.bounds;
+
+    face.contours[contourIndex] = newAnchor1;
+    face.contours.push_back(newAnchor2);
+
+    // FIXME: fix order of contours (outer first), don't even have
+    // minimal startNodeLabel yet..
+
+    edge.start.recheckSingularity();
+    edge.end.recheckSingularity();
+
+    // FIXME: if(!recheckSingularity()) check if node was anchor of
+    // contour, then update entries in all neighbored faces if
+    // DartTraverser pointed to the removed edge..
+
+    edge.uninitialize();
+    --edgeCount_;
+
+    return face;
+}
+
+FourEightSegmentation::EdgeInfo &FourEightSegmentation::mergeEdges(
+    const DartTraverser & dart)
+{
+    // merge smaller edge (edge2) into larger one (edge1):
+    DartTraverser dart1(dart);
+    dart1.nextSigma();
+    if(dart.edge().bounds.area() < dart1.edge().bounds.area())
+    {
+        dart1.nextSigma(); // dart1 _temporarily_ points to smaller one
+        vigra_precondition(dart1 == dart,
+                           "FourEightSegmentation::mergeEdges(): node has degree > 2!");
+    } // FIXME: there is no clever/efficient way for the precondition
+      // in an else branch here.. just leaving it out for now.
+
+    DartTraverser dart2(dart1);
+    EdgeInfo &edge2 = dart2.edge();
+    NodeInfo &node = dart1.startNode();
+    dart1.nextSigma();
+    EdgeInfo &edge1 = dart1.edge();
+            
+    dart1.nextAlpha();
+    dart2.nextAlpha();
+
+    vigra_precondition(edge1.label != edge2.label,
+                       "FourEightSegmentation::mergeEdges(): node has degree one!");
+
+    // relabel cells in cellImage:
+    for(CellScanIterator it= nodeScanIterator(node.label, cells, false);
+        it.inRange(); ++it)
+        *it= CellPixel(CellTypeLine, edge1.label);
+    for(CellScanIterator it= edgeScanIterator(edge2.label, cells, false);
+        it.inRange(); ++it)
+        *it= CellPixel(CellTypeLine, edge1.label);
+
+    // update bounds:
+    edge1.bounds |= node.bounds;
+    edge1.size += node.size;
+    edge1.bounds |= edge2.bounds;
+    edge1.size += edge2.size;
+
+    // update start, end
+    if(dart1.startNodeLabel() < dart2.startNodeLabel())
+    {
+        edge1.start = dart1;
+        edge1.end = dart2;
+    }
+    else
+    {
+        edge1.start = dart2;
+        edge1.end = dart1;
+    }
+
+    node.uninitialize();
+    --nodeCount_;
+    edge2.uninitialize();
+    --edgeCount_;
+
+    return edge1;
+}
+
 void FourEightSegmentation::initCellImage(BImage & contourImage)
 {
     BImage::traverser rawLine = contourImage.upperLeft() + Diff2D(1,1);
@@ -304,6 +538,8 @@ void FourEightSegmentation::initEdgeList(CellLabel maxEdgeLabel)
                 edgeList_[label].start = dart;
                 edgeList_[label].end = dart;
                 edgeList_[label].end.nextAlpha();
+                // correct size and bounds will be collected by initFaceList()
+                edgeList_[label].size = 0;
             }
         }
         while(dart.nextSigma() != dartEnd);
@@ -350,7 +586,10 @@ void FourEightSegmentation::initFaceList(
             if(cell->type() != CellTypeRegion)
             {
                 if(cell->type() == CellTypeLine)
+                {
                     edgeList_[cell->label()].bounds |= pos;
+                    edgeList_[cell->label()].size += 1;
+                }
                 continue;
             }
 
