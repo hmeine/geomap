@@ -83,10 +83,11 @@ FourEightSegmentation::FourEightSegmentation(const CellImage &importImage)
 }
 
 unsigned int FourEightSegmentation::findContourComponent(
-    const ContourComponents &contours,
+    const FaceInfo &face,
     const DartTraverser & dart)
 {
     unsigned int result = 0;
+    const ContourComponents &contours = face.contours;
 
     if(contours.size() == 1)
         return result;
@@ -121,7 +122,8 @@ unsigned int FourEightSegmentation::findContourComponent(
         }
     }
 
-    std::cerr << "DART NOT FOUND IN CONTOURS: "; debugDart(dart);
+    std::cerr << "DART NOT FOUND IN CONTOURS OF FACE " << face.label
+              << ": "; debugDart(dart);
     result = 1;
     for(ConstContourComponentsIterator contour= contours.begin();
         contour != contours.end(); ++contour, ++result)
@@ -133,7 +135,7 @@ unsigned int FourEightSegmentation::findContourComponent(
         } while(dart2.nextPhi() != *contour);
     }
 
-    vigra_fail("findContourComponent: dart not found in any contour!");
+    vigra_fail("findContourComponent: dart not found in any contour");
     return 0;
 }
 
@@ -151,14 +153,14 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::removeIsolatedNode(
     const DartTraverser & dart)
 {
     std::cout << "removeIsolatedNode(" << dart << ")\n";
+    validateDart(dart);
     vigra_precondition(dart.isSingular(),
                        "removeIsolatedNode: node is not singular");
 
     NodeInfo &node= dart.startNode();
     FaceInfo &face= dart.leftFace();
 
-    face.contours.erase(face.contours.begin() +
-                        findContourComponent(face.contours, dart));
+    face.contours.erase(face.contours.begin() + findContourComponent(face, dart));
 
     for(CellScanIterator it= nodeScanIterator(node.label, cells, false);
         it.inRange(); ++it)
@@ -180,6 +182,7 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::mergeFaces(
     const DartTraverser & dart)
 {
     std::cout << "mergeFaces(" << dart << ")\n";
+    validateDart(dart);
     // merge smaller face into larger one:
     DartTraverser removedDart = dart;
     if(dart.leftFace().bounds.area() < dart.rightFace().bounds.area())
@@ -195,8 +198,8 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::mergeFaces(
         "FourEightSegmentation::mergeFaces(): dart is singular or edge is a bridge");
 
     // find indices of contour components to be merged
-    unsigned int contour1 = findContourComponent(survivor.contours, removedDart);
-    unsigned int contour2 = findContourComponent(mergedFace.contours, removedDart);
+    unsigned int contour1 = findContourComponent(survivor, removedDart);
+    unsigned int contour2 = findContourComponent(mergedFace, removedDart);
 
     // re-use an old anchor for the merged contour
     if(survivor.contours[contour1].edgeLabel() == mergedEdge.label)
@@ -251,6 +254,8 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::removeBridge(
     const DartTraverser & dart)
 {
     std::cout << "removeBridge(" << dart << ")\n";
+    validateDart(dart);
+    vigra_precondition(!dart.isSingular(), "removeBridge: dart does not point to any edge");
     EdgeInfo &edge= dart.edge();
     FaceInfo &face= dart.leftFace();
     NodeInfo &node1= edge.start.startNode();
@@ -266,8 +271,7 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::removeBridge(
     newAnchor2.prevSigma();
 
     // update anchors
-    unsigned int contourIndex =
-        findContourComponent(face.contours, dart);
+    unsigned int contourIndex = findContourComponent(face, dart);
     face.contours[contourIndex] = newAnchor1;
     face.contours.push_back(newAnchor2);
 
@@ -315,9 +319,9 @@ FourEightSegmentation::EdgeInfo &FourEightSegmentation::mergeEdges(
     EdgeInfo &survivor = dart1.edge();
 
     vigra_precondition((firstIsSmaller ? dart2 : dart1) == dart,
-        "FourEightSegmentation::mergeEdges(): node has degree > 2!");
+        "FourEightSegmentation::mergeEdges(): node has degree > 2");
     vigra_precondition(survivor.label != mergedEdge.label,
-        "FourEightSegmentation::mergeEdges(): node has degree one or is loop!");
+        "FourEightSegmentation::mergeEdges(): node has degree one or is loop");
 
     // update contours of neighbored faces if necessary
     removeNodeFromContours(dart1.leftFace().contours, dart1.startNodeLabel());
@@ -780,7 +784,7 @@ void FourEightSegmentation::initNodeList(CellLabel maxNodeLabel)
 
             CellLabel index = cell->label();
             vigra_precondition(index < nodeList_.size(),
-                               "nodeList_ must be large enough!");
+                               "nodeList_ must be large enough");
 
             if(!nodeList_[index].initialized())
             {
@@ -915,7 +919,7 @@ void FourEightSegmentation::initEdgeList(CellLabel maxEdgeLabel)
         {
             CellLabel label = dart.edgeLabel();
             vigra_precondition(label < edgeList_.size(),
-                               "edgeList_ must be large enough!");
+                               "edgeList_ must be large enough");
             if(!edgeList_[label].initialized())
             {
                 edgeList_[label].label = label;
@@ -994,7 +998,7 @@ void FourEightSegmentation::initFaceList(
 
             CellLabel index = cell->label();
             vigra_precondition(index < faceList_.size(),
-                               "faceList_ must be large enough!");
+                               "faceList_ must be large enough");
             if(!faceList_[index].initialized())
             {
                 //std::cerr << "found face " << index << " at " << pos.x << "," << pos.y << "\n";
@@ -1098,6 +1102,17 @@ void FourEightSegmentation::initFaceList(
     }
 }
 
+void validateDart(const FourEightSegmentation::DartTraverser &dart)
+{
+    vigra_precondition(dart.neighborCirculator().center()->type() == CellTypeVertex,
+                       "dart is not attached to a node");
+    vigra_precondition(dart.startNode().initialized(),
+                       "dart's startNode is not valid (initialized())");
+    if(!dart.isSingular())
+        vigra_precondition(dart.edge().initialized(),
+                           "dart's edge is not valid (initialized())");
+}
+
 void debugDart(const FourEightSegmentation::DartTraverser &dart)
 {
     std::cerr << dart << "\n";
@@ -1114,13 +1129,13 @@ operator<<(std::ostream & out,
            const FourEightSegmentation::DartTraverser & d)
 {
     const char *dirStr[] = {
-        "E",
+        " E",
         "NE",
-        "N",
+        " N",
         "NW",
-        "W",
+        " W",
         "SW",
-        "S",
+        " S",
         "SE"
     };
 

@@ -175,24 +175,16 @@ public:
 
         while(1)
         {
-            if(neighborCirc_->type() == CellTypeVertex)
-            {
-                atEnd_ = true;
+            if(neighborCirc_->type() != CellTypeRegion)
                 break;
-            }
-            if(neighborCirc_->type() == CellTypeLine)
-            {
-                break;
-            }
             ++neighborCirc_;
         }
 
         if(neighborCirc_.isDiagonal() &&
-           neighborCirc_[1].type() == CellTypeVertex)
-        {
+           (neighborCirc_[1].type() != CellTypeRegion))
             ++neighborCirc_;
-            atEnd_ = true;
-        }
+
+        atEnd_ = (neighborCirc_->type() == CellTypeVertex);
 
         return *this;
     }
@@ -759,7 +751,7 @@ public:
         CellScanIterator;
 
   protected:
-    unsigned int findContourComponent(const ContourComponents &contours,
+    unsigned int findContourComponent(const FaceInfo &face,
                                       const DartTraverser &dart);
 
     void removeNodeFromContours(ContourComponents &contours,
@@ -858,6 +850,8 @@ void initFourEightSegmentationContourImage(SrcIter ul, SrcIter lr, SrcAcc src,
         }
     }
 }
+
+void validateDart(const FourEightSegmentation::DartTraverser &dart);
 
 void debugDart(const FourEightSegmentation::DartTraverser &dart);
 
