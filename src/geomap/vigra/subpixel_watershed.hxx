@@ -241,20 +241,42 @@ enum RungeKuttaResult { Success, Outside, StepToLarge };
 template <class T>
 RungeKuttaResult 
 rungeKuttaInitial(SplineImageView<2, T> const & s, 
-                  double x0, double y0, double h, bool forward,
+                  double x0, double y0, double & h, bool forward,
                   double & x, double & y)
 {
     double dxx = s.dxx(x0, y0);
     double dxy = s.dxy(x0, y0);
     double dyy = s.dyy(x0, y0);
     double a = 0.5*VIGRA_CSTD::atan2(-2.0*dxy, dxx-dyy);
-    x = forward ?
-           x0 + h*VIGRA_CSTD::cos(a)
-         : x0 - h*VIGRA_CSTD::cos(a);
-    y = forward ?
-           y0 - h*VIGRA_CSTD::sin(a)
-         : y0 + h*VIGRA_CSTD::sin(a);
+    double dx = forward
+                 ?  h*VIGRA_CSTD::cos(a)
+                 : -h*VIGRA_CSTD::cos(a);
+    double dy = forward
+                 ? -h*VIGRA_CSTD::sin(a)
+                 :  h*VIGRA_CSTD::sin(a);
+    x = x0 + dx;
+    y = y0 + dy;
     return s.isInside(x, y) ? Success : Outside;
+}
+
+template <class T>
+RungeKuttaResult 
+rungeKuttaInitialStepSecondOrder(SplineImageView<2, T> const & s, 
+                  double x0, double y0, double h,
+                  double & x, double & y, double dx, double dy)
+{
+    double x1, x2, y1, y2;
+    x1 = x0 + 0.5*h*dx;
+    y1 = y0 + 0.5*h*dy;
+    if(!s.isInside(x1, y1))
+        return Outside;
+    x2 = x0 + h*s.dx(x1, y1);
+    y2 = y0 + h*s.dy(x1, y1);
+    if(!s.isInside(x2, y2))
+        return Outside;
+    x = x2;
+    y = y2;
+    return Success;
 }
 
 template <class T>
@@ -281,7 +303,7 @@ template <class T>
 RungeKuttaResult 
 rungeKuttaDoubleStepSecondOrder(SplineImageView<2, T> const & s, 
                   double x0, double y0, double & h,
-                  double & x, double & y)
+                  double & x, double & y, double epsilon)
 {
     double x1, x2, y1, y2;
     if(rungeKuttaStepSecondOrder(s, x0, y0, 2.0 * h, x1, y1) == Outside ||
@@ -294,7 +316,7 @@ rungeKuttaDoubleStepSecondOrder(SplineImageView<2, T> const & s,
     double dx = x2 - x1;
     double dy = y2 - y1;
     double d = std::max(std::abs(dx), std::abs(dy));
-    double hh = VIGRA_CSTD::pow(1.0e-4 / d, 0.33) * h;
+    double hh = VIGRA_CSTD::pow(epsilon / d, 0.33) * h;
     
     if(hh < h / 2.0)
     {
@@ -674,7 +696,7 @@ void findEdgelChain2(IMAGEVIEW const & image, IImage const & maximage,
 template <class T, class VECTOR>
 void
 flowLine(SplineImageView<2, T> const & s, 
-         VECTOR & c, bool forward)
+         VECTOR & c, bool forward, double epsilon)
 {
     typedef typename VECTOR::value_type PointType;
     double x0 = c[0][0];
@@ -682,7 +704,8 @@ flowLine(SplineImageView<2, T> const & s,
     double h = 0.25;
     double x, y;
     
-    if(detail::rungeKuttaInitial(s, x0, y0, h, forward, x, y) == detail::Outside)
+    detail::RungeKuttaResult r = detail::rungeKuttaInitial(s, x0, y0, h, forward, x, y);
+    if(r == detail::Outside)
         return;
     c.push_back(PointType(x, y));
     ArrayVector<PointType> mi, sa, ma;
@@ -692,7 +715,7 @@ flowLine(SplineImageView<2, T> const & s,
     {
         double xn, yn;
         detail::RungeKuttaResult r = 
-                    detail::rungeKuttaDoubleStepSecondOrder(s, x, y, h, xn, yn);
+                    detail::rungeKuttaDoubleStepSecondOrder(s, x, y, h, xn, yn, epsilon);
         if(r == detail::Success)
         {
             c.push_back(PointType(xn, yn));
@@ -773,6 +796,440 @@ void findEdgelChains(IMAGEVIEW const & image,
         std::cerr << '*';
     }
     std::cerr << '\n';
+}
+
+/*******************************************************************/
+/*                                                                 */
+/*                         SubPixelWatersheds                      */
+/*                                                                 */
+/*******************************************************************/
+
+#define DEBUG 0
+
+template <class T>
+class SubPixelWatersheds
+{
+  public:
+    typedef TinyVector<double, 2> PointType;
+    typedef ArrayVector<PointType> PointArray;
+    enum RungeKuttaResult { Success, Outside, StepToLarge };
+    
+    template <class SrcIterator, class SrcAccessor>
+    SubPixelWatersheds(SrcIterator ul, SrcIterator lr, SrcAccessor src)
+    : image_(ul, lr, src),
+      initialStep_(0.1), storeStep_(0.5)
+    {}
+    
+    template <class SrcIterator, class SrcAccessor>
+    SubPixelWatersheds(triple<SrcIterator, SrcIterator, SrcAccessor> src)
+    : image_(src),
+      initialStep_(0.1), storeStep_(0.5)
+    {}
+    
+    int width() const { return image_.width(); }
+    int height() const { return image_.height(); }
+    
+    void findCriticalPointsInFacet(double x, double y, 
+                                   PointArray & mi, PointArray & sa, PointArray & ma);
+    void findCriticalPoints();
+    void createMaximage();
+    double nearestMaximum(double x, double y, double dx, double dy, int & resindex) const;
+    int flowLine(double x, double y, bool forward, double epsilon, PointArray & curve);
+    pair<int, int> findEdge(double x, double y, double epsilon, PointArray & edge);
+    int findEdges(double threshold, double epsilon = 1e-4);
+    RungeKuttaResult rungeKuttaStepSecondOrder(double x0, double y0, double h,
+                                               double & x, double & y, double dx, double dy);
+    RungeKuttaResult rungeKuttaDoubleStepSecondOrder(double x0, double y0, double & h,
+                            double & x, double & y, double epsilon, double dx, double dy);
+
+    RungeKuttaResult rungeKuttaStepSecondOrder(double x0, double y0, double h,
+                                               double & x, double & y)
+    {
+        return rungeKuttaStepSecondOrder(x0, y0, h, x, y, 
+                                         image_.dx(x0, y0), image_.dy(x0, y0));
+    }
+
+    RungeKuttaResult rungeKuttaDoubleStepSecondOrder(double x0, double y0, double & h,
+                                                     double & x, double & y, double epsilon)
+    {
+        return rungeKuttaDoubleStepSecondOrder(x0, y0, h, x, y, epsilon, 
+                                            image_.dx(x0,y0), image_.dy(x0,y0));
+    }
+    
+    SplineImageView<2, T> image_;
+    PointArray minima_, saddles_, maxima_, edges_;
+    ArrayVector<triple<int, int, int> > edgeIndices_;
+    IImage maximage_;
+    double initialStep_, storeStep_;
+};
+
+template <class T>
+void 
+SubPixelWatersheds<T>::findCriticalPointsInFacet(double x0, double y0, 
+                                   PointArray & mi, PointArray & sa, PointArray & ma)
+{
+    x0 = VIGRA_CSTD::floor(x0 + 0.5);
+    y0 = VIGRA_CSTD::floor(y0 + 0.5);
+    
+    DImage splineCoeffs(3,3);
+    image_.coefficientArray(x0, y0, splineCoeffs);
+    double j = splineCoeffs(0,0);
+    double g = splineCoeffs(1,0);
+    double e = splineCoeffs(2,0);
+    double h = splineCoeffs(0,1);
+    double d = splineCoeffs(1,1);
+    double b = splineCoeffs(2,1);
+    double f = splineCoeffs(0,2);
+    double c = splineCoeffs(1,2);
+    double a = splineCoeffs(2,2);
+
+    double polyCoeffs[6];
+    polyCoeffs[0] =  4.0*f*f*g - 2.0*d*f*h + c*h*h;
+    polyCoeffs[1] = -2.0*d*d*f + 8.0*e*f*f + 8.0*c*f*g - 4.0*b*f*h + 2.0*a*h*h;
+    polyCoeffs[2] = -c*d*d - 6.0*b*d*f + 16.0*c*e*f + 4.0*c*c*g + 
+                     8.0*a*f*g - 2.0*b*c*h + 2.0*a*d*h;
+    polyCoeffs[3] = -4.0*b*c*d + 8.0*c*c*e - 4.0*b*b*f + 16.0*a*e*f + 8.0*a*c*g;
+    polyCoeffs[4] = -3.0*b*b*c - 2.0*a*b*d + 16.0*a*c*e + 4.0*a*a*g;
+    polyCoeffs[5] = -2.0*a*b*b + 8.0*a*a*e;
+    
+    double eps = 1.0e-7;
+    Polynomial<double> px(polyCoeffs, 6 , eps);
+    ArrayVector<double> rx;
+#if 0
+    std::cerr << "Poly order " << px.order() << " coeffs ";
+    for(int k = 0; k<px.order(); ++k)
+        std::cerr << px[k] << ' ';
+    std::cerr << '\n';
+#endif
+    polynomialRealRoots(px, rx);
+    
+    double xold = -100.0;
+    for(unsigned int i=0; i < rx.size(); ++i)
+    {
+        double x = rx[i];
+       
+        // ensure that x is in the current facet, 
+        // and that a multilple root is only used once (this may be
+        // wrong, as perhaps several y' share the same x)
+        if(std::abs(x) <= 0.5 && std::abs(x-xold) >= eps)
+        {
+            double cy = 2*f + 2*c*x + 2*a*x*x;
+            if(cy == 0.0)
+                continue;
+            double y = -(h + d*x + b*x*x) / cy;
+            if(std::abs(y) <= 0.5)
+            {
+                double xx = x + x0;
+                double yy = y + y0;
+                if(image_.g2(xx,yy) > 1e-4)
+                    continue;  // ??? this shouldn't happen
+                double hxx = image_.dxx(xx,yy);
+                double hxy = image_.dxy(xx,yy);
+                double hyy = image_.dyy(xx,yy);
+                double t1 = hxx + hyy;
+                double t2 = hxx*hyy - hxy*hxy;
+                if(t2 > 0.0)
+                {
+                    if (t1 > 0.0)
+                    {
+                       mi.push_back(PointType(xx,yy));
+                    }
+                    else
+                    {
+                        ma.push_back(PointType(xx,yy));
+                    }
+                }
+                else
+                {
+                    sa.push_back(PointType(xx,yy));
+                }
+            }
+        }
+        xold = x;
+    }
+}
+
+template <class T>
+void 
+SubPixelWatersheds<T>::findCriticalPoints()
+{
+    minima_.clear();
+    saddles_.clear();
+    maxima_.clear();
+    // use 1-based arrays
+    minima_.push_back(PointType());
+    saddles_.push_back(PointType());
+    maxima_.push_back(PointType());
+    
+    for(unsigned int y=1; y<image_.height()-1; ++y)
+    {
+        for(unsigned int x=1; x<image_.width()-1; ++x)
+        {
+            findCriticalPointsInFacet(x, y, minima_, saddles_, maxima_);
+        }
+    }
+    createMaximage();
+}
+
+template <class T>
+void 
+SubPixelWatersheds<T>::createMaximage()
+{
+    maximage_.resize(image_.size());
+    maximage_.init(0);  // means no maximum
+    for(unsigned int i = 1; i<maxima_.size(); ++i)
+    {
+        int x = VIGRA_CSTD::floor(maxima_[i][0] + 0.5);
+        int y = VIGRA_CSTD::floor(maxima_[i][1] + 0.5);
+        
+        if(maximage_(x,y) == 0)
+        {
+            maximage_(x,y) = i;  // store index of the subpixel coordinate object
+        }
+        else
+        {
+            // negative index denotes several maxima in the same facet
+            maximage_(x,y) = -std::abs(maximage_(x,y));
+        }
+    }
+}
+
+template <class T>
+double
+SubPixelWatersheds<T>::nearestMaximum(double x, double y, double dx, double dy,
+                                      int & resindex) const
+{
+    PointType diff, p(x,y);
+    double dist = NumericTraits<double>::max();
+    
+    int xi = (int)VIGRA_CSTD::floor(x + 0.5);
+    int yi = (int)VIGRA_CSTD::floor(y + 0.5);
+    
+    int dxi = (x - xi >= 0.0)
+                 ?  1 
+                 : -1;
+    int dyi = (y - yi >= 0.0)
+                 ?  1 
+                 : -1;
+
+    for(int ys=0; ys<2; ++ys)
+    {
+        for(int xs=0; xs<2; ++xs)
+        {
+            int xx = xi + xs*dxi;
+            int yy = yi + ys*dyi;
+            if(!image_.isInside(xx,yy))
+                continue;
+            int index = maximage_(xx,yy);
+            if(index > 0)
+            {
+                diff = maxima_[index] - p;
+                double sd = diff.magnitude();
+                if(sd < dist && diff[0]*dx + diff[1]*dy >= 0)
+                {
+                    dist = sd;
+                    resindex = index;
+                }
+            }
+            else if(index < 0)
+            {
+                diff = maxima_[-index] - p;
+                double sd = diff.magnitude();
+                if(sd < dist && diff[0]*dx + diff[1]*dy >= 0)
+                {
+                    dist = sd;
+                    resindex = -index;
+                }
+                diff = maxima_[-index+1] - p;
+                sd = diff.magnitude();
+                if(sd < dist && diff[0]*dx + diff[1]*dy >= 0)
+                {
+                    dist = sd;
+                    resindex = -index+1;
+                }
+            }
+        }
+    }
+
+    return dist;
+}
+
+template <class T>
+typename SubPixelWatersheds<T>::RungeKuttaResult
+SubPixelWatersheds<T>::rungeKuttaStepSecondOrder(
+                  double x0, double y0, double h,
+                  double & x, double & y, double dx, double dy)
+{
+    double x1, x2, y1, y2;
+    x1 = x0 + 0.5*h*dx;
+    y1 = y0 + 0.5*h*dy;
+    if(!image_.isInside(x1, y1))
+        return Outside;
+    x2 = x0 + h*image_.dx(x1, y1);
+    y2 = y0 + h*image_.dy(x1, y1);
+    if(!image_.isInside(x2, y2))
+        return Outside;
+    x = x2;
+    y = y2;
+    return Success;
+}
+
+template <class T>
+typename SubPixelWatersheds<T>::RungeKuttaResult
+SubPixelWatersheds<T>::rungeKuttaDoubleStepSecondOrder(
+                  double x0, double y0, double & h,
+                  double & x, double & y, double epsilon, double dx, double dy)
+{
+    double x1, x2, y1, y2;
+    if(rungeKuttaStepSecondOrder(x0, y0, 2.0 * h, x1, y1, dx, dy) == Outside ||
+       rungeKuttaStepSecondOrder(x0, y0, h, x2, y2, dx, dy) == Outside ||
+       rungeKuttaStepSecondOrder(x2, y2, h, x2, y2) == Outside)
+    {
+        h /= 4.0;
+        return Outside;
+    }
+    dx = x2 - x1;
+    dy = y2 - y1;
+    double d = std::max(std::abs(dx), std::abs(dy));
+    double hh = VIGRA_CSTD::pow(epsilon / d, 0.33) * h;
+    
+    if(hh < h / 2.0)
+    {
+        h = hh;
+        return StepToLarge;
+    }
+    x = x2;
+    y = y2;
+    h = hh;
+    return Success;
+}
+
+template <class T>
+int
+SubPixelWatersheds<T>::flowLine(double x, double y, bool forward, double epsilon,
+                                PointArray & curve)
+{
+    curve.push_back(PointType(x, y));
+    double h = initialStep_;
+    double dxx = image_.dxx(x, y);
+    double dxy = image_.dxy(x, y);
+    double dyy = image_.dyy(x, y);
+    double a = 0.5*VIGRA_CSTD::atan2(-2.0*dxy, dxx-dyy);
+    double dx = forward
+                 ?  h*VIGRA_CSTD::cos(a)
+                 : -h*VIGRA_CSTD::cos(a);
+    double dy = forward
+                 ? -h*VIGRA_CSTD::sin(a)
+                 :  h*VIGRA_CSTD::sin(a);
+    if(DEBUG) std::cerr << "x, y, dx, dy " << x << ' ' << y << ' ' << dx << ' ' << dy << '\n';
+    int index;
+    if(nearestMaximum(x, y, dx, dy, index) < initialStep_)
+    {
+        curve.push_back(maxima_[index]);
+        if(DEBUG) std::cerr << "stop index, x, y " << index << ' ' << curve.back()[0] << ' ' << curve.back()[1]<< '\n';
+        return index;
+    }
+    
+    x = x + dx;
+    y = y + dy;
+    curve.push_back(PointType(x, y));
+    dx = image_.dx(x, y);
+    dy = image_.dy(x, y);
+if(DEBUG) std::cerr << "x, y, dx, dy " << x << ' ' << y << ' ' << dx << ' ' << dy << '\n';
+    // check if near a maximum
+    if(nearestMaximum(x, y, dx, dy, index) < initialStep_)
+    {
+        curve.push_back(maxima_[index]);
+if(DEBUG) std::cerr << "stop index, x, y " << index << ' ' << curve.back()[0] << ' ' << curve.back()[1]<< '\n';
+        return index;
+    }
+
+    for(int k=0; k<1000; ++k)
+    {
+        double xn, yn;
+        if(rungeKuttaDoubleStepSecondOrder(x, y, h, xn, yn, epsilon) == Success)
+        {
+            x = xn;
+            y = yn;
+            curve.push_back(PointType(x, y));
+            dx = image_.dx(x, y);
+            dy = image_.dy(x, y);
+    if(DEBUG) std::cerr << "x, y, dx, dy " << x << ' ' << y << ' ' << dx << ' ' << dy << '\n';
+            // check if near a maximum
+            if(nearestMaximum(x, y, dx, dy, index) < initialStep_)
+            {
+                curve.push_back(maxima_[index]);
+        if(DEBUG) std::cerr << "stop index, x, y " << index << ' ' << curve.back()[0] << ' ' << curve.back()[1]<< '\n';
+                return index;
+            }
+        }
+        else if(h < 1.0e-6)
+        {
+        if(DEBUG) std::cerr << "give up\n";
+            return 0; // give up
+        }
+    }
+        if(DEBUG) std::cerr << "too many steps\n";
+    return 0;
+}
+
+template <class T>
+pair<int, int>
+SubPixelWatersheds<T>::findEdge(double x, double y, double epsilon, PointArray & edge)
+{
+    PointArray forwardCurve, backwardCurve;
+    
+        if(DEBUG) std::cerr << "starting forward\n";
+    int findex = flowLine(x, y, true, epsilon, forwardCurve);
+        if(DEBUG) std::cerr << "starting backward\n";
+    int bindex = flowLine(x, y, false, epsilon, backwardCurve);
+    
+    int i = forwardCurve.size() - 1;
+    if(i > 0)
+    {
+        edge.push_back(forwardCurve[i--]);
+        edge.push_back(forwardCurve[i--]);
+        for(; i >= 0 ; --i)
+        {
+            if((forwardCurve[i] - edge.back()).magnitude() >= storeStep_)
+                edge.push_back(forwardCurve[i]);
+        }
+        if(forwardCurve.front() != edge.back())
+                edge.push_back(forwardCurve.front());
+    }
+    else
+    {
+        edge.push_back(forwardCurve.front());
+    }
+    for(i = 1; i < (int)backwardCurve.size()-2; ++i)
+    {
+        if((backwardCurve[i] - edge.back()).magnitude() >= storeStep_)
+            edge.push_back(backwardCurve[i]);
+    }
+    if(i < (int)backwardCurve.size())
+        edge.push_back(backwardCurve[i++]);
+    if(i < (int)backwardCurve.size())
+        edge.push_back(backwardCurve[i++]);
+    return pair<int, int>(findex, bindex);
+}
+
+template <class T>
+int
+SubPixelWatersheds<T>::findEdges(double threshold, double epsilon)
+{
+    edges_.clear();
+    edgeIndices_.clear();
+    for(int i = 0; i < saddles_.size(); ++i)
+    {
+        double x = saddles_[i][0];
+        double y = saddles_[i][1];
+        if(image_(x, y) < threshold)
+            continue;
+        edges_.push_back(PointArray());
+        pair<int, int> ind = findEdge(x, y, epsilon, edges_.back());
+        edgeIndices_.push_back(triple<int, int, int>(ind.first, i, ind.second));
+    }
+    return edges_size();
 }
 
 } // namespace vigra
