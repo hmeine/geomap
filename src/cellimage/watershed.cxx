@@ -19,22 +19,25 @@
 /*                                                                      */
 /************************************************************************/
 
-#include <iostream>
 #include <vigra/stdimage.hxx>
 #include <vigra/stdimagefunctions.hxx>
 #include <vigra/distancetransform.hxx>
 #include <vigra/convolution.hxx>
 #include <vigra/functorexpression.hxx>
 #include <vigra/labelimage.hxx>
-#include "seededregiongrowing.hxx"
-#include "vigra/localminmax.hxx"
-#include "vigra/impex.hxx"
+#include <vigra/seededregiongrowing.hxx>
+#include <vigra/numerictraits.hxx>
+#include <vigra/localminmax.hxx>
+#include <vigra/impex.hxx>
+
 #include "foureightsegmentation.hxx"
 #include "hessematrix.hxx"
 #include "gradient.hxx"
 #include "findsaddles.hxx"
 #include "mydebug.hxx"
 #include "debugimage.hxx"
+
+#include <iostream>
 
 using namespace vigra;
 using namespace vigra::functor;
@@ -159,7 +162,7 @@ int main(int argc, char ** argv)
         // as the feature (first input) image contains the gradient magnitude,
         // this calculates the catchment basin of each minimum
         seededRegionGrowing(srcImageRange(grad), srcImage(labels),
-                            destImage(labels), gradstat, 100000);
+                            destImage(labels), gradstat, vigra::KeepContours);
 
         // remove regions of size 1
         for(int y=0; y<h; ++y)
@@ -189,9 +192,10 @@ int main(int argc, char ** argv)
 
         // repeat region growing
         seededRegionGrowing(srcImageRange(grad), srcImage(labels),
-                            destImage(labels), gradstat, 100000);
+                            destImage(labels), gradstat, vigra::KeepContours);
 
-        FourEightSegmentation segmentation(srcImageRange(labels));
+        FourEightSegmentation segmentation(srcImageRange(labels),
+										   vigra::NumericTraits<int>::min());
 
         if(segmentation.cellImage.height()>40)
         {
