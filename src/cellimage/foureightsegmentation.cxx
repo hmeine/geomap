@@ -152,7 +152,7 @@ void FourEightSegmentation::removeNodeFromContours(ContourComponents &contours,
 FourEightSegmentation::FaceInfo &FourEightSegmentation::removeIsolatedNode(
     const DartTraverser & dart)
 {
-    std::cout << "removeIsolatedNode(" << dart << ")\n";
+    //std::cerr << "removeIsolatedNode(" << dart << ")\n";
     validateDart(dart);
     vigra_precondition(dart.isSingular(),
                        "removeIsolatedNode: node is not singular");
@@ -181,7 +181,7 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::removeIsolatedNode(
 FourEightSegmentation::FaceInfo &FourEightSegmentation::mergeFaces(
     const DartTraverser & dart)
 {
-    std::cout << "mergeFaces(" << dart << ")\n";
+    //std::cerr << "mergeFaces(" << dart << ")\n";
     validateDart(dart);
     // merge smaller face into larger one:
     DartTraverser removedDart = dart;
@@ -253,7 +253,7 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::mergeFaces(
 FourEightSegmentation::FaceInfo &FourEightSegmentation::removeBridge(
     const DartTraverser & dart)
 {
-    std::cout << "removeBridge(" << dart << ")\n";
+    //std::cerr << "removeBridge(" << dart << ")\n";
     validateDart(dart);
     vigra_precondition(!dart.isSingular(), "removeBridge: dart does not point to any edge");
     EdgeInfo &edge= dart.edge();
@@ -302,7 +302,7 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::removeBridge(
 FourEightSegmentation::EdgeInfo &FourEightSegmentation::mergeEdges(
     const DartTraverser & dart)
 {
-    std::cout << "mergeEdges(" << dart << ")\n";
+    //std::cerr << "mergeEdges(" << dart << ")\n";
     // merge smaller edge (mergedEdge) into larger one (survivor):
     DartTraverser dart1(dart);
     dart1.nextSigma();
@@ -400,8 +400,6 @@ FourEightSegmentation &FourEightSegmentation::deepCopy(
 
 void FourEightSegmentation::checkConsistency()
 {
-    std::cerr << "{CHECKING CONSISTENCY}\n";
-
     bool consistent = true;
     // std::cerr << "checking nodes...\n";
     for(NodeIterator it= nodesBegin(); it != nodesEnd(); ++it)
