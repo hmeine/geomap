@@ -14,10 +14,15 @@
 typedef vigra::FImage OriginalImage;
 typedef vigra::FImage GradientImage;
 
+typedef vigra::TinyVector<float, 2> Float2D;
+typedef vigra::BasicImage<Float2D> EdgeDirImage;
+
 struct SegmentationData
 {
     OriginalImage preparedOriginal_;
     GradientImage gradientMagnitude_;
+    EdgeDirImage  edgeDirection_;
+    EdgeDirImage  edgeDirGradient_;
 };
 
 void nodeRethinning(vigra::cellimage::FourEightSegmentation &seg,
@@ -38,11 +43,14 @@ struct CellStatistics
     mutable vigra::Rect2D lastChanges_;
 
         // members storing statistics
-    std::vector<OriginalImage::PixelType> faceMeans_;
+    std::vector<OriginalImage::PixelType>
+        faceMeans_;
     std::vector<vigra::NumericTraits<OriginalImage::PixelType>::RealPromote>
         faceVariance_; // sigma squared
     std::vector<GradientImage::PixelType>
         meanEdgeGradients_;
+    std::vector<Float2D>
+        configurationDirections_;
 
     CellStatistics(const Segmentation &initialSegmentation,
                    SegmentationData  *segmentationData);
@@ -155,9 +163,11 @@ struct CellStatistics
         return lastChanges_;
     }
 
-    void clearLastChanges() const
+    vigra::Rect2D clearLastChanges() const
     {
+        vigra::Rect2D result(lastChanges_);
         lastChanges_.setLowerRight(lastChanges_.upperLeft());
+        return result;
     }
 };
 
