@@ -8,6 +8,7 @@ CELLIMAGE_OBJS = \
 	cellimage_nodes.lo \
 	cellimage_edges.lo \
 	cellimage_faces.lo \
+	cellimage_pyramid.lo \
 	cellimage_dart+info.lo \
 	foureightsegmentation.lo
 CELLIMAGE_TARGET = cellimage.la

@@ -45,6 +45,8 @@ void createFourEightSegmentation(
 using namespace python;
 using namespace vigra::cellimage;
 
+void definePyramid();
+
 void defineDartTraverser();
 void defineCellInfos();
 void defineNodes();
@@ -75,6 +77,8 @@ BOOST_PYTHON_MODULE_INIT(cellimage)
         .def("set", &setPixel)
         .def("get", &getPixelXY)
         .def("set", &setPixelXY);
+
+	definePyramid();
 
     scope fourEightSegmentation(
 		class_<FourEightSegmentation>("FourEightSegmentation", no_init)
