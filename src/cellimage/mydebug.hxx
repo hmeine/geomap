@@ -4,32 +4,7 @@
 #include <iostream>
 #include <iomanip>
 #include "cellimage.hxx"
-#include <vigra/rect2d.hxx>
-
-inline std::ostream &operator <<(std::ostream &s, vigra::Diff2D const &d)
-{
-    s << "(" << d.x << "/" << d.y << ")";
-    return s;
-}
-
-inline std::ostream &operator <<(std::ostream &s, vigra::Point2D const &d)
-{
-    s << "(" << d.x << "," << d.y << ")";
-    return s;
-}
-
-inline std::ostream &operator <<(std::ostream &s, vigra::Size2D const &d)
-{
-    s << "(" << d.x << "x" << d.y << ")";
-    return s;
-}
-
-inline std::ostream &operator <<(std::ostream &s, vigra::Rect2D const &r)
-{
-    s << "[" << r.upperLeft() << " to " << r.lowerRight()
-      << " = " << r.size() << "]";
-    return s;
-}
+#include <vigra/diff2d.hxx>
 
 inline std::ostream &operator <<(std::ostream &s,
                                  const vigra::cellimage::CellPixel &p)
