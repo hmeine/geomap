@@ -13,26 +13,26 @@ namespace CellImage {
 // -------------------------------------------------------------------
 //                          CellPixel, CellImage
 // -------------------------------------------------------------------
+typedef unsigned int CellLabel;
+
 struct CellPixel
 {
-    typedef unsigned int LabelType;
-
 private:
     CellType type_;
-    LabelType label_;
+    CellLabel label_;
 
 public:
     CellPixel() {}
-    CellPixel(CellType type, int label = 0)
+    CellPixel(CellType type, CellLabel label = 0)
         : type_(type), label_(label)
     {}
 
     inline CellType type() const { return type_; }
     inline void setType(CellType type) { type_ = type; }
 
-    inline LabelType label() const { return label_; }
-    inline void setLabel(LabelType label) { label_= label; }
-    inline void setLabel(LabelType label, CellType) { label_= label; }
+    inline CellLabel label() const { return label_; }
+    inline void setLabel(CellLabel label) { label_= label; }
+    inline void setLabel(CellLabel label, CellType) { label_= label; }
 
     bool operator==(CellPixel const & rhs) const
         { return label_ == rhs.label_ && type_ == rhs.type_; }
@@ -68,18 +68,20 @@ struct TypeAccessor
     }
 };
 
+typedef TypeAccessor<unsigned char> TypeAsByteAccessor;
+
 struct LabelAccessor
 {
-    typedef CellPixel::LabelType value_type;
+    typedef CellLabel value_type;
 
     template<class Iterator>
-    CellPixel::LabelType operator()(const Iterator &it) const
+    CellLabel operator()(const Iterator &it) const
     {
         return it->label();
     }
 
     template<class Iterator>
-    void set(CellPixel::LabelType label, const Iterator &it) const
+    void set(CellLabel label, const Iterator &it) const
     {
         it->setLabel(label);
     }
@@ -88,10 +90,10 @@ struct LabelAccessor
 template<CellType type>
 struct LabelWriter
 {
-    typedef CellPixel::LabelType value_type;
+    typedef CellLabel value_type;
 
     template<class Iterator>
-    void set(CellPixel::LabelType label, const Iterator &it) const
+    void set(CellLabel label, const Iterator &it) const
     {
         it->setLabel(label, type);
     }
