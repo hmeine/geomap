@@ -181,8 +181,8 @@ class CellPyramid
         if(!levelData)
             return new Level(lastCheckpointIt->second);
 
-        if((levelData->index() < levelIndex) &&
-           (lastCheckpointIt->first < levelData->index()))
+        if((levelData->index() <= levelIndex) &&
+           (lastCheckpointIt->first <= levelData->index()))
             return NULL;
 
         *levelData = lastCheckpointIt->second;
