@@ -6,41 +6,41 @@
 #include "cellimage.hxx"
 #include "rect2d.hxx"
 
-std::ostream &operator <<(std::ostream &s, vigra::Diff2D const &d)
+inline std::ostream &operator <<(std::ostream &s, vigra::Diff2D const &d)
 {
     s << "(" << d.x << "/" << d.y << ")";
     return s;
 }
 
-std::ostream &operator <<(std::ostream &s, vigra::Point2D const &d)
+inline std::ostream &operator <<(std::ostream &s, vigra::Point2D const &d)
 {
     s << "(" << d.x << "," << d.y << ")";
     return s;
 }
 
-std::ostream &operator <<(std::ostream &s, vigra::Size2D const &d)
+inline std::ostream &operator <<(std::ostream &s, vigra::Size2D const &d)
 {
     s << "(" << d.x << "x" << d.y << ")";
     return s;
 }
 
-std::ostream &operator <<(std::ostream &s, vigra::Rect2D const &r)
+inline std::ostream &operator <<(std::ostream &s, vigra::Rect2D const &r)
 {
     s << "[" << r.upperLeft() << " to " << r.lowerRight()
       << " = " << r.size() << "]";
     return s;
 }
 
-std::ostream &operator <<(std::ostream &s,
-                          const vigra::CellImage::CellPixel &p)
+inline std::ostream &operator <<(std::ostream &s,
+                                 const vigra::cellimage::CellPixel &p)
 {
     std::streamsize width= s.width();
     switch(p.type())
     {
-    case vigra::CellImage::CellTypeRegion:
+    case vigra::cellimage::CellTypeRegion:
         s << "\033[1;34m" << std::setw(width) << p.label() << "\033[0m";
         break;
-    case vigra::CellImage::CellTypeLine:
+    case vigra::cellimage::CellTypeLine:
         s << p.label();
         break;
     default:
