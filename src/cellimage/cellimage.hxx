@@ -29,22 +29,22 @@ private:
 public:
     CellPixel() {}
     CellPixel(CellType type, CellLabel label = 0)
-    : typeLabel_(label | (type << 30))
+    : typeLabel_((label << 2) | type)
     {}
 
     inline CellType type() const
-        { return (CellType)(typeLabel_ >> 30); }
+        { return (CellType)(typeLabel_ & 3); }
     inline void setType(CellType type)
-        { typeLabel_ = label() | (type << 30); }
+        { typeLabel_ = (label() << 2) | type; }
     inline void setType(CellType type, CellLabel label)
-        { typeLabel_ = label | (type << 30); }
+        { typeLabel_ = label << 2 | type; }
 
     inline CellLabel label() const
-        { return typeLabel_ & 0x3fffffff; }
+        { return typeLabel_ >> 2; }
     inline void setLabel(CellLabel label)
-        { typeLabel_ = label | (type() << 30); }
+        { typeLabel_ = label << 2 | type(); }
     inline void setLabel(CellLabel label, CellType type)
-        { typeLabel_ = label | (type << 30); }
+        { typeLabel_ = label << 2 | type; }
 
     bool operator==(CellPixel const & rhs) const
         { return typeLabel_ == rhs.typeLabel_; }
@@ -149,7 +149,7 @@ struct CellTypeEquals : public std::unary_function<CellType, bool>
 struct CellMask : public std::unary_function<vigra::cellimage::CellPixel, bool>
 {
     vigra::cellimage::CellPixel maskPixel_;
-    
+
     CellMask(vigra::cellimage::CellPixel maskPixel)
     : maskPixel_(maskPixel)
     {}
