@@ -158,7 +158,7 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::mergeFaces(
 {
     // merge smaller face into larger one:
     DartTraverser removedDart = dart;
-    if(dart.leftFace().size < dart.rightFace().size)
+    if(dart.leftFace().bounds.area() < dart.rightFace().bounds.area())
         removedDart.nextAlpha();
 
     EdgeInfo &edge= removedDart.edge();
@@ -178,6 +178,11 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::mergeFaces(
     if(face1.contours[contour1].edgeLabel() == edge.label)
         face1.contours[contour1].nextPhi();
 
+    // update contours
+    for(unsigned int i = 0; i < face2.contours.size(); i++)
+        if(i != contour2)
+            face1.contours.push_back(face2.contours[i]);
+
     // relabel cells in cellImage:
     for(CellScanIterator it= edgeScanIterator(edge.label, cells, false);
         it.inRange(); ++it)
@@ -186,24 +191,18 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::mergeFaces(
         it.inRange(); ++it)
         *it= CellPixel(CellTypeRegion, face1.label);
 
-    // update bounds:
-    face1.bounds |= edge.bounds;
-    face1.size += edge.size;
-    face1.bounds |= face2.bounds;
-    face1.size += face2.size;
-
-    // update contours
-    for(unsigned int i = 0; i < face2.contours.size(); i++)
-        if(i != contour2)
-            face1.contours.push_back(face2.contours[i]);
-
     // turn node anchors if they pointed to the removed edge and
     // there's another left
     if(--node1.degree && node1.anchor.isSingular())
         node1.anchor.carefulNextSigma();
-    if(node2.label != node1.label)
-        if(--node2.degree && node2.anchor.isSingular())
-            node2.anchor.carefulNextSigma();
+    if(--node2.degree && node2.anchor.isSingular())
+        node2.anchor.carefulNextSigma();
+
+    // update bounds and sizes:
+    face1.bounds |= edge.bounds;
+    face1.size += edge.size;
+    face1.bounds |= face2.bounds;
+    face1.size += face2.size;
 
     edge.uninitialize();
     --edgeCount_;
@@ -231,22 +230,16 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::removeBridge(
     DartTraverser newAnchor2(edge.end);
     newAnchor2.prevSigma();
 
-    // find index of contour component to be changed
+    // update anchors
     unsigned int contourIndex =
         findContourComponent(face.contours, dart);
+    face.contours[contourIndex] = newAnchor1;
+    face.contours.push_back(newAnchor2);
 
     // relabel cell in cellImage:
     for(CellScanIterator it= edgeScanIterator(edge.label, cells, false);
         it.inRange(); ++it)
         *it= CellPixel(CellTypeRegion, face.label);
-
-    // update bounds and size:
-    face.bounds |= edge.bounds;
-    face.size += edge.size;
-
-    // update anchors
-    face.contours[contourIndex] = newAnchor1;
-    face.contours.push_back(newAnchor2);
 
     // turn node anchors if they pointed to the removed edge and
     // there's another one left
@@ -254,6 +247,10 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::removeBridge(
         node1.anchor.carefulNextSigma();
     if(--node2.degree && node2.anchor.isSingular())
         node2.anchor.carefulNextSigma();
+
+    // update bounds and size:
+    face.bounds |= edge.bounds;
+    face.size += edge.size;
 
     edge.uninitialize();
     --edgeCount_;
@@ -264,7 +261,7 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::removeBridge(
 FourEightSegmentation::EdgeInfo &FourEightSegmentation::mergeEdges(
     const DartTraverser & dart)
 {
-    // merge smaller edge (edge2) into larger one (edge1):
+    // merge smaller edge (mergedEdge) into larger one (survivor):
     DartTraverser dart1(dart);
     dart1.nextSigma();
     bool firstIsSmaller =
@@ -274,15 +271,14 @@ FourEightSegmentation::EdgeInfo &FourEightSegmentation::mergeEdges(
         dart1.nextSigma(); // dart1 _temporarily_ points to smaller one
 
     DartTraverser dart2(dart1);
-    EdgeInfo &edge2 = dart2.edge();
+    EdgeInfo &mergedEdge = dart2.edge();
     NodeInfo &node = dart1.startNode();
     dart1.nextSigma();
-    EdgeInfo &edge1 = dart1.edge();
+    EdgeInfo &survivor = dart1.edge();
 
     vigra_precondition((firstIsSmaller ? dart2 : dart1) == dart,
         "FourEightSegmentation::mergeEdges(): node has degree > 2!");
-
-    vigra_precondition(edge1.label != edge2.label,
+    vigra_precondition(survivor.label != mergedEdge.label,
         "FourEightSegmentation::mergeEdges(): node has degree one or is loop!");
 
     // update contours of neighbored faces if necessary
@@ -293,37 +289,29 @@ FourEightSegmentation::EdgeInfo &FourEightSegmentation::mergeEdges(
     // update start, end
     dart1.nextAlpha();
     dart2.nextAlpha();
-    if(dart1.startNodeLabel() < dart2.startNodeLabel())
-    {
-        edge1.start = dart1;
-        edge1.end = dart2;
-    }
-    else
-    {
-        edge1.start = dart2;
-        edge1.end = dart1;
-    }
+    survivor.start = dart1;
+    survivor.end = dart2;
 
     // relabel cells in cellImage:
     for(CellScanIterator it= nodeScanIterator(node.label, cells, false);
         it.inRange(); ++it)
-        *it= CellPixel(CellTypeLine, edge1.label);
-    for(CellScanIterator it= edgeScanIterator(edge2.label, cells, false);
+        *it= CellPixel(CellTypeLine, survivor.label);
+    for(CellScanIterator it= edgeScanIterator(mergedEdge.label, cells, false);
         it.inRange(); ++it)
-        *it= CellPixel(CellTypeLine, edge1.label);
+        *it= CellPixel(CellTypeLine, survivor.label);
 
     // update bounds:
-    edge1.bounds |= node.bounds;
-    edge1.size += node.size;
-    edge1.bounds |= edge2.bounds;
-    edge1.size += edge2.size;
+    survivor.bounds |= node.bounds;
+    survivor.size += node.size;
+    survivor.bounds |= mergedEdge.bounds;
+    survivor.size += mergedEdge.size;
 
     node.uninitialize();
     --nodeCount_;
-    edge2.uninitialize();
+    mergedEdge.uninitialize();
     --edgeCount_;
 
-    return edge1;
+    return survivor;
 }
 
 /********************************************************************/
