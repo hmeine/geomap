@@ -139,7 +139,7 @@ unsigned int GeoMap::findComponentAnchor(
 }
 
 void GeoMap::removeNodeFromContours(ContourComponents &contours,
-									CellLabel nodeLabel)
+                                    CellLabel nodeLabel)
 {
     // find contour anchor to be changed if it points to this edge
     for(ContourComponentsIterator contour= contours.begin();
@@ -417,7 +417,14 @@ void GeoMap::checkConsistency()
             consistent = false;
             std::cerr << "node " << it->label << " has degree stored as "
                       << it->degree << " but seems to be of degree "
-                      << realDegree << "\n";
+                      << realDegree << "\n  anchor:";
+            debugDart(it->anchor);
+            std::cerr << "  sigma-successors:\n";
+            for(DartTraverser dart(it->anchor); dart.nextSigma() != it->anchor; )
+            {
+                std::cerr << "   ";
+                debugDart(dart);
+            }
         }
 
         FindBoundingRectangle actualBounds;
@@ -728,7 +735,7 @@ void GeoMap::labelCircles(CellLabel & maxNodeLabel, CellLabel & maxEdgeLabel)
 /********************************************************************/
 
 void GeoMap::labelEdge(CellImageEightCirculator rayAtStart,
-					   CellLabel newLabel)
+                       CellLabel newLabel)
 {
     EdgelIterator edge(rayAtStart);
 
