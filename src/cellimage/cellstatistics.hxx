@@ -3,13 +3,16 @@
 
 #include "foureightsegmentation.hxx"
 #include "statisticfunctor.hxx"
+#include "mydebug.hxx"
 
 #include <vigra/stdimage.hxx>
 #include <vigra/inspectimage.hxx>
 #include <vigra/tinyvector.hxx>
 
-#include <vector>
+#include <algorithm>
 #include <iostream>
+#include <list>
+#include <vector>
 
 typedef vigra::FImage OriginalImage;
 typedef vigra::FImage GradientImage;
@@ -146,6 +149,9 @@ struct CellStatistics
     EdgeStatistics              tempEdgeStatistics_;
     vigra::cellimage::CellLabel node1Label_, node2Label_;
     vigra::cellimage::CellLabel edge1Label_, edge2Label_;
+        // FIXME: vector would be beneficial, since the ScanIterator
+        // already delivers sorted values! just push_back
+    std::list<vigra::Point2D> nodePoints_;
 
     inline void preRemoveEdge(const Segmentation::DartTraverser &dart);
     inline void postRemoveEdge(Segmentation::FaceInfo &face);
@@ -302,6 +308,16 @@ inline void CellStatistics::preMergeEdges(const Segmentation::DartTraverser &dar
     edge1Label_ = dart.edgeLabel();
     edge2Label_ = d.edgeLabel();
 
+    if(segmentationData->doEdgeRethinning)
+    {
+        Segmentation::ScanIterator<vigra::Point2D>::type
+            nodePosScanner(dart.segmentation()->nodeScanIterator
+                            (d.startNodeLabel(), vigra::Point2D()));
+        nodePoints_.clear();
+        for(; nodePosScanner.inRange(); ++nodePosScanner)
+            nodePoints_.push_back(*nodePosScanner);
+    }
+
     if(!dart.leftFaceLabel() || !dart.rightFaceLabel())
     {
         tempEdgeStatistics_.reset();
@@ -314,6 +330,98 @@ inline void CellStatistics::preMergeEdges(const Segmentation::DartTraverser &dar
     inspectCell(dart.segmentation()->nodeScanIterator
                 (d.startNodeLabel(), segmentationData->gradientMagnitude_.upperLeft()),
                 tempEdgeStatistics_);
+}
+
+inline void
+reassociate(vigra::cellimage::GeoMap &geoMap,
+            const vigra::cellimage::CellImage::traverser pixel,
+            const vigra::cellimage::CellPixel &newCell)
+{
+    using namespace vigra::cellimage;
+
+    CellPixel oldCell(*pixel);
+
+    vigra::Point2D pos(pixel - geoMap.cells);
+
+    GeoMap::CellInfo &oldCI(
+        oldCell.type() == CellTypeLine ?
+        (GeoMap::CellInfo &)geoMap.edge(oldCell.label()) : (
+            oldCell.type() == CellTypeVertex ?
+            (GeoMap::CellInfo &)geoMap.node(oldCell.label()) :
+            (GeoMap::CellInfo &)geoMap.face(oldCell.label())));
+
+    std::cerr << "reassociate(" << pos << ", " << oldCell << "->"
+              << newCell << "), old bbox: " << oldCI.bounds << "\n";
+
+    *pixel = newCell;
+
+    if(pos.x == oldCI.bounds.left())
+    {
+        // check first column of the bounding box..
+        if(std::find((geoMap.cells + oldCI.bounds.upperLeft()).columnIterator(),
+                     (geoMap.cells + vigra::Diff2D(pos.x, oldCI.bounds.bottom())).columnIterator(),
+                     oldCell)
+           == (geoMap.cells + vigra::Diff2D(pos.x, oldCI.bounds.bottom())).columnIterator())
+        {
+            // removed the only pixel from that column -> change bbox
+            oldCI.bounds.setUpperLeft(vigra::Point2D(oldCI.bounds.left() + 1,
+                                                     oldCI.bounds.top()));
+            std::cerr << "  1st col: changed bbox to " << oldCI.bounds << "\n";
+        }
+    }
+
+    if(pos.x == oldCI.bounds.right() - 1)
+    {
+        // check last column of the bounding box..
+        if(std::find((geoMap.cells + vigra::Diff2D(pos.x, oldCI.bounds.top())).columnIterator(),
+                     (geoMap.cells + vigra::Diff2D(pos.x, oldCI.bounds.bottom())).columnIterator(),
+                     oldCell)
+           == (geoMap.cells + vigra::Diff2D(pos.x, oldCI.bounds.bottom())).columnIterator())
+        {
+            // removed the only pixel from that column -> change bbox
+            oldCI.bounds.setLowerRight(vigra::Point2D(oldCI.bounds.right() - 1,
+                                                      oldCI.bounds.bottom()));
+            std::cerr << "  last col: changed bbox to " << oldCI.bounds << "\n";
+        }
+    }
+
+    if(pos.y == oldCI.bounds.top())
+    {
+        // check first row of the bounding box..
+        if(std::find((geoMap.cells + oldCI.bounds.upperLeft()).rowIterator(),
+                     (geoMap.cells + vigra::Diff2D(oldCI.bounds.right(), pos.y)).rowIterator(),
+                     oldCell)
+           == (geoMap.cells + vigra::Diff2D(oldCI.bounds.right(), pos.y)).rowIterator())
+        {
+            // removed the only pixel from that row -> change bbox
+            oldCI.bounds.setUpperLeft(vigra::Point2D(oldCI.bounds.left(),
+                                                     oldCI.bounds.top() + 1));
+            std::cerr << "  1st row: changed bbox to " << oldCI.bounds << "\n";
+        }
+    }
+
+    if(pos.y == oldCI.bounds.bottom() - 1)
+    {
+        // check last row of the bounding box..
+        if(std::find((geoMap.cells + vigra::Diff2D(oldCI.bounds.left(), pos.y)).rowIterator(),
+                     (geoMap.cells + vigra::Diff2D(oldCI.bounds.right(), pos.y)).rowIterator(),
+                     oldCell)
+           == (geoMap.cells + vigra::Diff2D(oldCI.bounds.right(), pos.y)).rowIterator())
+        {
+            // removed the only pixel from that row -> change bbox
+            oldCI.bounds.setLowerRight(vigra::Point2D(oldCI.bounds.right(),
+                                                      oldCI.bounds.bottom() - 1));
+            std::cerr << "  last row: changed bbox to " << oldCI.bounds << "\n";
+        }
+    }
+
+    // add pos to bounding box of new cell
+    (newCell.type() == CellTypeLine ?
+     (GeoMap::CellInfo &)geoMap.edge(newCell.label()) : (
+         newCell.type() == CellTypeVertex ?
+         (GeoMap::CellInfo &)geoMap.node(newCell.label()) :
+         (GeoMap::CellInfo &)geoMap.face(newCell.label())))
+                     .bounds |= pos;
 }
 
 inline void CellStatistics::postMergeEdges(Segmentation::EdgeInfo &edge)
@@ -340,6 +448,78 @@ inline void CellStatistics::postMergeEdges(Segmentation::EdgeInfo &edge)
             edgeRethinning(*edge.start.segmentation(),
                            segmentationData->gradientMagnitude_, edge.label,
                            rethinRange);
+
+            for(std::list<vigra::Point2D>::const_iterator it =
+                    nodePoints_.begin(); it != nodePoints_.end(); ++it)
+            {
+                std::cerr << "testing point " << (*it);
+                vigra::cellimage::CellImageEightCirculator
+                    cellImageCirc(edge.start.segmentation()->cells + (*it),
+                                  vigra::EightNeighborCode::NorthWest),
+                    cellImageEnd(cellImageCirc);
+
+                if(cellImageCirc.center()->type() != vigra::cellimage::CellTypeLine)
+                {
+                    std::cerr << " (no edge anymore.)\n";
+                    continue;
+                }
+
+                GradientImage::traverser gradient(
+                    segmentationData->gradientMagnitude_.upperLeft() + (*it));
+                GradientImage::value_type gradientValue(*gradient);
+
+                vigra::NeighborhoodCirculator<
+                    GradientImage::traverser, vigra::EightNeighborCode>
+                    gradCirc(gradient, vigra::EightNeighborCode::NorthWest);
+
+                do
+                {
+                    std::cerr << ".";
+                    if(*cellImageCirc == *cellImageCirc.center())
+                    {
+                        std::cerr << "1st cp, ";
+                        if(cellImageCirc[2] == *cellImageCirc.center())
+                        {
+                            std::cerr << "2nd cp, ";
+                            if(gradCirc[1] > gradientValue)
+                            {
+                                std::cerr << "better:\n";
+
+                                ++cellImageCirc;
+                                
+                                vigra::cellimage::CellImageEightCirculator
+                                    newNeighborCirc(cellImageCirc);
+                                newNeighborCirc.moveCenterToNeighbor();
+                                if((*newNeighborCirc == *cellImageCirc) &&
+                                   (newNeighborCirc[1] == *cellImageCirc) &&
+                                   (newNeighborCirc[-1] == *cellImageCirc))
+                                {
+                                vigra::cellimage::CellPixel
+                                    regionPixel(cellImageCirc[-3]);
+                                reassociate(*edge.start.segmentation(),
+                                            cellImageCirc.base(),
+                                            *cellImageCirc.center());
+                                reassociate(*edge.start.segmentation(),
+                                            cellImageCirc.center(),
+                                            regionPixel);
+
+                                ++cellImageCirc;
+                                nodePoints_.push_back(*it + cellImageCirc.diff());
+                                cellImageCirc -= 2;
+                                nodePoints_.push_back(*it + cellImageCirc.diff());
+                                break;
+                                }
+                            }
+                        }
+                    }
+
+                    gradCirc += 2;
+                    cellImageCirc += 2;
+                }
+                while(cellImageCirc != cellImageEnd);
+                std::cerr << "\n";
+            }
+            std::cerr << "rethinning finished.\n";
         }
 
         if(segmentationData->doAutoProtection)
