@@ -9,54 +9,75 @@
  * other values from that. (Recall: Var(X)=Mean(X^2)-(Mean(X))^2)
  */
 template<class ValueType>
-class StatisticFunctor {
+class StatisticFunctor
+{
 public:
 	typedef typename vigra::NumericTraits<ValueType>::Promote PromoteType;
 	typedef typename vigra::NumericTraits<ValueType>::RealPromote RealPromoteType;
 
-	long count;
-	PromoteType sum;
-	RealPromoteType squareSum;
+    typedef ValueType argument_type;
+    typedef PromoteType result_type; // fake type, for ArrayOfRegionStatistics
 
-	RealPromoteType sqr(const ValueType &x) const { return x*x; }
+	inline PromoteType sqr(const ValueType &x) const
+    {
+        return x*x;
+    }
 
-	StatisticFunctor() { clear(); }
-	void clear()
+	StatisticFunctor()
+    {
+        reset();
+    }
+
+	void reset()
 	{
-		ValueType zero= vigra::NumericTraits<ValueType>::zero();
-		init(0, zero, zero);
+        count_     = 0;
+        sum_       = vigra::NumericTraits<PromoteType>::zero();
+        squareSum_ = vigra::NumericTraits<PromoteType>::zero();
 	}
-	void init(long newCount, ValueType newAvg, ValueType newStdDev)
-	{
-		count = newCount;
-		sum= count * newAvg;
-		squareSum= sqr(newStdDev) + sqr(newAvg);
-	}
+
 	void operator()(ValueType value)
 	{
-		count++;
-		sum = sum + value;
-		squareSum = squareSum + sqr(value);
+		++count_;
+		sum_       += value;
+		squareSum_ += sqr(value);
 	}
+
 	void operator()(const StatisticFunctor &other)
 	{
 		merge(other);
 	}
+
 	void merge(const StatisticFunctor &other)
 	{
-		count += other.count;
-		sum += other.sum;
-		squareSum += other.squareSum;
+		count_     += other.count_;
+		sum_       += other.sum_;
+		squareSum_ += other.squareSum_;
 	}
+
 	void remove(ValueType value)
 	{
-		count--;
-		sum = sum - value;
-		squareSum = squareSum - sqr(value);
+		--count_;
+		sum_       -= value;
+		squareSum_ -= sqr(value);
 	}
-	RealPromoteType avg() const { return (RealPromoteType)(sum/((double)count)); }
-	RealPromoteType var() const { return squareSum/((double)count) - sqr(avg()); }
-	RealPromoteType stdDev() const { return sqrt(var()); }
+
+	RealPromoteType avg() const
+    {
+        return (RealPromoteType)sum_/(double)count_;
+    }
+
+	RealPromoteType var() const
+    {
+        return (RealPromoteType)squareSum_/(double)count_ - sqr(avg());
+    }
+
+	RealPromoteType stdDev() const {
+        return sqrt(var());
+    }
+
+	long        count_;
+	PromoteType sum_;
+	PromoteType squareSum_;
 };
 
 #endif // STATISTICFUNCTOR_HXX
