@@ -155,7 +155,8 @@ struct CellStatistics
         lastChanges_ |= edge.bounds;
 
 		// to rethin, we need gradient/edgeness information for all edgels:
-        if(segmentationData->doEdgeRethinning && segDataBounds.contains(edge.bounds))
+        if(segmentationData->doEdgeRethinning &&
+           segDataBounds.contains(edge.bounds))
         {
             vigra::Rect2D rethinRange(edge.bounds);
             rethinRange.addBorder(1);

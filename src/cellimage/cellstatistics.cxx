@@ -315,7 +315,7 @@ void edgeRethinning(vigra::cellimage::FourEightSegmentation &seg,
     vigra::cellimage::CellLabel face1Label(edge.start.leftFaceLabel());
     vigra::cellimage::CellLabel face2Label(edge.start.rightFaceLabel());
     if(face1Label == face2Label)
-        return; // watershed can not work on bridges :-(
+        return; // watershed lets bridges disappear :-(
 
     FourEightSegmentation::FaceInfo &face1(seg.face(face1Label));
     FourEightSegmentation::FaceInfo &face2(seg.face(face2Label));
