@@ -48,18 +48,19 @@ typedef vigra::NeighborhoodCirculator<CellImage::Iterator, EightNeighborCode>
 // -------------------------------------------------------------------
 //                     CellPixel/CellImage Accessors
 // -------------------------------------------------------------------
+template<class VALUE_TYPE = CellType>
 struct CellImageTypeAccessor
 {
-    typedef CellType value_type;
+    typedef VALUE_TYPE value_type;
 
     template<class Iterator>
-    CellType operator()(const Iterator &it) const
+    value_type operator()(const Iterator &it) const
     {
         return it->type();
     }
 
     template<class Iterator>
-    void set(CellType type, const Iterator &it) const
+    void set(value_type type, const Iterator &it) const
     {
         it->setType(type);
     }
