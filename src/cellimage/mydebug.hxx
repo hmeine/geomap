@@ -37,10 +37,10 @@ std::ostream &operator <<(std::ostream &s,
     std::streamsize width= s.width();
     switch(p.type())
     {
-    case CellTypeRegion:
+    case vigra::CellImage::CellTypeRegion:
         s << "\033[1;34m" << std::setw(width) << p.label() << "\033[0m";
         break;
-    case CellTypeLine:
+    case vigra::CellImage::CellTypeLine:
         s << p.label();
         break;
     default:
