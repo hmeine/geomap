@@ -17,7 +17,6 @@
 #include <functional>
 
 // temporary,debug
-#include <iostream>
 #include "mydebug.hxx"
 #include "debugimage.hxx"
 
@@ -29,9 +28,9 @@ template<class Array, class Result = typename Array::value_type,
          class Index = unsigned int>
 struct LookupFunctor : public std::unary_function<Index, Result>
 {
-    Array &array_;
+    const Array &array_;
 
-    LookupFunctor(Array &array)
+    LookupFunctor(const Array &array)
     : array_(array)
     {}
 
@@ -569,22 +568,39 @@ public:
         }
     };
 
-    typedef FilterIterator<NodeList::iterator,
-                           FilterInitialized> NodeIterator;
-    typedef FilterIterator<EdgeList::iterator,
-                           FilterInitialized> EdgeIterator;
-    typedef FilterIterator<FaceList::iterator,
-                           FilterInitialized> FaceIterator;
+    typedef FilterIterator<NodeList::iterator, FilterInitialized>
+        NodeIterator;
+    typedef FilterIterator<EdgeList::iterator, FilterInitialized>
+        EdgeIterator;
+    typedef FilterIterator<FaceList::iterator, FilterInitialized>
+        FaceIterator;
+    typedef FilterIterator<NodeList::const_iterator, FilterInitialized>
+        ConstNodeIterator;
+    typedef FilterIterator<EdgeList::const_iterator, FilterInitialized>
+        ConstEdgeIterator;
+    typedef FilterIterator<FaceList::const_iterator, FilterInitialized>
+        ConstFaceIterator;
 
     typedef std::vector<DartTraverser>::iterator
         ContourComponentsIterator;
 
-public:
-    FourEightSegmentation()
-    : nodeCount_(0),
-      edgeCount_(0),
-      faceCount_(0)
-    {} // FIXME template constructors instead of init()??
+  public:
+    FourEightSegmentation(const FourEightSegmentation &other)
+    {
+        deepCopy(other);
+    }
+
+    template<class SrcIter, class SrcAcc>
+    FourEightSegmentation(SrcIter ul, SrcIter lr, SrcAcc src)
+    {
+        init(ul, lr, src);
+    }
+
+    template<class SrcIter, class SrcAcc>
+    FourEightSegmentation(triple<SrcIter, SrcIter, SrcAcc> src)
+    {
+        init(src.first, src.second, src.third);
+    }
 
     template<class SrcIter, class SrcAcc>
     void init(SrcIter ul, SrcIter lr, SrcAcc src)
@@ -601,28 +617,12 @@ public:
         initFourEightSegmentationContourImage(ul, lr, src, contourImage);
         initCellImage(contourImage);
 
-        std::cerr << "FourEightSegmentation::label0Cells()\n";
         CellLabel maxNodeLabel = label0Cells();
-
-        std::cerr << "FourEightSegmentation::label1Cells(maxNodeLabel= "
-                  << maxNodeLabel << ")\n";
         CellLabel maxEdgeLabel = label1Cells(maxNodeLabel);
-
-        std::cerr << "FourEightSegmentation::label2Cells()\n";
         CellLabel maxFaceLabel = label2Cells(contourImage);
-
-        std::cerr << "FourEightSegmentation::labelCircles(maxNodeLabel= "
-                  << maxNodeLabel << ", maxEdgeLabel= " << maxEdgeLabel << ")\n";
         labelCircles(maxNodeLabel, maxEdgeLabel);
-
-        std::cerr << "FourEightSegmentation::initNodeList(maxNodeLabel= "
-                  << maxNodeLabel << ")\n";
         initNodeList(maxNodeLabel);
-        std::cerr << "FourEightSegmentation::initEdgeList(maxEdgeLabel= "
-                  << maxEdgeLabel << ")\n";
         initEdgeList(maxEdgeLabel);
-        std::cerr << "FourEightSegmentation::initFaceList(maxFaceLabel= "
-                  << maxFaceLabel << ")\n";
         initFaceList(contourImage, maxFaceLabel);
     }
 
@@ -634,147 +634,7 @@ public:
 
     FourEightSegmentation &operator=(const FourEightSegmentation &other)
     {
-        cellImage = other.cellImage;
-        cells = cellImage.upperLeft() + Diff2D(2,2);
-
-        nodeList_ = other.nodeList_;
-        nodeCount_ = other.nodeCount_;
-        edgeList_ = other.edgeList_;
-        edgeCount_ = other.edgeCount_;
-        faceList_ = other.faceList_;
-        faceCount_ = other.faceCount_;
-
-        /*cellImage.resize(other.cellImage.size());
-
-        typedef std::vector<CellLabel> LabelVector;
-
-        std::cerr << "FourEightSegmentation::operator=(): copying "
-                  << other.nodeCount() << " nodes, "
-                  << other.edgeCount() << " edges, and "
-                  << other.faceCount() << " faces.\n";
-        if(other.maxNodeLabel() == other.nodeCount()-1)
-        {
-            nodeList_ = other.nodeList_;
-            copyImageIf(srcImageRange(other.cellImage),
-                        maskImage(other.cellImage,
-                                  CellTypeMask<CellTypeVertex>()),
-                        destImage(cellImage));
-        }
-        else
-        {
-            // "compress" labels
-            nodeList_.resize(other.nodeCount());
-            CellLabel nextNodeLabel= 0;
-            LabelVector nodeMapping(other.maxNodeLabel() + 1);
-            for(NodeList::const_iterator it= other.nodeList_.begin();
-                it != other.nodeList_.end(); ++it)
-            {
-                if(it->initialized())
-                {
-                    nodeList_[nextNodeLabel] = *it;
-                    nodeList_[nextNodeLabel].label = nextNodeLabel;
-                    nodeMapping[it->label] = nextNodeLabel++;
-                }
-            }
-            vigra_postcondition(nextNodeLabel == other.nodeCount(),
-                                "nodeCount() delivered wrong value!");
-
-            transformImageIf(srcImageRange(other.cellImage, LabelAccessor()),
-                             maskImage(other.cellImage,
-                                       CellTypeMask<CellTypeVertex>()),
-                             destImage(cellImage, LabelWriter<CellTypeVertex>()),
-                             LookupFunctor<LabelVector>(nodeMapping));
-        }
-
-        if(other.maxEdgeLabel() == other.edgeCount()-1)
-        {
-            edgeList_ = other.edgeList_;
-            copyImageIf(srcImageRange(other.cellImage),
-                        maskImage(other.cellImage,
-                                  CellTypeMask<CellTypeLine>()),
-                        destImage(cellImage));
-        }
-        else
-        {
-            edgeList_.resize(other.edgeCount());
-            // "compress" labels
-            CellLabel nextEdgeLabel= 0;
-            LabelVector edgeMapping(other.maxEdgeLabel() + 1);
-            for(EdgeList::const_iterator it= other.edgeList_.begin();
-                it != other.edgeList_.end(); ++it)
-            {
-                if(it->initialized())
-                {
-                    edgeList_[nextEdgeLabel] = *it;
-                    edgeList_[nextEdgeLabel].label = nextEdgeLabel;
-                    edgeMapping[it->label] = nextEdgeLabel++;
-                }
-            }
-            vigra_postcondition(nextEdgeLabel == other.edgeCount(),
-                                "edgeCount() delivered wrong value!");
-
-            transformImageIf(srcImageRange(other.cellImage, LabelAccessor()),
-                             maskImage(other.cellImage,
-                                       CellTypeMask<CellTypeLine>()),
-                             destImage(cellImage, LabelWriter<CellTypeLine>()),
-                             LookupFunctor<LabelVector>(edgeMapping));
-        }
-
-        if(other.maxFaceLabel() == other.faceCount()-1)
-        {
-            faceList_ = other.faceList_;
-            copyImageIf(srcImageRange(other.cellImage),
-                        maskImage(other.cellImage,
-                                  CellTypeMask<CellTypeRegion>()),
-                        destImage(cellImage));
-        }
-        else
-        {
-            // "compress" labels
-            faceList_.resize(other.faceCount());
-            CellLabel nextFaceLabel= 0;
-            LabelVector faceMapping(other.maxFaceLabel() + 1);
-            for(FaceList::const_iterator it= other.faceList_.begin();
-                it != other.faceList_.end(); ++it)
-            {
-                if(it->initialized())
-                {
-                    faceList_[nextFaceLabel] = *it;
-                    faceList_[nextFaceLabel].label = nextFaceLabel;
-                    faceMapping[it->label] = nextFaceLabel++;
-                }
-            }
-            vigra_postcondition(nextFaceLabel == other.faceCount(),
-                                "faceCount() delivered wrong value!");
-
-            transformImageIf(srcImageRange(other.cellImage, LabelAccessor()),
-                             maskImage(other.cellImage,
-                                       CellTypeMask<CellTypeRegion>()),
-                             destImage(cellImage, LabelWriter<CellTypeRegion>()),
-                             LookupFunctor<LabelVector>(faceMapping));
-        }*/
-
-        for(NodeIterator it= nodesBegin(); it.inRange(); ++it)
-        {
-            it->anchor.reparent(this);
-        }
-        
-        for(EdgeIterator it= edgesBegin(); it.inRange(); ++it)
-        {
-            it->start.reparent(this);
-            it->end.reparent(this);
-        }
-
-        for(FaceIterator it= facesBegin(); it.inRange(); ++it)
-        {
-            for(ContourComponentsIterator contour= it->contours.begin();
-                contour != it->contours.end(); ++contour)
-            {
-                contour->reparent(this);
-            }
-        }
-
-        return *this;
+        return deepCopy(other);
     }
 
     unsigned int width() const { return cellImage.width()-4; }
@@ -797,6 +657,15 @@ public:
     NodeInfo & node(unsigned int node)
         { return nodeList_[node]; }
 
+    ConstNodeIterator nodesBegin() const
+        { return ConstNodeIterator(nodeList_.begin(), nodeList_.end()); }
+    ConstNodeIterator nodesEnd() const
+        { return ConstNodeIterator(nodeList_.end(), nodeList_.end()); }
+    ConstNodeIterator findNode(unsigned int node) const
+        { return ConstNodeIterator(nodeList_.begin() + node, nodeList_.end()); }
+    const NodeInfo & node(unsigned int node) const
+        { return nodeList_[node]; }
+
     EdgeIterator edgesBegin()
         { return EdgeIterator(edgeList_.begin(), edgeList_.end()); }
     EdgeIterator edgesEnd()
@@ -804,6 +673,15 @@ public:
     EdgeIterator findEdge(unsigned int edge)
         { return EdgeIterator(edgeList_.begin() + edge, edgeList_.end()); }
     EdgeInfo & edge(unsigned int edge)
+        { return edgeList_[edge]; }
+
+    ConstEdgeIterator edgesBegin() const
+        { return ConstEdgeIterator(edgeList_.begin(), edgeList_.end()); }
+    ConstEdgeIterator edgesEnd() const
+        { return ConstEdgeIterator(edgeList_.end(), edgeList_.end()); }
+    ConstEdgeIterator findEdge(unsigned int edge) const
+        { return ConstEdgeIterator(edgeList_.begin() + edge, edgeList_.end()); }
+    const EdgeInfo & edge(unsigned int edge) const
         { return edgeList_[edge]; }
 
     FaceIterator facesBegin()
@@ -815,26 +693,35 @@ public:
     FaceInfo & face(unsigned int face)
         { return faceList_[face]; }
 
+    ConstFaceIterator facesBegin() const
+        { return ConstFaceIterator(faceList_.begin(), faceList_.end()); }
+    ConstFaceIterator facesEnd() const
+        { return ConstFaceIterator(faceList_.end(), faceList_.end()); }
+    ConstFaceIterator findFace(unsigned int face) const
+        { return ConstFaceIterator(faceList_.begin() + face, faceList_.end()); }
+    const FaceInfo & face(unsigned int face) const
+        { return faceList_[face]; }
+
     CellImage cellImage;
     CellImage::traverser cells;
 
     template<class SrcTraverser>
     inline LabelScanIterator<CellImage::traverser, SrcTraverser>
-    nodeScanIterator(int node, SrcTraverser const &upperLeft)
+    nodeScanIterator(int node, SrcTraverser const &upperLeft) const
     {
         return cellScanIterator(nodeList_[node], CellTypeVertex, upperLeft);
     }
 
     template<class SrcTraverser>
     inline LabelScanIterator<CellImage::traverser, SrcTraverser>
-    edgeScanIterator(int edge, SrcTraverser const &upperLeft)
+    edgeScanIterator(int edge, SrcTraverser const &upperLeft) const
     {
         return cellScanIterator(edgeList_[edge], CellTypeLine, upperLeft);
     }
 
     template<class SrcTraverser>
     inline LabelScanIterator<CellImage::traverser, SrcTraverser>
-    faceScanIterator(int face, SrcTraverser const &upperLeft)
+    faceScanIterator(int face, SrcTraverser const &upperLeft) const
     {
         return cellScanIterator(faceList_[face], CellTypeRegion, upperLeft);
     }
@@ -842,7 +729,7 @@ public:
     typedef LabelScanIterator<CellImage::traverser, CellImage::traverser>
         CellScanIterator;
 
-    FaceInfo &removeIsolatedNode(DartTraverser & dart)
+    FaceInfo &removeIsolatedNode(const DartTraverser & dart)
     {
         vigra_precondition(dart.isSingular(),
                            "removeIsolatedNode: node is not singular");
@@ -932,33 +819,42 @@ public:
         return face1;
     }
 
-    FaceInfo &removeEdge(DartTraverser & dart)
+  private:
+    FourEightSegmentation &deepCopy(const FourEightSegmentation &other)
     {
-        if(dart.leftFaceLabel() == dart.rightFaceLabel())
+        cellImage = other.cellImage;
+        cells = cellImage.upperLeft() + Diff2D(2,2);
+
+        nodeList_ = other.nodeList_;
+        nodeCount_ = other.nodeCount_;
+        edgeList_ = other.edgeList_;
+        edgeCount_ = other.edgeCount_;
+        faceList_ = other.faceList_;
+        faceCount_ = other.faceCount_;
+
+        for(NodeIterator it= nodesBegin(); it.inRange(); ++it)
         {
-            return removeBridge(dart);
+            it->anchor.reparent(this);
         }
-        else
+        
+        for(EdgeIterator it= edgesBegin(); it.inRange(); ++it)
         {
-            return mergeFaces(dart);
+            it->start.reparent(this);
+            it->end.reparent(this);
         }
+
+        for(FaceIterator it= facesBegin(); it.inRange(); ++it)
+        {
+            for(ContourComponentsIterator contour= it->contours.begin();
+                contour != it->contours.end(); ++contour)
+            {
+                contour->reparent(this);
+            }
+        }
+
+        return *this;
     }
 
-    FaceInfo &removeEdgeWithEnds(DartTraverser & dart)
-    {
-        EdgeInfo &removedEdge = dart.edge();
-
-        FaceInfo &result = removeEdge(dart);
-
-        if(removedEdge.start.recheckSingularity())
-            removeIsolatedNode(removedEdge.start);
-        if(removedEdge.end.recheckSingularity())
-            removeIsolatedNode(removedEdge.end);
-
-        return result;
-    }
-
-private:
     unsigned int nodeCount_, edgeCount_, faceCount_;
 
     NodeList nodeList_;
@@ -987,7 +883,7 @@ private:
     template<class SrcTraverser>
     inline LabelScanIterator<CellImage::traverser, SrcTraverser>
     cellScanIterator(CellInfo cell, CellType cellType,
-					 SrcTraverser const &upperLeft);
+					 SrcTraverser const &upperLeft) const;
 };
 
 // -------------------------------------------------------------------
@@ -996,7 +892,7 @@ private:
 template<class SrcTraverser>
 LabelScanIterator<CellImage::traverser, SrcTraverser>
 FourEightSegmentation::cellScanIterator(
-    CellInfo cell, CellType cellType, SrcTraverser const &upperLeft)
+    CellInfo cell, CellType cellType, SrcTraverser const &upperLeft) const
 {
     //std::cerr << "cellScanIterator for " << CellPixel(cellType, cell.label)
     //          << " begins at " << cell.bounds.upperLeft() << std::endl;
