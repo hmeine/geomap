@@ -604,18 +604,20 @@ public:
 
     template<class SrcIter, class SrcAcc>
     FourEightSegmentation(SrcIter ul, SrcIter lr, SrcAcc src,
-                          typename SrcAcc::value_type boundaryValue)
+                          typename SrcAcc::value_type boundaryValue,
+                          CellType cornerType)
     : initialized_(false)
     {
-        init(ul, lr, src, boundaryValue);
+        init(ul, lr, src, boundaryValue, cornerType);
     }
 
     template<class SrcIter, class SrcAcc>
     FourEightSegmentation(triple<SrcIter, SrcIter, SrcAcc> src,
-                          typename SrcAcc::value_type boundaryValue)
+                          typename SrcAcc::value_type boundaryValue,
+                          CellType cornerType)
     : initialized_(false)
     {
-        init(src.first, src.second, src.third, boundaryValue);
+        init(src.first, src.second, src.third, boundaryValue, cornerType);
     }
 
     FourEightSegmentation(const CellImage &importImage);
@@ -623,7 +625,8 @@ public:
   protected:
     template<class SrcIter, class SrcAcc>
     void init(SrcIter ul, SrcIter lr, SrcAcc src,
-              typename SrcAcc::value_type boundaryValue)
+              typename SrcAcc::value_type boundaryValue,
+              CellType cornerType)
     {
         // extract contours in input image and put frame around them
         BImage contourImage(lr.x - ul.x + 4, lr.y - ul.y + 4);
@@ -632,7 +635,7 @@ public:
 
         cellImage.resize(contourImage.size());
         cells = cellImage.upperLeft() + Diff2D(2, 2);
-        initCellImage(contourImage);
+        initCellImage(contourImage, cornerType);
 
         CellLabel maxNodeLabel = label0Cells();
         CellLabel maxEdgeLabel = label1Cells(maxNodeLabel);
@@ -772,6 +775,8 @@ public:
     EdgeInfo &mergeEdges(const DartTraverser &dart);
 
   private:
+    void checkConsistency();
+
     FourEightSegmentation &deepCopy(const FourEightSegmentation &other);
 
     unsigned int nodeCount_, edgeCount_, faceCount_;
@@ -784,7 +789,7 @@ public:
 
     friend struct DartTraverser;
 
-    void initCellImage(BImage &contourImage);
+    void initCellImage(BImage &contourImage, CellType cornerType);
     CellLabel label0Cells();
     CellLabel label1Cells(CellLabel maxNodeLabel);
     CellLabel label2Cells(BImage &contourImage);
