@@ -23,6 +23,8 @@ struct SegmentationData
     GradientImage gradientMagnitude_;
     EdgeDirImage  edgeDirection_;
     EdgeDirImage  edgeDirGradient_;
+    bool          doEdgeRethinning;
+    bool          doRemoveDegree2Nodes;
 };
 
 namespace std { void swap(SegmentationData &a, SegmentationData &b); }
@@ -33,9 +35,8 @@ void nodeRethinning(vigra::cellimage::FourEightSegmentation &seg,
 
 void edgeRethinning(vigra::cellimage::FourEightSegmentation &seg,
                     const GradientImage &gradientMagnitude,
-                    vigra::cellimage::CellLabel edgeLabel);
-
-extern bool doEdgeRethinning;
+                    vigra::cellimage::CellLabel edgeLabel,
+					const vigra::Rect2D &rethinRange);
 
 struct CellStatistics
 {
@@ -65,7 +66,8 @@ struct CellStatistics
                    SegmentationData  *segmentationData);
 
         // members storing source data
-    SegmentationData *segmentationData_;
+    SegmentationData *segmentationData;
+	vigra::Rect2D     segDataBounds;
 
   protected:
     mutable vigra::Rect2D lastChanges_;
@@ -80,7 +82,7 @@ struct CellStatistics
     {
         tempFaceStatistics_ = faceStatistics_[dart.leftFaceLabel()];
         inspectCell(dart.segmentation()->edgeScanIterator
-                    (dart.edgeLabel(), segmentationData_->preparedOriginal_.upperLeft()),
+                    (dart.edgeLabel(), segmentationData->preparedOriginal_.upperLeft()),
                     tempFaceStatistics_);
 
         node1Label_ = dart.edge().start.startNodeLabel();
@@ -92,10 +94,10 @@ struct CellStatistics
         lastChanges_ |= face.bounds;
 
         /*nodeRethinning(*dart.segmentation(),
-                       segmentationData_->gradientMagnitude_,  node1Label_);
+                       segmentationData->gradientMagnitude_,  node1Label_);
         if(node1Label_ != node2Label_)
             nodeRethinning(*dart.segmentation(),
-            segmentationData_->gradientMagnitude_, node2Label_);*/
+            segmentationData->gradientMagnitude_, node2Label_);*/
     }
 
   public:
@@ -136,7 +138,7 @@ struct CellStatistics
 
         if(!dart.leftFaceLabel() || !dart.rightFaceLabel())
         {
-            tempEdgeStatistics_.clear();
+            tempEdgeStatistics_.reset();
             tempEdgeStatistics_(
                 vigra::NumericTraits<GradientImage::PixelType>::max());
             return;
@@ -144,7 +146,7 @@ struct CellStatistics
         tempEdgeStatistics_ = edgeStatistics_[edge1Label_];
         tempEdgeStatistics_(edgeStatistics_[edge2Label_]);
         inspectCell(dart.segmentation()->nodeScanIterator
-                    (d.startNodeLabel(), segmentationData_->gradientMagnitude_.upperLeft()),
+                    (d.startNodeLabel(), segmentationData->gradientMagnitude_.upperLeft()),
                     tempEdgeStatistics_);
     }
     void postMergeEdges(Segmentation::EdgeInfo &edge)
@@ -152,9 +154,17 @@ struct CellStatistics
         edgeStatistics_[edge.label] = tempEdgeStatistics_;
         lastChanges_ |= edge.bounds;
 
-        if(doEdgeRethinning)
+		// to rethin, we need gradient/edgeness information for all edgels:
+        if(segmentationData->doEdgeRethinning && segDataBounds.contains(edge.bounds))
+        {
+            vigra::Rect2D rethinRange(edge.bounds);
+            rethinRange.addBorder(1);
+            rethinRange &= segDataBounds;
+
             edgeRethinning(*edge.start.segmentation(),
-                           segmentationData_->gradientMagnitude_, edge.label);
+                           segmentationData->gradientMagnitude_, edge.label,
+                           rethinRange);
+        }
     }
 
     const vigra::Rect2D & lastChanges() const
@@ -179,11 +189,11 @@ struct CellStatistics
         // TODO: make static!?
         configurationDirections_ = other.configurationDirections_;
 
-        segmentationData_ = other.segmentationData_;
+        segmentationData = other.segmentationData;
         
         lastChanges_ =
             vigra::Rect2D(vigra::Point2D(-2, -2),
-                          segmentationData_->gradientMagnitude_.size() +
+                          segmentationData->gradientMagnitude_.size() +
                           vigra::Diff2D(4, 4));
         return *this;
     }
