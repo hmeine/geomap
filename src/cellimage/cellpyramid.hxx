@@ -233,7 +233,7 @@ class CellPyramid
         return static_cast<FaceInfo &>(gotoLevel(levelCount()-1));
     }
 
-    const Segmentation &currentLevel() const
+    const unsigned int currentLevel() const
     {
         return currentLevel_;
     }
