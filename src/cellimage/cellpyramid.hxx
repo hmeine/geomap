@@ -2,6 +2,7 @@
 #define CELLPYRAMID_HXX
 
 #include <vector>
+#include <map>
 
 namespace vigra {
 
