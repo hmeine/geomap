@@ -31,9 +31,10 @@ void swap(SegmentationData &a, SegmentationData &b)
 std::vector<Float2D> CellStatistics::configurationDirections_;
 
 CellStatistics::CellStatistics(const Segmentation &initialSegmentation,
-                               SegmentationData *segmentationData)
+                               SegmentationData *segmentationData,
+							   EdgeProtection *edgeProtection)
 : segmentationData(segmentationData),
-  edgeProtection(NULL),
+  edgeProtection(edgeProtection),
   segDataBounds(vigra::Point2D(-2, -2), initialSegmentation.cellImage.size()),
   // border to segDataBounds added below
   lastChanges_(segDataBounds)
@@ -136,8 +137,12 @@ CellStatistics::CellStatistics(const Segmentation &initialSegmentation,
     {
         const Segmentation::DartTraverser &anchor = it->start;
         if(!anchor.leftFaceLabel() || !anchor.rightFaceLabel())
+		{
             edgeStatistics_[it->label](
                 vigra::NumericTraits<GradientImage::PixelType>::max());
+			if(edgeProtection)
+				edgeProtection->protectEdge(it->label, EPBorder);
+		}
         else
         {
             inspectCell(initialSegmentation.edgeScanIterator

@@ -125,7 +125,8 @@ struct CellStatistics
     static std::vector<Float2D> configurationDirections_;
 
     CellStatistics(const Segmentation &initialSegmentation,
-                   SegmentationData *segmentationData);
+                   SegmentationData *segmentationData,
+                   EdgeProtection *edgeProtection);
 
         // members storing source data
     SegmentationData *segmentationData;
