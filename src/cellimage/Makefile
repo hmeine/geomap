@@ -49,6 +49,6 @@ clean::
 	rm -rf Debug ii_files
 
 ifneq "$(MAKECMDGOALS)" "clean"
-include $(patsubst %.o, %.d, testfoureight.o testrect.o watershed.o testiterator.o testconfigurations.o testnamespace.o test.o)
+include $(patsubst %.o, %.d, testfoureight.o testrect.o watershed.o testiterator.o testconfigurations.o test.o)
 include $(patsubst %.lo, %.ld, $(CELLIMAGE_OBJS))
 endif
