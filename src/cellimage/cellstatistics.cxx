@@ -10,6 +10,7 @@
 #include <vigra/pixelneighborhood.hxx>
 
 #include <functional>
+#include <algorithm>
 
 template<class RegionStatistics, class LabelType = int>
 class ArrayOfIdenticalStatistics
@@ -24,50 +25,50 @@ public:
          * result type of the analyser
          */
     typedef typename RegionStatistics::result_type result_type;
-    
+
         /** the value type of the array: the contained statistics
          * object.
          */
     typedef RegionStatistics value_type;
-    
+
         /** the array's reference type
          */
     typedef RegionStatistics & reference;
-    
+
         /** the array's const reference type
          */
     typedef RegionStatistics const & const_reference;
-    
+
         /** init array of RegionStatistics
          */
     ArrayOfIdenticalStatistics()
     {}
-    
+
         /** reset the contained functors to their initial state.
          */
     void reset()
     {
         stats_ = RegionStatistics();
     }
-    
+
         /** access the statistics for a region via its label. (always
          * returns the same statistics object)
          */
     result_type operator()(argument_type /*label*/) const
         { return stats_; }
-    
+
         /** read the statistics functor for a region via its label
          * (always returns the same statistics object)
          */
     const_reference operator[](argument_type /*label*/) const
         { return stats_; }
-    
+
         /** access the statistics functor for a region via its label
          * (always returns the same statistics object)
          */
     reference operator[](argument_type /*label*/)
         { return stats_; }
-    
+
 private:
     RegionStatistics stats_;
 };
@@ -84,21 +85,43 @@ CellStatistics::CellStatistics(const Segmentation &initialSegmentation,
     faceMeans_[0]= vigra::NumericTraits<OriginalImage::PixelType>::max();
     faceVariance_[0]= 0.0;
 
-    Segmentation::ConstFaceIterator it = initialSegmentation.facesBegin();
-    for(++it; it.inRange(); ++it)
+    Segmentation::ConstFaceIterator faceIt = initialSegmentation.facesBegin();
+    for(++faceIt; faceIt.inRange(); ++faceIt)
     {
-        std::cerr << "inspecting face " << it->label << "\r";
         StatisticFunctor<OriginalImage::PixelType> faceStatistics;
         inspectCell(initialSegmentation.faceScanIterator
-                    (it->label, segmentationData_->preparedOriginal_.upperLeft()),
+                    (faceIt->label, segmentationData_->preparedOriginal_.upperLeft()),
                     faceStatistics);
-        faceMeans_[it->label]= faceStatistics.avg();
-        faceVariance_[it->label]= faceStatistics.var();
-        if(!faceVariance_[it->label])
+        faceMeans_[faceIt->label]= faceStatistics.avg();
+        faceVariance_[faceIt->label]= faceStatistics.var();
+        if(!faceVariance_[faceIt->label])
         {
-            //std::cerr << "setting faceVariance_[" << it->label << "] to epsilon.!!\n";
-            faceVariance_[it->label]= vigra::NumericTraits<float>::epsilon();
+            //std::cerr << "setting faceVariance_[" << faceIt->label << "] to epsilon.!!\n";
+            faceVariance_[faceIt->label]= vigra::NumericTraits<float>::epsilon();
         }
+    }
+
+	std::cerr << "finding node centers.. (max node label: "
+              << initialSegmentation.maxNodeLabel() << ")\n";
+	nodeCenters_.resize(initialSegmentation.maxNodeLabel() + 1);
+    Segmentation::ConstNodeIterator nodeIt = initialSegmentation.nodesBegin();
+    for(; nodeIt.inRange(); ++nodeIt)
+    {
+		//std::cerr << "finding center of node " << nodeIt->label << "..\n";
+		vigra::cellimage::LabelScanIterator<
+			vigra::cellimage::CellImage::traverser, vigra::Point2D>
+			nodeScanner(
+				initialSegmentation.nodeScanIterator(
+					nodeIt->label, vigra::Point2D(0, 0), false));
+
+		for(; nodeScanner.inRange(); ++nodeScanner)
+		{
+			//std::cerr << "  has pixel at " << *nodeScanner << std::endl;
+			nodeCenters_[nodeIt->label][0] += nodeScanner->x;
+			nodeCenters_[nodeIt->label][1] += nodeScanner->y;
+		}
+		nodeCenters_[nodeIt->label] /= nodeIt->size;
+		//std::cerr << "  center: " << nodeCenters_[nodeIt->label] << "..\n";
     }
 
 	std::cerr << "initializing configurationDirections\n";
@@ -173,6 +196,9 @@ CellStatistics::CellStatistics(const Segmentation &initialSegmentation,
             meanEdgeGradients_[it->label]= edgeMean();
         }
     }
+
+    edgeProtection_.resize(initialSegmentation.maxEdgeLabel() + 1);
+	std::fill(edgeProtection_.begin(), edgeProtection_.end(), false);
 }
 
 struct FetchRegionsFunctor

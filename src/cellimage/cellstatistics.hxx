@@ -7,6 +7,7 @@
 #include <vigra/stdimage.hxx>
 #include <vigra/inspectimage.hxx>
 #include <vigra/rect2d.hxx>
+#include <vigra/tinyvector.hxx>
 
 #include <vector>
 #include <iostream>
@@ -39,8 +40,12 @@ struct CellStatistics
         Segmentation;
 
         // members storing source data
-    SegmentationData  *segmentationData_;
+    SegmentationData *segmentationData_;
     mutable vigra::Rect2D lastChanges_;
+
+        // user input data
+    std::vector<bool>
+        edgeProtection_;
 
         // members storing statistics
     std::vector<OriginalImage::PixelType>
@@ -49,6 +54,10 @@ struct CellStatistics
         faceVariance_; // sigma squared
     std::vector<GradientImage::PixelType>
         meanEdgeGradients_;
+    std::vector<vigra::TinyVector<float, 2> >
+        nodeCenters_;
+
+        // constant information, could even be static?
     std::vector<Float2D>
         configurationDirections_;
 
@@ -59,6 +68,17 @@ struct CellStatistics
     StatisticFunctor<GradientImage::PixelType> tempStatistics_;
     vigra::FindAverage<OriginalImage::PixelType> tempAverage_;
     vigra::cellimage::CellLabel node1Label_, node2Label_;
+
+    bool protectEdge(const Segmentation::EdgeInfo &edge, bool protect = true)
+    {
+        if(edgeProtection_[edge.label] != protect)
+        {
+            edgeProtection_[edge.label] = protect;
+            lastChanges_ |= edge.bounds;
+            return true;
+        }
+        return false;
+    }
 
     void preRemoveIsolatedNode(const Segmentation::DartTraverser &)
     {}
@@ -147,6 +167,10 @@ struct CellStatistics
         inspectCell(dart.segmentation()->nodeScanIterator
                     (d.startNodeLabel(), segmentationData_->gradientMagnitude_.upperLeft()),
                     tempAverage_);
+        bool resultEdgeProtection =
+            edgeProtection_[dart.edgeLabel()] || edgeProtection_[d.edgeLabel()];
+        edgeProtection_[dart.edgeLabel()] = resultEdgeProtection;
+        edgeProtection_[d.edgeLabel()] = resultEdgeProtection;
     }
     void postMergeEdges(const Segmentation::DartTraverser &dart,
                         Segmentation::EdgeInfo &edge)
