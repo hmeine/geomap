@@ -613,7 +613,7 @@ public:
         init(src.first, src.second, src.third, boundaryValue);
     }
 
-    FourEightSegmentation(const IImage &importImage);
+    FourEightSegmentation(const CellImage &importImage);
 
   protected:
     template<class SrcIter, class SrcAcc>

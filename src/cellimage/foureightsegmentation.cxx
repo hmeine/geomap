@@ -2,12 +2,80 @@
 #include "cellconfigurations.hxx"
 
 #include <iostream>
+#include <set>
 #include "mydebug.hxx"
 #include "debugimage.hxx"
 
 namespace vigra {
 
 namespace cellimage {
+
+struct FindMaxLabel
+{
+    CellLabel maxLabel_;
+
+    FindMaxLabel() : maxLabel_(0) {}
+
+    void operator()(const CellPixel &p)
+    {
+        if(p.label() > maxLabel_)
+            maxLabel_ = p.label();
+    }
+
+    CellLabel operator()() const
+    { return maxLabel_; }
+};
+
+FourEightSegmentation::FourEightSegmentation(const CellImage &importImage)
+: initialized_(false)
+{
+    cellImage.resize(importImage.size());
+    copyImage(srcImageRange(importImage), destImage(cellImage));
+
+    cells = cellImage.upperLeft() + Diff2D(2, 2);
+
+    FindMaxLabel findMaxNodeLabel;
+    inspectImageIf(srcImageRange(cellImage),
+                   maskImage(cellImage, CellTypeEquals<CellTypeVertex>()),
+                   findMaxNodeLabel);
+    CellLabel maxNodeLabel = findMaxNodeLabel();
+    std::cerr << "  found maxNodeLabel: " << maxNodeLabel << "\n";
+
+    FindMaxLabel findMaxEdgeLabel;
+    inspectImageIf(srcImageRange(cellImage),
+                   maskImage(cellImage, CellTypeEquals<CellTypeLine>()),
+                   findMaxEdgeLabel);
+    CellLabel maxEdgeLabel = findMaxEdgeLabel();
+    std::cerr << "  found maxEdgeLabel: " << maxEdgeLabel << "\n";
+
+    FindMaxLabel findMaxFaceLabel;
+    inspectImageIf(srcImageRange(cellImage),
+                   maskImage(cellImage, CellTypeEquals<CellTypeRegion>()),
+                   findMaxFaceLabel);
+    CellLabel maxFaceLabel = findMaxFaceLabel();
+    std::cerr << "  found maxFaceLabel: " << maxFaceLabel << "\n";
+
+    nodeCount_ = edgeCount_ = faceCount_ = 0;
+
+    if(maxNodeLabel+maxEdgeLabel+maxFaceLabel>25000)
+        std::cerr << maxNodeLabel/nodeCount_;
+
+    std::cerr << "  initializing nodeList..\n";
+    initNodeList(maxNodeLabel);
+    std::cerr << "  initializing edgeList..\n";
+    initEdgeList(maxEdgeLabel);
+
+    std::cerr << "  creating temporary contourImage..\n";
+    BImage contourImage(cellImage.size());
+    contourImage = 1;
+    initImageIf(destImageRange(contourImage),
+                maskImage(cellImage, CellTypeEquals<CellTypeRegion>()),
+                0);
+    std::cerr << "  initializing faceList..\n";
+    initFaceList(contourImage, maxFaceLabel);
+
+    initialized_ = true;
+}
 
 unsigned int FourEightSegmentation::findContourComponent(
     const ContourComponents &contours,
@@ -646,7 +714,63 @@ void FourEightSegmentation::initNodeList(CellLabel maxNodeLabel)
         if(crackCirculatedAreas[node->label] != node->size)
         {
             std::cerr << "FourEightSegmentation::initNodeList(): "
-                      << "Node " << node->label << " has a hole!\n";
+                      << "Node " << node->label << " has a "
+                      << (crackCirculatedAreas[node->label] - node->size)
+                      << "-pixel hole, stuffing..\n";
+            
+            CellImage::traverser bul(cells + node->bounds.upperLeft());
+            CellImage::traverser blr(cells + node->bounds.lowerRight());
+
+            CellImage::traverser anchor(bul);
+            CellPixel nodePixel(CellTypeVertex, node->label);
+            while(*anchor != nodePixel)
+                ++anchor.x;
+
+            std::set<CellLabel> outerRegions;
+
+            CrackContourCirculator<CellImage::traverser> crack(anchor);
+            CrackContourCirculator<CellImage::traverser> crackend(crack);
+            do
+            {
+                if(crack.outerPixel()->type() == CellTypeRegion)
+                    outerRegions.insert(crack.outerPixel()->label());
+            }
+            while(++crack != crackend);
+
+            std::cerr << "found " << outerRegions.size() << " outer regions:\n";
+            for(std::set<CellLabel>::iterator it= outerRegions.begin();
+                it != outerRegions.end(); ++it)
+            {
+                std::cerr << *it << ", ";
+            }
+            std::cerr << "\n";
+            debugImage(crop(srcIterRange(cells, cells), node->bounds),
+                       std::cerr, 4);
+
+            for(; bul.y < blr.y; ++bul.y)
+            {
+                for(anchor= bul; anchor.x < blr.x-1; ++anchor.x)
+                {
+                    if(*anchor == nodePixel)
+                    {
+                        ++anchor.x;
+                        if((anchor->type() == CellTypeRegion) &&
+                           !outerRegions.count(anchor->label()))
+                            goto HoleFound;
+                        else
+                            --anchor.x;
+                    }
+                }
+            }
+
+        HoleFound:
+            if((anchor.y < blr.y) && (anchor.x < blr.x))
+            {
+                std::cerr << "found hole label: " << *anchor << "\n";
+                initImageIf(crop(destIterRange(cells, cells), node->bounds),
+                            crop(maskIter(cells, CellMask(*anchor)), node->bounds),
+                            nodePixel);
+            }
         }
     }
 }
