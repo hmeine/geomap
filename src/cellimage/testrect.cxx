@@ -1,19 +1,6 @@
-#include "rect2d.hxx"
-#include <vigra/stdimagefunctions.hxx>
+#include <vigra/diff2d.hxx>
 #include <unittest.hxx>
-#include <algorithm>
 #include <iostream>
-
-namespace vigra {
-    std::ostream &operator <<(std::ostream &s, Diff2D const &d)
-    {
-        s << "(" << d.x << "," << d.y << ")";
-        return s;
-    }
-}
-
-// template <class T> int (* f (T))[sizeof (T()+2)] { }
-// f(42);
 
 using namespace vigra;
 
@@ -161,7 +148,7 @@ struct Point2DTestSuite
     Point2DTestSuite()
     : test_suite("Point2DTestSuite")
     {
-        add( testCase( &Point2DTest::testOperations));
+        add(testCase(&Point2DTest::testOperations));
     }
 };
 
@@ -171,10 +158,10 @@ struct Rect2DTestSuite
     Rect2DTestSuite()
     : test_suite("Rect2DTestSuite")
     {
-        add( testCase( &Rect2DTest::testProperties));
-        add( testCase( &Rect2DTest::testIntersection));
-        add( testCase( &Rect2DTest::testUnion));
-        add( testCase( &Rect2DTest::testSizes));
+        add(testCase(&Rect2DTest::testProperties));
+        add(testCase(&Rect2DTest::testIntersection));
+        add(testCase(&Rect2DTest::testUnion));
+        add(testCase(&Rect2DTest::testSizes));
     }
 };
 
