@@ -9,11 +9,11 @@ void FourEightSegmentation::initCellImage(BImage & contourImage)
 {
     BImage::traverser rawLine = contourImage.upperLeft() + Diff2D(1,1);
     CellImage::traverser cellLine = cellImage.upperLeft() + Diff2D(1,1);
-    for(int y=-1; y<=(int)height(); ++y, ++rawLine.y, ++cellLine.y)
+    for(int y=-1; y < cellImage.height()-3; ++y, ++rawLine.y, ++cellLine.y)
     {
         BImage::traverser raw = rawLine;
         CellImage::traverser cell = cellLine;
-        for(int x=-1; x<=(int)width(); ++x, ++raw.x, ++cell.x)
+        for(int x=-1; x < cellImage.width()-3; ++x, ++raw.x, ++cell.x)
         {
             if(*raw == 0)
             {
@@ -58,11 +58,11 @@ CellLabel FourEightSegmentation::label0Cells()
     BImage nodeImage(cellImage.size());
     BImage::traverser nodes = nodeImage.upperLeft() + Diff2D(2,2);
 
-    for(int y=-2; y<(int)height()+2; ++y)
+    for(int y=-2; y < cellImage.height()-2; ++y)
     {
         CellImage::traverser cell = cells + Diff2D(-2, y);
 
-        for(int x=-2; x<(int)width()+2; ++x, ++cell.x)
+        for(int x=-2; x < cellImage.width()-2; ++x, ++cell.x)
         {
             if(cell->type() == CellTypeVertex)
             {
@@ -105,11 +105,11 @@ CellLabel FourEightSegmentation::label1Cells(CellLabel maxNodeLabel)
 
     CellLabel maxEdgeLabel = 0;
 
-    for(int y=-1; y<=(int)height(); ++y)
+    for(int y=-1; y < cellImage.height()-3; ++y)
     {
         CellImage::traverser cell = cells + Diff2D(-1, y);
 
-        for(int x=-1; x<=(int)width(); ++x, ++cell.x)
+        for(int x=-1; x < cellImage.width()-3; ++x, ++cell.x)
         {
             if(cell->type() != CellTypeVertex)
                 continue;
@@ -156,11 +156,11 @@ CellLabel FourEightSegmentation::label2Cells(BImage & contourImage)
 void FourEightSegmentation::labelCircles(
     CellLabel & maxNodeLabel, CellLabel & maxEdgeLabel)
 {
-    for(int y=-1; y<=(int)height(); ++y)
+    for(int y=-1; y < cellImage.height()-3; ++y)
     {
         CellImage::traverser cell = cells + Diff2D(-1, y);
 
-        for(int x=-1; x<=(int)width(); ++x, ++cell.x)
+        for(int x=-1; x < cellImage.width()-3; ++x, ++cell.x)
         {
             if(cell->label() != 0)
                 continue;
@@ -208,11 +208,11 @@ void FourEightSegmentation::initNodeList(CellLabel maxNodeLabel)
     nodeList_.resize(maxNodeLabel + 1);
     std::vector<unsigned int> crackCirculatedAreas(maxNodeLabel + 1, 0);
 
-    for(Point2D pos= Point2D(-1, -1); pos.y<=(int)height(); ++pos.y)
+    for(Point2D pos= Point2D(-1, -1); pos.y < cellImage.height()-3; ++pos.y)
     {
         CellImage::traverser cell = cells + Diff2D(-1, pos.y);
 
-        for(pos.x=-1; pos.x<=(int)width(); ++pos.x, ++cell.x)
+        for(pos.x=-1; pos.x < cellImage.width()-3; ++pos.x, ++cell.x)
         {
             if(cell->type() != CellTypeVertex)
                 continue;
@@ -339,12 +339,13 @@ void FourEightSegmentation::initFaceList(
     faceList_[0].contours.push_back(anchor.prevSigma());
     contourProcessed[contourLabel(-1, -1)] = true;
 
-    for(Point2D pos= Point2D(-1, -1); pos.y <= (int)height(); ++pos.y)
+    for(Point2D pos= Point2D(-1, -1); pos.y < cellImage.height()-3; ++pos.y)
     {
-        CellImage::traverser cell = cells + Diff2D(-1, pos.y);
+		pos.x= -1;
+        CellImage::traverser cell = cells + pos;
         CellImage::traverser leftNeighbor = cell - Diff2D(1, 0);
 
-        for(pos.x= -1; pos.x <= (int)width(); ++pos.x, ++cell.x, ++leftNeighbor.x)
+        for(; pos.x < cellImage.width()-3; ++pos.x, ++cell.x, ++leftNeighbor.x)
         {
             if(cell->type() != CellTypeRegion)
             {

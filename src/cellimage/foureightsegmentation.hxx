@@ -637,9 +637,6 @@ public:
         return deepCopy(other);
     }
 
-    unsigned int width() const { return cellImage.width()-4; }
-    unsigned int height() const { return cellImage.height()-4; }
-
     // the fooCount()s tell how many fooList_ elements are initialized()
     unsigned int nodeCount() const { return nodeCount_; }
     CellLabel maxNodeLabel() const { return nodeList_.size(); }
@@ -707,23 +704,29 @@ public:
 
     template<class SrcTraverser>
     inline LabelScanIterator<CellImage::traverser, SrcTraverser>
-    nodeScanIterator(int node, SrcTraverser const &upperLeft) const
+    nodeScanIterator(int node, SrcTraverser const &upperLeft,
+                     bool cropToBaseImage = true) const
     {
-        return cellScanIterator(nodeList_[node], CellTypeVertex, upperLeft);
+        return cellScanIterator(nodeList_[node], CellTypeVertex, upperLeft,
+                                cropToBaseImage);
     }
 
     template<class SrcTraverser>
     inline LabelScanIterator<CellImage::traverser, SrcTraverser>
-    edgeScanIterator(int edge, SrcTraverser const &upperLeft) const
+    edgeScanIterator(int edge, SrcTraverser const &upperLeft,
+                     bool cropToBaseImage = true) const
     {
-        return cellScanIterator(edgeList_[edge], CellTypeLine, upperLeft);
+        return cellScanIterator(edgeList_[edge], CellTypeLine, upperLeft,
+                                cropToBaseImage);
     }
 
     template<class SrcTraverser>
     inline LabelScanIterator<CellImage::traverser, SrcTraverser>
-    faceScanIterator(int face, SrcTraverser const &upperLeft) const
+    faceScanIterator(int face, SrcTraverser const &upperLeft,
+                     bool cropToBaseImage = true) const
     {
-        return cellScanIterator(faceList_[face], CellTypeRegion, upperLeft);
+        return cellScanIterator(faceList_[face], CellTypeRegion, upperLeft,
+                                cropToBaseImage);
     }
 
     typedef LabelScanIterator<CellImage::traverser, CellImage::traverser>
@@ -737,7 +740,7 @@ public:
         NodeInfo &node= dart.startNode();
         FaceInfo &face= dart.leftFace();
 
-        for(CellScanIterator it= nodeScanIterator(node.label, cells);
+        for(CellScanIterator it= nodeScanIterator(node.label, cells, false);
             it.inRange(); ++it)
             *it= CellPixel(CellTypeRegion, face.label);
 
@@ -768,13 +771,13 @@ public:
         unsigned int edgeSize = 0;
 
         // relabel cells in cellImage:
-        for(CellScanIterator it= edgeScanIterator(edge.label, cells);
+        for(CellScanIterator it= edgeScanIterator(edge.label, cells, false);
             it.inRange(); ++it)
         {
             *it= CellPixel(CellTypeRegion, face1.label);
             ++edgeSize;
         }
-        for(CellScanIterator it= faceScanIterator(face2.label, cells);
+        for(CellScanIterator it= faceScanIterator(face2.label, cells, false);
             it.inRange(); ++it)
             *it= CellPixel(CellTypeRegion, face1.label);
 
@@ -804,7 +807,7 @@ public:
             "FourEightSegmentation::removeBridge(): edge is not a bridge");
 
         // relabel cell in cellImage:
-        for(CellScanIterator it= edgeScanIterator(edge.label, cells);
+        for(CellScanIterator it= edgeScanIterator(edge.label, cells, false);
             it.inRange(); ++it)
             *it= CellPixel(CellTypeRegion, face1.label);
 
@@ -817,6 +820,62 @@ public:
         --edgeCount_;
 
         return face1;
+    }
+
+    EdgeInfo &mergeEdges(const DartTraverser & dart)
+    {
+        // merge smaller edge into larger one:
+        DartTraverser dart1(dart);
+        dart1.nextSigma();
+        if(dart.edge().bounds.area() < dart1.edge().bounds.area())
+            dart1.nextSigma();
+
+        DartTraverser dart2(dart1);
+        EdgeInfo &edge2 = dart2.edge();
+        NodeInfo &node = dart1.startNode();
+        dart1.nextSigma();
+        EdgeInfo &edge1 = dart1.edge();
+            
+        vigra_precondition(edge1.label != edge2.label,
+            "FourEightSegmentation::mergeEdges(): node has degree one!");
+
+        unsigned int edgeSize = 0;
+
+        // relabel cells in cellImage:
+        for(CellScanIterator it= nodeScanIterator(node.label, cells, false);
+            it.inRange(); ++it)
+            *it= CellPixel(CellTypeLine, edge1.label);
+        for(CellScanIterator it= edgeScanIterator(edge2.label, cells, false);
+            it.inRange(); ++it)
+        {
+            *it= CellPixel(CellTypeLine, edge1.label);
+            ++edgeSize;
+        }
+
+        // update bounds:
+        edge1.bounds |= node.bounds;
+        edge1.bounds |= edge2.bounds;
+
+        // update start, end
+        dart1.nextAlpha();
+        dart2.nextAlpha();
+        if(dart1.startNodeLabel() < dart2.startNodeLabel())
+        {
+            edge1.start = dart1;
+            edge1.end = dart2;
+        }
+        else
+        {
+            edge1.start = dart2;
+            edge1.end = dart1;
+        }
+
+        node.uninitialize();
+        --nodeCount_;
+        edge2.uninitialize();
+        --edgeCount_;
+
+        return edge1;
     }
 
   private:
@@ -883,7 +942,8 @@ public:
     template<class SrcTraverser>
     inline LabelScanIterator<CellImage::traverser, SrcTraverser>
     cellScanIterator(CellInfo cell, CellType cellType,
-					 SrcTraverser const &upperLeft) const;
+					 SrcTraverser const &upperLeft,
+                     bool cropToBaseImage) const;
 };
 
 // -------------------------------------------------------------------
@@ -892,10 +952,15 @@ public:
 template<class SrcTraverser>
 LabelScanIterator<CellImage::traverser, SrcTraverser>
 FourEightSegmentation::cellScanIterator(
-    CellInfo cell, CellType cellType, SrcTraverser const &upperLeft) const
+    CellInfo cell, CellType cellType, SrcTraverser const &upperLeft,
+    bool cropToBaseImage) const
 {
     //std::cerr << "cellScanIterator for " << CellPixel(cellType, cell.label)
     //          << " begins at " << cell.bounds.upperLeft() << std::endl;
+    /*Rect2D cellBounds = cropToBaseImage ?
+                        cell.bounds & Rect2D(Diff2D(0, 0),
+											 cellImage.size() - Diff2D(4, 4)) :
+                                             cell.bounds;*/
     return LabelScanIterator<CellImage::traverser, SrcTraverser>
         (cells + cell.bounds.upperLeft(), cells + cell.bounds.lowerRight(),
          CellPixel(cellType, cell.label),

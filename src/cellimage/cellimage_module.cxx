@@ -35,10 +35,11 @@ void setPixel(CellImage & image, vigra::Diff2D const & i, CellPixel const & valu
     image[i] = value;
 }
 
-void initFourEightSegmentation(vigra::cellimage::FourEightSegmentation &segmentation,
-                               vigra::SingleBandImage &image)
+void createFourEightSegmentation(
+    vigra::cellimage::FourEightSegmentation *self,
+    vigra::SingleBandImage &image)
 {
-    segmentation.init(srcImageRange(image));
+    new (self) vigra::cellimage::FourEightSegmentation(srcImageRange(image));
 }
 
 using namespace python;
@@ -76,8 +77,7 @@ BOOST_PYTHON_MODULE_INIT(cellimage)
         .def("set", &setPixelXY);
 
     //scope fourEightSegmentation =
-    class_<FourEightSegmentation>("FourEightSegmentation")
-        .def("init", &initFourEightSegmentation)
+    class_<FourEightSegmentation>("FourEightSegmentation", no_init)
         .def("width", &FourEightSegmentation::width)
         .def("height", &FourEightSegmentation::height)
         .def("nodeCount", &FourEightSegmentation::nodeCount)
@@ -95,6 +95,9 @@ BOOST_PYTHON_MODULE_INIT(cellimage)
              return_internal_reference<>())
         .def("removeBridge", &FourEightSegmentation::removeBridge,
              return_internal_reference<>());
+
+    def("createFourEightSegmentation", createFourEightSegmentation,
+        return_value_policy<manage_new_object>());
 
     defineDartTraverser();
     defineCellInfos();

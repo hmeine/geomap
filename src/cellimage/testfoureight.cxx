@@ -94,9 +94,7 @@ int main(int argc, char ** argv)
         seededRegionGrowing(srcImageRange(grad), srcImage(labels),
                             destImage(labels), gradstat, 100000);
 
-        cellimage::FourEightSegmentation segmentation;
-
-        segmentation.init(srcImageRange(labels));
+        cellimage::FourEightSegmentation segmentation(srcImageRange(labels));
 
         if(segmentation.cellImage.height()>40)
         {
