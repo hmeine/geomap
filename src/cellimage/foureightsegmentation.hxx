@@ -865,4 +865,8 @@ void debugDart(const FourEightSegmentation::DartTraverser &dart);
 
 } // namespace vigra
 
+std::ostream &
+operator<<(std::ostream & out,
+           const vigra::cellimage::FourEightSegmentation::DartTraverser & d);
+
 #endif /* VIGRA_FOUREIGHTSEGMENTATION_HXX */

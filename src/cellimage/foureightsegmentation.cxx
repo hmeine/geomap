@@ -93,43 +93,45 @@ unsigned int FourEightSegmentation::findContourComponent(
 
     if(dart.isSingular())
     {
+        // look for startNodeLabel
         for(ConstContourComponentsIterator contour= contours.begin();
             contour != contours.end(); ++contour, ++result)
             if(contour->startNodeLabel() == dart.startNodeLabel())
                 return result;
     }
-
-    for(ConstContourComponentsIterator contour= contours.begin();
-        contour != contours.end(); ++contour, ++result)
-        if(contour->edgeLabel() == dart.edgeLabel())
-            return result;
-
-    // argl, we have to circulate through all contours now..
-    result = 0;
-    for(ConstContourComponentsIterator contour= contours.begin();
-        contour != contours.end(); ++contour, ++result)
+    else
     {
-        DartTraverser dart2(*contour);
-        while(dart2.nextPhi() != *contour)
-        {
-            if(dart2.edgeLabel() == dart.edgeLabel())
+        // look for edgeLabel
+        for(ConstContourComponentsIterator contour= contours.begin();
+            contour != contours.end(); ++contour, ++result)
+            if(contour->edgeLabel() == dart.edgeLabel())
                 return result;
+
+        // we have to circulate through all contours now.. :-(
+        result = 0;
+        for(ConstContourComponentsIterator contour= contours.begin();
+            contour != contours.end(); ++contour, ++result)
+        {
+            DartTraverser dart2(*contour);
+            while(dart2.nextPhi() != *contour)
+            {
+                if(dart2.edgeLabel() == dart.edgeLabel())
+                    return result;
+            }
         }
     }
 
-#ifndef NDEBUG
-	std::cerr << "dart not found in contours: "; debugDart(dart);
+    std::cerr << "DART NOT FOUND IN CONTOURS: "; debugDart(dart);
     result = 1;
     for(ConstContourComponentsIterator contour= contours.begin();
         contour != contours.end(); ++contour, ++result)
     {
-		std::cerr << "contour " << result << ":\n";
+        std::cerr << "contour " << result << ":\n";
         DartTraverser dart2(*contour);
-		do {
-			std::cerr << "  "; debugDart(dart2);
-		} while(dart2.nextPhi() != *contour);
+        do {
+            std::cerr << "  "; debugDart(dart2);
+        } while(dart2.nextPhi() != *contour);
     }
-#endif // NDEBUG
 
     vigra_fail("findContourComponent: dart not found in any contour!");
     return 0;
@@ -148,7 +150,7 @@ void FourEightSegmentation::removeNodeFromContours(ContourComponents &contours,
 FourEightSegmentation::FaceInfo &FourEightSegmentation::removeIsolatedNode(
     const DartTraverser & dart)
 {
-	//std::cerr << "removeIsolatedNode "; debugDart(dart);
+    std::cout << "removeIsolatedNode(" << dart << ")\n";
     vigra_precondition(dart.isSingular(),
                        "removeIsolatedNode: node is not singular");
 
@@ -169,7 +171,7 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::removeIsolatedNode(
     node.uninitialize();
     --nodeCount_;
 #ifndef NDEBUG
-	checkConsistency();
+    checkConsistency();
 #endif
     return face;
 }
@@ -177,7 +179,7 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::removeIsolatedNode(
 FourEightSegmentation::FaceInfo &FourEightSegmentation::mergeFaces(
     const DartTraverser & dart)
 {
-	//std::cerr << "mergeFaces "; debugDart(dart);
+    std::cout << "mergeFaces(" << dart << ")\n";
     // merge smaller face into larger one:
     DartTraverser removedDart = dart;
     if(dart.leftFace().bounds.area() < dart.rightFace().bounds.area())
@@ -198,13 +200,13 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::mergeFaces(
 
     // re-use an old anchor for the merged contour
     if(survivor.contours[contour1].edgeLabel() == mergedEdge.label)
-	{
+    {
         survivor.contours[contour1].nextPhi();
-		if(survivor.contours[contour1].edgeLabel() == mergedEdge.label)
+        if(survivor.contours[contour1].edgeLabel() == mergedEdge.label)
         {
-			survivor.contours[contour1] = mergedFace.contours[contour2];
-			if(survivor.contours[contour1].edgeLabel() == mergedEdge.label)
-				survivor.contours[contour1].nextPhi();
+            survivor.contours[contour1] = mergedFace.contours[contour2];
+            if(survivor.contours[contour1].edgeLabel() == mergedEdge.label)
+                survivor.contours[contour1].nextPhi();
         }
     }
 
@@ -240,7 +242,7 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::mergeFaces(
     --faceCount_;
     // FIXME: also update maxFaceLabel / maxEdgeLabel
 #ifndef NDEBUG
-	checkConsistency();
+    checkConsistency();
 #endif
     return survivor;
 }
@@ -248,7 +250,7 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::mergeFaces(
 FourEightSegmentation::FaceInfo &FourEightSegmentation::removeBridge(
     const DartTraverser & dart)
 {
-	//std::cerr << "removeBridge "; debugDart(dart);
+    std::cout << "removeBridge(" << dart << ")\n";
     EdgeInfo &edge= dart.edge();
     FaceInfo &face= dart.leftFace();
     NodeInfo &node1= edge.start.startNode();
@@ -288,7 +290,7 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::removeBridge(
     edge.uninitialize();
     --edgeCount_;
 #ifndef NDEBUG
-	checkConsistency();
+    checkConsistency();
 #endif
     return face;
 }
@@ -296,7 +298,7 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::removeBridge(
 FourEightSegmentation::EdgeInfo &FourEightSegmentation::mergeEdges(
     const DartTraverser & dart)
 {
-	//std::cerr << "mergeEdges "; debugDart(dart);
+    std::cout << "mergeEdges(" << dart << ")\n";
     // merge smaller edge (mergedEdge) into larger one (survivor):
     DartTraverser dart1(dart);
     dart1.nextSigma();
@@ -347,7 +349,7 @@ FourEightSegmentation::EdgeInfo &FourEightSegmentation::mergeEdges(
     mergedEdge.uninitialize();
     --edgeCount_;
 #ifndef NDEBUG
-	checkConsistency();
+    checkConsistency();
 #endif
     return survivor;
 }
@@ -394,153 +396,153 @@ FourEightSegmentation &FourEightSegmentation::deepCopy(
 
 void FourEightSegmentation::checkConsistency()
 {
-	std::cerr << "{CHECKING CONSISTENCY}\n";
+    std::cerr << "{CHECKING CONSISTENCY}\n";
 
-	bool consistent = true;
-	// std::cerr << "checking nodes...\n";
-	for(NodeIterator it= nodesBegin(); it != nodesEnd(); ++it)
-	{
-		// std::cerr << "  node " << it->label << "\r";
-		unsigned int realDegree = 0;
-		if(it->anchor.neighborCirculator().center()->type() != CellTypeVertex)
-		{
-			consistent = false;
-			std::cerr << "node " << it->label << "'s anchor is broken: ";
-			debugDart(it->anchor);
-		}
-		if(!it->anchor.isSingular())
-		{
-			DartTraverser dart(it->anchor);
-			do { ++realDegree; }
-			while(dart.nextSigma() != it->anchor);
-		}
-		if(realDegree != it->degree)
-		{
-			consistent = false;
-			std::cerr << "node " << it->label << " has degree stored as "
-					  << it->degree << " but seems to be of degree "
-					  << realDegree << "\n";
-		}
+    bool consistent = true;
+    // std::cerr << "checking nodes...\n";
+    for(NodeIterator it= nodesBegin(); it != nodesEnd(); ++it)
+    {
+        // std::cerr << "  node " << it->label << "\r";
+        unsigned int realDegree = 0;
+        if(it->anchor.neighborCirculator().center()->type() != CellTypeVertex)
+        {
+            consistent = false;
+            std::cerr << "node " << it->label << "'s anchor is broken: ";
+            debugDart(it->anchor);
+        }
+        if(!it->anchor.isSingular())
+        {
+            DartTraverser dart(it->anchor);
+            do { ++realDegree; }
+            while(dart.nextSigma() != it->anchor);
+        }
+        if(realDegree != it->degree)
+        {
+            consistent = false;
+            std::cerr << "node " << it->label << " has degree stored as "
+                      << it->degree << " but seems to be of degree "
+                      << realDegree << "\n";
+        }
 
-		FindBoundingRectangle actualBounds;
-		Point2D coord(0, 0);
-		inspectCell(nodeScanIterator(it->label, coord, false), actualBounds);
-		Rect2D ab(actualBounds.upperLeft, actualBounds.lowerRight);
-		if(ab != it->bounds)
-		{
-			consistent = false;
-			std::cerr << "node " << it->label << "'s bounds are stored as "
-					  << it->bounds << " but seem to be " << ab << "\n";
-		}
-	}
+        FindBoundingRectangle actualBounds;
+        Point2D coord(0, 0);
+        inspectCell(nodeScanIterator(it->label, coord, false), actualBounds);
+        Rect2D ab(actualBounds.upperLeft, actualBounds.lowerRight);
+        if(ab != it->bounds)
+        {
+            consistent = false;
+            std::cerr << "node " << it->label << "'s bounds are stored as "
+                      << it->bounds << " but seem to be " << ab << "\n";
+        }
+    }
 
-	// std::cerr << "checking edges...\n";
-	for(EdgeIterator it= edgesBegin(); it != edgesEnd(); ++it)
-	{
-		// std::cerr << "  edge " << it->label << "\r";
-		FindBoundingRectangle actualBounds;
-		Point2D coord(0, 0);
-		inspectCell(edgeScanIterator(it->label, coord, false), actualBounds);
-		Rect2D ab(actualBounds.upperLeft, actualBounds.lowerRight);
-		if(ab != it->bounds)
-		{
-			consistent = false;
-			std::cerr << "edge " << it->label << "'s bounds are stored as "
-					  << it->bounds << " but seem to be " << ab << "\n";
-		}
-		if(it->start.neighborCirculator().center()->type() != CellTypeVertex)
-		{
-			consistent = false;
-			std::cerr << "edge " << it->label << "'s start is broken: ";
-			debugDart(it->start);
-		}
-		if(it->start.edgeLabel() != it->label)
-		{
-			consistent = false;
-			std::cerr << "edge " << it->label << "'s start points to edge "
-					  << it->start.edgeLabel() << "\n";
-		}
-		if(it->end.neighborCirculator().center()->type() != CellTypeVertex)
-		{
-			consistent = false;
-			std::cerr << "edge " << it->label << "'s end is broken: ";
-			debugDart(it->end);
-		}
-		if(it->end.edgeLabel() != it->label)
-		{
-			consistent = false;
-			std::cerr << "edge " << it->label << "'s end points to edge "
-					  << it->end.edgeLabel() << "\n";
-		}
-	}
+    // std::cerr << "checking edges...\n";
+    for(EdgeIterator it= edgesBegin(); it != edgesEnd(); ++it)
+    {
+        // std::cerr << "  edge " << it->label << "\r";
+        FindBoundingRectangle actualBounds;
+        Point2D coord(0, 0);
+        inspectCell(edgeScanIterator(it->label, coord, false), actualBounds);
+        Rect2D ab(actualBounds.upperLeft, actualBounds.lowerRight);
+        if(ab != it->bounds)
+        {
+            consistent = false;
+            std::cerr << "edge " << it->label << "'s bounds are stored as "
+                      << it->bounds << " but seem to be " << ab << "\n";
+        }
+        if(it->start.neighborCirculator().center()->type() != CellTypeVertex)
+        {
+            consistent = false;
+            std::cerr << "edge " << it->label << "'s start is broken: ";
+            debugDart(it->start);
+        }
+        if(it->start.edgeLabel() != it->label)
+        {
+            consistent = false;
+            std::cerr << "edge " << it->label << "'s start points to edge "
+                      << it->start.edgeLabel() << "\n";
+        }
+        if(it->end.neighborCirculator().center()->type() != CellTypeVertex)
+        {
+            consistent = false;
+            std::cerr << "edge " << it->label << "'s end is broken: ";
+            debugDart(it->end);
+        }
+        if(it->end.edgeLabel() != it->label)
+        {
+            consistent = false;
+            std::cerr << "edge " << it->label << "'s end points to edge "
+                      << it->end.edgeLabel() << "\n";
+        }
+    }
 
-	// std::cerr << "checking faces...\n";
-	for(FaceIterator it= facesBegin(); it != facesEnd(); ++it)
-	{
-		// std::cerr << "  face " << it->label << "\r";
-		FindBoundingRectangle actualBounds;
-		Point2D coord(0, 0);
-		inspectCell(faceScanIterator(it->label, coord, false), actualBounds);
-		Rect2D ab(actualBounds.upperLeft, actualBounds.lowerRight);
-		if(ab != it->bounds)
-		{
-			consistent = false;
-			std::cerr << "face " << it->label << "'s bounds are stored as "
-					  << it->bounds << " but seem to be " << ab << "\n";
-		}
+    // std::cerr << "checking faces...\n";
+    for(FaceIterator it= facesBegin(); it != facesEnd(); ++it)
+    {
+        // std::cerr << "  face " << it->label << "\r";
+        FindBoundingRectangle actualBounds;
+        Point2D coord(0, 0);
+        inspectCell(faceScanIterator(it->label, coord, false), actualBounds);
+        Rect2D ab(actualBounds.upperLeft, actualBounds.lowerRight);
+        if(ab != it->bounds)
+        {
+            consistent = false;
+            std::cerr << "face " << it->label << "'s bounds are stored as "
+                      << it->bounds << " but seem to be " << ab << "\n";
+        }
 
-		for(ContourComponentsIterator cc(it->contours.begin());
-			cc != it->contours.end(); ++cc)
-		{
-			if((cc->neighborCirculator().center()->type() != CellTypeVertex)
-			   || (cc->isSingular() && (cc->startNode().degree > 0)))
-			{
-				consistent = false;
-				std::cerr << "face " << it->label << "'s anchor is broken: ";
-				debugDart(*cc);
-			}
-			DartTraverser dart(*cc);
-			dart.nextSigma();
-			dart.prevSigma();
-			if(dart != *cc)
-			{
-				consistent = false;
-				std::cerr << "face " << it->label << "'s contours are broken:\n"
-						  << "  anchor:  "; debugDart(*cc);
-				std::cerr << "  becomes: "; debugDart(dart);
-			}
-			int maxSteps= 400;
-			do
-			{
-				if(dart.leftFaceLabel() != it->label)
-				{
-					std::cerr << "dart.leftFace() is no longer our face!\n";
-					maxSteps = 0;
-					break;
-				}
-			}
-			while((dart.nextPhi() != *cc) && --maxSteps);
-			if(!maxSteps)
-			{
-				consistent = false;
-				std::cerr << "face " << it->label << "'s contours are broken:\n"
-						  << "  anchor: "; debugDart(*cc);
-				std::cerr << "  does not return: "; debugDart(dart);
-			}
-		}
-	}
-	vigra_postcondition(consistent, "consistency check failed");
+        for(ContourComponentsIterator cc(it->contours.begin());
+            cc != it->contours.end(); ++cc)
+        {
+            if((cc->neighborCirculator().center()->type() != CellTypeVertex)
+               || (cc->isSingular() && (cc->startNode().degree > 0)))
+            {
+                consistent = false;
+                std::cerr << "face " << it->label << "'s anchor is broken: ";
+                debugDart(*cc);
+            }
+            DartTraverser dart(*cc);
+            dart.nextSigma();
+            dart.prevSigma();
+            if(dart != *cc)
+            {
+                consistent = false;
+                std::cerr << "face " << it->label << "'s contours are broken:\n"
+                          << "  anchor:  "; debugDart(*cc);
+                std::cerr << "  becomes: "; debugDart(dart);
+            }
+            int maxSteps= 400;
+            do
+            {
+                if(dart.leftFaceLabel() != it->label)
+                {
+                    std::cerr << "dart.leftFace() is no longer our face!\n";
+                    maxSteps = 0;
+                    break;
+                }
+            }
+            while((dart.nextPhi() != *cc) && --maxSteps);
+            if(!maxSteps)
+            {
+                consistent = false;
+                std::cerr << "face " << it->label << "'s contours are broken:\n"
+                          << "  anchor: "; debugDart(*cc);
+                std::cerr << "  does not return: "; debugDart(dart);
+            }
+        }
+    }
+    vigra_postcondition(consistent, "consistency check failed");
 }
 
 /********************************************************************/
 
 void FourEightSegmentation::initCellImage(BImage & contourImage,
-										  CellType cornerType)
+                                          CellType cornerType)
 {
-	cellConfigurations[5] = cornerType;
-	cellConfigurations[20] = cornerType;
-	cellConfigurations[80] = cornerType;
-	cellConfigurations[65] = cornerType;
+    cellConfigurations[5] = cornerType;
+    cellConfigurations[20] = cornerType;
+    cellConfigurations[80] = cornerType;
+    cellConfigurations[65] = cornerType;
 
     CellPixel regionPixel(CellTypeRegion, 0);
 
@@ -1098,74 +1100,84 @@ void FourEightSegmentation::initFaceList(
 
 void debugDart(const FourEightSegmentation::DartTraverser &dart)
 {
-    const char *dirStr[] = {
-        "East",
-        "NorthEast",
-        "North",
-        "NorthWest",
-        "West",
-        "SouthWest",
-        "South",
-        "SouthEast"
-    };
-
-    vigra::Point2D pos(dart.neighborCirculator().center() -
-                       dart.segmentation()->cells);
-
-    std::cerr << "DartTraverser pointing "
-              << dirStr[(int)dart.neighborCirculator().direction()]
-              << " from " << pos.x << ", " << pos.y;
-    if(dart.neighborCirculator().center()->type() == CellTypeVertex)
-    {
-        CellLabel nodeLabel(dart.neighborCirculator().center()->label());
-        std::cerr << " (node " << nodeLabel;
-        if(nodeLabel > dart.segmentation()->maxNodeLabel())
-            std::cerr << ", LABEL INVALID!";
-        else
-        {
-            const FourEightSegmentation::NodeInfo &node =
-                dart.segmentation()->node(nodeLabel);
-            if(!node.initialized())
-                std::cerr << ", UNINITIALIZED";
-            std::cerr << ", " << node.size << " pixels, degree " << node.degree;
-        }
-        std::cerr << ")";
-    }
-    else
-    {
-        if(dart.neighborCirculator().center()->type() == CellTypeLine)
-            std::cerr << " (CellTypeLine, label ";
-        else
-            std::cerr << " (CellTypeRegion, label ";
-        std::cerr << dart.neighborCirculator().center()->label() << ")";
-    }
-    std::cerr << " to ";
-    if(dart.neighborCirculator().base()->type() == CellTypeLine)
-    {
-        CellLabel edgeLabel(dart.neighborCirculator().base()->label());
-        std::cerr << "edge " << edgeLabel;
-        if(edgeLabel > dart.segmentation()->maxEdgeLabel())
-            std::cerr << ", LABEL INVALID!";
-        else
-        {
-            const FourEightSegmentation::EdgeInfo &edge =
-                dart.segmentation()->edge(edgeLabel);
-            if(!edge.initialized())
-                std::cerr << ", UNINITIALIZED";
-            std::cerr << ", " << edge.size << " pixels";
-        }
-        std::cerr << "\n";
-    }
-    else
-    {
-        if(dart.neighborCirculator().base()->type() == CellTypeVertex)
-            std::cerr << "CellTypeVertex pixel, label ";
-        else
-            std::cerr << "CellTypeRegion pixel, label ";
-        std::cerr << dart.neighborCirculator().base()->label() << "\n";
-    }
+    std::cerr << dart << "\n";
 }
 
 } // namespace cellimage
 
 } // namespace vigra
+
+using namespace vigra::cellimage;
+
+std::ostream &
+operator<<(std::ostream & out,
+           const FourEightSegmentation::DartTraverser & d)
+{
+    const char *dirStr[] = {
+        "E",
+        "NE",
+        "N",
+        "NW",
+        "W",
+        "SW",
+        "S",
+        "SE"
+    };
+
+    vigra::Point2D pos(d.neighborCirculator().center() -
+                       d.segmentation()->cells);
+
+    out << "DartTraverser["
+        << dirStr[(int)d.neighborCirculator().direction()]
+        << " from " << pos.x << ", " << pos.y;
+    if(d.neighborCirculator().center()->type() == CellTypeVertex)
+    {
+        CellLabel nodeLabel(d.neighborCirculator().center()->label());
+        out << " (node " << nodeLabel;
+        if(nodeLabel > d.segmentation()->maxNodeLabel())
+            out << ", LABEL INVALID!";
+        else
+        {
+            const FourEightSegmentation::NodeInfo &node =
+                d.segmentation()->node(nodeLabel);
+            if(!node.initialized())
+                out << ", UNINITIALIZED";
+            out << ", " << node.size << " pixels, deg. " << node.degree;
+        }
+        out << ")";
+    }
+    else
+    {
+        if(d.neighborCirculator().center()->type() == CellTypeLine)
+            out << " (EDGE ";
+        else
+            out << " (FACE ";
+        out << d.neighborCirculator().center()->label() << ")";
+    }
+    out << " to ";
+    if(d.neighborCirculator().base()->type() == CellTypeLine)
+    {
+        CellLabel edgeLabel(d.neighborCirculator().base()->label());
+        out << "edge " << edgeLabel;
+        if(edgeLabel > d.segmentation()->maxEdgeLabel())
+            out << ", LABEL INVALID!";
+        else
+        {
+            const FourEightSegmentation::EdgeInfo &edge =
+                d.segmentation()->edge(edgeLabel);
+            if(!edge.initialized())
+                out << ", UNINITIALIZED";
+            out << ", " << edge.size << " pixels";
+        }
+    }
+    else
+    {
+        if(d.neighborCirculator().base()->type() == CellTypeVertex)
+            out << "NODE ";
+        else
+            out << "FACE ";
+        out << d.neighborCirculator().base()->label();
+    }
+    out << "]";
+    return out;
+}
