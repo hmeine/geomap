@@ -124,15 +124,44 @@ void findCriticalPointsLinearInterpolation(IMAGE const & image,
         {
             NeighborhoodCirculator<Traverser, EightNeighborCode> c(ix);
             Value v = *ix, z = NumericTraits<Value>::zero(), s;
-            int i;
+            int i, countSame = 0;
             for(i = 0; i < 4; ++i, c += 2)
             {
                 s = sign(v - *c);
-                if(s != z)
-                    break;
+                if(s == z)
+                    ++countSame;
             }
-            if(i == 4)
+            switch(countSame)
             {
+              case 0:
+              {
+                int countSignChanges = 0;
+                for(i = 0; i < 4; ++i, c += 2)
+                {
+                    Value ss = sign(v - *c);
+                    if(s * ss < z)
+                    {
+                        ++countSignChanges;
+                        s = ss;
+                    }
+                }
+                if(countSignChanges == 4)
+                {
+                    saddles.push_back(Coordinate(x, y));
+                }
+                else if(countSignChanges == 0 && s < z)
+                {
+                    minima.push_back(Coordinate(x, y));
+                }
+                else if(countSignChanges == 0 && s > z)
+                {
+                    maxima.push_back(Coordinate(x, y));
+                }
+                break;
+              }
+              case 4:
+#if 0 // ignore plateaus for the time being
+              {
                 // 4-neighbor plateau => check for 8-neighbor saddle
                 for(i = 0, c += 1; i < 4; ++i, c += 2)
                 {
@@ -156,34 +185,13 @@ void findCriticalPointsLinearInterpolation(IMAGE const & image,
                 {
                     saddles.push_back(Coordinate(x, y));
                 }
-            }
-            else
-            {
-                int countSignChanges = 0, countZeros = 0;
-                for(i = 0, c += 2; i < 4; ++i, c += 2)
-                {
-                    Value ss = sign(v - *c);
-                    if(s * ss < z)
-                    {
-                        ++countSignChanges;
-                        s = ss;
-                    }
-                    else if(ss == z)
-                        ++countZeros;
-
-                }
-                if(countSignChanges == 4)
-                {
-                    saddles.push_back(Coordinate(x, y));
-                }
-                else if(countSignChanges == 0 && countZeros == 0 && s < z)
-                {
-                    minima.push_back(Coordinate(x, y));
-                }
-                else if(countSignChanges == 0 && countZeros == 0 && s > z)
-                {
-                    maxima.push_back(Coordinate(x, y));
-                }
+                break;
+              }
+#endif
+              case 1:
+              case 2:
+              case 3:
+                  break;// not implemented yet
             }
             if(x == w - 2 || y == h - 2)
                 continue; // don't check the border facets
@@ -196,7 +204,7 @@ void findCriticalPointsLinearInterpolation(IMAGE const & image,
                (v < v1 && v < v3 && v2 < v1 && v2 < v3))
             {
                 Value sv = v - v1 + v2 - v3;
-                saddles.push_back(Coordinate((v - v1) / sv, (v - v3) / sv));
+                saddles.push_back(Coordinate(x + (v - v1) / sv, y + (v - v3) / sv));
             }
         }
     }
@@ -267,7 +275,7 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
 }
 
 template <class IMAGEVIEW, class VECTOR>
-void findCriticalPointsNewtonMethod(IMAGEVIEW const & image, 
+void findCriticalPointsNewtonMethodOld(IMAGEVIEW const & image, 
                         VECTOR & minima, VECTOR & saddles, VECTOR & maxima,
                         double epsilon, unsigned int oversampling)
 {
@@ -279,7 +287,7 @@ void findCriticalPointsNewtonMethod(IMAGEVIEW const & image,
     typedef typename VECTOR::value_type Coordinate;
 
     double d = 1.0 / oversampling;
-    
+
     for(double y=1.0; y <= h-2.0; y += d)
     {
         for(double x=1.0; x <= w-2.0; x += d)
@@ -305,6 +313,98 @@ void findCriticalPointsNewtonMethod(IMAGEVIEW const & image,
                 maxima.push_back(Coordinate(xx, yy));
             }
         }
+    }
+}
+
+struct CriticalPointHolder
+{
+    double x,y;
+    CriticalPoint type;
+
+    CriticalPointHolder(double xx, double yy, CriticalPoint t)
+        : x(xx), y(yy), type(t)
+    {}
+};
+
+struct CriticalPointsCompare
+{
+    double epsilon;
+    CriticalPointHolder self;
+
+    CriticalPointsCompare(double eps, CriticalPointHolder s)
+        : epsilon(eps), self(s)
+    {}
+
+    bool operator()(CriticalPointHolder const & l) const
+    {
+        return closeAtTolerance(l.x, self.x, epsilon) && closeAtTolerance(l.y, self.y, epsilon);
+    }
+};
+
+template <class IMAGEVIEW, class VECTOR>
+void findCriticalPointsNewtonMethod(IMAGEVIEW const & image, 
+                        VECTOR & minima, VECTOR & saddles, VECTOR & maxima,
+                        double epsilon, unsigned int oversampling)
+{
+    int w = image.width();
+    int h = image.height();
+    
+    typedef typename IMAGEVIEW::value_type Value;
+    Value zero = NumericTraits<Value>::zero();
+    typedef typename VECTOR::value_type Coordinate;
+
+    double d = 1.0 / oversampling;
+
+    ArrayVector<CriticalPointHolder> lastLine, currentLine;
+    
+    // search for critical points
+    for(int y=1; y <= h-2; ++y)
+    {
+        for(int x=1; x <= w-2; ++x)
+        {
+            for(double dy = 0.0; dy < 1.0; dy += d)
+            {
+                for(double dx = 0.0; dx < 1.0; dx += d)
+                {
+                    double xx, yy;
+                    CriticalPoint type = findCriticalPointNewtonMethod(image, x + dx, y + dy, xx, yy, epsilon);
+                    // allow the solution to be at most onle line above and below the current line to
+                    // make it possible to compare only two consecutive lines for duplicates
+                    if(type != Failed && yy >= y - 1.0 && yy <= y + 2.0)
+                    {
+                        // check for duplicates in the current line
+                        CriticalPointHolder c(xx, yy, type);
+                        if(std::find_if(currentLine.begin(), currentLine.end(), CriticalPointsCompare(epsilon, c))
+                            == currentLine.end())
+                        {
+                            currentLine.push_back(c);
+                        }
+                    }
+                }
+            }
+        }
+        // check for duplicates in the lest line
+        ArrayVector<CriticalPointHolder>::iterator cli = currentLine.begin();
+        for(; cli != currentLine.end(); ++cli)
+        {
+            if(std::find_if(lastLine.begin(), lastLine.end(), CriticalPointsCompare(epsilon, *cli)) !=
+                lastLine.end())
+                    continue; // duplicate found
+            if(cli->type == Saddle)
+            {
+                saddles.push_back(Coordinate(cli->x, cli->y));
+            }
+            else if (cli->type == Minimum)
+            {
+                minima.push_back(Coordinate(cli->x, cli->y));
+            }
+            else
+            {
+                maxima.push_back(Coordinate(cli->x, cli->y));
+            }
+        }
+        lastLine.swap(currentLine);
+        currentLine.clear();
     }
 }
 
@@ -343,19 +443,10 @@ findCriticalPointsInFacet(
     polyCoeffs[5] = -2.0*a*b*b + 8.0*a*a*e;
 
     double eps = 1.0e-7;
-    Polynomial<double> px(polyCoeffs, 6 , eps);
-    px.minimizeOrder();
+    StaticPolynomial<5, double> px(polyCoeffs, 5, eps);
     ArrayVector<double> rx;
-    if(!polynomialRealRoots(px, rx, false))
+    if(!polynomialRealRoots(px, rx))
         return;
-    
-    if(x0 == 90 && y0 == 100)
-    {
-        std::cerr << TinyVectorView<double, 9>(&splineCoeffs(0,0)) << "\n";
-        std::cerr << TinyVectorView<double, 6>(&px[0]) << "\n";
-        for(int i=0; i<rx.size();++i)
-            std::cerr << rx[i] << "\n";
-    }
     
     double xold = -100.0;
     for(unsigned int i=0; i < rx.size(); ++i)
