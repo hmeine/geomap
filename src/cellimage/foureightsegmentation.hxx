@@ -25,15 +25,16 @@ struct CellPixel
         : type_(type), label_(label)
     {}
 
+    inline CellConfiguration type() const { return type_; }
+    inline void setType(CellConfiguration type) { type_ = type; }
+
     inline int label() const { return label_; }
     inline void setLabel(int label) { label_= label; }
     inline void setLabel(int label, CellConfiguration) { label_= label; }
-    inline CellConfiguration type() const { return type_; }
-    inline void setType(CellConfiguration type) { type_ = type; }
 };
 
 typedef BasicImage<CellPixel> CellImage;
-typedef vigra::NeighborhoodCirculator<CellImage::Iterator, EightNeighborOffsetCirculator>
+typedef vigra::NeighborhoodCirculator<CellImage::Iterator, EightNeighborCode>
     CellImageEightCirculator;
 
 struct CellImageLabelAccessor
@@ -955,9 +956,9 @@ void FourEightSegmentation::initCellImage(BImage & contourImage)
             }
             else
             {
-                vigra::NeighborhoodCirculator<BImage::Iterator, EightNeighborOffsetCirculator>
-                    neighbors(rx, EightNeighborOffsetCirculator::SouthEast);
-                vigra::NeighborhoodCirculator<BImage::Iterator, EightNeighborOffsetCirculator>
+                vigra::NeighborhoodCirculator<BImage::Iterator, EightNeighborCode>
+                    neighbors(rx, EightNeighborCode::SouthEast);
+                vigra::NeighborhoodCirculator<BImage::Iterator, EightNeighborCode>
                     end = neighbors;
 
                 int conf = 0;
@@ -1058,7 +1059,7 @@ int FourEightSegmentation::label1Cells(int nodeCount)
 
             nodeProcessed[cell->label()] = true;
 
-            RayCirculator rayAtStart(this, CellImageEightCirculator(cell, EightNeighborOffsetCirculator::West));
+            RayCirculator rayAtStart(this, CellImageEightCirculator(cell, EightNeighborCode::West));
             RayCirculator rayEnd = rayAtStart;
 
             do
@@ -1169,7 +1170,9 @@ void FourEightSegmentation::initNodeList(int nodeCount)
                 nodeList[index].y = y;
                 nodeList[index].size = 1;
                 std::cerr << "creating RayCirculator 1\n";
-                nodeList[index].ray = RayCirculator(this, CellImageEightCirculator(cell, EightNeighborOffsetCirculator::West));
+                nodeList[index].ray =
+                    RayCirculator(this, CellImageEightCirculator(cell,
+                                                                 EightNeighborCode::West));
 
                 // calculate degree of the node
                 std::cerr << "creating RayCirculator 2&3\n";
@@ -1184,7 +1187,7 @@ void FourEightSegmentation::initNodeList(int nodeCount)
 
                 // calculate area from following the outer contour of the node
                 CellImageEightCirculator
-                    neighbor(cell, EightNeighborOffsetCirculator::West);
+                    neighbor(cell, EightNeighborCode::West);
 
                 CrackCirculator crack(neighbor);
                 CrackCirculator crackend(crack);
@@ -1283,7 +1286,8 @@ void FourEightSegmentation::initFaceList(BImage & contourImage, int number_of_fa
     // process outer face
     faceList[0].label= 0;
     faceList[0].anchor = Diff2D(-2, -2);
-    RayCirculator ray(this, CellImageEightCirculator(cells + Diff2D(-1, -1), EightNeighborOffsetCirculator::West));
+    RayCirculator ray(this, CellImageEightCirculator(cells + Diff2D(-1, -1),
+                                                     EightNeighborCode::West));
     --ray;
     faceList[0].contours.push_back(ContourCirculator(ray));
     contourProcessed[contourLabel(-1, -1)] = true;
