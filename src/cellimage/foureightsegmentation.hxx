@@ -9,10 +9,10 @@
 #include <vigra/pixelneighborhood.hxx>
 #include <vigra/contourcirculator.hxx>
 //#include "circulatoradaptor.hxx"
+#include <vigra/rect2d.hxx>
 
 #include "filteriterator.hxx"
 #include "cellimage.hxx"
-#include "rect2d.hxx"
 
 #include <functional>
 
@@ -583,6 +583,8 @@ public:
 
     typedef std::vector<DartTraverser>::iterator
         ContourComponentsIterator;
+    typedef std::vector<DartTraverser>::const_iterator
+        ConstContourComponentsIterator;
 
   public:
     FourEightSegmentation(const FourEightSegmentation &other)
