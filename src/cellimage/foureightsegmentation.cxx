@@ -113,6 +113,20 @@ unsigned int FourEightSegmentation::findContourComponent(
         }
     }
 
+#ifndef NDEBUG
+	std::cerr << "dart not found in contours: "; debugDart(dart);
+    result = 1;
+    for(ConstContourComponentsIterator contour= contours.begin();
+        contour != contours.end(); ++contour, ++result)
+    {
+		std::cerr << "contour " << result << ":\n";
+        DartTraverser dart2(*contour);
+		do {
+			std::cerr << "  "; debugDart(dart2);
+		} while(dart2.nextPhi() != *contour);
+    }
+#endif // NDEBUG
+
     vigra_fail("findContourComponent: dart not found in any contour!");
     return 0;
 }
@@ -130,6 +144,7 @@ void FourEightSegmentation::removeNodeFromContours(ContourComponents &contours,
 FourEightSegmentation::FaceInfo &FourEightSegmentation::removeIsolatedNode(
     const DartTraverser & dart)
 {
+	//std::cerr << "removeIsolatedNode "; debugDart(dart);
     vigra_precondition(dart.isSingular(),
                        "removeIsolatedNode: node is not singular");
 
@@ -149,47 +164,58 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::removeIsolatedNode(
 
     node.uninitialize();
     --nodeCount_;
-
+#ifndef NDEBUG
+	checkConsistency();
+#endif
     return face;
 }
 
 FourEightSegmentation::FaceInfo &FourEightSegmentation::mergeFaces(
     const DartTraverser & dart)
 {
+	//std::cerr << "mergeFaces "; debugDart(dart);
     // merge smaller face into larger one:
     DartTraverser removedDart = dart;
     if(dart.leftFace().bounds.area() < dart.rightFace().bounds.area())
         removedDart.nextAlpha();
 
-    EdgeInfo &edge= removedDart.edge();
-    FaceInfo &face1= removedDart.leftFace();
-    FaceInfo &face2= removedDart.rightFace();
-    NodeInfo &node1= edge.start.startNode();
-    NodeInfo &node2= edge.end.startNode();
+    EdgeInfo &mergedEdge= removedDart.edge();
+    FaceInfo &survivor= removedDart.leftFace();
+    FaceInfo &mergedFace= removedDart.rightFace();
+    NodeInfo &node1= mergedEdge.start.startNode();
+    NodeInfo &node2= mergedEdge.end.startNode();
 
-    vigra_precondition(face1.label != face2.label,
+    vigra_precondition(survivor.label != mergedFace.label,
         "FourEightSegmentation::mergeFaces(): dart is singular or edge is a bridge");
 
     // find indices of contour components to be merged
-    unsigned int contour1 = findContourComponent(face1.contours, removedDart);
-    unsigned int contour2 = findContourComponent(face2.contours, removedDart);
+    unsigned int contour1 = findContourComponent(survivor.contours, removedDart);
+    unsigned int contour2 = findContourComponent(mergedFace.contours, removedDart);
 
     // re-use an old anchor for the merged contour
-    if(face1.contours[contour1].edgeLabel() == edge.label)
-        face1.contours[contour1].nextPhi();
+    if(survivor.contours[contour1].edgeLabel() == mergedEdge.label)
+	{
+        survivor.contours[contour1].nextPhi();
+		if(survivor.contours[contour1].edgeLabel() == mergedEdge.label)
+        {
+			survivor.contours[contour1] = mergedFace.contours[contour2];
+			if(survivor.contours[contour1].edgeLabel() == mergedEdge.label)
+				survivor.contours[contour1].nextPhi();
+        }
+    }
 
     // update contours
-    for(unsigned int i = 0; i < face2.contours.size(); i++)
+    for(unsigned int i = 0; i < mergedFace.contours.size(); i++)
         if(i != contour2)
-            face1.contours.push_back(face2.contours[i]);
+            survivor.contours.push_back(mergedFace.contours[i]);
 
     // relabel cells in cellImage:
-    for(CellScanIterator it= edgeScanIterator(edge.label, cells, false);
+    for(CellScanIterator it= edgeScanIterator(mergedEdge.label, cells, false);
         it.inRange(); ++it)
-        *it= CellPixel(CellTypeRegion, face1.label);
-    for(CellScanIterator it= faceScanIterator(face2.label, cells, false);
+        *it= CellPixel(CellTypeRegion, survivor.label);
+    for(CellScanIterator it= faceScanIterator(mergedFace.label, cells, false);
         it.inRange(); ++it)
-        *it= CellPixel(CellTypeRegion, face1.label);
+        *it= CellPixel(CellTypeRegion, survivor.label);
 
     // turn node anchors if they pointed to the removed edge and
     // there's another left
@@ -199,23 +225,26 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::mergeFaces(
         node2.anchor.carefulNextSigma();
 
     // update bounds and sizes:
-    face1.bounds |= edge.bounds;
-    face1.size += edge.size;
-    face1.bounds |= face2.bounds;
-    face1.size += face2.size;
+    survivor.bounds |= mergedEdge.bounds;
+    survivor.size += mergedEdge.size;
+    survivor.bounds |= mergedFace.bounds;
+    survivor.size += mergedFace.size;
 
-    edge.uninitialize();
+    mergedEdge.uninitialize();
     --edgeCount_;
-    face2.uninitialize();
+    mergedFace.uninitialize();
     --faceCount_;
     // FIXME: also update maxFaceLabel / maxEdgeLabel
-
-    return face1;
+#ifndef NDEBUG
+	checkConsistency();
+#endif
+    return survivor;
 }
 
 FourEightSegmentation::FaceInfo &FourEightSegmentation::removeBridge(
     const DartTraverser & dart)
 {
+	//std::cerr << "removeBridge "; debugDart(dart);
     EdgeInfo &edge= dart.edge();
     FaceInfo &face= dart.leftFace();
     NodeInfo &node1= edge.start.startNode();
@@ -254,13 +283,16 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::removeBridge(
 
     edge.uninitialize();
     --edgeCount_;
-
+#ifndef NDEBUG
+	checkConsistency();
+#endif
     return face;
 }
 
 FourEightSegmentation::EdgeInfo &FourEightSegmentation::mergeEdges(
     const DartTraverser & dart)
 {
+	//std::cerr << "mergeEdges "; debugDart(dart);
     // merge smaller edge (mergedEdge) into larger one (survivor):
     DartTraverser dart1(dart);
     dart1.nextSigma();
@@ -310,7 +342,9 @@ FourEightSegmentation::EdgeInfo &FourEightSegmentation::mergeEdges(
     --nodeCount_;
     mergedEdge.uninitialize();
     --edgeCount_;
-
+#ifndef NDEBUG
+	checkConsistency();
+#endif
     return survivor;
 }
 
@@ -354,8 +388,154 @@ FourEightSegmentation &FourEightSegmentation::deepCopy(
 
 /********************************************************************/
 
-void FourEightSegmentation::initCellImage(BImage & contourImage)
+void FourEightSegmentation::checkConsistency()
 {
+	bool consistent = true;
+	// std::cerr << "checking nodes...\n";
+	for(NodeIterator it= nodesBegin(); it != nodesEnd(); ++it)
+	{
+		// std::cerr << "  node " << it->label << "\r";
+		unsigned int realDegree = 0;
+		if(it->anchor.neighborCirculator().center()->type() != CellTypeVertex)
+		{
+			consistent = false;
+			std::cerr << "node " << it->label << "'s anchor is broken: ";
+			debugDart(it->anchor);
+		}
+		if(!it->anchor.isSingular())
+		{
+			DartTraverser dart(it->anchor);
+			do { ++realDegree; }
+			while(dart.nextSigma() != it->anchor);
+		}
+		if(realDegree != it->degree)
+		{
+			consistent = false;
+			std::cerr << "node " << it->label << " has degree stored as "
+					  << it->degree << " but seems to be of degree "
+					  << realDegree << "\n";
+		}
+
+		FindBoundingRectangle actualBounds;
+		Point2D coord(0, 0);
+		inspectCell(nodeScanIterator(it->label, coord, false), actualBounds);
+		Rect2D ab(actualBounds.upperLeft, actualBounds.lowerRight);
+		if(ab != it->bounds)
+		{
+			consistent = false;
+			std::cerr << "node " << it->label << "'s bounds are stored as "
+					  << it->bounds << " but seem to be " << ab << "\n";
+		}
+	}
+
+	// std::cerr << "checking edges...\n";
+	for(EdgeIterator it= edgesBegin(); it != edgesEnd(); ++it)
+	{
+		// std::cerr << "  edge " << it->label << "\r";
+		FindBoundingRectangle actualBounds;
+		Point2D coord(0, 0);
+		inspectCell(edgeScanIterator(it->label, coord, false), actualBounds);
+		Rect2D ab(actualBounds.upperLeft, actualBounds.lowerRight);
+		if(ab != it->bounds)
+		{
+			consistent = false;
+			std::cerr << "edge " << it->label << "'s bounds are stored as "
+					  << it->bounds << " but seem to be " << ab << "\n";
+		}
+		if(it->start.neighborCirculator().center()->type() != CellTypeVertex)
+		{
+			consistent = false;
+			std::cerr << "edge " << it->label << "'s start is broken: ";
+			debugDart(it->start);
+		}
+		if(it->start.edgeLabel() != it->label)
+		{
+			consistent = false;
+			std::cerr << "edge " << it->label << "'s start points to edge "
+					  << it->start.edgeLabel() << "\n";
+		}
+		if(it->end.neighborCirculator().center()->type() != CellTypeVertex)
+		{
+			consistent = false;
+			std::cerr << "edge " << it->label << "'s end is broken: ";
+			debugDart(it->end);
+		}
+		if(it->end.edgeLabel() != it->label)
+		{
+			consistent = false;
+			std::cerr << "edge " << it->label << "'s end points to edge "
+					  << it->end.edgeLabel() << "\n";
+		}
+	}
+
+	// std::cerr << "checking faces...\n";
+	for(FaceIterator it= facesBegin(); it != facesEnd(); ++it)
+	{
+		// std::cerr << "  face " << it->label << "\r";
+		FindBoundingRectangle actualBounds;
+		Point2D coord(0, 0);
+		inspectCell(faceScanIterator(it->label, coord, false), actualBounds);
+		Rect2D ab(actualBounds.upperLeft, actualBounds.lowerRight);
+		if(ab != it->bounds)
+		{
+			consistent = false;
+			std::cerr << "face " << it->label << "'s bounds are stored as "
+					  << it->bounds << " but seem to be " << ab << "\n";
+		}
+
+		for(ContourComponentsIterator cc(it->contours.begin());
+			cc != it->contours.end(); ++cc)
+		{
+			if((cc->neighborCirculator().center()->type() != CellTypeVertex)
+			   || (cc->isSingular() && (cc->startNode().degree > 0)))
+			{
+				consistent = false;
+				std::cerr << "face " << it->label << "'s anchor is broken: ";
+				debugDart(*cc);
+			}
+			DartTraverser dart(*cc);
+			dart.nextSigma();
+			dart.prevSigma();
+			if(dart != *cc)
+			{
+				consistent = false;
+				std::cerr << "face " << it->label << "'s contours are broken:\n"
+						  << "  anchor:  "; debugDart(*cc);
+				std::cerr << "  becomes: "; debugDart(dart);
+			}
+			int maxSteps= 400;
+			do
+			{
+				if(dart.leftFaceLabel() != it->label)
+				{
+					std::cerr << "dart.leftFace() is no longer our face!\n";
+					maxSteps = 0;
+					break;
+				}
+			}
+			while((dart.nextPhi() != *cc) && --maxSteps);
+			if(!maxSteps)
+			{
+				consistent = false;
+				std::cerr << "face " << it->label << "'s contours are broken:\n"
+						  << "  anchor: "; debugDart(*cc);
+				std::cerr << "  does not return: "; debugDart(dart);
+			}
+		}
+	}
+	vigra_postcondition(consistent, "consistency check failed");
+}
+
+/********************************************************************/
+
+void FourEightSegmentation::initCellImage(BImage & contourImage,
+										  CellType cornerType)
+{
+	cellConfigurations[5] = cornerType;
+	cellConfigurations[20] = cornerType;
+	cellConfigurations[80] = cornerType;
+	cellConfigurations[65] = cornerType;
+
     CellPixel regionPixel(CellTypeRegion, 0);
 
     BImage::traverser rawLine = contourImage.upperLeft();
@@ -779,7 +959,7 @@ void FourEightSegmentation::initFaceList(
     faceList_[0].label= 0;
     ++faceCount_;
     faceList_[0].bounds |= Point2D(-2, -2);
-    faceList_[0].bounds |= Point2D(-2, -2) + cellImage.size();
+    faceList_[0].bounds |= Point2D(-2, -2) + cellImage.size() - Diff2D(1, 1);
     faceList_[0].size = NumericTraits<unsigned int>::max();
     DartTraverser anchor(this, CellImageEightCirculator(cells + Diff2D(-1, -1),
                                                         EightNeighborCode::West));
