@@ -102,9 +102,8 @@ int main(int argc, char ** argv)
                 node= segmentation.nodesBegin(); node.inRange(); ++node)
             std::cout << "  " << node->label << ": at "
                       << node->centerX << ","
-                      << node->centerY << "  from "
-                      << node->upperLeft << " to "
-                      << node->lowerRight << std::endl;
+                      << node->centerY << ", "
+                      << node->bounds << std::endl;
         
         std::cout << segmentation.edgeCount() << " edges:" << std::endl;
         for(CellImage::FourEightSegmentation::EdgeIterator
@@ -116,10 +115,8 @@ int main(int argc, char ** argv)
                     (segmentation.edgeScanIterator(edge->label, image.upperLeft()),
                      average);
             
-            std::cout << "  " << edge->label << ": from "
-                      << edge->upperLeft << " to "
-                      << edge->lowerRight
-                      << ", average: " << average() << std::endl;
+            std::cout << "  " << edge->label << ": " << edge->bounds
+					  << ", average: " << average() << std::endl;
         }
         
         std::cout << segmentation.faceCount() << " faces:" << std::endl;
@@ -132,9 +129,7 @@ int main(int argc, char ** argv)
                     (segmentation.faceScanIterator(face->label, image.upperLeft()),
                      average);
             
-            std::cout << "  " << face->label << ": from "
-                      << face->upperLeft << " to "
-                      << face->lowerRight
+            std::cout << "  " << face->label << ": " << face->bounds
                       << ", average: " << average() << std::endl;
         }
     }
