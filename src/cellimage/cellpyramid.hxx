@@ -54,11 +54,11 @@ class CellPyramid
         friend class Pyramid;
 
         const unsigned int index() const
-        { return index_; }
+            { return index_; }
         const Segmentation &segmentation() const
-        { return segmentation_; }
+            { return segmentation_; }
         const CellStatistics &cellStatistics() const
-        { return cellStatistics_; }
+            { return cellStatistics_; }
 
         Level(unsigned int l,
               const Segmentation &s,
@@ -75,13 +75,13 @@ class CellPyramid
         {
             unsigned int step =
                 gotoLastCheckpointBefore(gotoLevelIndex) ? 1 : 0;
-            
+
             while((index_ < gotoLevelIndex) && (step++ < maxSteps))
             {
                 performOperation(pyramid_->history_[index_]);
                 ++index_;
             }
-            
+
             return (index_ == gotoLevelIndex);
         }
 
@@ -159,7 +159,7 @@ class CellPyramid
         CellInfo &performOperation(Operation &op)
         {
             DartTraverser param(&segmentation_, op.param);
-            
+
             switch(op.type)
             {
               case RemoveIsolatedNode:
@@ -214,17 +214,16 @@ class CellPyramid
         Pyramid       *pyramid_;
     };
 
-  private:
+  protected:
     typedef std::map<unsigned int, Level>
         CheckpointMap;
-    CheckpointMap checkpoints_;
-
     typedef std::vector<Operation>
         History;
-    History history_;
 
-    Level topLevel_;
-    unsigned int nextCheckpointLevelIndex_;
+    CheckpointMap checkpoints_;
+    History       history_;
+    Level         topLevel_;
+    unsigned int  nextCheckpointLevelIndex_;
 
     CellInfo &addAndPerformOperation(OperationType t, const DartTraverser &p)
     {
