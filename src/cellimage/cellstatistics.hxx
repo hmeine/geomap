@@ -9,6 +9,7 @@
 #include <vigra/rect2d.hxx>
 
 #include <vector>
+#include <iostream>
 
 typedef vigra::FImage OriginalImage;
 typedef vigra::FImage GradientImage;
