@@ -223,19 +223,19 @@ class CellPyramid
   public:
     void storeCheckpoint()
     {
-        if(!checkpoints_.count(currentLevelIndex()))
-            checkpoints_.insert(std::make_pair(currentLevelIndex(), currentLevel_));
+        if(!checkpoints_.count(currentLevel().index()))
+            checkpoints_.insert(std::make_pair(currentLevel().index(), currentLevel_));
 
         unsigned int totalCellCount =
             currentLevel_.segmentation_.nodeCount() +
             currentLevel_.segmentation_.edgeCount() +
             currentLevel_.segmentation_.faceCount();
         if(totalCellCount > 30)
-            nextCheckpointLevelIndex_ = currentLevelIndex() + totalCellCount / 4;
+            nextCheckpointLevelIndex_ = currentLevel().index() + totalCellCount / 4;
         else
-            nextCheckpointLevelIndex_ = currentLevelIndex() + 10;
+            nextCheckpointLevelIndex_ = currentLevel().index() + 10;
 
-        std::cerr << "--- stored checkpoint at level #" << currentLevelIndex()
+        std::cerr << "--- stored checkpoint at level #" << currentLevel().index()
                   << ", " << totalCellCount << " cells total left ---\n";
     }
 
@@ -307,7 +307,7 @@ class CellPyramid
     }
 
         /** Do a maximum of maxSteps operations to reach given level.
-         * Returns true if that was enough, that is (currentLevelIndex() ==
+         * Returns true if that was enough, that is (currentLevel().index() ==
          * levelIndex)
          */
     bool approachLevel(unsigned int levelIndex, unsigned int maxSteps = 20,
