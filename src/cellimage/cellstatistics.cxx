@@ -2,9 +2,10 @@
 #include "cellstatistics.hxx"
 #include "mydebug.hxx"
 #include "debugimage.hxx"
+#include "crop.hxx"
 
 #include <vigra/stdimage.hxx>
-#include "seededregiongrowing.hxx"
+#include <vigra/seededregiongrowing.hxx>
 #include <vigra/transformimage.hxx>
 #include <vigra/flatmorphology.hxx>
 #include <vigra/pixelneighborhood.hxx>
@@ -12,6 +13,18 @@
 #include <functional>
 #include <algorithm>
 #include <numeric>
+
+namespace std {
+
+void swap(SegmentationData &a, SegmentationData &b)
+{
+    swap(a.preparedOriginal_,  b.preparedOriginal_);
+    swap(a.gradientMagnitude_, b.gradientMagnitude_);
+    swap(a.edgeDirection_,     b.edgeDirection_);
+    swap(a.edgeDirGradient_,   b.edgeDirGradient_);
+}
+
+} // namespace std
 
 template<class RegionStatistics, class LabelType = int>
 class ArrayOfIdenticalStatistics
@@ -81,25 +94,14 @@ CellStatistics::CellStatistics(const Segmentation &initialSegmentation,
     std::cerr << "initializing face statistics (max face label: "
               << initialSegmentation.maxFaceLabel() << ")\n";
 
-    faceMeans_.resize(initialSegmentation.maxFaceLabel() + 1);
-    faceVariance_.resize(initialSegmentation.maxFaceLabel() + 1);
-    faceMeans_[0]= vigra::NumericTraits<OriginalImage::PixelType>::max();
-    faceVariance_[0]= 0.0;
+    faceStatistics_.resize(initialSegmentation.maxFaceLabel() + 1);
 
     Segmentation::ConstFaceIterator faceIt = initialSegmentation.facesBegin();
     for(++faceIt; faceIt.inRange(); ++faceIt)
     {
-        StatisticFunctor<OriginalImage::PixelType> faceStatistics;
         inspectCell(initialSegmentation.faceScanIterator
                     (faceIt->label, segmentationData_->preparedOriginal_.upperLeft()),
-                    faceStatistics);
-        faceMeans_[faceIt->label]= faceStatistics.avg();
-        faceVariance_[faceIt->label]= faceStatistics.var();
-        if(!faceVariance_[faceIt->label])
-        {
-            //std::cerr << "setting faceVariance_[" << faceIt->label << "] to epsilon.!!\n";
-            faceVariance_[faceIt->label]= vigra::NumericTraits<float>::epsilon();
-        }
+                    faceStatistics_[faceIt->label]);
     }
 
 	std::cerr << "finding node centers.. (max node label: "
@@ -179,22 +181,20 @@ CellStatistics::CellStatistics(const Segmentation &initialSegmentation,
 
     std::cerr << "initializing meanEdgeGradients\n";
 
-    meanEdgeGradients_.resize(initialSegmentation.maxEdgeLabel() + 1);
+    edgeStatistics_.resize(initialSegmentation.maxEdgeLabel() + 1);
 
     for(Segmentation::ConstEdgeIterator it = initialSegmentation.edgesBegin();
         it.inRange(); ++it)
     {
         const Segmentation::DartTraverser &anchor = it->start;
         if(!anchor.leftFaceLabel() || !anchor.rightFaceLabel())
-            meanEdgeGradients_[it->label]=
-                vigra::NumericTraits<GradientImage::PixelType>::max();
+            edgeStatistics_[it->label](
+                vigra::NumericTraits<GradientImage::PixelType>::max());
         else
         {
-            vigra::FindAverage<GradientImage::PixelType> edgeMean;
             inspectCell(initialSegmentation.edgeScanIterator
                         (it->label, segmentationData_->gradientMagnitude_.upperLeft()),
-                        edgeMean);
-            meanEdgeGradients_[it->label]= edgeMean();
+                        edgeStatistics_[it->label]);
         }
     }
 
@@ -347,7 +347,7 @@ void edgeRethinning(vigra::cellimage::FourEightSegmentation &seg,
         stats;
     seededRegionGrowing(crop(srcImageRange(gradientMagnitude), rethinRange),
                         srcImage(newRegions),
-                        destImage(newRegions), stats, 1000000);
+                        destImage(newRegions), stats, vigra::KeepContours);
 
 	if(edgeLabel == 0)
 	{
