@@ -37,9 +37,11 @@ void setPixel(CellImage & image, vigra::Diff2D const & i, CellPixel const & valu
 
 void createFourEightSegmentation(
     vigra::cellimage::FourEightSegmentation *self,
-    vigra::SingleBandImage &image)
+    vigra::SingleBandImage &image,
+    float boundaryValue)
 {
-    new (self) vigra::cellimage::FourEightSegmentation(srcImageRange(image));
+    new (self) vigra::cellimage::FourEightSegmentation(srcImageRange(image),
+                                                       boundaryValue);
 }
 
 using namespace python;
@@ -55,9 +57,9 @@ void defineFaces();
 
 BOOST_PYTHON_MODULE_INIT(cellimage)
 {
-	enum_<CellType>("CellType")
-		.value("Error", CellTypeError)
-		.value("Region", CellTypeRegion)
+    enum_<CellType>("CellType")
+        .value("Error", CellTypeError)
+        .value("Region", CellTypeRegion)
         .value("Line", CellTypeLine)
         .value("Vertex", CellTypeVertex);
 
@@ -80,10 +82,12 @@ BOOST_PYTHON_MODULE_INIT(cellimage)
         .def("get", &getPixelXY)
         .def("set", &setPixelXY);
 
-	definePyramid();
+    definePyramid();
+
+    def("debugDart", &debugDart);
 
     scope fourEightSegmentation(
-		class_<FourEightSegmentation>("FourEightSegmentation", no_init)
+        class_<FourEightSegmentation>("FourEightSegmentation", no_init)
         .def("maxNodeLabel", &FourEightSegmentation::maxNodeLabel)
         .add_property("nodes", &NodeListProxy::create)
         .def("maxEdgeLabel", &FourEightSegmentation::maxEdgeLabel)
