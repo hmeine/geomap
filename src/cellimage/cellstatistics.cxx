@@ -1,17 +1,17 @@
-#include <foureightsegmentation.hxx>
 #include "cellstatistics.hxx"
-#include "mydebug.hxx"
-#include "debugimage.hxx"
 #include "crop.hxx"
+#include "debugimage.hxx"
+#include "foureightsegmentation.hxx"
+#include "mydebug.hxx"
 
-#include <vigra/stdimage.hxx>
-#include <vigra/seededregiongrowing.hxx>
-#include <vigra/transformimage.hxx>
 #include <vigra/flatmorphology.hxx>
 #include <vigra/pixelneighborhood.hxx>
+#include <vigra/seededregiongrowing.hxx>
+#include <vigra/stdimage.hxx>
+#include <vigra/transformimage.hxx>
 
-#include <functional>
 #include <algorithm>
+#include <functional>
 #include <numeric>
 
 namespace std {
@@ -25,6 +25,236 @@ void swap(SegmentationData &a, SegmentationData &b)
 }
 
 } // namespace std
+
+/********************************************************************/
+
+std::vector<Float2D> CellStatistics::configurationDirections_;
+
+CellStatistics::CellStatistics(const Segmentation &initialSegmentation,
+                               SegmentationData *segmentationData)
+: segmentationData(segmentationData),
+  edgeProtection(NULL),
+  segDataBounds(vigra::Point2D(-2, -2), initialSegmentation.cellImage.size()),
+  // border to segDataBounds added below
+  lastChanges_(segDataBounds)
+{
+    segDataBounds.addBorder(
+        (segmentationData->preparedOriginal_.width() -
+         initialSegmentation.cellImage.width()) / 2,
+        (segmentationData->preparedOriginal_.height() -
+         initialSegmentation.cellImage.height()) / 2);
+
+    std::cerr << "initializing face statistics (max face label: "
+              << initialSegmentation.maxFaceLabel() << ")\n";
+
+    faceStatistics_.resize(initialSegmentation.maxFaceLabel() + 1);
+
+    Segmentation::ConstFaceIterator faceIt = initialSegmentation.facesBegin();
+    for(++faceIt; faceIt.inRange(); ++faceIt)
+    {
+        inspectCell(initialSegmentation.faceScanIterator
+                    (faceIt->label, segmentationData->preparedOriginal_.upperLeft()),
+                    faceStatistics_[faceIt->label]);
+    }
+
+    std::cerr << "finding node centers.. (max node label: "
+              << initialSegmentation.maxNodeLabel() << ")\n";
+    nodeCenters_.resize(initialSegmentation.maxNodeLabel() + 1);
+    Segmentation::ConstNodeIterator nodeIt = initialSegmentation.nodesBegin();
+    for(; nodeIt.inRange(); ++nodeIt)
+    {
+        //std::cerr << "finding center of node " << nodeIt->label << "..\n";
+        vigra::cellimage::LabelScanIterator<
+            vigra::cellimage::CellImage::traverser, vigra::Point2D>
+            nodeScanner(
+                initialSegmentation.nodeScanIterator(
+                    nodeIt->label, vigra::Point2D(0, 0), false));
+
+        for(; nodeScanner.inRange(); ++nodeScanner)
+        {
+            //std::cerr << "  has pixel at " << *nodeScanner << std::endl;
+            nodeCenters_[nodeIt->label][0] += nodeScanner->x;
+            nodeCenters_[nodeIt->label][1] += nodeScanner->y;
+        }
+        nodeCenters_[nodeIt->label] /= nodeIt->size;
+        //std::cerr << "  center: " << nodeCenters_[nodeIt->label] << "..\n";
+    }
+
+	if(!configurationDirections_.size())
+	{
+		std::cerr << "initializing configurationDirections\n";
+		configurationDirections_.resize(256);
+		for(unsigned char i= 1; i<255; ++i)
+		{
+			vigra::EightNeighborOffsetCirculator circ;
+			unsigned char code = i;
+
+			//std::cerr << "  " << (int)i;
+
+			// combine bits at start and end of code to one block:
+			while((code&1) && (code&128))
+			{
+				++circ;
+				code = (code >> 1) | 128;
+			}
+
+			// collect(==sum up) diff()s to first block of bits:
+			vigra::Diff2D diff1(0, 0);
+			for(; (code&1) == 0; code >>= 1, ++circ)
+				;
+			for(; (code&1) != 0; code >>= 1, ++circ)
+				diff1 += *circ;
+
+			// no second block of bits? no edge configuration -> skip
+			if(!code)
+			{
+				//std::cerr << " is vertex config: only one block of bits\n";
+				continue;
+			}
+
+			// collect(==sum up) diff()s to second block of bits:
+			vigra::Diff2D diff2(0, 0);
+			for(; (code&1) == 0; code >>= 1, ++circ)
+				;
+			for(; (code&1) != 0; code >>= 1, ++circ)
+				diff2 += *circ;
+
+			// third block of bits? no edge configuration -> skip
+			if(code)
+			{
+				//std::cerr << " is vertex config: > 2 blocks of bits\n";
+				continue;
+			}
+
+			configurationDirections_[i] =
+				Float2D(diff2.x - diff1.x, diff2.y - diff1.y);
+			configurationDirections_[i] /= configurationDirections_[i].magnitude();
+			/*std::cerr << " has direction "
+			  << configurationDirections_[i][0] << " / "
+			  << configurationDirections_[i][1] << "\n";*/
+		}
+	}
+
+    std::cerr << "initializing meanEdgeGradients\n";
+
+    edgeStatistics_.resize(initialSegmentation.maxEdgeLabel() + 1);
+
+    for(Segmentation::ConstEdgeIterator it = initialSegmentation.edgesBegin();
+        it.inRange(); ++it)
+    {
+        const Segmentation::DartTraverser &anchor = it->start;
+        if(!anchor.leftFaceLabel() || !anchor.rightFaceLabel())
+            edgeStatistics_[it->label](
+                vigra::NumericTraits<GradientImage::PixelType>::max());
+        else
+        {
+            inspectCell(initialSegmentation.edgeScanIterator
+                        (it->label, segmentationData->gradientMagnitude_.upperLeft()),
+                        edgeStatistics_[it->label]);
+        }
+    }
+
+    std::cerr << "initializing tree of merged edges\n";
+    mergedEdges_.resize(initialSegmentation.maxEdgeLabel() + 1);
+    //std::iota(mergedEdges_.begin(), mergedEdges_.end(), 0);
+    for(unsigned int i = 0; i < mergedEdges_.size(); ++i)
+        mergedEdges_[i] = i;
+}
+
+CellStatistics &CellStatistics::operator=(const CellStatistics &other)
+{
+	faceStatistics_ = other.faceStatistics_;
+	edgeStatistics_ = other.edgeStatistics_;
+	mergedEdges_ = other.mergedEdges_;
+	nodeCenters_ = other.nodeCenters_;
+
+	segmentationData = other.segmentationData;
+	edgeProtection = other.edgeProtection;
+
+	lastChanges_ =
+		vigra::Rect2D(vigra::Point2D(-2, -2),
+					  segmentationData->gradientMagnitude_.size() +
+					  vigra::Diff2D(4, 4));
+	return *this;
+}
+
+/********************************************************************/
+
+void nodeRethinning(vigra::cellimage::FourEightSegmentation &seg,
+                    const GradientImage &/*gradientMagnitude*/,
+                    vigra::cellimage::CellLabel nodeLabel)
+{
+    typedef vigra::cellimage::FourEightSegmentation
+        FourEightSegmentation;
+
+    FourEightSegmentation::NodeInfo &node(seg.node(nodeLabel));
+
+    if(node.size < 2)
+        return;
+
+    vigra::cellimage::CellPixel
+        nodePixel(vigra::cellimage::CellTypeVertex, nodeLabel);
+
+    for(FourEightSegmentation::CellScanIterator nodeScanner =
+            seg.nodeScanIterator(nodeLabel, seg.cells, false);
+        nodeScanner.inRange(); ++nodeScanner)
+    {
+        vigra::cellimage::CellImageEightCirculator
+            circ(nodeScanner, vigra::EightNeighborCode::North);
+        do
+        {
+            if(circ->type() == vigra::cellimage::CellTypeRegion)
+            {
+                vigra::cellimage::CellImageEightCirculator circ2(circ);
+                do
+                {
+                    if((*circ2 != *circ) && (*circ2 != nodePixel))
+                    {
+                        if(!(circ2.isDiagonal() &&
+                             (circ2->type() == vigra::cellimage::CellTypeLine &&
+                              (circ2[1].type() == vigra::cellimage::CellTypeVertex ||
+                               circ2[-1].type() == vigra::cellimage::CellTypeVertex))))
+                            goto ContinueWithNextNodePixel;
+                    }
+                }
+                while((++circ2).direction() != circ.direction());
+                // only one neighbored region found -> remove node pixel
+                *nodeScanner = *circ; // relabel pixel
+                --node.size;
+                ++seg.face(circ->label()).size;
+                // FIXME: update node.bounds?
+                seg.face(circ->label()).bounds |=
+                    vigra::Point2D((vigra::cellimage::CellImage::traverser)nodeScanner - seg.cells);
+                if(node.size < 2)
+                    return;
+                goto ContinueWithNextNodePixel;
+            }
+        }
+        while((++circ).direction() != vigra::EightNeighborCode::North);
+    ContinueWithNextNodePixel:
+        ;
+    }
+}
+
+struct FetchRegionsFunctor
+: public std::unary_function<vigra::cellimage::CellPixel, int>
+{
+    vigra::cellimage::CellPixel removePixel_;
+
+    FetchRegionsFunctor(vigra::cellimage::CellPixel removePixel)
+    : removePixel_(removePixel)
+    {}
+
+    int operator()(const vigra::cellimage::CellPixel &p) const
+    {
+        if(p == removePixel_)
+            return 0;
+        // make sure other nodes and edges will survive:
+        if(p.type() != vigra::cellimage::CellTypeRegion)
+            return vigra::SRGWatershedLabel;
+        return p.label();
+    }
+};
 
 template<class RegionStatistics, class LabelType = int>
 class ArrayOfIdenticalStatistics
@@ -85,220 +315,6 @@ public:
 
 private:
     RegionStatistics stats_;
-};
-
-CellStatistics::CellStatistics(const Segmentation &initialSegmentation,
-                               SegmentationData  *segmentationData)
-: segmentationData(segmentationData),
-  segDataBounds(vigra::Point2D(-2, -2), initialSegmentation.cellImage.size()),
-  // border to segDataBounds added below
-  lastChanges_(segDataBounds)
-{
-    segDataBounds.addBorder(
-        (segmentationData->preparedOriginal_.width() -
-         initialSegmentation.cellImage.width()) / 2,
-        (segmentationData->preparedOriginal_.height() -
-         initialSegmentation.cellImage.height()) / 2);
-
-    std::cerr << "initializing face statistics (max face label: "
-              << initialSegmentation.maxFaceLabel() << ")\n";
-
-    faceStatistics_.resize(initialSegmentation.maxFaceLabel() + 1);
-
-    Segmentation::ConstFaceIterator faceIt = initialSegmentation.facesBegin();
-    for(++faceIt; faceIt.inRange(); ++faceIt)
-    {
-        inspectCell(initialSegmentation.faceScanIterator
-                    (faceIt->label, segmentationData->preparedOriginal_.upperLeft()),
-                    faceStatistics_[faceIt->label]);
-    }
-
-    std::cerr << "finding node centers.. (max node label: "
-              << initialSegmentation.maxNodeLabel() << ")\n";
-    nodeCenters_.resize(initialSegmentation.maxNodeLabel() + 1);
-    Segmentation::ConstNodeIterator nodeIt = initialSegmentation.nodesBegin();
-    for(; nodeIt.inRange(); ++nodeIt)
-    {
-        //std::cerr << "finding center of node " << nodeIt->label << "..\n";
-        vigra::cellimage::LabelScanIterator<
-            vigra::cellimage::CellImage::traverser, vigra::Point2D>
-            nodeScanner(
-                initialSegmentation.nodeScanIterator(
-                    nodeIt->label, vigra::Point2D(0, 0), false));
-
-        for(; nodeScanner.inRange(); ++nodeScanner)
-        {
-            //std::cerr << "  has pixel at " << *nodeScanner << std::endl;
-            nodeCenters_[nodeIt->label][0] += nodeScanner->x;
-            nodeCenters_[nodeIt->label][1] += nodeScanner->y;
-        }
-        nodeCenters_[nodeIt->label] /= nodeIt->size;
-        //std::cerr << "  center: " << nodeCenters_[nodeIt->label] << "..\n";
-    }
-
-    std::cerr << "initializing configurationDirections\n";
-    configurationDirections_.resize(256);
-    for(unsigned char i= 1; i<255; ++i)
-    {
-        vigra::EightNeighborOffsetCirculator circ;
-        unsigned char code = i;
-
-        //std::cerr << "  " << (int)i;
-
-        // combine bits at start and end of code to one block:
-        while((code&1) && (code&128))
-        {
-            ++circ;
-            code = (code >> 1) | 128;
-        }
-
-        // collect(==sum up) diff()s to first block of bits:
-        vigra::Diff2D diff1(0, 0);
-        for(; (code&1) == 0; code >>= 1, ++circ)
-            ;
-        for(; (code&1) != 0; code >>= 1, ++circ)
-            diff1 += *circ;
-
-         // no second block of bits? no edge configuration -> skip
-        if(!code)
-        {
-            //std::cerr << " is vertex config: only one block of bits\n";
-            continue;
-        }
-
-        // collect(==sum up) diff()s to second block of bits:
-        vigra::Diff2D diff2(0, 0);
-        for(; (code&1) == 0; code >>= 1, ++circ)
-            ;
-        for(; (code&1) != 0; code >>= 1, ++circ)
-            diff2 += *circ;
-
-         // third block of bits? no edge configuration -> skip
-        if(code)
-        {
-            //std::cerr << " is vertex config: > 2 blocks of bits\n";
-            continue;
-        }
-
-        configurationDirections_[i] =
-            Float2D(diff2.x - diff1.x, diff2.y - diff1.y);
-        configurationDirections_[i] /= configurationDirections_[i].magnitude();
-        /*std::cerr << " has direction "
-                  << configurationDirections_[i][0] << " / "
-                  << configurationDirections_[i][1] << "\n";*/
-    }
-
-    std::cerr << "initializing meanEdgeGradients\n";
-
-    edgeStatistics_.resize(initialSegmentation.maxEdgeLabel() + 1);
-
-    for(Segmentation::ConstEdgeIterator it = initialSegmentation.edgesBegin();
-        it.inRange(); ++it)
-    {
-        const Segmentation::DartTraverser &anchor = it->start;
-        if(!anchor.leftFaceLabel() || !anchor.rightFaceLabel())
-            edgeStatistics_[it->label](
-                vigra::NumericTraits<GradientImage::PixelType>::max());
-        else
-        {
-            inspectCell(initialSegmentation.edgeScanIterator
-                        (it->label, segmentationData->gradientMagnitude_.upperLeft()),
-                        edgeStatistics_[it->label]);
-        }
-    }
-
-    std::cerr << "initializing tree of merged edges\n";
-    mergedEdges_.resize(initialSegmentation.maxEdgeLabel() + 1);
-    //std::iota(mergedEdges_.begin(), mergedEdges_.end(), 0);
-    for(unsigned int i = 0; i < mergedEdges_.size(); ++i)
-        mergedEdges_[i] = i;
-}
-
-struct FetchRegionsFunctor
-: public std::unary_function<vigra::cellimage::CellPixel, int>
-{
-    vigra::cellimage::CellPixel removePixel_;
-
-    FetchRegionsFunctor(vigra::cellimage::CellPixel removePixel)
-    : removePixel_(removePixel)
-    {}
-
-    int operator()(const vigra::cellimage::CellPixel &p) const
-    {
-        if(p == removePixel_)
-            return 0;
-        // make sure other nodes and edges will survive:
-        if(p.type() != vigra::cellimage::CellTypeRegion)
-            return vigra::SRGWatershedLabel;
-        return p.label();
-    }
-};
-
-void nodeRethinning(vigra::cellimage::FourEightSegmentation &seg,
-                    const GradientImage &/*gradientMagnitude*/,
-                    vigra::cellimage::CellLabel nodeLabel)
-{
-    typedef vigra::cellimage::FourEightSegmentation
-        FourEightSegmentation;
-
-    FourEightSegmentation::NodeInfo &node(seg.node(nodeLabel));
-
-    if(node.size < 2)
-        return;
-
-    vigra::cellimage::CellPixel
-        nodePixel(vigra::cellimage::CellTypeVertex, nodeLabel);
-
-    for(FourEightSegmentation::CellScanIterator nodeScanner =
-            seg.nodeScanIterator(nodeLabel, seg.cells, false);
-        nodeScanner.inRange(); ++nodeScanner)
-    {
-        vigra::cellimage::CellImageEightCirculator
-            circ(nodeScanner, vigra::EightNeighborCode::North);
-        do
-        {
-            if(circ->type() == vigra::cellimage::CellTypeRegion)
-            {
-                vigra::cellimage::CellImageEightCirculator circ2(circ);
-                do
-                {
-                    if((*circ2 != *circ) && (*circ2 != nodePixel))
-                    {
-                        if(!(circ2.isDiagonal() &&
-                             (circ2->type() == vigra::cellimage::CellTypeLine &&
-                              (circ2[1].type() == vigra::cellimage::CellTypeVertex ||
-                               circ2[-1].type() == vigra::cellimage::CellTypeVertex))))
-                            goto ContinueWithNextNodePixel;
-                    }
-                }
-                while((++circ2).direction() != circ.direction());
-                // only one neighbored region found -> remove node pixel
-                *nodeScanner = *circ; // relabel pixel
-                --node.size;
-                ++seg.face(circ->label()).size;
-                // FIXME: update node.bounds?
-                seg.face(circ->label()).bounds |=
-                    vigra::Point2D((vigra::cellimage::CellImage::traverser)nodeScanner - seg.cells);
-                if(node.size < 2)
-                    return;
-                goto ContinueWithNextNodePixel;
-            }
-        }
-        while((++circ).direction() != vigra::EightNeighborCode::North);
-    ContinueWithNextNodePixel:
-        ;
-    }
-}
-
-struct ClearROIFunctor
-{
-    int operator()(int label, vigra::BImage::PixelType maskValue) const
-    {
-        if(maskValue)
-            return 0;
-        else
-            return label;
-    }
 };
 
 void edgeRethinning(vigra::cellimage::FourEightSegmentation &seg,
