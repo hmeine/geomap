@@ -9,7 +9,6 @@
 #include <vigra/pixelneighborhood.hxx>
 #include <vigra/contourcirculator.hxx>
 //#include "circulatoradaptor.hxx"
-#include <vigra/rect2d.hxx>
 
 #include "filteriterator.hxx"
 #include "cellimage.hxx"
@@ -19,40 +18,6 @@
 namespace vigra {
 
 namespace cellimage {
-
-template<class Array, class Result = typename Array::value_type,
-         class Index = unsigned int>
-struct LookupFunctor : public std::unary_function<Index, Result>
-{
-    const Array &array_;
-
-    LookupFunctor(const Array &array)
-    : array_(array)
-    {}
-
-    Result operator()(Index i) const
-    { return array_[i]; }
-};
-
-template<class Operation1, class Operation2>
-class ComposeFunctor
-: public std::unary_function<typename Operation2::argument_type,
-                             typename Operation1::result_type>
-{
-  protected:
-    Operation1 op1;
-    Operation2 op2;
-  public:
-    ComposeFunctor(const Operation1 &x = Operation1(),
-                   const Operation2 &y = Operation2())
-    : op1(x), op2(y) {}
-
-    typename Operation1::result_type
-    operator()(const typename Operation2::argument_type &x) const
-    {
-        return op1(op2(x));
-    }
-};
 
 // -------------------------------------------------------------------
 //                            LabelScanIterator
@@ -306,7 +271,8 @@ public:
                 carefulNextSigma();
         }
 
-        DartTraverser &carefulNextSigma()
+    private:
+        DartTraverser &carefulNextSigma() throw ()
         {
             CellImageEightCirculator nend = neighborCirc_;
             while(neighborCirc_->type() != CellTypeLine)
@@ -325,7 +291,7 @@ public:
             return *this;
         }
 
-        DartTraverser &carefulPrevSigma()
+        DartTraverser &carefulPrevSigma() throw ()
         {
             CellImageEightCirculator nend = neighborCirc_;
             while(neighborCirc_->type() != CellTypeLine)
@@ -344,10 +310,20 @@ public:
             return *this;
         }
 
-        DartTraverser &nextAlpha()
+        friend class FourEightSegmentation;
+
+    public:
+        DartTraverser &nextAlpha() throw ()
         {
             if(isSingular())
                 return *this;
+
+            if(segmentation_->initialized())
+            {
+                EdgeInfo &cEdge(edge());
+                return operator=(
+                    operator==(cEdge.start) ? cEdge.end : cEdge.start);
+            }
 
             EdgelIterator line(neighborCirc_);
             line.jumpToOpposite();
@@ -357,24 +333,24 @@ public:
             return *this;
         }
 
-        DartTraverser &prevAlpha()
+        DartTraverser &prevAlpha() throw ()
         {
             return nextAlpha();
         }
 
-        DartTraverser &nextPhi()
+        DartTraverser &nextPhi() throw ()
         {
             return nextAlpha().prevSigma();
         }
 
-        DartTraverser &prevPhi()
+        DartTraverser &prevPhi() throw ()
         {
             return nextSigma().prevAlpha();
         }
 
-        DartTraverser &nextSigma()
+        DartTraverser &nextSigma() throw ()
         {
-            if(isSingular(true))
+            if(isSingular())
                 return *this;
 
             tryNextSigma();
@@ -390,9 +366,9 @@ public:
             return *this;
         }
 
-        DartTraverser &prevSigma()
+        DartTraverser &prevSigma() throw ()
         {
-            if(isSingular(true))
+            if(isSingular())
                 return *this;
 
             tryPrevSigma();
@@ -408,97 +384,88 @@ public:
             return *this;
         }
 
-        bool isSingular(bool check = false) const
+        bool isSingular() const throw ()
         {
-            if(!check || !segmentation_->initialized())
-            {
-                return neighborCirc_->type() != CellTypeLine;
-            }
-            else
-            {
-                if(neighborCirc_->type() != CellTypeLine)
-                    return false;
-                return startNode().degree == 0;
-            }
+            return neighborCirc_->type() != CellTypeLine;
         }
 
-        CellLabel startNodeLabel() const
+        CellLabel startNodeLabel() const throw ()
         {
             return neighborCirc_.center()->label();
         }
 
-        CellLabel endNodeLabel() const
+        CellLabel endNodeLabel() const throw ()
         {
             DartTraverser reverseDart_(*this);
             reverseDart_.nextAlpha();
             return reverseDart_.startNodeLabel();
         }
 
-        CellLabel edgeLabel() const
+        CellLabel edgeLabel() const throw ()
         {
             return neighborCirc_->label();
         }
 
-        CellLabel leftFaceLabel() const
+        CellLabel leftFaceLabel() const throw ()
         {
-            vigra_precondition(neighborCirc_[1].type() == CellTypeRegion,
-                "insufficient algorithm for DartTraverser::leftFaceLabel()");
+//             vigra_precondition(neighborCirc_[1].type() == CellTypeRegion,
+//                 "insufficient algorithm for DartTraverser::leftFaceLabel()");
             return neighborCirc_[1].label();
         }
 
-        CellLabel rightFaceLabel() const
+        CellLabel rightFaceLabel() const throw ()
         {
-            vigra_precondition(neighborCirc_[-1].type() == CellTypeRegion,
-                "insufficient algorithm for DartTraverser::rightFaceLabel()");
+//             vigra_precondition(neighborCirc_[-1].type() == CellTypeRegion,
+//                 "insufficient algorithm for DartTraverser::rightFaceLabel()");
             return neighborCirc_[-1].label();
         }
 
-        NodeInfo &startNode() const
+        NodeInfo &startNode() const throw ()
         {
             return segmentation_->nodeList_[startNodeLabel()];
         }
 
-        NodeInfo &endNode() const
+        NodeInfo &endNode() const throw ()
         {
             return segmentation_->nodeList_[endNodeLabel()];
         }
 
-        EdgeInfo &edge() const
+        EdgeInfo &edge() const throw ()
         {
             return segmentation_->edgeList_[edgeLabel()];
         }
 
-        FaceInfo &leftFace() const
+        FaceInfo &leftFace() const throw ()
         {
             return segmentation_->faceList_[leftFaceLabel()];
         }
 
-        FaceInfo &rightFace() const
+        FaceInfo &rightFace() const throw ()
         {
             return segmentation_->faceList_[rightFaceLabel()];
         }
 
-        bool operator==(DartTraverser const &o) const
+        bool operator==(DartTraverser const &o) const throw ()
         {
             return neighborCirc_ == o.neighborCirc_;
         }
 
-        bool operator!=(DartTraverser const &o) const
+        bool operator!=(DartTraverser const &o) const throw ()
         {
             return neighborCirc_ != o.neighborCirc_;
         }
 
-        const CellImageEightCirculator &neighborCirculator() const
+        const CellImageEightCirculator &neighborCirculator() const throw ()
         {
             return neighborCirc_;
         }
 
-        FourEightSegmentation *segmentation() const
+        FourEightSegmentation *segmentation() const throw ()
         {
             return segmentation_;
         }
 
-        void reparent(FourEightSegmentation *segmentation)
+        void reparent(FourEightSegmentation *segmentation) throw ()
         {
             neighborCirc_ = CellImageEightCirculator(
                 segmentation->cells +
@@ -509,7 +476,7 @@ public:
 
         typedef unsigned int Serialized;
 
-        Serialized serialize() const
+        Serialized serialize() const throw ()
         {
             Diff2D cPos(neighborCirc_.center() -
                         segmentation_->cellImage.upperLeft());
@@ -527,7 +494,7 @@ public:
         {}
 
     private:
-        void tryNextSigma()
+        void tryNextSigma() throw ()
         {
             ++neighborCirc_;
 
@@ -535,7 +502,7 @@ public:
                 ++neighborCirc_;
         }
 
-        void tryPrevSigma()
+        void tryPrevSigma() throw ()
         {
             --neighborCirc_;
 
@@ -690,18 +657,18 @@ public:
         { return NodeIterator(nodeList_.begin(), nodeList_.end()); }
     NodeIterator nodesEnd()
         { return NodeIterator(nodeList_.end(), nodeList_.end()); }
-    NodeIterator findNode(unsigned int node)
+    NodeIterator findNode(CellLabel node)
         { return NodeIterator(nodeList_.begin() + node, nodeList_.end()); }
-    NodeInfo &node(unsigned int node)
+    NodeInfo &node(CellLabel node)
         { return nodeList_[node]; }
 
     ConstNodeIterator nodesBegin() const
         { return ConstNodeIterator(nodeList_.begin(), nodeList_.end()); }
     ConstNodeIterator nodesEnd() const
         { return ConstNodeIterator(nodeList_.end(), nodeList_.end()); }
-    ConstNodeIterator findNode(unsigned int node) const
+    ConstNodeIterator findNode(CellLabel node) const
         { return ConstNodeIterator(nodeList_.begin() + node, nodeList_.end()); }
-    const NodeInfo &node(unsigned int node) const
+    const NodeInfo &node(CellLabel node) const
         { return nodeList_[node]; }
 
         // edge access
@@ -709,18 +676,18 @@ public:
         { return EdgeIterator(edgeList_.begin(), edgeList_.end()); }
     EdgeIterator edgesEnd()
         { return EdgeIterator(edgeList_.end(), edgeList_.end()); }
-    EdgeIterator findEdge(unsigned int edge)
+    EdgeIterator findEdge(CellLabel edge)
         { return EdgeIterator(edgeList_.begin() + edge, edgeList_.end()); }
-    EdgeInfo &edge(unsigned int edge)
+    EdgeInfo &edge(CellLabel edge)
         { return edgeList_[edge]; }
 
     ConstEdgeIterator edgesBegin() const
         { return ConstEdgeIterator(edgeList_.begin(), edgeList_.end()); }
     ConstEdgeIterator edgesEnd() const
         { return ConstEdgeIterator(edgeList_.end(), edgeList_.end()); }
-    ConstEdgeIterator findEdge(unsigned int edge) const
+    ConstEdgeIterator findEdge(CellLabel edge) const
         { return ConstEdgeIterator(edgeList_.begin() + edge, edgeList_.end()); }
-    const EdgeInfo &edge(unsigned int edge) const
+    const EdgeInfo &edge(CellLabel edge) const
         { return edgeList_[edge]; }
 
         // face access
@@ -728,18 +695,18 @@ public:
         { return FaceIterator(faceList_.begin(), faceList_.end()); }
     FaceIterator facesEnd()
         { return FaceIterator(faceList_.end(), faceList_.end()); }
-    FaceIterator findFace(unsigned int face)
+    FaceIterator findFace(CellLabel face)
         { return FaceIterator(faceList_.begin() + face, faceList_.end()); }
-    FaceInfo &face(unsigned int face)
+    FaceInfo &face(CellLabel face)
         { return faceList_[face]; }
 
     ConstFaceIterator facesBegin() const
         { return ConstFaceIterator(faceList_.begin(), faceList_.end()); }
     ConstFaceIterator facesEnd() const
         { return ConstFaceIterator(faceList_.end(), faceList_.end()); }
-    ConstFaceIterator findFace(unsigned int face) const
+    ConstFaceIterator findFace(CellLabel face) const
         { return ConstFaceIterator(faceList_.begin() + face, faceList_.end()); }
-    const FaceInfo &face(unsigned int face) const
+    const FaceInfo &face(CellLabel face) const
         { return faceList_[face]; }
 
         // cellimage access
