@@ -16,6 +16,7 @@ typedef vigra::FImage GradientImage;
 
 typedef vigra::TinyVector<float, 2> Float2D;
 typedef vigra::BasicImage<Float2D> EdgeDirImage;
+typedef vigra::BasicImage<bool> EdgelImage;
 
 struct SegmentationData
 {
@@ -23,11 +24,26 @@ struct SegmentationData
     GradientImage gradientMagnitude_;
     EdgeDirImage  edgeDirection_;
     EdgeDirImage  edgeDirGradient_;
-    bool          doEdgeRethinning;
-    bool          doRemoveDegree2Nodes;
+        // the following members would fit better in a separate
+        // statistics object which is unique-per-pyramid instead of
+        // per-level
+    bool       doEdgeRethinning;
+    bool       doRemoveDegree2Nodes;
+    EdgelImage edgelImage;
+    bool       doAutoProtection;
+    double     autoProtectionThreshold;
 };
 
 namespace std { void swap(SegmentationData &a, SegmentationData &b); }
+
+struct CountEdgels
+{
+    unsigned int count;
+
+    CountEdgels(): count(0) {}
+    void operator()(bool e) { if(e) ++count; }
+    unsigned int operator()() const { return count; }
+};
 
 /********************************************************************/
 
@@ -93,6 +109,8 @@ struct CellStatistics
         edgeStatistics_;
     std::vector<vigra::cellimage::CellLabel>
         mergedEdges_;
+    std::vector<unsigned int>
+        edgels_; // number of Canny edgels on an edges' pixels
     std::vector<vigra::TinyVector<float, 2> >
         nodeCenters_;
 
@@ -150,6 +168,25 @@ struct CellStatistics
             return false;
         else
             return edgeProtected(mergedEdges_[edgeLabel]);
+    }
+
+    const vigra::Rect2D initAutoProtection(const Segmentation &seg) const
+    {
+        vigra::Rect2D result;
+
+        for(Segmentation::ConstEdgeIterator it = seg.edgesBegin();
+            it.inRange(); ++it)
+        {
+            CountEdgels edgelCount;
+            inspectCell(seg.edgeScanIterator(
+                            it->label, segmentationData->edgelImage.upperLeft()),
+                        edgelCount);
+            if(protectEdge(it->label, (edgelCount() > it->size *
+                                       segmentationData->autoProtectionThreshold)))
+                result |= it->bounds;
+        }
+
+        return result;
     }
 
     const vigra::Rect2D & lastChanges() const
@@ -230,7 +267,7 @@ inline void CellStatistics::preMergeFaces(const Segmentation::DartTraverser &dar
 {
     // initialize tempFaceStatistics_ with leftFace and edge:
     preRemoveEdge(dart); // also sets node1Label_ and node2Label_
-    
+
     tempFaceStatistics_(faceStatistics_[dart.rightFaceLabel()]);
 }
 
@@ -266,16 +303,29 @@ inline void CellStatistics::postMergeEdges(Segmentation::EdgeInfo &edge)
     lastChanges_ |= edge.bounds;
 
     // to rethin, we need gradient/edgeness information for all edgels:
-    if(segmentationData->doEdgeRethinning &&
-       segDataBounds.contains(edge.bounds))
+    if(segDataBounds.contains(edge.bounds))
     {
-        vigra::Rect2D rethinRange(edge.bounds);
-        rethinRange.addBorder(1);
-        rethinRange &= segDataBounds;
+        if(segmentationData->doEdgeRethinning)
+        {
+            vigra::Rect2D rethinRange(edge.bounds);
+            rethinRange.addBorder(1);
+            rethinRange &= segDataBounds;
 
-        edgeRethinning(*edge.start.segmentation(),
-                       segmentationData->gradientMagnitude_, edge.label,
-                       rethinRange);
+            edgeRethinning(*edge.start.segmentation(),
+                           segmentationData->gradientMagnitude_, edge.label,
+                           rethinRange);
+        }
+    
+        if(segmentationData->doAutoProtection)
+        {
+            CountEdgels edgelCount;
+            inspectCell(edge.start.segmentation()->edgeScanIterator
+                        (edge.label, segmentationData->edgelImage.upperLeft()),
+                        edgelCount);
+            edgels_[edge.label] = edgelCount();
+            protectEdge(edge.label, (edgelCount() > edge.size *
+                                     segmentationData->autoProtectionThreshold));
+        }
     }
 }
 

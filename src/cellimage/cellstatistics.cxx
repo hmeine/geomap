@@ -151,6 +151,7 @@ CellStatistics::CellStatistics(const Segmentation &initialSegmentation,
     //std::iota(mergedEdges_.begin(), mergedEdges_.end(), 0);
     for(unsigned int i = 0; i < mergedEdges_.size(); ++i)
         mergedEdges_[i] = i;
+    edgels_.resize(initialSegmentation.maxEdgeLabel() + 1);
 }
 
 CellStatistics &CellStatistics::operator=(const CellStatistics &other)
