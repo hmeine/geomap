@@ -3,6 +3,7 @@
 
 #include "neighborhoodcirculator.hxx"
 
+namespace vigra {
 
 template <class SIter, class SAcc, class DIter, class DAcc, class Value>
 void findSaddles(SIter sul, SIter slr, SAcc src,
@@ -11,17 +12,17 @@ void findSaddles(SIter sul, SIter slr, SAcc src,
     int x, y;
     int w = slr.x - sul.x;
     int h = slr.y - sul.y;
-    
+
     typedef typename NumericTraits<typename SAcc::value_type>::Promote TmpType;
     static TmpType zero = NumericTraits<TmpType>::zero();
-    
+
     ++sul.y;
     ++dul.y;
     for(y=1; y<h-1; ++y, ++sul.y, ++dul.y)
     {
         SIter scur = sul;
         DIter dcur = dul;
-            
+
         ++scur.x;
         ++dcur.x;
         for(x=1; x<w-1; ++x, ++scur.x, ++dcur.x)
@@ -35,7 +36,7 @@ void findSaddles(SIter sul, SIter slr, SAcc src,
             {
                 grads[i] = *neigh - *scur;
             }
-            
+
             int up = 0;
             for(i=0; i<8; ++i)
             {
@@ -57,5 +58,7 @@ void findSaddles(triple<SIter, SIter, SAcc> src,
     findSaddles(src.first, src.second, src.third,
                          dest.first, dest.second, saddlemarker);
 }
+
+} // namespace vigra
 
 #endif /* VIGRA_FINDSADDLES_HXX */
