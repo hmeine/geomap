@@ -156,7 +156,7 @@ struct CellStatistics
         bool result = false;
         result = result || edgeProtection->protectEdge(edgeLabel, protect);
         if(mergedEdges_[edgeLabel] != edgeLabel)
-            result = result || protectEdge(mergedEdges_[edgeLabel], protect);
+            result = protectEdge(mergedEdges_[edgeLabel], protect) || result;
         return result;
     }
 
@@ -302,6 +302,13 @@ inline void CellStatistics::postMergeEdges(Segmentation::EdgeInfo &edge)
     edgeStatistics_[edge.label] = tempEdgeStatistics_;
     lastChanges_ |= edge.bounds;
 
+    // build tree of mergedEdges_
+    vigra::cellimage::CellLabel targetLabel = edge.label;
+    while(mergedEdges_[targetLabel] != targetLabel)
+        targetLabel = mergedEdges_[targetLabel];
+    mergedEdges_[targetLabel] =
+        (edge.label == edge1Label_) ? edge2Label_ : edge1Label_;
+
     // to rethin, we need gradient/edgeness information for all edgels:
     if(segDataBounds.contains(edge.bounds))
     {
@@ -315,7 +322,7 @@ inline void CellStatistics::postMergeEdges(Segmentation::EdgeInfo &edge)
                            segmentationData->gradientMagnitude_, edge.label,
                            rethinRange);
         }
-    
+
         if(segmentationData->doAutoProtection)
         {
             CountEdgels edgelCount;
