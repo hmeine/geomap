@@ -6,7 +6,6 @@
 
 #include <vigra/stdimage.hxx>
 #include <vigra/inspectimage.hxx>
-#include <vigra/rect2d.hxx>
 #include <vigra/tinyvector.hxx>
 
 #include <vector>
@@ -26,6 +25,8 @@ struct SegmentationData
     EdgeDirImage  edgeDirGradient_;
 };
 
+namespace std { void swap(SegmentationData &a, SegmentationData &b); }
+
 void nodeRethinning(vigra::cellimage::FourEightSegmentation &seg,
                     const GradientImage &gradientMagnitude,
                     vigra::cellimage::CellLabel nodeLabel);
@@ -34,22 +35,23 @@ void edgeRethinning(vigra::cellimage::FourEightSegmentation &seg,
                     const GradientImage &gradientMagnitude,
                     vigra::cellimage::CellLabel edgeLabel);
 
+extern bool doEdgeRethinning;
+
 struct CellStatistics
 {
     typedef vigra::cellimage::FourEightSegmentation
         Segmentation;
-
-        // members storing source data
-    SegmentationData *segmentationData_;
-    mutable vigra::Rect2D lastChanges_;
+//typedef StatisticFunctor<OriginalImage::PixelType>
+    typedef vigra::FindAverage<OriginalImage::PixelType>
+        FaceStatistics;
+    typedef vigra::FindAverage<GradientImage::PixelType>
+        EdgeStatistics;
 
         // members storing statistics
-    std::vector<OriginalImage::PixelType>
-        faceMeans_;
-    std::vector<vigra::NumericTraits<OriginalImage::PixelType>::RealPromote>
-        faceVariance_; // sigma squared
-    std::vector<GradientImage::PixelType>
-        meanEdgeGradients_;
+    std::vector<FaceStatistics>
+        faceStatistics_;
+    std::vector<EdgeStatistics>
+        edgeStatistics_;
     std::vector<vigra::cellimage::CellLabel>
         mergedEdges_;
     std::vector<vigra::TinyVector<float, 2> >
@@ -62,69 +64,31 @@ struct CellStatistics
     CellStatistics(const Segmentation &initialSegmentation,
                    SegmentationData  *segmentationData);
 
+        // members storing source data
+    SegmentationData *segmentationData_;
+
+  protected:
+    mutable vigra::Rect2D lastChanges_;
+
         // temporary data for storage between preXXX- and postXXX-calls
-    StatisticFunctor<GradientImage::PixelType> tempStatistics_;
-    vigra::FindAverage<OriginalImage::PixelType> tempAverage_;
+    FaceStatistics tempFaceStatistics_;
+    EdgeStatistics tempEdgeStatistics_;
     vigra::cellimage::CellLabel node1Label_, node2Label_;
     vigra::cellimage::CellLabel edge1Label_, edge2Label_;
 
-    void preRemoveIsolatedNode(const Segmentation::DartTraverser &)
-    {}
-    void postRemoveIsolatedNode(const Segmentation::DartTraverser &,
-                                Segmentation::FaceInfo &face)
+    void preRemoveEdge(const Segmentation::DartTraverser &dart)
     {
-        lastChanges_ |= face.bounds;
-    }
-
-    void preRemoveBridge(const Segmentation::DartTraverser &dart)
-    {
-        // /!\ common code (called from preMergeFaces, too):
-        vigra::cellimage::CellLabel faceLabel = dart.leftFaceLabel();
-        tempStatistics_.count= dart.segmentation()->face(faceLabel).size;
-        tempStatistics_.sum= tempStatistics_.count * faceMeans_[faceLabel];
-        tempStatistics_.squareSum=
-            tempStatistics_.count * (faceVariance_[faceLabel] +
-                                    faceMeans_[faceLabel] * faceMeans_[faceLabel]);
-
+        tempFaceStatistics_ = faceStatistics_[dart.leftFaceLabel()];
         inspectCell(dart.segmentation()->edgeScanIterator
                     (dart.edgeLabel(), segmentationData_->preparedOriginal_.upperLeft()),
-                    tempStatistics_);
+                    tempFaceStatistics_);
 
         node1Label_ = dart.edge().start.startNodeLabel();
         node2Label_ = dart.edge().end.startNodeLabel();
     }
-    void postRemoveBridge(const Segmentation::DartTraverser &,
-                          Segmentation::FaceInfo &face)
+    void postRemoveEdge(Segmentation::FaceInfo &face)
     {
-        faceMeans_[face.label]= tempStatistics_.avg();
-        faceVariance_[face.label]= tempStatistics_.var();
-        lastChanges_ |= face.bounds;
-
-        /*nodeRethinning(*dart.segmentation(),
-                       segmentationData_->gradientMagnitude_, node1Label_);
-        nodeRethinning(*dart.segmentation(),
-        segmentationData_->gradientMagnitude_, node2Label_);*/
-    }
-
-    void preMergeFaces(const Segmentation::DartTraverser &dart)
-    {
-        // initialize tempStatistics_ with leftFace and edge:
-        preRemoveBridge(dart); // also sets node1Label_ and node2Label_
-
-        vigra::cellimage::CellLabel face2Label = dart.rightFaceLabel();
-        long count = dart.segmentation()->face(face2Label).size;
-        tempStatistics_.count += count;
-        tempStatistics_.sum += count * faceMeans_[face2Label];
-        tempStatistics_.squareSum +=
-            count * (faceVariance_[face2Label] +
-                     faceMeans_[face2Label] * faceMeans_[face2Label]);
-    }
-    void postMergeFaces(const Segmentation::DartTraverser &,
-                        Segmentation::FaceInfo &face)
-    {
-        faceMeans_[face.label]    = tempStatistics_.avg();
-        faceVariance_[face.label] = tempStatistics_.var();
-
+        faceStatistics_[face.label]= tempFaceStatistics_;
         lastChanges_ |= face.bounds;
 
         /*nodeRethinning(*dart.segmentation(),
@@ -132,6 +96,35 @@ struct CellStatistics
         if(node1Label_ != node2Label_)
             nodeRethinning(*dart.segmentation(),
             segmentationData_->gradientMagnitude_, node2Label_);*/
+    }
+
+  public:
+    void preRemoveIsolatedNode(const Segmentation::DartTraverser &)
+    {}
+    void postRemoveIsolatedNode(Segmentation::FaceInfo &face)
+    {
+        lastChanges_ |= face.bounds;
+    }
+
+    void preRemoveBridge(const Segmentation::DartTraverser &dart)
+    {
+        preRemoveEdge(dart);
+    }
+    void postRemoveBridge(Segmentation::FaceInfo &face)
+    {
+        postRemoveEdge(face);
+    }
+
+    void preMergeFaces(const Segmentation::DartTraverser &dart)
+    {
+        // initialize tempFaceStatistics_ with leftFace and edge:
+        preRemoveBridge(dart); // also sets node1Label_ and node2Label_
+
+        tempFaceStatistics_(faceStatistics_[dart.rightFaceLabel()]);
+    }
+    void postMergeFaces(Segmentation::FaceInfo &face)
+    {
+        postRemoveBridge(face);
     }
 
     void preMergeEdges(const Segmentation::DartTraverser &dart)
@@ -143,30 +136,25 @@ struct CellStatistics
 
         if(!dart.leftFaceLabel() || !dart.rightFaceLabel())
         {
-            tempAverage_.count = 1;
-            tempAverage_.sum = vigra::NumericTraits<GradientImage::PixelType>::max();
+            tempEdgeStatistics_.clear();
+            tempEdgeStatistics_(
+                vigra::NumericTraits<GradientImage::PixelType>::max());
             return;
         }
-        tempAverage_.count = 0;
-        tempAverage_.sum = 0.0f;
-        inspectCell(dart.segmentation()->edgeScanIterator
-                    (edge1Label_, segmentationData_->gradientMagnitude_.upperLeft()),
-                    tempAverage_);
-        inspectCell(dart.segmentation()->edgeScanIterator
-                    (edge2Label_, segmentationData_->gradientMagnitude_.upperLeft()),
-                    tempAverage_);
+        tempEdgeStatistics_ = edgeStatistics_[edge1Label_];
+        tempEdgeStatistics_(edgeStatistics_[edge2Label_]);
         inspectCell(dart.segmentation()->nodeScanIterator
                     (d.startNodeLabel(), segmentationData_->gradientMagnitude_.upperLeft()),
-                    tempAverage_);
+                    tempEdgeStatistics_);
     }
-    void postMergeEdges(const Segmentation::DartTraverser &dart,
-                        Segmentation::EdgeInfo &edge)
+    void postMergeEdges(Segmentation::EdgeInfo &edge)
     {
-        meanEdgeGradients_[edge.label]= tempAverage_();
+        edgeStatistics_[edge.label] = tempEdgeStatistics_;
         lastChanges_ |= edge.bounds;
 
-        edgeRethinning(*dart.segmentation(),
-                       segmentationData_->gradientMagnitude_, edge.label);
+        if(doEdgeRethinning)
+            edgeRethinning(*edge.start.segmentation(),
+                           segmentationData_->gradientMagnitude_, edge.label);
     }
 
     const vigra::Rect2D & lastChanges() const
