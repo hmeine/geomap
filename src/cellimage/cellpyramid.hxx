@@ -263,7 +263,7 @@ class CellPyramid
 
     void cutHead()
     {
-        history_.erase(history_.begin() + currentLevel_, history_.end());
+        history_.erase(history_.begin() + currentLevel_ + 1, history_.end());
         checkpoints_.erase(checkpoints_.upper_bound(currentLevel_),
                            checkpoints_.end());
     }
