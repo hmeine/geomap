@@ -103,7 +103,7 @@ class EdgeProtection
 
 struct CellStatistics
 {
-    typedef vigra::cellimage::FourEightSegmentation
+    typedef vigra::cellimage::GeoMap
         Segmentation;
 //typedef StatisticFunctor<OriginalImage::PixelType>
     typedef vigra::FindAverage<OriginalImage::PixelType>
@@ -218,11 +218,11 @@ struct CellStatistics
 
 /********************************************************************/
 
-void nodeRethinning(vigra::cellimage::FourEightSegmentation &seg,
+void nodeRethinning(vigra::cellimage::GeoMap &seg,
                     const GradientImage &gradientMagnitude,
                     vigra::cellimage::CellLabel nodeLabel);
 
-void edgeRethinning(vigra::cellimage::FourEightSegmentation &seg,
+void edgeRethinning(vigra::cellimage::GeoMap &seg,
                     const GradientImage &gradientMagnitude,
                     vigra::cellimage::CellLabel edgeLabel,
 					const vigra::Rect2D &rethinRange);

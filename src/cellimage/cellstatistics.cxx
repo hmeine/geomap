@@ -178,14 +178,13 @@ CellStatistics &CellStatistics::operator=(const CellStatistics &other)
 
 /********************************************************************/
 
-void nodeRethinning(vigra::cellimage::FourEightSegmentation &seg,
+void nodeRethinning(vigra::cellimage::GeoMap &seg,
                     const GradientImage &/*gradientMagnitude*/,
                     vigra::cellimage::CellLabel nodeLabel)
 {
-    typedef vigra::cellimage::FourEightSegmentation
-        FourEightSegmentation;
+    typedef vigra::cellimage::GeoMap GeoMap;
 
-    FourEightSegmentation::NodeInfo &node(seg.node(nodeLabel));
+    GeoMap::NodeInfo &node(seg.node(nodeLabel));
 
     if(node.size < 2)
         return;
@@ -193,7 +192,7 @@ void nodeRethinning(vigra::cellimage::FourEightSegmentation &seg,
     vigra::cellimage::CellPixel
         nodePixel(vigra::cellimage::CellTypeVertex, nodeLabel);
 
-    for(FourEightSegmentation::CellScanIterator nodeScanner =
+    for(GeoMap::CellScanIterator nodeScanner =
             seg.nodeScanIterator(nodeLabel, seg.cells, false);
         nodeScanner.inRange(); ++nodeScanner)
     {
@@ -315,25 +314,24 @@ private:
     RegionStatistics stats_;
 };
 
-void edgeRethinning(vigra::cellimage::FourEightSegmentation &seg,
+void edgeRethinning(vigra::cellimage::GeoMap &seg,
                     const GradientImage &gradientMagnitude,
                     vigra::cellimage::CellLabel edgeLabel,
                     const vigra::Rect2D &rethinRange)
 {
     //std::cerr << "edgeRethinning(edgeLabel: " << edgeLabel << ")\n";
 
-    typedef vigra::cellimage::FourEightSegmentation
-        FourEightSegmentation;
+    typedef vigra::cellimage::GeoMap GeoMap;
 
-    FourEightSegmentation::EdgeInfo &edge(seg.edge(edgeLabel));
+    GeoMap::EdgeInfo &edge(seg.edge(edgeLabel));
 
     vigra::cellimage::CellLabel face1Label(edge.start.leftFaceLabel());
     vigra::cellimage::CellLabel face2Label(edge.start.rightFaceLabel());
     if(face1Label == face2Label)
         return; // watershed lets bridges disappear :-(
 
-    FourEightSegmentation::FaceInfo &face1(seg.face(face1Label));
-    FourEightSegmentation::FaceInfo &face2(seg.face(face2Label));
+    GeoMap::FaceInfo &face1(seg.face(face1Label));
+    GeoMap::FaceInfo &face2(seg.face(face2Label));
 
     vigra::cellimage::CellPixel
         edgePixel(vigra::cellimage::CellTypeLine, edgeLabel);

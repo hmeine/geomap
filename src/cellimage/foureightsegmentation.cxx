@@ -31,7 +31,7 @@ struct FindMaxLabel
     { return maxLabel_; }
 };
 
-FourEightSegmentation::FourEightSegmentation(const CellImage &importImage)
+GeoMap::GeoMap(const CellImage &importImage)
 : initialized_(false)
 {
     cellImage.resize(importImage.size());
@@ -82,9 +82,8 @@ FourEightSegmentation::FourEightSegmentation(const CellImage &importImage)
     initialized_ = true;
 }
 
-unsigned int FourEightSegmentation::findComponentAnchor(
-    const FaceInfo &face,
-    const DartTraverser & dart)
+unsigned int GeoMap::findComponentAnchor(
+    const FaceInfo &face, const DartTraverser & dart)
 {
     unsigned int result = 0;
     const ContourComponents &contours = face.contours;
@@ -139,8 +138,8 @@ unsigned int FourEightSegmentation::findComponentAnchor(
     return 0;
 }
 
-void FourEightSegmentation::removeNodeFromContours(ContourComponents &contours,
-                                                   CellLabel nodeLabel)
+void GeoMap::removeNodeFromContours(ContourComponents &contours,
+									CellLabel nodeLabel)
 {
     // find contour anchor to be changed if it points to this edge
     for(ContourComponentsIterator contour= contours.begin();
@@ -149,8 +148,7 @@ void FourEightSegmentation::removeNodeFromContours(ContourComponents &contours,
             contour->nextPhi();
 }
 
-FourEightSegmentation::FaceInfo &FourEightSegmentation::removeIsolatedNode(
-    const DartTraverser & dart)
+GeoMap::FaceInfo &GeoMap::removeIsolatedNode(const DartTraverser & dart)
 {
     //std::cerr << "removeIsolatedNode(" << dart << ")\n";
     validateDart(dart);
@@ -178,8 +176,7 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::removeIsolatedNode(
     return face;
 }
 
-FourEightSegmentation::FaceInfo &FourEightSegmentation::mergeFaces(
-    const DartTraverser & dart)
+GeoMap::FaceInfo &GeoMap::mergeFaces(const DartTraverser & dart)
 {
     //std::cerr << "mergeFaces(" << dart << ")\n";
     validateDart(dart);
@@ -195,7 +192,7 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::mergeFaces(
     NodeInfo &node2= mergedEdge.end.startNode();
 
     vigra_precondition(survivor.label != mergedFace.label,
-        "FourEightSegmentation::mergeFaces(): dart is singular or edge is a bridge");
+        "GeoMap::mergeFaces(): dart is singular or edge is a bridge");
 
     // find indices of contour components to be merged
     unsigned int contour1 = findComponentAnchor(survivor, removedDart);
@@ -250,8 +247,7 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::mergeFaces(
     return survivor;
 }
 
-FourEightSegmentation::FaceInfo &FourEightSegmentation::removeBridge(
-    const DartTraverser & dart)
+GeoMap::FaceInfo &GeoMap::removeBridge(const DartTraverser & dart)
 {
     //std::cerr << "removeBridge(" << dart << ")\n";
     validateDart(dart);
@@ -262,7 +258,7 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::removeBridge(
     NodeInfo &node2= edge.end.startNode();
 
     vigra_precondition(face.label == dart.rightFaceLabel(),
-                       "FourEightSegmentation::removeBridge(): edge is not a bridge");
+                       "GeoMap::removeBridge(): edge is not a bridge");
 
     // prepare new anchors
     DartTraverser newAnchor1(edge.start);
@@ -299,8 +295,7 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::removeBridge(
     return face;
 }
 
-FourEightSegmentation::EdgeInfo &FourEightSegmentation::mergeEdges(
-    const DartTraverser & dart)
+GeoMap::EdgeInfo &GeoMap::mergeEdges(const DartTraverser & dart)
 {
     //std::cerr << "mergeEdges(" << dart << ")\n";
     // merge smaller edge (mergedEdge) into larger one (survivor):
@@ -319,9 +314,9 @@ FourEightSegmentation::EdgeInfo &FourEightSegmentation::mergeEdges(
     EdgeInfo &survivor = dart1.edge();
 
     vigra_precondition((firstIsSmaller ? dart2 : dart1) == dart,
-        "FourEightSegmentation::mergeEdges(): node has degree > 2");
+        "GeoMap::mergeEdges(): node has degree > 2");
     vigra_precondition(survivor.label != mergedEdge.label,
-        "FourEightSegmentation::mergeEdges(): node has degree one or is loop");
+        "GeoMap::mergeEdges(): node has degree one or is loop");
 
     // update contours of neighbored faces if necessary
     removeNodeFromContours(dart1.leftFace().contours, dart1.startNodeLabel());
@@ -360,8 +355,7 @@ FourEightSegmentation::EdgeInfo &FourEightSegmentation::mergeEdges(
 
 /********************************************************************/
 
-FourEightSegmentation &FourEightSegmentation::deepCopy(
-    const FourEightSegmentation &other)
+GeoMap &GeoMap::deepCopy(const GeoMap &other)
 {
     cellImage = other.cellImage;
     cells = cellImage.upperLeft() + Diff2D(2,2);
@@ -398,7 +392,7 @@ FourEightSegmentation &FourEightSegmentation::deepCopy(
 
 /********************************************************************/
 
-void FourEightSegmentation::checkConsistency()
+void GeoMap::checkConsistency()
 {
     bool consistent = true;
     // std::cerr << "checking nodes...\n";
@@ -538,8 +532,7 @@ void FourEightSegmentation::checkConsistency()
 
 /********************************************************************/
 
-void FourEightSegmentation::initCellImage(BImage & contourImage,
-                                          CellType cornerType)
+void GeoMap::initCellImage(BImage & contourImage, CellType cornerType)
 {
     cellConfigurations[5] = cornerType;
     cellConfigurations[20] = cornerType;
@@ -579,7 +572,7 @@ void FourEightSegmentation::initCellImage(BImage & contourImage,
                                     Rect2D(x, y, x+5, y+5)),
                                std::cerr);
                     char message[200];
-                    snprintf(message, 200, "FourEightSegmentation::init(): "
+                    snprintf(message, 200, "GeoMap::init(): "
                             "Configuration at (%d, %d) must be thinned further (found configuration %d)",
                             x, y, conf);
 
@@ -599,7 +592,7 @@ void FourEightSegmentation::initCellImage(BImage & contourImage,
 
 /********************************************************************/
 
-CellLabel FourEightSegmentation::label0Cells()
+CellLabel GeoMap::label0Cells()
 {
     BImage nodeImage(cellImage.size());
     BImage::traverser nodes = nodeImage.upperLeft() + Diff2D(2,2);
@@ -645,7 +638,7 @@ CellLabel FourEightSegmentation::label0Cells()
 
 /********************************************************************/
 
-CellLabel FourEightSegmentation::label1Cells(CellLabel maxNodeLabel)
+CellLabel GeoMap::label1Cells(CellLabel maxNodeLabel)
 {
     std::vector<bool> nodeProcessed(maxNodeLabel + 1, false);
 
@@ -684,7 +677,7 @@ CellLabel FourEightSegmentation::label1Cells(CellLabel maxNodeLabel)
 
 /********************************************************************/
 
-CellLabel FourEightSegmentation::label2Cells(BImage & contourImage)
+CellLabel GeoMap::label2Cells(BImage & contourImage)
 {
     // labelImageWithBackground() starts with label 1, so don't
     // include outer border (infinite regions shall have label 0)
@@ -699,8 +692,7 @@ CellLabel FourEightSegmentation::label2Cells(BImage & contourImage)
 
 /********************************************************************/
 
-void FourEightSegmentation::labelCircles(
-    CellLabel & maxNodeLabel, CellLabel & maxEdgeLabel)
+void GeoMap::labelCircles(CellLabel & maxNodeLabel, CellLabel & maxEdgeLabel)
 {
     for(int y=-1; y < cellImage.height()-3; ++y)
     {
@@ -735,8 +727,8 @@ void FourEightSegmentation::labelCircles(
 
 /********************************************************************/
 
-void FourEightSegmentation::labelEdge(CellImageEightCirculator rayAtStart,
-                                      CellLabel newLabel)
+void GeoMap::labelEdge(CellImageEightCirculator rayAtStart,
+					   CellLabel newLabel)
 {
     EdgelIterator edge(rayAtStart);
 
@@ -768,7 +760,7 @@ struct HoleRemover
     }
 };
 
-void FourEightSegmentation::initNodeList(CellLabel maxNodeLabel)
+void GeoMap::initNodeList(CellLabel maxNodeLabel)
 {
     nodeList_.resize(maxNodeLabel + 1);
     std::vector<unsigned int> crackCirculatedAreas(maxNodeLabel + 1, 0);
@@ -832,7 +824,7 @@ void FourEightSegmentation::initNodeList(CellLabel maxNodeLabel)
         // methods to calculate the area must yield identical values
         if(crackCirculatedAreas[node->label] != node->size)
         {
-//             std::cerr << "FourEightSegmentation::initNodeList(): "
+//             std::cerr << "GeoMap::initNodeList(): "
 //                       << "Node " << node->label << " has a "
 //                       << (crackCirculatedAreas[node->label] - node->size)
 //                       << "-pixel hole, stuffing..\n";
@@ -903,7 +895,7 @@ void FourEightSegmentation::initNodeList(CellLabel maxNodeLabel)
 
 /********************************************************************/
 
-void FourEightSegmentation::initEdgeList(CellLabel maxEdgeLabel)
+void GeoMap::initEdgeList(CellLabel maxEdgeLabel)
 {
     edgeList_.resize(maxEdgeLabel + 1);
 
@@ -952,8 +944,7 @@ void FourEightSegmentation::initEdgeList(CellLabel maxEdgeLabel)
 
 /********************************************************************/
 
-void FourEightSegmentation::initFaceList(
-    BImage & contourImage, CellLabel maxFaceLabel)
+void GeoMap::initFaceList(BImage & contourImage, CellLabel maxFaceLabel)
 {
     faceList_.resize(maxFaceLabel + 1);
 
@@ -1019,7 +1010,7 @@ void FourEightSegmentation::initFaceList(
                     anchor.prevSigma();
 
                     vigra_invariant(anchor.leftFaceLabel() == index,
-                                    "FourEightSegmentation::initFaceList()");
+                                    "GeoMap::initFaceList()");
 
                     faceList_[index].contours.push_back(anchor);
                 }
@@ -1038,7 +1029,7 @@ void FourEightSegmentation::initFaceList(
                         anchor.nextAlpha();
 
                     vigra_invariant(anchor.leftFaceLabel() == index,
-                                    "FourEightSegmentation::initFaceList()");
+                                    "GeoMap::initFaceList()");
 
                     faceList_[index].contours.push_back(anchor);
                 }
@@ -1072,7 +1063,7 @@ void FourEightSegmentation::initFaceList(
                         anchor.prevSigma();
 
                         vigra_invariant(anchor.leftFaceLabel() == index,
-                                        "FourEightSegmentation::initFaceList()");
+                                        "GeoMap::initFaceList()");
 
                         faceList_[index].contours.push_back(anchor);
                     }
@@ -1091,7 +1082,7 @@ void FourEightSegmentation::initFaceList(
                             anchor.nextAlpha();
 
                         vigra_invariant(anchor.leftFaceLabel() == index,
-                                        "FourEightSegmentation::initFaceList()");
+                                        "GeoMap::initFaceList()");
 
                         faceList_[index].contours.push_back(anchor);
                     }
@@ -1102,7 +1093,7 @@ void FourEightSegmentation::initFaceList(
     }
 }
 
-void validateDart(const FourEightSegmentation::DartTraverser &dart)
+void validateDart(const GeoMap::DartTraverser &dart)
 {
     vigra_precondition(dart.neighborCirculator().center()->type() == CellTypeVertex,
                        "dart is not attached to a node");
@@ -1113,7 +1104,7 @@ void validateDart(const FourEightSegmentation::DartTraverser &dart)
                            "dart's edge is not valid (initialized())");
 }
 
-void debugDart(const FourEightSegmentation::DartTraverser &dart)
+void debugDart(const GeoMap::DartTraverser &dart)
 {
     std::cerr << dart << "\n";
 }
@@ -1125,8 +1116,7 @@ void debugDart(const FourEightSegmentation::DartTraverser &dart)
 using namespace vigra::cellimage;
 
 std::ostream &
-operator<<(std::ostream & out,
-           const FourEightSegmentation::DartTraverser & d)
+operator<<(std::ostream & out, const GeoMap::DartTraverser & d)
 {
     static const char * const dirStr[] = {
         " E",
@@ -1155,8 +1145,7 @@ operator<<(std::ostream & out,
             out << ", LABEL INVALID!";
         else
         {
-            const FourEightSegmentation::NodeInfo &node =
-                d.segmentation()->node(nodeLabel);
+            const GeoMap::NodeInfo &node(d.segmentation()->node(nodeLabel));
             if(!node.initialized())
                 out << ", UNINITIALIZED";
             out << ", " << node.size << " pixels, deg. " << node.degree;
@@ -1183,8 +1172,7 @@ operator<<(std::ostream & out,
             out << ", LABEL INVALID!";
         else
         {
-            const FourEightSegmentation::EdgeInfo &edge =
-                d.segmentation()->edge(edgeLabel);
+            const GeoMap::EdgeInfo &edge(d.segmentation()->edge(edgeLabel));
             if(!edge.initialized())
                 out << ", UNINITIALIZED";
             out << ", " << edge.size << " pixels";

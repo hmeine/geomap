@@ -1,5 +1,5 @@
-#ifndef VIGRA_FOUREIGHTSEGMENTATION_HXX
-#define VIGRA_FOUREIGHTSEGMENTATION_HXX
+#ifndef VIGRA_GEOMAP_HXX
+#define VIGRA_GEOMAP_HXX
 
 #include <vigra/error.hxx>
 #include <vigra/stdimage.hxx>
@@ -213,10 +213,10 @@ public:
 
 /********************************************************************/
 /*                                                                  */
-/*                      FourEightSegmentation                       */
+/*                              GeoMap                              */
 /*                                                                  */
 /********************************************************************/
-class FourEightSegmentation
+class GeoMap
 {
 public:
     struct NodeInfo;
@@ -225,14 +225,14 @@ public:
 
     /********************************************************************/
     /*                                                                  */
-    /*               FourEightSegmentation::DartTraverser               */
+    /*                      GeoMap::DartTraverser                       */
     /*                                                                  */
     /********************************************************************/
     class DartTraverser
     {
         CellImageEightCirculator neighborCirc_;
 
-        FourEightSegmentation *segmentation_;
+        GeoMap *segmentation_;
 
             // prevent double stop at a line pixel from different source
             // vertex pixels
@@ -246,16 +246,16 @@ public:
     public:
         DartTraverser() : segmentation_(0L) {}
 
-        DartTraverser(FourEightSegmentation *segmentation,
+        DartTraverser(GeoMap *segmentation,
                       CellImageEightCirculator const &circ)
             : neighborCirc_(circ),
               segmentation_(segmentation)
         {
             vigra_precondition(neighborCirc_.center()->type() == CellTypeVertex,
-            "FourEightSegmentation::DartTraverser(): center is not a node");
+            "GeoMap::DartTraverser(): center is not a node");
 
             vigra_precondition(neighborCirc_->type() != CellTypeVertex,
-            "FourEightSegmentation::DartTraverser(): neighbor is a node");
+            "GeoMap::DartTraverser(): neighbor is a node");
 
             while(badDiagonalConfig())
             {
@@ -310,7 +310,7 @@ public:
             return *this;
         }
 
-        friend class FourEightSegmentation;
+        friend class GeoMap;
 
     public:
         DartTraverser &nextAlpha() throw ()
@@ -472,12 +472,12 @@ public:
             return neighborCirc_;
         }
 
-        FourEightSegmentation *segmentation() const throw ()
+        GeoMap *segmentation() const throw ()
         {
             return segmentation_;
         }
 
-        void reparent(FourEightSegmentation *segmentation) throw ()
+        void reparent(GeoMap *segmentation) throw ()
         {
             neighborCirc_ = CellImageEightCirculator(
                 segmentation->cells +
@@ -496,7 +496,7 @@ public:
                 cPos.x << 14 | cPos.y;
         }
 
-        DartTraverser(FourEightSegmentation *segmentation,
+        DartTraverser(GeoMap *segmentation,
                       Serialized serialized)
         : neighborCirc_(segmentation->cellImage.upperLeft() +
                         Diff2D((serialized >> 14) & 0x3fff,
@@ -595,7 +595,7 @@ public:
         ConstFaceIterator;
 
   public:
-    FourEightSegmentation(const FourEightSegmentation &other)
+    GeoMap(const GeoMap &other)
     : initialized_(false)
     {
         deepCopy(other);
@@ -603,24 +603,24 @@ public:
     }
 
     template<class SrcIter, class SrcAcc>
-    FourEightSegmentation(SrcIter ul, SrcIter lr, SrcAcc src,
-                          typename SrcAcc::value_type boundaryValue,
-                          CellType cornerType)
+    GeoMap(SrcIter ul, SrcIter lr, SrcAcc src,
+           typename SrcAcc::value_type boundaryValue,
+           CellType cornerType)
     : initialized_(false)
     {
         init(ul, lr, src, boundaryValue, cornerType);
     }
 
     template<class SrcIter, class SrcAcc>
-    FourEightSegmentation(triple<SrcIter, SrcIter, SrcAcc> src,
-                          typename SrcAcc::value_type boundaryValue,
-                          CellType cornerType)
+    GeoMap(triple<SrcIter, SrcIter, SrcAcc> src,
+           typename SrcAcc::value_type boundaryValue,
+           CellType cornerType)
     : initialized_(false)
     {
         init(src.first, src.second, src.third, boundaryValue, cornerType);
     }
 
-    FourEightSegmentation(const CellImage &importImage);
+    GeoMap(const CellImage &importImage);
 
   protected:
     template<class SrcIter, class SrcAcc>
@@ -630,8 +630,8 @@ public:
     {
         // extract contours in input image and put frame around them
         BImage contourImage(lr.x - ul.x + 4, lr.y - ul.y + 4);
-        initFourEightSegmentationContourImage(ul, lr, src, contourImage,
-                                              boundaryValue);
+        initGeoMapContourImage(ul, lr, src, contourImage,
+                               boundaryValue);
 
         cellImage.resize(contourImage.size());
         cells = cellImage.upperLeft() + Diff2D(2, 2);
@@ -652,7 +652,7 @@ public:
     }
 
   public:
-    FourEightSegmentation &operator=(const FourEightSegmentation &other)
+    GeoMap &operator=(const GeoMap &other)
     {
         return deepCopy(other);
     }
@@ -777,7 +777,7 @@ public:
   private:
     void checkConsistency();
 
-    FourEightSegmentation &deepCopy(const FourEightSegmentation &other);
+    GeoMap &deepCopy(const GeoMap &other);
 
     unsigned int nodeCount_, edgeCount_, faceCount_;
 
@@ -814,11 +814,11 @@ public:
 };
 
 // -------------------------------------------------------------------
-//                    FourEightSegmentation functions
+//                    GeoMap functions
 // -------------------------------------------------------------------
 template<class SrcTraverser>
 LabelScanIterator<CellImage::traverser, SrcTraverser>
-FourEightSegmentation::cellScanIterator(
+GeoMap::cellScanIterator(
     const CellInfo &cell, CellType cellType, SrcTraverser const &upperLeft,
     bool cropToBaseImage) const
 {
@@ -834,9 +834,9 @@ FourEightSegmentation::cellScanIterator(
 }
 
 template<class SrcIter, class SrcAcc>
-void initFourEightSegmentationContourImage(SrcIter ul, SrcIter lr, SrcAcc src,
-                                           BImage &contourImage,
-                                           typename SrcAcc::value_type boundaryValue)
+void initGeoMapContourImage(SrcIter ul, SrcIter lr, SrcAcc src,
+                            BImage &contourImage,
+                            typename SrcAcc::value_type boundaryValue)
 {
     int w = lr.x - ul.x;
     int h = lr.y - ul.y;
@@ -859,9 +859,9 @@ void initFourEightSegmentationContourImage(SrcIter ul, SrcIter lr, SrcAcc src,
     }
 }
 
-void validateDart(const FourEightSegmentation::DartTraverser &dart);
+void validateDart(const GeoMap::DartTraverser &dart);
 
-void debugDart(const FourEightSegmentation::DartTraverser &dart);
+void debugDart(const GeoMap::DartTraverser &dart);
 
 } // namespace cellimage
 
@@ -869,6 +869,6 @@ void debugDart(const FourEightSegmentation::DartTraverser &dart);
 
 std::ostream &
 operator<<(std::ostream & out,
-           const vigra::cellimage::FourEightSegmentation::DartTraverser & d);
+           const vigra::cellimage::GeoMap::DartTraverser & d);
 
-#endif /* VIGRA_FOUREIGHTSEGMENTATION_HXX */
+#endif /* VIGRA_GEOMAP_HXX */
