@@ -103,18 +103,18 @@ struct LabelWriter
     }
 };
 
-template<CellType t_>
-struct CellTypeMask : public std::unary_function<CellType, bool>
+template<CellType type>
+struct CellTypeEquals : public std::unary_function<CellType, bool>
 {
     bool operator()(CellType t) const
     {
-        return t == t_;
+        return t == type;
     }
 
     template<class Iterator>
     bool operator()(const Iterator &it) const
     {
-        return it->type() == t_;
+        return it->type() == type;
     }
 };
 
