@@ -59,7 +59,7 @@ class CellPyramid
         Operation &operator =(const Operation &other)
         {
             if(type == Composite)
-                delete opList;
+                ;//delete opList; // FIXME: memory leak! (but crashes)
             assign(other);
             return *this;
         }
@@ -296,6 +296,8 @@ class CellPyramid
                 history_.push_back(Operation(t, p));
                 result = &topLevel_.performOperation(history_.back());
                 ++topLevel_.index_;
+                if(topLevel_.subIndex_ >= nextCheckpointLevelIndex_)
+                    storeCheckpoint(topLevel_);
             }
             catch(...)
             {
@@ -317,8 +319,6 @@ class CellPyramid
                 throw;
             }
         }
-        if(!composing_ && (topLevel_.subIndex_ >= nextCheckpointLevelIndex_))
-            storeCheckpoint(topLevel_);
         return *result;
     }
 
@@ -434,6 +434,8 @@ class CellPyramid
                 delete h;
             }
             ++topLevel_.index_;
+            if(topLevel_.subIndex_ >= nextCheckpointLevelIndex_)
+                storeCheckpoint(topLevel_);
         }
     }
 
