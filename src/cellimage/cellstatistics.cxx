@@ -90,8 +90,9 @@ private:
 CellStatistics::CellStatistics(const Segmentation &initialSegmentation,
                                SegmentationData  *segmentationData)
 : segmentationData(segmentationData),
-  segDataBounds(initialSegmentation.cellImage.size()), // border added below
-  lastChanges_(vigra::Point2D(-2, -2), initialSegmentation.cellImage.size())
+  segDataBounds(vigra::Point2D(-2, -2), initialSegmentation.cellImage.size()),
+  // border to segDataBounds added below
+  lastChanges_(segDataBounds)
 {
     segDataBounds.addBorder(
         (segmentationData->preparedOriginal_.width() -
