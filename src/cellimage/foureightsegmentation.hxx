@@ -728,8 +728,16 @@ public:
     CellImage cellImage;
     CellImage::traverser cells; // points to cellImage[2, 2] which is coord (0, 0)
 
+    template<class ScanTargetTraverser>
+    struct ScanIterator
+    {
+        typedef LabelScanIterator<
+            CellImage::const_traverser, ScanTargetTraverser>
+            type;
+    };
+
     template<class SrcTraverser>
-    inline LabelScanIterator<CellImage::traverser, SrcTraverser>
+    inline typename ScanIterator<SrcTraverser>::type
     nodeScanIterator(int node, SrcTraverser const &upperLeft,
                      bool cropToBaseImage = true) const
     {
@@ -738,7 +746,7 @@ public:
     }
 
     template<class SrcTraverser>
-    inline LabelScanIterator<CellImage::traverser, SrcTraverser>
+    inline typename ScanIterator<SrcTraverser>::type
     edgeScanIterator(int edge, SrcTraverser const &upperLeft,
                      bool cropToBaseImage = true) const
     {
@@ -747,16 +755,13 @@ public:
     }
 
     template<class SrcTraverser>
-    inline LabelScanIterator<CellImage::traverser, SrcTraverser>
+    inline typename ScanIterator<SrcTraverser>::type
     faceScanIterator(int face, SrcTraverser const &upperLeft,
                      bool cropToBaseImage = true) const
     {
         return cellScanIterator(faceList_[face], CellTypeRegion, upperLeft,
                                 cropToBaseImage);
     }
-
-    typedef LabelScanIterator<CellImage::traverser, CellImage::traverser>
-        CellScanIterator;
 
   protected:
     unsigned int findComponentAnchor(const FaceInfo &face,
@@ -774,7 +779,7 @@ public:
 
     EdgeInfo &mergeEdges(const DartTraverser &dart);
 
-  private:
+  protected:
     void checkConsistency();
 
     GeoMap &deepCopy(const GeoMap &other);
@@ -806,8 +811,11 @@ public:
                            CellLabel maxEdgeLabel,
                            CellLabel maxFaceLabel);
 
+    typedef ScanIterator<CellImage::traverser>::type
+        CellScanIterator;
+
     template<class SrcTraverser>
-    inline LabelScanIterator<CellImage::traverser, SrcTraverser>
+    inline typename ScanIterator<SrcTraverser>::type
     cellScanIterator(const CellInfo &cell, CellType cellType,
                      SrcTraverser const &upperLeft,
                      bool cropToBaseImage) const;
@@ -817,7 +825,7 @@ public:
 //                    GeoMap functions
 // -------------------------------------------------------------------
 template<class SrcTraverser>
-LabelScanIterator<CellImage::traverser, SrcTraverser>
+inline typename GeoMap::ScanIterator<SrcTraverser>::type
 GeoMap::cellScanIterator(
     const CellInfo &cell, CellType cellType, SrcTraverser const &upperLeft,
     bool cropToBaseImage) const
@@ -825,9 +833,7 @@ GeoMap::cellScanIterator(
     Rect2D cellBounds = cropToBaseImage ?
                         cell.bounds & Rect2D(cellImage.size() - Diff2D(4, 4)) :
                         cell.bounds;
-//     std::cerr << "cellScanIterator for " << CellPixel(cellType, cell.label)
-//               << " walks over " << cellBounds << std::endl;
-    return LabelScanIterator<CellImage::traverser, SrcTraverser>
+    return LabelScanIterator<CellImage::const_traverser, SrcTraverser>
         (cells + cellBounds.upperLeft(), cells + cellBounds.lowerRight(),
          CellPixel(cellType, cell.label),
          upperLeft + cellBounds.upperLeft());
