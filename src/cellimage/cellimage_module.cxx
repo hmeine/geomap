@@ -35,13 +35,14 @@ void setPixel(CellImage & image, vigra::Diff2D const & i, CellPixel const & valu
     image[i] = value;
 }
 
-void createFourEightSegmentation(
-    vigra::cellimage::FourEightSegmentation *self,
-    vigra::SingleBandImage &image,
-    float boundaryValue)
+vigra::cellimage::FourEightSegmentation *
+createFourEightSegmentation(
+    vigra::PythonSingleBandImage &image,
+    float boundaryValue,
+	vigra::cellimage::CellType cornerType)
 {
-    new (self) vigra::cellimage::FourEightSegmentation(srcImageRange(image),
-                                                       boundaryValue);
+    return new vigra::cellimage::FourEightSegmentation(
+		srcImageRange(image), boundaryValue, cornerType);
 }
 
 using namespace python;
@@ -66,7 +67,7 @@ BOOST_PYTHON_MODULE_INIT(cellimage)
     class_<CellPixel>("CellPixel")
         .def(init<CellType, CellLabel>())
         .add_property("type", &CellPixel::type,
-                      &CellPixel::setType)
+                      (void(CellPixel::*)(CellType))&CellPixel::setType)
         .add_property("label", &CellPixel::label,
                       (void(CellPixel::*)(CellLabel))&CellPixel::setLabel)
         .def(self == self);
@@ -86,6 +87,9 @@ BOOST_PYTHON_MODULE_INIT(cellimage)
 
     def("debugDart", &debugDart);
 
+    def("createFourEightSegmentation", createFourEightSegmentation,
+        return_value_policy<manage_new_object>());
+
     scope fourEightSegmentation(
         class_<FourEightSegmentation>("FourEightSegmentation", no_init)
         .def("maxNodeLabel", &FourEightSegmentation::maxNodeLabel)
@@ -102,9 +106,6 @@ BOOST_PYTHON_MODULE_INIT(cellimage)
              return_internal_reference<>())
         .def("mergeEdges", &FourEightSegmentation::mergeEdges,
              return_internal_reference<>()));
-
-    def("create", createFourEightSegmentation,
-        return_value_policy<manage_new_object>());
 
     defineDartTraverser();
     defineCellInfos();
