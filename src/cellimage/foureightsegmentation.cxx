@@ -1,12 +1,16 @@
 #include "foureightsegmentation.hxx"
 #include "cellconfigurations.hxx"
 
+#include <iostream>
+#include "mydebug.hxx"
+#include "debugimage.hxx"
+
 namespace vigra {
 
 namespace cellimage {
 
 unsigned char FourEightSegmentation::findContourComponent(
-    const std::vector<DartTraverser> &contours,
+    const ContourComponents &contours,
     const DartTraverser & dart)
 {
     unsigned char result = 0;
@@ -32,16 +36,26 @@ unsigned char FourEightSegmentation::findContourComponent(
     for(ConstContourComponentsIterator contour= contours.begin();
         contour != contours.end(); ++contour, ++result)
     {
-        DartTraverser dart(*contour);
-        while(dart.nextPhi() != *contour)
+        DartTraverser dart2(*contour);
+        while(dart2.nextPhi() != *contour)
         {
-            if(contour->edgeLabel() == dart.edgeLabel())
+            if(dart2.edgeLabel() == dart.edgeLabel())
                 return result;
         }
     }
 
     vigra_fail("findContourComponent: dart not found in any contour!");
     return 0;
+}
+
+void FourEightSegmentation::removeNodeFromContours(ContourComponents &contours,
+                                                   CellLabel nodeLabel)
+{
+    // find contour anchor to be changed if it points to this edge
+    for(ContourComponentsIterator contour= contours.begin();
+        contour != contours.end(); ++contour)
+        if(contour->startNodeLabel() == nodeLabel)
+            contour->nextPhi();
 }
 
 FourEightSegmentation::FaceInfo &FourEightSegmentation::removeIsolatedNode(
@@ -59,7 +73,6 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::removeIsolatedNode(
     for(CellScanIterator it= nodeScanIterator(node.label, cells, false);
         it.inRange(); ++it)
         *it= CellPixel(CellTypeRegion, face.label);
-
 
     // update bounds:
     face.bounds |= node.bounds;
@@ -82,12 +95,13 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::mergeFaces(
     EdgeInfo &edge= removedDart.edge();
     FaceInfo &face1= removedDart.leftFace();
     FaceInfo &face2= removedDart.rightFace();
+    NodeInfo &node1= edge.start.startNode();
+    NodeInfo &node2= edge.end.startNode();
 
     vigra_precondition(face1.label != face2.label,
                        "FourEightSegmentation::mergeFaces(): edge is a bridge");
 
-    bool removedEdgeIsLoop =
-        edge.start.startNodeLabel() == edge.end.startNodeLabel();
+    bool removedEdgeIsLoop = node1.label == node2.label;
 
     // find indices of contour components to be merged
     unsigned char contour1 = findContourComponent(face1.contours, removedDart);
@@ -123,7 +137,8 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::mergeFaces(
         newAnchor.recheckSingularity();
     face1.contours[contour1] = newAnchor;
 
-    // FIXME: fix order of contours (outer first)
+    node1.anchor.recheckSingularity();
+    node2.anchor.recheckSingularity();
 
     edge.uninitialize();
     --edgeCount_;
@@ -138,6 +153,8 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::removeBridge(
 {
     EdgeInfo &edge= dart.edge();
     FaceInfo &face= dart.leftFace();
+    NodeInfo &node1= edge.start.startNode();
+    NodeInfo &node2= edge.end.startNode();
 
     vigra_precondition(face.label == dart.rightFaceLabel(),
                        "FourEightSegmentation::removeBridge(): edge is not a bridge");
@@ -163,11 +180,8 @@ FourEightSegmentation::FaceInfo &FourEightSegmentation::removeBridge(
     face.contours[contourIndex] = newAnchor1;
     face.contours.push_back(newAnchor2);
 
-    // FIXME: fix order of contours (outer first), don't even have
-    // minimal startNodeLabel yet..
-
-    edge.start.recheckSingularity();
-    edge.end.recheckSingularity();
+    node1.anchor.recheckSingularity();
+    node2.anchor.recheckSingularity();
 
     // FIXME: if(!recheckSingularity()) check if node was anchor of
     // contour, then update entries in all neighbored faces if
@@ -185,25 +199,31 @@ FourEightSegmentation::EdgeInfo &FourEightSegmentation::mergeEdges(
     // merge smaller edge (edge2) into larger one (edge1):
     DartTraverser dart1(dart);
     dart1.nextSigma();
-    if(dart.edge().bounds.area() < dart1.edge().bounds.area())
-    {
+    bool firstIsSmaller =
+        dart.edge().bounds.area() < dart1.edge().bounds.area();
+
+    if(firstIsSmaller)
         dart1.nextSigma(); // dart1 _temporarily_ points to smaller one
-        vigra_precondition(dart1 == dart,
-                           "FourEightSegmentation::mergeEdges(): node has degree > 2!");
-    } // FIXME: there is no clever/efficient way for the precondition
-      // in an else branch here.. just leaving it out for now.
 
     DartTraverser dart2(dart1);
     EdgeInfo &edge2 = dart2.edge();
     NodeInfo &node = dart1.startNode();
     dart1.nextSigma();
     EdgeInfo &edge1 = dart1.edge();
-            
-    dart1.nextAlpha();
-    dart2.nextAlpha();
+
+    vigra_precondition((firstIsSmaller ? dart2 : dart1) == dart,
+        "FourEightSegmentation::mergeEdges(): node has degree > 2!");
 
     vigra_precondition(edge1.label != edge2.label,
-                       "FourEightSegmentation::mergeEdges(): node has degree one!");
+        "FourEightSegmentation::mergeEdges(): node has degree one or is loop!");
+
+    // update contours of neighbored faces if necessary
+    removeNodeFromContours(dart1.leftFace().contours, dart1.startNodeLabel());
+    if(dart1.leftFaceLabel() != dart1.rightFaceLabel())
+        removeNodeFromContours(dart1.rightFace().contours, dart1.startNodeLabel());
+
+    dart1.nextAlpha();
+    dart2.nextAlpha();
 
     // relabel cells in cellImage:
     for(CellScanIterator it= nodeScanIterator(node.label, cells, false);
