@@ -10,6 +10,9 @@ watershed: watershed.o
 testneighborhood: testneighborhood.o
 	$(CXX) -o testneighborhood testneighborhood.o
 
+testconfigurations: testconfigurations.o
+	$(CXX) -o testconfigurations testconfigurations.o
+
 test: test.o
 	$(CXX) -o test test.o `vigra-config --impex-lib`
 	./test
