@@ -2,6 +2,8 @@ include ../../current/config/Makefile.include
 
 CXXFLAGS := -g -I. -I../../test/include
 
+all: watershed testneighborhood
+
 watershed: watershed.o
 	$(CXX) -o watershed watershed.o `vigra-config --impex-lib`
 
