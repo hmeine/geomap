@@ -27,10 +27,10 @@ static const unsigned char imageData[] =
       255, 255, 139,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, 139, 255, 255,
       255, 255,  52,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  52, 255, 255,
       255, 255,   6,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   6, 255, 255,
-      255, 255,   6,   0,   0,   0,   0,   0,   0,   0,  14,  14,  14,  14, 255, 255,
-      255, 255,  52,   0,   0,   0,   0,   0,   0,   0,  14,  14,  14,  14, 255, 255,
-      255, 255, 139,   0,   0,   0,   0,   0,   0,   0,  14,  14,  14,  14, 255, 255,
-      255, 255, 255, 221,  52,   0,   0,   0,   0,   0,  14,  14,  14,  14, 255, 255,
+      255, 255,   6,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   6, 255, 255,
+      255, 255,  52,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  52, 255, 255,
+      255, 255, 139,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, 139, 255, 255,
+      255, 255, 255, 221,  52,   0,   0,   0,   0,   0,   0,  52, 221, 255, 255, 255,
       255, 255, 255, 255, 255, 139,  52,   6,   6,  52, 139, 255, 255, 255, 255, 255,
       255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
       255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255 };
@@ -94,19 +94,19 @@ int main(int argc, char ** argv)
         seededRegionGrowing(srcImageRange(grad), srcImage(labels),
                             destImage(labels), gradstat, 100000);
 
-        CellImage::FourEightSegmentation segmentation;
+        cellimage::FourEightSegmentation segmentation;
 
         segmentation.init(srcImageRange(labels));
 
         if(segmentation.cellImage.height()>40)
         {
             exportImage(srcImageRange(segmentation.cellImage,
-                                      CellImage::TypeAsByteAccessor()),
+                                      cellimage::TypeAsByteAccessor()),
                         ImageExportInfo("cellTypeImage.xv"));
             std::cout << "Wrote cellTypeImage.xv" << std::endl;
 
             exportImage(srcImageRange(segmentation.cellImage,
-                                      CellImage::LabelAccessor()),
+                                      cellimage::LabelAccessor()),
                         ImageExportInfo("cellLabelImage.xv"));
             std::cout << "Wrote cellLabelImage.xv" << std::endl;
         }
@@ -114,7 +114,7 @@ int main(int argc, char ** argv)
             debugImage(srcImageRange(segmentation.cellImage), std::cerr, 2);
 
         std::cout << segmentation.nodeCount() << " nodes:" << std::endl;
-        for(CellImage::FourEightSegmentation::NodeIterator
+        for(cellimage::FourEightSegmentation::NodeIterator
                 node= segmentation.nodesBegin(); node.inRange(); ++node)
             std::cout << "  " << node->label << ": at "
                       << node->centerX << ","
@@ -122,7 +122,7 @@ int main(int argc, char ** argv)
                       << node->bounds << std::endl;
         
         std::cout << segmentation.edgeCount() << " edges:" << std::endl;
-        for(CellImage::FourEightSegmentation::EdgeIterator
+        for(cellimage::FourEightSegmentation::EdgeIterator
                 edge= segmentation.edgesBegin(); edge.inRange(); ++edge)
         {
             FindAverage<FImage::PixelType> average;
@@ -136,7 +136,7 @@ int main(int argc, char ** argv)
         }
         
         std::cout << segmentation.faceCount() << " faces:" << std::endl;
-        for(CellImage::FourEightSegmentation::FaceIterator
+        for(cellimage::FourEightSegmentation::FaceIterator
                 face= segmentation.facesBegin(); face.inRange(); ++face)
         {
             FindAverage<FImage::PixelType> average;

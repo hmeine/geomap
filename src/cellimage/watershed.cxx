@@ -38,6 +38,7 @@
 
 using namespace vigra;
 using namespace vigra::functor;
+using namespace vigra::cellimage;
 
 int main(int argc, char ** argv)
 {
@@ -190,26 +191,24 @@ int main(int argc, char ** argv)
         seededRegionGrowing(srcImageRange(grad), srcImage(labels),
                             destImage(labels), gradstat, 100000);
 
-        CellImage::FourEightSegmentation segmentation;
+        FourEightSegmentation segmentation;
 
         segmentation.init(srcImageRange(labels));
 
-        if(segmentation.cellImage.width()>50)
+        if(segmentation.cellImage.height()>40)
         {
-            /*exportImage(
-                srcImageRange(segmentation.cellImage,
-                              CellImage::TypeAccessor()),
-                ImageExportInfo("cellTypeImage.xv"));
-                std::cout << "Wrote cellTypeImage.xv" << std::endl;*/
+            exportImage(srcImageRange(segmentation.cellImage,
+                                      cellimage::TypeAsByteAccessor()),
+                        ImageExportInfo("cellTypeImage.xv"));
+            std::cout << "Wrote cellTypeImage.xv" << std::endl;
 
-            exportImage(
-                srcImageRange(segmentation.cellImage,
-                              CellImage::LabelAccessor()),
-                ImageExportInfo("cellLabelImage.xv"));
+            exportImage(srcImageRange(segmentation.cellImage,
+                                      cellimage::LabelAccessor()),
+                        ImageExportInfo("cellLabelImage.xv"));
             std::cout << "Wrote cellLabelImage.xv" << std::endl;
         }
         else
-            debugImage(srcImageRange(segmentation.cellImage));
+            debugImage(srcImageRange(segmentation.cellImage), std::cerr, 2);
 
         std::cout <<
 			"Nodes: " << segmentation.nodeCount() << std::endl <<
