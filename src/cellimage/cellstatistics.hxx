@@ -47,36 +47,32 @@ struct CountEdgels
 
 /********************************************************************/
 
+enum { EPBorder = 1, EPCanny = 2, EPManual = 4 };
+
 class EdgeProtection
 {
-    std::vector<bool> edgeProtection_;
-    unsigned int      protectedEdgeCount_;
-    unsigned int      timestamp_;
+  public:
+    typedef unsigned short FlagType;
+
+  protected:
+    std::vector<FlagType> edgeProtection_;
+    unsigned int          timestamp_;
 
   public:
     EdgeProtection(unsigned int size)
-    : edgeProtection_(size, false),
-      protectedEdgeCount_(0)
+    : edgeProtection_(size, 0)
     {}
 
-    bool protectEdge(vigra::cellimage::CellLabel edgeLabel, bool protect = true)
+    bool protectEdge(vigra::cellimage::CellLabel edgeLabel,
+                     FlagType flag, bool protect = true)
     {
-        if(edgeProtection_[edgeLabel] != protect)
+        if((bool)(edgeProtection_[edgeLabel] & flag) != protect)
         {
-            edgeProtection_[edgeLabel] = protect;
-            if(protect)
-                ++protectedEdgeCount_;
-            else
-                --protectedEdgeCount_;
+            edgeProtection_[edgeLabel] ^= flag;
             ++timestamp_;
             return true;
         }
         return false;
-    }
-
-    unsigned int protectedEdgeCount() const
-    {
-        return protectedEdgeCount_;
     }
 
     unsigned int timestamp() const
@@ -86,7 +82,19 @@ class EdgeProtection
 
     bool edgeProtected(vigra::cellimage::CellLabel edgeLabel) const
     {
-        return edgeProtection_[edgeLabel];
+        return (bool)edgeProtection_[edgeLabel];
+    }
+
+    bool sameProtection(vigra::cellimage::CellLabel edgeLabel1,
+                        vigra::cellimage::CellLabel edgeLabel2) const
+    {
+        return edgeProtection_[edgeLabel1] == edgeProtection_[edgeLabel2];
+    }
+
+    bool edgeProtected(vigra::cellimage::CellLabel edgeLabel,
+                       FlagType flag) const
+    {
+        return (bool)(edgeProtection_[edgeLabel] & flag);
     }
 };
 
@@ -151,12 +159,13 @@ struct CellStatistics
     inline void postMergeEdges(Segmentation::EdgeInfo &edge);
 
     bool protectEdge(vigra::cellimage::CellLabel edgeLabel,
-                     bool protect = true) const
+                     EdgeProtection::FlagType flag, bool protect = true) const
     {
-        bool result = false;
-        result = result || edgeProtection->protectEdge(edgeLabel, protect);
+        bool result = 
+            edgeProtection->protectEdge(edgeLabel, flag, protect);;
         if(mergedEdges_[edgeLabel] != edgeLabel)
-            result = protectEdge(mergedEdges_[edgeLabel], protect) || result;
+            result =
+                protectEdge(mergedEdges_[edgeLabel], flag, protect) || result;
         return result;
     }
 
@@ -181,8 +190,9 @@ struct CellStatistics
             inspectCell(seg.edgeScanIterator(
                             it->label, segmentationData->edgelImage.upperLeft()),
                         edgelCount);
-            if(protectEdge(it->label, (edgelCount() > it->size *
-                                       segmentationData->autoProtectionThreshold)))
+            if(protectEdge(it->label, EPCanny,
+                           (edgelCount() > it->size *
+                            segmentationData->autoProtectionThreshold)))
                 result |= it->bounds;
         }
 
@@ -330,8 +340,9 @@ inline void CellStatistics::postMergeEdges(Segmentation::EdgeInfo &edge)
                         (edge.label, segmentationData->edgelImage.upperLeft()),
                         edgelCount);
             edgels_[edge.label] = edgelCount();
-            protectEdge(edge.label, (edgelCount() > edge.size *
-                                     segmentationData->autoProtectionThreshold));
+            protectEdge(edge.label, EPCanny,
+                        (edgelCount() > edge.size *
+                         segmentationData->autoProtectionThreshold));
         }
     }
 }
