@@ -209,13 +209,17 @@ int main(int argc, char ** argv)
         segmentation.init(srcImageRange(labels));
 
 #if 1
-        exportImage(srcImageRange(segmentation.cellImage), ImageExportInfo("cellImage.xv"));
-        std::cout << "Wrote cells.xv" << std::endl;
+		exportImage(srcImageRange(segmentation.cellImage), ImageExportInfo("cellImage.xv"));
+		std::cout << "Wrote cells.xv" << std::endl;
 
         exportImage(srcImageRange(segmentation.labelImage), ImageExportInfo("labelImage.xv"));
-        std::cout << "Wrote borderlab.xv" << std::endl;
-
-#endif /* #if 0 */
+        std::cout << "Wrote labelImage.xv" << std::endl;
+#else
+        exportImage(srcImageRange(segmentation.cellImage,
+								  FourEightSegmentation::CellImageLabelAccessor()),
+					ImageExportInfo("labelImage.xv"));
+        std::cout << "Wrote labelImage.xv" << std::endl;
+#endif
 
         std::cout <<
 			"Nodes: " << segmentation.nodeCount() << std::endl <<
