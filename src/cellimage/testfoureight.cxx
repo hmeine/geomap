@@ -27,11 +27,10 @@ static const unsigned char imageData[] =
       255, 255, 139,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, 139, 255, 255,
       255, 255,  52,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  52, 255, 255,
       255, 255,   6,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   6, 255, 255,
-      255, 255,   6,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   6, 255, 255,
-      255, 255,  52,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  52, 255, 255,
-      255, 255, 139,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, 139, 255, 255,
-      255, 255, 255,  52,   0,   0,   0,   0,   0,   0,   0,   0,  52, 255, 255, 255,
-      255, 255, 255, 221,  52,   0,   0,   0,   0,   0,   0,  52, 221, 255, 255, 255,
+      255, 255,   6,   0,   0,   0,   0,   0,   0,   0,  14,  14,  14,  14, 255, 255,
+      255, 255,  52,   0,   0,   0,   0,   0,   0,   0,  14,  14,  14,  14, 255, 255,
+      255, 255, 139,   0,   0,   0,   0,   0,   0,   0,  14,  14,  14,  14, 255, 255,
+      255, 255, 255, 221,  52,   0,   0,   0,   0,   0,  14,  14,  14,  14, 255, 255,
       255, 255, 255, 255, 255, 139,  52,   6,   6,  52, 139, 255, 255, 255, 255, 255,
       255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
       255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255 };
@@ -40,8 +39,27 @@ int main(int argc, char ** argv)
 {
     try
     {
-        vigra::BImage image(16, 16);
-        std::copy(imageData, imageData + 256, image.begin());
+        BImage image;
+        if(argc>1)
+        {
+            ImageImportInfo info(argv[1]);
+            image.resize(info.size());
+            if(info.isGrayscale())
+                importImage(info, destImage(image));
+            else
+            {
+                vigra::BRGBImage temp(info.size());
+                importImage(info, destImage(temp));
+                copyImage(srcImageRange(temp, vigra::RGBToGrayAccessor
+                                        <vigra::BRGBImage::PixelType>()),
+                          destImage(image));
+            }
+        }
+        else
+        {
+            image.resize(16, 16);
+            std::copy(imageData, imageData + 256, image.begin());
+        }
         int w = image.width();
         int h = image.height();
 
@@ -80,22 +98,20 @@ int main(int argc, char ** argv)
 
         segmentation.init(srcImageRange(labels));
 
-        if(segmentation.cellImage.width()>50)
+        if(segmentation.cellImage.height()>40)
         {
-            /*exportImage(
-                srcImageRange(segmentation.cellImage,
-                              CellImage::TypeAccessor()),
-                ImageExportInfo("cellTypeImage.xv"));
-                std::cout << "Wrote cellTypeImage.xv" << std::endl;*/
+            exportImage(srcImageRange(segmentation.cellImage,
+                                      CellImage::TypeAsByteAccessor()),
+                        ImageExportInfo("cellTypeImage.xv"));
+            std::cout << "Wrote cellTypeImage.xv" << std::endl;
 
-            exportImage(
-                srcImageRange(segmentation.cellImage,
-                              CellImage::LabelAccessor()),
-                ImageExportInfo("cellLabelImage.xv"));
+            exportImage(srcImageRange(segmentation.cellImage,
+                                      CellImage::LabelAccessor()),
+                        ImageExportInfo("cellLabelImage.xv"));
             std::cout << "Wrote cellLabelImage.xv" << std::endl;
         }
         else
-            debugImage(srcImageRange(segmentation.cellImage));
+            debugImage(srcImageRange(segmentation.cellImage), std::cerr, 2);
 
         std::cout << segmentation.nodeCount() << " nodes:" << std::endl;
         for(CellImage::FourEightSegmentation::NodeIterator
@@ -109,9 +125,9 @@ int main(int argc, char ** argv)
         for(CellImage::FourEightSegmentation::EdgeIterator
                 edge= segmentation.edgesBegin(); edge.inRange(); ++edge)
         {
-            vigra::FindAverage<vigra::FImage::PixelType> average;
-            if(edge->label>4)
-                vigra::CellImage::inspectCell
+            FindAverage<FImage::PixelType> average;
+            if(edge->start.leftFaceLabel() && edge->start.rightFaceLabel())
+                inspectCell
                     (segmentation.edgeScanIterator(edge->label, image.upperLeft()),
                      average);
             
@@ -123,9 +139,9 @@ int main(int argc, char ** argv)
         for(CellImage::FourEightSegmentation::FaceIterator
                 face= segmentation.facesBegin(); face.inRange(); ++face)
         {
-            vigra::FindAverage<vigra::FImage::PixelType> average;
+            FindAverage<FImage::PixelType> average;
             if(face->label>0)
-                vigra::CellImage::inspectCell
+                inspectCell
                     (segmentation.faceScanIterator(face->label, image.upperLeft()),
                      average);
             
