@@ -332,6 +332,8 @@ inline void CellStatistics::preMergeEdges(const Segmentation::DartTraverser &dar
                 tempEdgeStatistics_);
 }
 
+// basically, relabels like "*pixel = newCell;"
+// additionally, updates bounding boxes of old and new pixel owners
 inline void
 reassociate(vigra::cellimage::GeoMap &geoMap,
             const vigra::cellimage::CellImage::traverser pixel,
@@ -343,6 +345,7 @@ reassociate(vigra::cellimage::GeoMap &geoMap,
 
     vigra::Point2D pos(pixel - geoMap.cells);
 
+    // get CellInfo for current owner of the pixel
     GeoMap::CellInfo &oldCI(
         oldCell.type() == CellTypeLine ?
         (GeoMap::CellInfo &)geoMap.edge(oldCell.label()) : (
@@ -350,10 +353,15 @@ reassociate(vigra::cellimage::GeoMap &geoMap,
             (GeoMap::CellInfo &)geoMap.node(oldCell.label()) :
             (GeoMap::CellInfo &)geoMap.face(oldCell.label())));
 
-    std::cerr << "reassociate(" << pos << ", " << oldCell << "->"
-              << newCell << "), old bbox: " << oldCI.bounds << "\n";
+//     std::cerr << "reassociate(" << pos << ", " << oldCell << "->"
+//               << newCell << "), old bbox: " << oldCI.bounds << "\n";
 
+    // relabel pixel
     *pixel = newCell;
+
+    // now, check if the pixel was on one of the four sides of the
+    // bounding box, and if so, scan that row/column and possibly
+    // shrink the bounding box:
 
     if(pos.x == oldCI.bounds.left())
     {
@@ -366,7 +374,6 @@ reassociate(vigra::cellimage::GeoMap &geoMap,
             // removed the only pixel from that column -> change bbox
             oldCI.bounds.setUpperLeft(vigra::Point2D(oldCI.bounds.left() + 1,
                                                      oldCI.bounds.top()));
-            std::cerr << "  1st col: changed bbox to " << oldCI.bounds << "\n";
         }
     }
 
@@ -381,7 +388,6 @@ reassociate(vigra::cellimage::GeoMap &geoMap,
             // removed the only pixel from that column -> change bbox
             oldCI.bounds.setLowerRight(vigra::Point2D(oldCI.bounds.right() - 1,
                                                       oldCI.bounds.bottom()));
-            std::cerr << "  last col: changed bbox to " << oldCI.bounds << "\n";
         }
     }
 
@@ -396,7 +402,6 @@ reassociate(vigra::cellimage::GeoMap &geoMap,
             // removed the only pixel from that row -> change bbox
             oldCI.bounds.setUpperLeft(vigra::Point2D(oldCI.bounds.left(),
                                                      oldCI.bounds.top() + 1));
-            std::cerr << "  1st row: changed bbox to " << oldCI.bounds << "\n";
         }
     }
 
@@ -411,11 +416,11 @@ reassociate(vigra::cellimage::GeoMap &geoMap,
             // removed the only pixel from that row -> change bbox
             oldCI.bounds.setLowerRight(vigra::Point2D(oldCI.bounds.right(),
                                                       oldCI.bounds.bottom() - 1));
-            std::cerr << "  last row: changed bbox to " << oldCI.bounds << "\n";
         }
     }
 
-    // add pos to bounding box of new cell
+    // add pixel pos to bounding box of new cell
+
     (newCell.type() == CellTypeLine ?
      (GeoMap::CellInfo &)geoMap.edge(newCell.label()) : (
          newCell.type() == CellTypeVertex ?
@@ -448,21 +453,38 @@ inline void CellStatistics::postMergeEdges(Segmentation::EdgeInfo &edge)
             edgeRethinning(*edge.start.segmentation(),
                            segmentationData->gradientMagnitude_, edge.label,
                            rethinRange);
-
+            
+            /* This loop checks all pixels that belonged to a node
+             * previously and relocates them if their neighbor pixel
+             * has a higher gradient.
+             *
+             * There are two cases, three without reflection:
+             *    #o#  #o.  / #.. \   # - edge pixel
+             *    .#.  .##  | o#. |   . - region pixel
+             *    ...  ...  \ .#. /   o - possible new location
+             *                            for center pixel
+             *
+             * The inner loop circulates over all four diagonal
+             * directions and looks for the first edge pixel, then
+             * checks for the three configurations by looking for the
+             * second edge pixels at circulator offsets 2/3 for the
+             * left configurations or -3 for the reflected. If the
+             * configuration is found, and the position marked 'o' has
+             * a higher gradient, the three new neighbor pixels are
+             * checked to make sure that the topology would not be
+             * changed. If all conditions hold, the center edge pixel
+             * is relocated.
+             */
             for(std::list<vigra::Point2D>::const_iterator it =
                     nodePoints_.begin(); it != nodePoints_.end(); ++it)
             {
-                std::cerr << "testing point " << (*it);
                 vigra::cellimage::CellImageEightCirculator
                     cellImageCirc(edge.start.segmentation()->cells + (*it),
                                   vigra::EightNeighborCode::NorthWest),
                     cellImageEnd(cellImageCirc);
 
                 if(cellImageCirc.center()->type() != vigra::cellimage::CellTypeLine)
-                {
-                    std::cerr << " (no edge anymore.)\n";
                     continue;
-                }
 
                 GradientImage::traverser gradient(
                     segmentationData->gradientMagnitude_.upperLeft() + (*it));
@@ -474,17 +496,18 @@ inline void CellStatistics::postMergeEdges(Segmentation::EdgeInfo &edge)
 
                 do
                 {
-                    std::cerr << "." << (cellImageCirc.base() - edge.start.segmentation()->cells);
                     if(*cellImageCirc == *cellImageCirc.center())
                     {
+                        // one diagonal edge continuation found, check
+                        // the above-mentioned configurations:
                         if(((cellImageCirc[2] == *cellImageCirc.center()) ||
                             (cellImageCirc[3] == *cellImageCirc.center()))
                            && (gradCirc[1] > gradientValue))
                         {
-                            std::cerr << "better:\n";
-
+                            // one of the two first configurations found:
                             ++cellImageCirc;
-                                
+                            
+                            // check the three new neighbor pixels
                             vigra::cellimage::CellImageEightCirculator
                                 newNeighborCirc(cellImageCirc);
                             newNeighborCirc.moveCenterToNeighbor();
@@ -492,8 +515,13 @@ inline void CellStatistics::postMergeEdges(Segmentation::EdgeInfo &edge)
                                (newNeighborCirc[1] == *cellImageCirc) &&
                                (newNeighborCirc[-1] == *cellImageCirc))
                             {
+                                // "turn around" to get the region pixel
+                                // with which to fill in the center:
                                 vigra::cellimage::CellPixel
                                     regionPixel(cellImageCirc[-4]);
+
+                                // everything's allright, re-associate
+                                // the pixels:
                                 reassociate(*edge.start.segmentation(),
                                             cellImageCirc.base(),
                                             *cellImageCirc.center());
@@ -501,6 +529,9 @@ inline void CellStatistics::postMergeEdges(Segmentation::EdgeInfo &edge)
                                             cellImageCirc.center(),
                                             regionPixel);
 
+                                // mark the two edge continuation
+                                // pixels as new candidates for
+                                // edgeRethinning:
                                 --cellImageCirc;
                                 nodePoints_.push_back(*it + cellImageCirc.diff());
                                 cellImageCirc += 2;
@@ -515,8 +546,8 @@ inline void CellStatistics::postMergeEdges(Segmentation::EdgeInfo &edge)
                         } else if((cellImageCirc[-3] == *cellImageCirc.center())
                                   && (gradCirc[-11] > gradientValue))
                         {
-                            std::cerr << "better down:\n";
-
+                            // reflected configuration found, further
+                            // comments see above (only offsets changed)
                             --cellImageCirc;
                                 
                             vigra::cellimage::CellImageEightCirculator
@@ -541,7 +572,6 @@ inline void CellStatistics::postMergeEdges(Segmentation::EdgeInfo &edge)
                                 nodePoints_.push_back(*it + cellImageCirc.diff());
                                 break;
                             } else {
-                                // this is our loop variable! (and its inc'ed by 2)
                                 ++cellImageCirc;
                             }
                         }
@@ -551,9 +581,7 @@ inline void CellStatistics::postMergeEdges(Segmentation::EdgeInfo &edge)
                     cellImageCirc += 2;
                 }
                 while(cellImageCirc != cellImageEnd);
-                std::cerr << "\n";
             }
-            std::cerr << "rethinning finished.\n";
         }
 
         if(segmentationData->doAutoProtection)
