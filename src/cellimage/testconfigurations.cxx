@@ -1,6 +1,6 @@
 #include <iostream>
 #include <string>
-#include "celltypes.hxx"
+#include "cellconfigurations.hxx"
 
 int main()
 {
