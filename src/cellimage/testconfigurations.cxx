@@ -1,11 +1,10 @@
-#include <iostream.h>
+#include <iostream>
 #include <string>
-#include "configurations.h"
+#include "celltypes.hxx"
 
 int main()
 {
-    cerr << "Test: " << cellConfigurations[0] << ' ' <<
-                        cellConfigurations[255] << endl;
+    std::cerr << "Errors: " << std::endl;
 
     for(int configuration = 0; configuration<256; ++configuration)
     {
@@ -28,11 +27,11 @@ int main()
         {
             if(cellConfigurations[configuration] != cellConfigurations[other])
             {
-                cerr << configuration << ' ' << other << endl;
+                std::cerr << configuration << ' ' << other << std::endl;
             }
             if(cellConfigurations[configuration] != cellConfigurations[reflected])
             {
-                cerr << configuration << ' ' << reflected << endl;
+                std::cerr << configuration << ' ' << reflected << std::endl;
             }
 
             other = ((other << 2) | (other >> 6)) & 0xff;
