@@ -198,7 +198,8 @@ class CellPyramid
 
     CellPyramid(const Segmentation &level0,
                 const CellStatistics &level0Stats = CellStatistics())
-    : currentSegmentation_(level0),
+    : currentLevel_(0),
+      currentSegmentation_(level0),
       currentCellStatistics_(level0Stats)
     {
         storeCheckpoint();
@@ -263,9 +264,16 @@ class CellPyramid
 
     void cutHead()
     {
-        history_.erase(history_.begin() + currentLevel_ + 1, history_.end());
+        std::cerr << "CellPyramid::cutHead() above currentLevel_="
+                  << currentLevel_ << ":\n  before: ";
+        std::cerr << history_.size() << " history entries, ";
+        std::cerr << checkpoints_.size() << " checkpoints\n";
+        history_.erase(history_.begin() + currentLevel_, history_.end());
         checkpoints_.erase(checkpoints_.upper_bound(currentLevel_),
                            checkpoints_.end());
+        std::cerr << "  after:  ";
+        std::cerr << history_.size() << " history entries, ";
+        std::cerr << checkpoints_.size() << " checkpoints\n";
     }
 
     unsigned int levelCount() const
