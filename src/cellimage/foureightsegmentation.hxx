@@ -260,11 +260,11 @@ struct NoPayloadPolicy
 // -------------------------------------------------------------------
 //                         FourEightSegmentation
 // -------------------------------------------------------------------
-//template<class PayloadPolicy = NoPayloadPolicy>
+template<class PayloadPolicy = NoPayloadPolicy>
 class FourEightSegmentation
 {
 public:
-    typedef NoPayloadPolicy PayloadPolicy;
+    //typedef NoPayloadPolicy PayloadPolicy;
 
     struct NodeInfo;
     struct EdgeInfo;
@@ -557,11 +557,14 @@ public:
         }
     };
 
-    typedef FilterIterator<NodeList::iterator, FilterInitialized> NodeIterator;
-    typedef FilterIterator<EdgeList::iterator, FilterInitialized> EdgeIterator;
-    typedef FilterIterator<FaceList::iterator, FilterInitialized> FaceIterator;
+    typedef FilterIterator<typename NodeList::iterator,
+                           FilterInitialized> NodeIterator;
+    typedef FilterIterator<typename EdgeList::iterator,
+                           FilterInitialized> EdgeIterator;
+    typedef FilterIterator<typename FaceList::iterator,
+                           FilterInitialized> FaceIterator;
 
-    typedef std::vector<DartTraverser>::iterator BoundaryComponentsIterator;
+    typedef typename std::vector<DartTraverser>::iterator BoundaryComponentsIterator;
 
 public:
     template<class SrcIter, class SrcAcc>
@@ -922,9 +925,10 @@ private:
 // -------------------------------------------------------------------
 //                    FourEightSegmentation functions
 // -------------------------------------------------------------------
+template<class PayloadPolicy>
 template<class SrcTraverser>
 LabelScanIterator<CellImage::traverser, SrcTraverser>
-FourEightSegmentation::cellScanIterator(
+FourEightSegmentation<PayloadPolicy>::cellScanIterator(
     CellInfo cell, CellType cellType, SrcTraverser const &upperLeft)
 {
     //std::cerr << "cellScanIterator for " << CellPixel(cellType, cell.label)
@@ -963,7 +967,8 @@ void initFourEightSegmentationContourImage(SrcIter ul, SrcIter lr, SrcAcc src,
     }
 }
 
-void FourEightSegmentation::initCellImage(BImage & contourImage)
+template<class PayloadPolicy>
+void FourEightSegmentation<PayloadPolicy>::initCellImage(BImage & contourImage)
 {
     BImage::traverser rawLine = contourImage.upperLeft() + Diff2D(1,1);
     CellImage::traverser cellLine = cellImage.upperLeft() + Diff2D(1,1);
@@ -1008,7 +1013,8 @@ void FourEightSegmentation::initCellImage(BImage & contourImage)
 
 // -------------------------------------------------------------------
 
-CellPixel::LabelType FourEightSegmentation::label0Cells()
+template<class PayloadPolicy>
+CellPixel::LabelType FourEightSegmentation<PayloadPolicy>::label0Cells()
 {
     BImage nodeImage(cellImage.size());
     BImage::traverser nodes = nodeImage.upperLeft() + Diff2D(2,2);
@@ -1054,7 +1060,8 @@ CellPixel::LabelType FourEightSegmentation::label0Cells()
 
 // -------------------------------------------------------------------
 
-CellPixel::LabelType FourEightSegmentation::label1Cells(
+template<class PayloadPolicy>
+CellPixel::LabelType FourEightSegmentation<PayloadPolicy>::label1Cells(
     CellPixel::LabelType maxNodeLabel)
 {
     std::vector<bool> nodeProcessed(maxNodeLabel + 1, false);
@@ -1094,7 +1101,8 @@ CellPixel::LabelType FourEightSegmentation::label1Cells(
 
 // -------------------------------------------------------------------
 
-CellPixel::LabelType FourEightSegmentation::label2Cells(BImage & contourImage)
+template<class PayloadPolicy>
+CellPixel::LabelType FourEightSegmentation<PayloadPolicy>::label2Cells(BImage & contourImage)
 {
     // labelImageWithBackground() starts with label 1, so don't
     // include outer border (infinite regions shall have label 0)
@@ -1109,7 +1117,8 @@ CellPixel::LabelType FourEightSegmentation::label2Cells(BImage & contourImage)
 
 // -------------------------------------------------------------------
 
-void FourEightSegmentation::labelCircles(
+template<class PayloadPolicy>
+void FourEightSegmentation<PayloadPolicy>::labelCircles(
     CellPixel::LabelType & maxNodeLabel, CellPixel::LabelType & maxEdgeLabel)
 {
     for(int y=-1; y<=(int)height(); ++y)
@@ -1145,7 +1154,8 @@ void FourEightSegmentation::labelCircles(
 
 // -------------------------------------------------------------------
 
-void FourEightSegmentation::labelEdge(CellImageEightCirculator rayAtStart,
+template<class PayloadPolicy>
+void FourEightSegmentation<PayloadPolicy>::labelEdge(CellImageEightCirculator rayAtStart,
                                       CellPixel::LabelType newLabel)
 {
     EdgelIterator edge(rayAtStart);
@@ -1159,7 +1169,8 @@ void FourEightSegmentation::labelEdge(CellImageEightCirculator rayAtStart,
 
 // -------------------------------------------------------------------
 
-void FourEightSegmentation::initNodeList(CellPixel::LabelType maxNodeLabel)
+template<class PayloadPolicy>
+void FourEightSegmentation<PayloadPolicy>::initNodeList(CellPixel::LabelType maxNodeLabel)
 {
     nodeList_.resize(maxNodeLabel + 1);
     std::vector<int> crackCirculatedAreas(maxNodeLabel + 1, 0);
@@ -1235,7 +1246,8 @@ void FourEightSegmentation::initNodeList(CellPixel::LabelType maxNodeLabel)
 
 // -------------------------------------------------------------------
 
-void FourEightSegmentation::initEdgeList(CellPixel::LabelType maxEdgeLabel)
+template<class PayloadPolicy>
+void FourEightSegmentation<PayloadPolicy>::initEdgeList(CellPixel::LabelType maxEdgeLabel)
 {
     edgeList_.resize(maxEdgeLabel + 1);
 
@@ -1268,7 +1280,8 @@ void FourEightSegmentation::initEdgeList(CellPixel::LabelType maxEdgeLabel)
 
 // -------------------------------------------------------------------
 
-void FourEightSegmentation::initFaceList(
+template<class PayloadPolicy>
+void FourEightSegmentation<PayloadPolicy>::initFaceList(
     BImage & contourImage, CellPixel::LabelType maxFaceLabel)
 {
     faceList_.resize(maxFaceLabel + 1);
