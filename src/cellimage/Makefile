@@ -38,9 +38,6 @@ testrect: testrect.o
 testconfigurations: testconfigurations.o
 	$(CXX) -o testconfigurations testconfigurations.o
 
-testnamespace: testnamespace.o
-	$(CXX) -o testnamespace testnamespace.o
-
 test: test.o
 	$(CXX) -o test test.o `vigra-config --impex-lib`
 	./test
