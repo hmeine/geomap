@@ -7,7 +7,7 @@ using namespace vigra::cellimage;
 
 void defineDartTraverser()
 {
-    class_<FourEightSegmentation::DartTraverser>("DartTraverser", no_init)
+    class_<FourEightSegmentation::DartTraverser>("DartTraverser", init<const FourEightSegmentation::DartTraverser &>())
         .def("nextAlpha", &FourEightSegmentation::DartTraverser::nextAlpha, return_internal_reference<>())
         .def("prevAlpha", &FourEightSegmentation::DartTraverser::prevAlpha, return_internal_reference<>())
         .def("nextPhi", &FourEightSegmentation::DartTraverser::nextPhi, return_internal_reference<>())
@@ -15,7 +15,8 @@ void defineDartTraverser()
         .def("nextSigma", &FourEightSegmentation::DartTraverser::nextSigma, return_internal_reference<>())
         .def("prevSigma", &FourEightSegmentation::DartTraverser::prevSigma, return_internal_reference<>())
         .def("isSingular", &FourEightSegmentation::DartTraverser::isSingular)
-		.def("recheckSingularity", &FourEightSegmentation::DartTraverser::recheckSingularity)
+		//.def("carefulNextSigma", &FourEightSegmentation::DartTraverser::carefulNextSigma)
+		//.def("carefulPrevSigma", &FourEightSegmentation::DartTraverser::carefulPrevSigma)
         .def("startNodeLabel", &FourEightSegmentation::DartTraverser::startNodeLabel)
         .def("endNodeLabel", &FourEightSegmentation::DartTraverser::endNodeLabel)
         .def("edgeLabel", &FourEightSegmentation::DartTraverser::edgeLabel)
