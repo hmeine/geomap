@@ -108,8 +108,8 @@ struct CellStatistics
 {
     typedef vigra::cellimage::GeoMap
         Segmentation;
-//typedef StatisticFunctor<OriginalImage::PixelType>
-    typedef vigra::FindAverage<OriginalImage::PixelType>
+    typedef StatisticFunctor<OriginalImage::PixelType>
+        //typedef vigra::FindAverage<OriginalImage::PixelType>
         FaceStatistics;
     typedef vigra::FindAverage<GradientImage::PixelType>
         EdgeStatistics;
