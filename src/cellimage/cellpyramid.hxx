@@ -123,7 +123,7 @@ class CellPyramid
                                   removeBridgeInternal(op.param_) :
                                   mergeFacesInternal(op.param_));
 
-              if(removedEdge.start.recheckSingularity())
+              if(removedEdge.start.isSingular())
                   removeIsolatedNodeInternal(removedEdge.start);
               else
               {
@@ -143,7 +143,7 @@ class CellPyramid
 
               if(!removedEdgeIsLoop)
               {
-                  if(removedEdge.end.recheckSingularity())
+                  if(removedEdge.end.isSingular())
                       removeIsolatedNodeInternal(removedEdge.end);
                   else
                   {
