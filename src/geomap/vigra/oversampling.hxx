@@ -201,7 +201,7 @@ oversamplingConvolution(SrcIter sul, SrcIter slr, SrcAcc src,
 
     int wo = slr.x - sul.x;
     int ho = slr.y - sul.y;
-    int wn = 2*(wo-1)+1;
+    //int wn = 2*(wo-1)+1;
     int hn = 2*(ho-1)+1;
 
     ArrayVector<double> intKernel, halfintKernel;
