@@ -1128,7 +1128,7 @@ std::ostream &
 operator<<(std::ostream & out,
            const FourEightSegmentation::DartTraverser & d)
 {
-    const char *dirStr[] = {
+    static const char * const dirStr[] = {
         " E",
         "NE",
         " N",
@@ -1145,6 +1145,8 @@ operator<<(std::ostream & out,
     out << "DartTraverser["
         << dirStr[(int)d.neighborCirculator().direction()]
         << " from " << pos.x << ", " << pos.y;
+
+    bool singularDart = false;
     if(d.neighborCirculator().center()->type() == CellTypeVertex)
     {
         CellLabel nodeLabel(d.neighborCirculator().center()->label());
@@ -1158,18 +1160,21 @@ operator<<(std::ostream & out,
             if(!node.initialized())
                 out << ", UNINITIALIZED";
             out << ", " << node.size << " pixels, deg. " << node.degree;
+            singularDart = (node.degree == 0);
         }
         out << ")";
     }
     else
     {
         if(d.neighborCirculator().center()->type() == CellTypeLine)
-            out << " (EDGE ";
+            out << " (*EDGE* ";
         else
-            out << " (FACE ";
+            out << " (*FACE* ";
         out << d.neighborCirculator().center()->label() << ")";
     }
-    out << " to ";
+
+    out << " to "; /*****************************************************/
+
     if(d.neighborCirculator().base()->type() == CellTypeLine)
     {
         CellLabel edgeLabel(d.neighborCirculator().base()->label());
@@ -1188,11 +1193,12 @@ operator<<(std::ostream & out,
     else
     {
         if(d.neighborCirculator().base()->type() == CellTypeVertex)
-            out << "NODE ";
+            out << "*NODE* ";
         else
-            out << "FACE ";
+            out << (singularDart ? "face " : "*FACE* ");
         out << d.neighborCirculator().base()->label();
     }
+
     out << "]";
     return out;
 }
