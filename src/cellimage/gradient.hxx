@@ -35,15 +35,15 @@ struct GradientMagnitudeFunctor
     template <class T>
     T operator()(T const & gx, T const & gy) const
     {
-        return sqrt(gx*gx + gy*gy);
+        return (T)sqrt((double)(gx*gx + gy*gy));
     }
 
     template <class T>
     T operator()(RGBValue<T> const & gx, RGBValue<T> const & gy) const
     {
-        return sqrt(gx.red()*gx.red() + gx.green()*gx.green() +
-                    gx.blue()*gx.blue() + gy.red()*gy.red() +
-                    gy.green()*gy.green() + gy.blue()*gy.blue());
+        return (T)sqrt((double)(gx.red()*gx.red() + gx.green()*gx.green() +
+                                gx.blue()*gx.blue() + gy.red()*gy.red() +
+                                gy.green()*gy.green() + gy.blue()*gy.blue()));
     }
 };
 
