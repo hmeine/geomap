@@ -168,6 +168,25 @@ struct CellStatistics
         lastChanges_.setLowerRight(lastChanges_.upperLeft());
         return result;
     }
+
+    CellStatistics &operator =(const CellStatistics &other)
+    {
+        faceStatistics_ = other.faceStatistics_;
+        edgeStatistics_ = other.edgeStatistics_;
+        mergedEdges_ = other.mergedEdges_;
+        nodeCenters_ = other.nodeCenters_;
+
+        // TODO: make static!?
+        configurationDirections_ = other.configurationDirections_;
+
+        segmentationData_ = other.segmentationData_;
+        
+        lastChanges_ =
+            vigra::Rect2D(vigra::Point2D(-2, -2),
+                          segmentationData_->gradientMagnitude_.size() +
+                          vigra::Diff2D(4, 4));
+        return *this;
+    }
 };
 
 #endif // CELLSTATISTICS_HXX

@@ -89,7 +89,8 @@ private:
 
 CellStatistics::CellStatistics(const Segmentation &initialSegmentation,
                                SegmentationData  *segmentationData)
-: segmentationData_(segmentationData)
+: segmentationData_(segmentationData),
+  lastChanges_(vigra::Point2D(-2, -2), initialSegmentation.cellImage.size())
 {
     std::cerr << "initializing face statistics (max face label: "
               << initialSegmentation.maxFaceLabel() << ")\n";
