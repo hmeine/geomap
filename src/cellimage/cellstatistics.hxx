@@ -25,14 +25,21 @@ struct SegmentationData
     GradientImage gradientMagnitude_;
     EdgeDirImage  edgeDirection_;
     EdgeDirImage  edgeDirGradient_;
-        // the following members would fit better in a separate
-        // statistics object which is unique-per-pyramid instead of
-        // per-level
     bool       doEdgeRethinning;
     bool       doRemoveDegree2Nodes;
+    bool       doMergeCompleteRegions;
     EdgelImage edgelImage;
     bool       doAutoProtection;
     double     autoProtectionThreshold;
+
+    SegmentationData()
+    {
+        doEdgeRethinning = true;
+        doRemoveDegree2Nodes = true;
+        doMergeCompleteRegions = true;
+        doAutoProtection = false;
+        autoProtectionThreshold = 0.3;
+    }
 };
 
 namespace std { void swap(SegmentationData &a, SegmentationData &b); }
