@@ -613,28 +613,29 @@ public:
         init(src.first, src.second, src.third, boundaryValue);
     }
 
+    FourEightSegmentation(const IImage &importImage);
+
   protected:
     template<class SrcIter, class SrcAcc>
     void init(SrcIter ul, SrcIter lr, SrcAcc src,
               typename SrcAcc::value_type boundaryValue)
     {
-        nodeCount_ = edgeCount_ = faceCount_ = 0;
-
-        cellImage.resize(lr.x - ul.x + 4, lr.y - ul.y + 4);
-        cellImage = CellPixel(CellTypeRegion, 0);
-
-        cells = cellImage.upperLeft() + Diff2D(2, 2);
-
         // extract contours in input image and put frame around them
-        BImage contourImage(cellImage.size());
+        BImage contourImage(lr.x - ul.x + 4, lr.y - ul.y + 4);
         initFourEightSegmentationContourImage(ul, lr, src, contourImage,
                                               boundaryValue);
+
+        cellImage.resize(contourImage.size());
+        cells = cellImage.upperLeft() + Diff2D(2, 2);
         initCellImage(contourImage);
 
         CellLabel maxNodeLabel = label0Cells();
         CellLabel maxEdgeLabel = label1Cells(maxNodeLabel);
         CellLabel maxFaceLabel = label2Cells(contourImage);
         labelCircles(maxNodeLabel, maxEdgeLabel);
+
+        nodeCount_ = edgeCount_ = faceCount_ = 0;
+
         initNodeList(maxNodeLabel);
         initEdgeList(maxEdgeLabel);
         initFaceList(contourImage, maxFaceLabel);
@@ -834,14 +835,12 @@ void initFourEightSegmentationContourImage(SrcIter ul, SrcIter lr, SrcAcc src,
                                  contourImage.accessor()),
                     1, 1);
 
-    typedef typename SrcAcc::value_type SrcType;
     for(y=0; y<h; ++y, ++ul.y)
     {
         SrcIter sx = ul;
         for(x=0; x<w; ++x, ++sx.x)
         {
-            if(src(sx) == boundaryValue)
-                contourImage(x+2, y+2) = 1;
+            contourImage(x+2, y+2) = (src(sx) == boundaryValue ? 1 : 0);
         }
     }
 }
