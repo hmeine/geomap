@@ -42,7 +42,8 @@ void showNode(FourEightSegmentation::FourEightSegmentation & seg, int label)
     FourEightSegmentation::FourEightSegmentation::NodeAccessor node;
     FourEightSegmentation::FourEightSegmentation::EdgeAccessor edge;
     FourEightSegmentation::FourEightSegmentation::NodeAtEndAccessor endnode;
-    FourEightSegmentation::FourEightSegmentation::NodeIterator n = seg.findNode(label);
+    FourEightSegmentation::FourEightSegmentation::NodeIterator
+        n = seg.nodeList.begin() + label;
 
     std::cout << "Label: " << node.label(n) << ", Location: (" <<
 		node.x(n) << ", " << node.y(n) << ")" << std::endl;
