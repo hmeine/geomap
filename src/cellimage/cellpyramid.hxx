@@ -333,14 +333,16 @@ class CellPyramid
         return history_.size() + 1;
     }
 
-    void cutHead(const Level *newTop = NULL)
+    void cutAbove(unsigned int levelIndex)
     {
-        if(!newTop)
-            newTop = &currentLevel_;
-        history_.erase(history_.begin() + newTop->index(),
-                       history_.end());
-        checkpoints_.erase(checkpoints_.upper_bound(newTop->index()),
+        history_.erase(history_.begin() + levelIndex, history_.end());
+        checkpoints_.erase(checkpoints_.upper_bound(levelIndex),
                            checkpoints_.end());
+    }
+
+    void cutHead()
+    {
+        cutAbove(currentLevel_.index());
     }
 };
 
