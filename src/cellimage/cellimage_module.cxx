@@ -65,6 +65,8 @@ BOOST_PYTHON_MODULE_INIT(cellimage)
         .def(init<CellType, CellLabel>())
         .add_property("type", &CellPixel::type,
                       &CellPixel::setType)
+        .add_property("label", &CellPixel::label,
+                      (void(CellPixel::*)(CellLabel))&CellPixel::setLabel)
         .def(self == self);
 
     class_<CellImage>("CellImage")
@@ -82,23 +84,22 @@ BOOST_PYTHON_MODULE_INIT(cellimage)
 
     scope fourEightSegmentation(
 		class_<FourEightSegmentation>("FourEightSegmentation", no_init)
-        .def("nodeCount", &FourEightSegmentation::nodeCount)
         .def("maxNodeLabel", &FourEightSegmentation::maxNodeLabel)
-        .def("nodes", &NodeListProxy::create)
-        .def("edgeCount", &FourEightSegmentation::edgeCount)
+        .add_property("nodes", &NodeListProxy::create)
         .def("maxEdgeLabel", &FourEightSegmentation::maxEdgeLabel)
-        .def("edges", &EdgeListProxy::create)
-        .def("faceCount", &FourEightSegmentation::faceCount)
+        .add_property("edges", &EdgeListProxy::create)
         .def("maxFaceLabel", &FourEightSegmentation::maxFaceLabel)
-        .def("faces", &FaceListProxy::create)
+        .add_property("faces", &FaceListProxy::create)
         .def("removeIsolatedNode", &FourEightSegmentation::removeIsolatedNode,
              return_internal_reference<>())
         .def("mergeFaces", &FourEightSegmentation::mergeFaces,
              return_internal_reference<>())
         .def("removeBridge", &FourEightSegmentation::removeBridge,
+             return_internal_reference<>())
+        .def("mergeEdges", &FourEightSegmentation::mergeEdges,
              return_internal_reference<>()));
 
-    def("createFourEightSegmentation", createFourEightSegmentation,
+    def("create", createFourEightSegmentation,
         return_value_policy<manage_new_object>());
 
     defineDartTraverser();
