@@ -4,20 +4,14 @@
 
 int main()
 {
-    int configuration = 0;
-
     cerr << "Test: " << cellConfigurations[0] << ' ' <<
                         cellConfigurations[255] << endl;
 
-    for(; configuration<256; ++configuration)
+    for(int configuration = 0; configuration<256; ++configuration)
     {
-        int k;
-
         int bits[8];
-        for(k=0; k<8; ++k)
-        {
-            bits[k] = (configuration >> k) & 1;
-        }
+        for(int bitpos=0; bitpos<8; ++bitpos)
+            bits[bitpos] = (configuration >> bitpos) & 1;
 
         int reflected  =  bits[0] |
 						 (bits[7] << 1) |
@@ -28,25 +22,22 @@ int main()
 						 (bits[2] << 6) |
 						 (bits[1] << 7);
 
-        int r = reflected;
-        int o = configuration;
+        int other = configuration;
 
-        for(k=0; k<4; ++k)
+        for(int k=0; k<4; ++k)
         {
-            if(cellConfigurations[configuration] != cellConfigurations[o])
+            if(cellConfigurations[configuration] != cellConfigurations[other])
             {
-                cerr << configuration << ' ' << o << endl;
+                cerr << configuration << ' ' << other << endl;
             }
-            if(cellConfigurations[configuration] != cellConfigurations[r])
+            if(cellConfigurations[configuration] != cellConfigurations[reflected])
             {
-                cerr << configuration << ' ' << r << endl;
+                cerr << configuration << ' ' << reflected << endl;
             }
 
-            int i2 = ((o << 2) | (o >> 6)) & 0xff;
-            o = i2;
+            other = ((other << 2) | (other >> 6)) & 0xff;
 
-            i2 = ((r << 2) | (r >> 6)) & 0xff;
-            r = i2;
+            reflected = ((reflected << 2) | (reflected >> 6)) & 0xff;
         }
     }
 }
