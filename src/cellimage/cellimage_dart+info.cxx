@@ -30,8 +30,24 @@ void defineDartTraverser()
         .def(self != self);
 }
 
+FourEightSegmentation::DartTraverser &contourGetItem(
+	std::vector<FourEightSegmentation::DartTraverser> &contours, long index)
+{
+	if(index >= (long)contours.size())
+	{
+		PyErr_SetObject(PyExc_IndexError, vigra::ownedPyObject(index));
+		python::throw_error_already_set();
+	}
+	return contours[index];
+}
+
 void defineCellInfos()
 {
+	class_<std::vector<FourEightSegmentation::DartTraverser> >("Contours", no_init)
+		.def("__getitem__", &contourGetItem,
+             return_internal_reference<>())
+		.def("__len__", &std::vector<FourEightSegmentation::DartTraverser>::size);
+
     class_<FourEightSegmentation::CellInfo>("CellInfo", no_init)
         .def_readonly("label", &FourEightSegmentation::CellInfo::label)
         .def_readwrite("size", &FourEightSegmentation::NodeInfo::size)
@@ -50,5 +66,6 @@ void defineCellInfos()
         .def_readwrite("end", &FourEightSegmentation::EdgeInfo::end);
 
     class_<FourEightSegmentation::FaceInfo,
-		   bases<FourEightSegmentation::CellInfo> >("FaceInfo", no_init);
+		   bases<FourEightSegmentation::CellInfo> >("FaceInfo", no_init)
+		.def_readonly("contours", &FourEightSegmentation::FaceInfo::contours);
 }
