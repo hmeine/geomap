@@ -3,7 +3,7 @@
 
 #include "celltypes.hxx"
 #include <vigra/basicimage.hxx>
-#include "pixelneighborhood.hxx"
+#include <vigra/pixelneighborhood.hxx>
 
 namespace vigra {
 

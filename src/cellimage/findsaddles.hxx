@@ -1,7 +1,7 @@
 #ifndef VIGRA_FINDSADDLES_HXX
 #define VIGRA_FINDSADDLES_HXX
 
-#include "pixelneighborhood.hxx"
+#include <vigra/pixelneighborhood.hxx>
 
 namespace vigra {
 
