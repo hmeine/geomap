@@ -1033,9 +1033,6 @@ int FourEightSegmentation::label1Cells(int maxNodeLabel)
             if(nodeProcessed[cell->label()])
                 continue;
 
-            std::cerr << "unprocessed node found at " << x << ", " << y
-                      << "(label: " << cell->label() << ")\n";
-
             nodeProcessed[cell->label()] = true;
 
             RayCirculator rayAtStart(
@@ -1047,9 +1044,7 @@ int FourEightSegmentation::label1Cells(int maxNodeLabel)
                 if(rayAtStart.edgeLabel() != 0)
                     continue;
 
-                std::cerr << "labelling edge.." << std::endl;
                 labelEdge(rayAtStart.neighborCirculator(), ++maxEdgeLabel);
-                std::cerr << "labelling edge done.." << std::endl;
             }
             while(++rayAtStart != rayEnd);
         }
@@ -1077,9 +1072,6 @@ int FourEightSegmentation::label2Cells(BImage & contourImage)
 
 void FourEightSegmentation::labelCircles(int & maxNodeLabel, int & maxEdgeLabel)
 {
-    std::cerr << "FourEightSegmentation::labelCircles(" << maxNodeLabel
-              << " nodes, " << maxNodeLabel << " edges)\n";
-
     for(int y=-1; y<=height_; y++)
     {
         CellImage::Iterator cell = cells + Diff2D(-1, y);
@@ -1109,7 +1101,6 @@ void FourEightSegmentation::labelCircles(int & maxNodeLabel, int & maxEdgeLabel)
             while(++rayAtStart != rayEnd);
         }
     }
-    std::cerr << "FourEightSegmentation::~labelCircles()\n";
 }
 
 // -------------------------------------------------------------------
@@ -1143,14 +1134,11 @@ void FourEightSegmentation::initNodeList(int maxNodeLabel)
                 continue;
 
             int index = cell->label();
-            std::cerr << "found node at " << x << "," << y
-                      << " with label " << cell->label() << "\n";
             vigra_precondition(index < nodeList.size(),
-                               "nodeList must have right size!");
+                               "nodeList must be large enough!");
 
             if(!nodeList[index].initialized())
             {
-                std::cerr << "initializing node " << index << "\n";
                 nodeList[index].label = index;
                 ++nodeCount_;
 
@@ -1160,10 +1148,8 @@ void FourEightSegmentation::initNodeList(int maxNodeLabel)
                 nodeList[index].ray = RayCirculator(
                     this, CellImageEightCirculator(cell,
                                                    EightNeighborCode::West));
-                std::cerr << "creating RayCirculator 1\n";
 
                 // calculate degree of the node
-                std::cerr << "creating RayCirculator 2&3\n";
                 RayCirculator r = nodeList[index].ray;
                 RayCirculator rend = nodeList[index].ray;
                 nodeList[index].degree = 0;
@@ -1178,19 +1164,15 @@ void FourEightSegmentation::initNodeList(int maxNodeLabel)
                 CrackContourCirculator<CellImage::traverser> crackend(crack);
                 do
                 {
-                    std::cerr << "crack.diff(): (" << crack.diff().x << ", " << crack.diff().y << ") "
-                              << "crack.pos(): (" << crack.pos().x << ", " << crack.pos().y << ")\n";
                     crackCirculatedAreas[index] += crack.diff().x * crack.pos().y -
                                                    crack.diff().y * crack.pos().x;
                 }
                 while(++crack != crackend);
 
                 crackCirculatedAreas[index] /= 2;
-                std::cerr << "calculated crackCirculatedAreas.\n";
             }
             else
             {
-                std::cerr << "node " << index << " has label " << nodeList[index].label << "\n";
                 nodeList[index].x += x;
                 nodeList[index].y += y;
 
@@ -1212,8 +1194,6 @@ void FourEightSegmentation::initNodeList(int maxNodeLabel)
         // methods to calculate the area must yield identical values
         if(crackCirculatedAreas[i] != nodeList[i].size)
         {
-            std::cerr << "crackCirculatedAreas[i]==" << crackCirculatedAreas[i] << ", "
-                      << "nodeList[i].size==" << nodeList[i].size << std::endl;
             char msg[200];
             sprintf(msg, "FourEightSegmentation::initNodeList(): "
                     "Node %d at (%d, %d) has a hole", i,
@@ -1246,7 +1226,7 @@ void FourEightSegmentation::initEdgeList(int maxEdgeLabel)
         {
             int index = edge.label(r);
             vigra_precondition(index < edgeList.size(),
-                               "edgeList must have right size!");
+                               "edgeList must be large enough!");
             if(!edgeList[index].initialized())
             {
                 edgeList[index].label = index;
@@ -1302,11 +1282,10 @@ void FourEightSegmentation::initFaceList(BImage & contourImage, int maxFaceLabel
 
             int index = cell->label();
             vigra_precondition(index < faceList.size(),
-                               "faceList must have right size!");
+                               "faceList must be large enough!");
 
             if(!faceList[index].initialized())
             {
-                std::cerr << "initializing face " << index << std::endl;
                 faceList[index].label = index;
                 ++faceCount_;
                 faceList[index].anchor = Diff2D(x,y);
