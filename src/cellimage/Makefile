@@ -1,14 +1,14 @@
 include ../../current/config/Makefile.include
 
-CXXFLAGS := -g -I. -I../../test/include -I/usr/local/boost_1_29_0/src -Wno-deprecated
+CXXFLAGS := -g -I. -I../../test/include -I/usr/local/boost_1_29_0/src -Wall -Wno-deprecated
 
 all: testneighborhood testfoureight watershed
 
 testfoureight: testfoureight.o
 	$(CXX) -o testfoureight testfoureight.o `vigra-config --impex-lib`
 
-testiterator: testiterator.o
-	$(CXX) -o testiterator testiterator.o
+testrect: testrect.o
+	$(CXX) -o testrect testrect.o
 
 watershed: watershed.o
 	$(CXX) -o watershed watershed.o `vigra-config --impex-lib`
@@ -29,5 +29,5 @@ clean::
 	rm -rf Debug ii_files
 
 ifneq "$(MAKECMDGOALS)" "clean"
-include $(patsubst %.o, %.d, watershed.o test.o testfoureight.o testiterator.o testneighborhood.o)
+include $(patsubst %.o, %.d, watershed.o test.o testfoureight.o testrect.o testneighborhood.o)
 endif
