@@ -798,6 +798,25 @@ void findEdgelChains(IMAGEVIEW const & image,
     std::cerr << '\n';
 }
 
+template <class Poly>
+void polynomialRemainder(Poly const & l, Poly const & r, Poly & res)
+{
+    typedef typename Poly::value_type Coeff;
+    res = l;
+    int diffOrder = res.order() - r.order();
+    while(diffOrder >= 0)
+    {
+        Coeff c = res[res.order()] / r[r.order()];
+        for(unsigned int k = 0; k < r.order(); ++k)
+        {
+            res[k+diffOrder] -= c*r[k];
+        }
+        res.setOrder(res.order()-1);
+        res.minimizeOrder(0.0);
+        diffOrder = res.order() - r.order();
+    }
+}
+
 /*******************************************************************/
 /*                                                                 */
 /*                         SubPixelWatersheds                      */
@@ -863,6 +882,8 @@ class SubPixelWatersheds
     double initialStep_, storeStep_;
 };
 
+static int sturmcount, zeroOrder;
+
 template <class T>
 void 
 SubPixelWatersheds<T>::findCriticalPointsInFacet(double x0, double y0, 
@@ -884,23 +905,70 @@ SubPixelWatersheds<T>::findCriticalPointsInFacet(double x0, double y0,
     double a = splineCoeffs(2,2);
 
     double eps = 1.0e-7;
-    StaticPolynomial<5, double> px((unsigned)5 , eps);
-    px[0] =  4.0*f*f*g - 2.0*d*f*h + c*h*h;
-    px[1] = -2.0*d*d*f + 8.0*e*f*f + 8.0*c*f*g - 4.0*b*f*h + 2.0*a*h*h;
-    px[2] = -c*d*d - 6.0*b*d*f + 16.0*c*e*f + 4.0*c*c*g + 
-            8.0*a*f*g - 2.0*b*c*h + 2.0*a*d*h;
-    px[3] = -4.0*b*c*d + 8.0*c*c*e - 4.0*b*b*f + 16.0*a*e*f + 8.0*a*c*g;
-    px[4] = -3.0*b*b*c - 2.0*a*b*d + 16.0*a*c*e + 4.0*a*a*g;
-    px[5] = -2.0*a*b*b + 8.0*a*a*e;
+    StaticPolynomial<5, double> polys[6];
+    polys[5].setOrder(5);
+    polys[5].setEpsilon(eps);
+    polys[5][0] =  4.0*f*f*g - 2.0*d*f*h + c*h*h;
+    polys[5][1] = -2.0*d*d*f + 8.0*e*f*f + 8.0*c*f*g - 4.0*b*f*h + 2.0*a*h*h;
+    polys[5][2] = -c*d*d - 6.0*b*d*f + 16.0*c*e*f + 4.0*c*c*g + 
+                   8.0*a*f*g - 2.0*b*c*h + 2.0*a*d*h;
+    polys[5][3] = -4.0*b*c*d + 8.0*c*c*e - 4.0*b*b*f + 16.0*a*e*f + 8.0*a*c*g;
+    polys[5][4] = -3.0*b*b*c - 2.0*a*b*d + 16.0*a*c*e + 4.0*a*a*g;
+    polys[5][5] = -2.0*a*b*b + 8.0*a*a*e;
+    
+    polys[5].minimizeOrder();
+    if(polys[5].order() == 0)
+    {
+        zeroOrder++;
+        return;
+    }
+    // create the Sturm sequence and count the sign changes
+    double left = polys[5](-0.5);
+    double right = polys[5](0.5);
+    
+    // if the interval bounds are zero, we go directly to root finding
+    if(0)//std::abs(left) > eps && std::abs(right) > eps)
+    {
+        polys[4] = polys[5].getDerivative();
+        int m;
+        for(m = 3; m >= 0; --m)
+        {
+            polynomialRemainder(polys[m+2], polys[m+1], polys[m]);
+            if(polys[m].order() == 0)
+                break;
+        }
+        int leftCount = 0;
+        int rightCount = 0;
+        double v;
+        for(int k = 4; k >= m; --k)
+        {
+            v = polys[k](-0.5);
+            if(v*left < 0.0)
+                leftCount++;
+            if(v != 0.0)
+                left = v;
+            v = polys[k](0.5);
+            if(v*right < 0.0)
+                rightCount++;
+            if(v != 0.0)
+                right = v;
+        }
+        if(leftCount == rightCount)
+        {
+            ++sturmcount;
+            return; // interval [-0.5, 0.5] cannot contain a zero
+        }
+    }
     
     ArrayVector<double> rx;
+    rx.reserve(5);
 #if 0
     std::cerr << "Poly order " << px.order() << " coeffs ";
     for(int k = 0; k<px.order(); ++k)
         std::cerr << px[k] << ' ';
     std::cerr << '\n';
 #endif
-    polynomialRealRoots(px, rx);
+    polynomialRealRoots(polys[5], rx, false); // no root polishing necessary ?
     
     double xold = -100.0;
     for(unsigned int i=0; i < rx.size(); ++i)
@@ -960,6 +1028,8 @@ SubPixelWatersheds<T>::findCriticalPoints()
     saddles_.push_back(PointType());
     maxima_.push_back(PointType());
     
+    sturmcount = 0;
+    zeroOrder = 0;
     for(unsigned int y=1; y<image_.height()-1; ++y)
     {
         for(unsigned int x=1; x<image_.width()-1; ++x)
@@ -968,6 +1038,8 @@ SubPixelWatersheds<T>::findCriticalPoints()
         }
     }
     createMaximage();
+    std::cerr << "Sturm fired: " << sturmcount << " times\n";
+    std::cerr << "Zero order fired: " << zeroOrder << " times\n";
 }
 
 template <class T>
