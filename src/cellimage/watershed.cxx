@@ -33,23 +33,25 @@
 #include "hessematrix.hxx"
 #include "gradient.hxx"
 #include "findsaddles.hxx"
+#include "debugimage.hxx"
+#include "mydebug.hxx"
 
 using namespace vigra;
 using namespace vigra::functor;
 
-void showNode(FourEightSegmentation::FourEightSegmentation & seg, int label)
+void showNode(CellImage::FourEightSegmentation & seg, int label)
 {
-    FourEightSegmentation::FourEightSegmentation::NodeAccessor node;
-    FourEightSegmentation::FourEightSegmentation::EdgeAccessor edge;
-    FourEightSegmentation::FourEightSegmentation::NodeAtEndAccessor endnode;
-    FourEightSegmentation::FourEightSegmentation::NodeIterator
+    CellImage::FourEightSegmentation::NodeAccessor node;
+    CellImage::FourEightSegmentation::EdgeAccessor edge;
+    CellImage::FourEightSegmentation::NodeAtEndAccessor endnode;
+    CellImage::FourEightSegmentation::NodeIterator
         n = seg.nodeList.begin() + label;
 
     std::cout << "Label: " << node.label(n) << ", Location: (" <<
 		node.x(n) << ", " << node.y(n) << ")" << std::endl;
 
-    FourEightSegmentation::RayCirculator ray = node.rayCirculator(n);
-    FourEightSegmentation::RayCirculator rend = ray;
+    CellImage::RayCirculator ray = node.rayCirculator(n);
+    CellImage::RayCirculator rend = ray;
 
     do
     {
@@ -162,12 +164,12 @@ int main(int argc, char ** argv)
         exportImage(srcImageRange(seeds), ImageExportInfo("seeds.xv"));
         std::cout << "Wrote seeds.xv" << std::endl;
 
-        int max_region_label =
+        int maxFaceLabel =
             labelImageWithBackground(srcImageRange(seeds), destImage(labels), false, 0);
 
         // create a statistics functor for region growing
         ArrayOfRegionStatistics<SeedRgDirectValueFunctor<float> >
-			gradstat(max_region_label);
+			gradstat(maxFaceLabel);
 
         // perform region growing, starting from the minima of the gradient magnitude;
         // as the feature (first input) image contains the gradient magnitude,
@@ -205,22 +207,26 @@ int main(int argc, char ** argv)
         seededRegionGrowing(srcImageRange(grad), srcImage(labels),
                             destImage(labels), gradstat, 100000);
 
-        FourEightSegmentation::FourEightSegmentation segmentation;
+        CellImage::FourEightSegmentation segmentation;
 
         segmentation.init(srcImageRange(labels));
 
-#if 0
-		exportImage(srcImageRange(segmentation.cellImage), ImageExportInfo("cellImage.xv"));
-		std::cout << "Wrote cells.xv" << std::endl;
+        if(segmentation.cellImage.width()>50)
+        {
+            /*exportImage(
+                srcImageRange(segmentation.cellImage,
+                              CellImage::CellImageTypeAccessor()),
+                ImageExportInfo("cellTypeImage.xv"));
+                std::cout << "Wrote cellTypeImage.xv" << std::endl;*/
 
-        exportImage(srcImageRange(segmentation.labelImage), ImageExportInfo("labelImage.xv"));
-        std::cout << "Wrote labelImage.xv" << std::endl;
-#else
-        exportImage(srcImageRange(segmentation.cellImage,
-								  FourEightSegmentation::CellImageLabelAccessor()),
-					ImageExportInfo("labelImage.xv"));
-        std::cout << "Wrote labelImage.xv" << std::endl;
-#endif
+            exportImage(
+                srcImageRange(segmentation.cellImage,
+                              CellImage::CellImageLabelAccessor()),
+                ImageExportInfo("cellLabelImage.xv"));
+            std::cout << "Wrote cellLabelImage.xv" << std::endl;
+        }
+        else
+            debugImage(srcImageRange(segmentation.cellImage));
 
         std::cout <<
 			"Nodes: " << segmentation.nodeCount() << std::endl <<
@@ -230,7 +236,7 @@ int main(int argc, char ** argv)
         // initialize a functor to determine the average gray-value or color
         // for each region (catchment basin) just found
         ArrayOfRegionStatistics<FindAverage<float> >
-                                              averages(max_region_label);
+            averages(maxFaceLabel);
 
         // calculate the averages
         inspectTwoImages(srcImageRange(in), srcImage(labels), averages);
