@@ -13,8 +13,8 @@ testrect: testrect.o
 watershed: watershed.o
 	$(CXX) -o watershed watershed.o `vigra-config --impex-lib`
 
-testneighborhood: testneighborhood.o
-	$(CXX) -o testneighborhood testneighborhood.o
+testit: testit.o
+	$(CXX) -o testit testit.o
 
 testconfigurations: testconfigurations.o
 	$(CXX) -o testconfigurations testconfigurations.o
@@ -24,10 +24,10 @@ test: test.o
 	./test
 
 clean::
-	rm -f *.o watershed testneighborhood test core *.plg *ilk
+	rm -f *.o watershed testit test core *.plg *ilk
 	rm -f seeds.xv res.xv labelImage.xv
 	rm -rf Debug ii_files
 
 ifneq "$(MAKECMDGOALS)" "clean"
-include $(patsubst %.o, %.d, watershed.o test.o testfoureight.o testrect.o testneighborhood.o)
+include $(patsubst %.o, %.d, watershed.o test.o testfoureight.o testrect.o testit.o)
 endif
