@@ -15,6 +15,7 @@ void defineDartTraverser()
         .def("nextSigma", &FourEightSegmentation::DartTraverser::nextSigma, return_internal_reference<>())
         .def("prevSigma", &FourEightSegmentation::DartTraverser::prevSigma, return_internal_reference<>())
         .def("isSingular", &FourEightSegmentation::DartTraverser::isSingular)
+		.def("recheckSingularity", &FourEightSegmentation::DartTraverser::recheckSingularity)
         .def("startNodeLabel", &FourEightSegmentation::DartTraverser::startNodeLabel)
         .def("endNodeLabel", &FourEightSegmentation::DartTraverser::endNodeLabel)
         .def("edgeLabel", &FourEightSegmentation::DartTraverser::edgeLabel)
@@ -33,6 +34,7 @@ void defineCellInfos()
 {
     class_<FourEightSegmentation::CellInfo>("CellInfo", no_init)
         .def_readonly("label", &FourEightSegmentation::CellInfo::label)
+        .def_readwrite("size", &FourEightSegmentation::NodeInfo::size)
         .def("initialized", &FourEightSegmentation::CellInfo::initialized)
         .def("uninitialize", &FourEightSegmentation::CellInfo::uninitialize);
 
@@ -40,8 +42,7 @@ void defineCellInfos()
            bases<FourEightSegmentation::CellInfo> >("NodeInfo", no_init)
         .def_readwrite("anchor", &FourEightSegmentation::NodeInfo::anchor)
         .def_readonly("centerX", &FourEightSegmentation::NodeInfo::centerX)
-        .def_readonly("centerY", &FourEightSegmentation::NodeInfo::centerY)
-        .def_readwrite("size", &FourEightSegmentation::NodeInfo::size);
+        .def_readonly("centerY", &FourEightSegmentation::NodeInfo::centerY);
 
     class_<FourEightSegmentation::EdgeInfo,
            bases<FourEightSegmentation::CellInfo> >("EdgeInfo", no_init)
@@ -49,6 +50,5 @@ void defineCellInfos()
         .def_readwrite("end", &FourEightSegmentation::EdgeInfo::end);
 
     class_<FourEightSegmentation::FaceInfo,
-           bases<FourEightSegmentation::CellInfo> >("FaceInfo", no_init)
-        .def_readwrite("size", &FourEightSegmentation::FaceInfo::size);
+		   bases<FourEightSegmentation::CellInfo> >("FaceInfo", no_init);
 }
