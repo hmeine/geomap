@@ -89,11 +89,13 @@ class CellPyramid
             { return segmentation_; }
         const CellStatistics &cellStatistics() const
             { return cellStatistics_; }
+        const Pyramid *pyramid() const
+            { return pyramid_; }
 
         Level(unsigned int l,
               const Segmentation &s,
               const CellStatistics &c,
-              Pyramid *p)
+              const Pyramid *p)
         : index_(l), segmentation_(s), cellStatistics_(c), pyramid_(p)
         {}
 
@@ -126,11 +128,6 @@ class CellPyramid
             }
         }
 
-        void cutHead()
-        {
-            pyramid_->cutAbove(*this);
-        }
-
       protected:
             /** Returns false (and does not change this level) if the given
              * levelData is a "better" position for reaching levelIndex
@@ -141,7 +138,7 @@ class CellPyramid
         bool gotoLastCheckpointBefore(unsigned int levelIndex)
         {
             typedef typename Pyramid::CheckpointMap CheckpointMap;
-            typename CheckpointMap::iterator lastCheckpointIt =
+            typename CheckpointMap::const_iterator lastCheckpointIt =
                 pyramid_->checkpoints_.upper_bound(levelIndex);
             --lastCheckpointIt;
 
@@ -187,7 +184,7 @@ class CellPyramid
             return result;
         }
 
-        CellInfo &performOperation(Operation &op)
+        CellInfo &performOperation(const Operation &op)
         {
             if(op.type == Composite)
             {
@@ -255,7 +252,7 @@ class CellPyramid
         unsigned int   index_;
         Segmentation   segmentation_;
         CellStatistics cellStatistics_;
-        Pyramid       *pyramid_;
+        const Pyramid *pyramid_;
     }; // class Level
 
   protected:
@@ -338,7 +335,8 @@ class CellPyramid
             checkpoints_.insert(std::make_pair(topLevel().index(), level));
 
             std::cerr << "--- stored checkpoint at level #" << level.index()
-                      << ", " << totalCellCount << " cells total left ---\n";
+                      << ", next scheduled for level " << nextCheckpointLevelIndex_
+                      << " (" << totalCellCount << " cells total left) ---\n";
         }
     }
 
@@ -431,11 +429,11 @@ class CellPyramid
         return topLevel_;
     }
 
-    Level *getLevel(unsigned int levelIndex)
+    Level *getLevel(unsigned int levelIndex) const
     {
         vigra_precondition(levelIndex < levelCount(),
                            "getLevel(): invalid level index given");
-        typename CheckpointMap::iterator lastCheckpointIt =
+        typename CheckpointMap::const_iterator lastCheckpointIt =
             checkpoints_.upper_bound(levelIndex);
         --lastCheckpointIt;
         Level *result = new Level(lastCheckpointIt->second);
