@@ -16,13 +16,13 @@ namespace FourEightSegmentation {
 class FourEightSegmentation;
 
 // -------------------------------------------------------------------
-//                         NeighborhoodCirculator
+//                       OldNeighborhoodCirculator
 // -------------------------------------------------------------------
 
     // sits on center(), points to location() (diff is diff()), can
     // turn/jumpToOpposite, gives cells/labels of center(), location()
     // and forward/backward neighbors
-class NeighborhoodCirculator
+class OldNeighborhoodCirculator
 {
 protected:
     FourEightSegmentation *segmentation_;
@@ -32,13 +32,13 @@ protected:
 public:
     // FIXME: where is this default constructor needed?
     // what should it (not) do?
-    NeighborhoodCirculator()
+    OldNeighborhoodCirculator()
         : segmentation_(0)
     {}
 
-    NeighborhoodCirculator(FourEightSegmentation * segmentation,
-                           Diff2D const & center,
-                           EightNeighborCode::Direction dir = EightNeighborCode::East)
+    OldNeighborhoodCirculator(FourEightSegmentation * segmentation,
+                              Diff2D const & center,
+                              EightNeighborOffsetCirculator::Direction dir = EightNeighborOffsetCirculator::East)
         : segmentation_(segmentation), center_(center), neighbor_(dir)
     {}
 
@@ -53,41 +53,41 @@ public:
     inline int forwardNeighborLabel() const;
     inline int backwardNeighborLabel() const;
 
-    NeighborhoodCirculator & operator++()
+    OldNeighborhoodCirculator & operator++()
     {
         ++neighbor_;
         return *this;
     }
-    NeighborhoodCirculator operator++(int)
+    OldNeighborhoodCirculator operator++(int)
     {
-        NeighborhoodCirculator ret(*this);
+        OldNeighborhoodCirculator ret(*this);
         operator++();
         return ret;
     }
-    NeighborhoodCirculator & operator+=(int d)
+    OldNeighborhoodCirculator & operator+=(int d)
     {
         neighbor_ += d;
         return *this;
     }
 
-    NeighborhoodCirculator & operator--()
+    OldNeighborhoodCirculator & operator--()
     {
         --neighbor_;
         return *this;
     }
-    NeighborhoodCirculator operator--(int)
+    OldNeighborhoodCirculator operator--(int)
     {
-        NeighborhoodCirculator ret(*this);
+        OldNeighborhoodCirculator ret(*this);
         operator--();
         return ret;
     }
-    NeighborhoodCirculator & operator-=(int d)
+    OldNeighborhoodCirculator & operator-=(int d)
     {
         neighbor_ -= d;
         return *this;
     }
 
-    NeighborhoodCirculator & jumpToOpposite()
+    OldNeighborhoodCirculator & jumpToOpposite()
     {
         center_ += diff();
         neighbor_.turnRound();
@@ -95,34 +95,34 @@ public:
         return *this;
     }
 
-    NeighborhoodCirculator & turnRight()
+    OldNeighborhoodCirculator & turnRight()
     {
         neighbor_.turnRight();
         return *this;
     }
-    NeighborhoodCirculator & turnLeft()
+    OldNeighborhoodCirculator & turnLeft()
     {
         neighbor_.turnLeft();
         return *this;
     }
-    NeighborhoodCirculator & turnRound()
+    OldNeighborhoodCirculator & turnRound()
     {
         neighbor_.turnRound();
         return *this;
     }
 
-    NeighborhoodCirculator & translate(Diff2D const & d)
+    OldNeighborhoodCirculator & translate(Diff2D const & d)
     {
         center_ += d;
         return *this;
     }
 
-    bool operator==(NeighborhoodCirculator const & o) const
+    bool operator==(OldNeighborhoodCirculator const & o) const
     {
         return center_ == o.center_ && neighbor_ == o.neighbor_;
     }
 
-    bool operator!=(NeighborhoodCirculator const & o) const
+    bool operator!=(OldNeighborhoodCirculator const & o) const
     {
         return center_ != o.center_ || neighbor_ != o.neighbor_;
     }
@@ -142,7 +142,7 @@ public:
         return center_ + diff();
     }
 
-    EightNeighborCode::Direction directionCode() const
+    EightNeighborOffsetCirculator::Direction directionCode() const
     {
         return neighbor_.direction();
     }
@@ -164,12 +164,12 @@ public:
 class CrackCirculator
 {
 protected:
-    NeighborhoodCirculator neighborCirc_;
+    OldNeighborhoodCirculator neighborCirc_;
     int label;
     Diff2D pos_;
 
 public:
-    CrackCirculator(NeighborhoodCirculator const & n)
+    CrackCirculator(OldNeighborhoodCirculator const & n)
         : neighborCirc_(n),
           label(n.cell()),
           pos_(0, 0)
@@ -227,11 +227,11 @@ public:
 // -------------------------------------------------------------------
 class EdgelIterator
 {
-    NeighborhoodCirculator neighborCirc_;
+    OldNeighborhoodCirculator neighborCirc_;
     bool isEnd_;
 
 public:
-    EdgelIterator(NeighborhoodCirculator const & n)
+    EdgelIterator(OldNeighborhoodCirculator const & n)
         : neighborCirc_(n), isEnd_(false)
     {}
 
@@ -252,12 +252,12 @@ public:
 
         while(1)
         {
-            if(neighborCirc_.neighborCell() == CellConfigurationsVertex)
+            if(neighborCirc_.neighborCell() == CellConfigurationVertex)
             {
                 isEnd_ = true;
                 break;
             }
-            if(neighborCirc_.neighborCell() == CellConfigurationsLine)
+            if(neighborCirc_.neighborCell() == CellConfigurationLine)
             {
                 break;
             }
@@ -265,7 +265,7 @@ public:
         }
 
         if(neighborCirc_.isDiagonal() &&
-           neighborCirc_.forwardNeighborCell() == CellConfigurationsVertex)
+           neighborCirc_.forwardNeighborCell() == CellConfigurationVertex)
         {
             ++neighborCirc_;
             isEnd_ = true;
@@ -282,7 +282,7 @@ public:
         return *this;
     }
 
-    operator NeighborhoodCirculator()
+    operator OldNeighborhoodCirculator()
     {
         return neighborCirc_;
     }
@@ -294,7 +294,7 @@ public:
 struct RayCirculator
 {
 private:
-    NeighborhoodCirculator neighborCirc_;
+    OldNeighborhoodCirculator neighborCirc_;
     bool isSingular_;
 
 public:
@@ -302,13 +302,13 @@ public:
     RayCirculator() {}
 
     RayCirculator(FourEightSegmentation * seg, Diff2D const & loc,
-                  EightNeighborCode::Direction dir = EightNeighborCode::East)
+                  EightNeighborOffsetCirculator::Direction dir = EightNeighborOffsetCirculator::East)
         : neighborCirc_(seg, loc, dir)
     {
         init();
     }
 
-    RayCirculator(NeighborhoodCirculator const & n)
+    RayCirculator(OldNeighborhoodCirculator const & n)
         : neighborCirc_(n)
     {
         init();
@@ -320,9 +320,9 @@ public:
 
         tryNext();
 
-        while(neighborCirc_.neighborCell() != CellConfigurationsLine)
+        while(neighborCirc_.neighborCell() != CellConfigurationLine)
         {
-            if(neighborCirc_.neighborCell() == CellConfigurationsVertex)
+            if(neighborCirc_.neighborCell() == CellConfigurationVertex)
             {
                 neighborCirc_.jumpToOpposite();
             }
@@ -344,9 +344,9 @@ public:
 
         tryPrev();
 
-        while(neighborCirc_.neighborCell() != CellConfigurationsLine)
+        while(neighborCirc_.neighborCell() != CellConfigurationLine)
         {
-            if(neighborCirc_.neighborCell() == CellConfigurationsVertex)
+            if(neighborCirc_.neighborCell() == CellConfigurationVertex)
             {
                 neighborCirc_.jumpToOpposite();
             }
@@ -400,7 +400,7 @@ public:
     inline float x() const;
     inline float y() const;
 
-    const NeighborhoodCirculator &neighborhoodCirculator() const
+    const OldNeighborhoodCirculator &neighborhoodCirculator() const
     {
         return neighborCirc_;
     }
@@ -408,17 +408,17 @@ public:
 private:
     void init()
     {
-        vigra_precondition(neighborCirc_.cell() == CellConfigurationsVertex,
+        vigra_precondition(neighborCirc_.cell() == CellConfigurationVertex,
         "FourEightSegmentation::RayCirculator(): center is not a node");
 
-        vigra_precondition(neighborCirc_.neighborCell() != CellConfigurationsVertex,
+        vigra_precondition(neighborCirc_.neighborCell() != CellConfigurationVertex,
         "FourEightSegmentation::RayCirculator(): neighbor is a node");
 
-        NeighborhoodCirculator n = neighborCirc_;
+        OldNeighborhoodCirculator n = neighborCirc_;
         isSingular_ = true;
         do
         {
-            if(n.neighborCell() != CellConfigurationsRegion)
+            if(n.neighborCell() != CellConfigurationRegion)
             {
                 isSingular_ = false;
                 break;
@@ -426,7 +426,7 @@ private:
         }
         while(++n != neighborCirc_);
 
-        if(neighborCirc_.neighborCell() != CellConfigurationsLine)
+        if(neighborCirc_.neighborCell() != CellConfigurationLine)
             operator++();
     }
 
@@ -448,9 +448,9 @@ private:
     // vertex pixels
     bool badDiagonalConfig()
     {
-        return (neighborCirc_.neighborCell() == CellConfigurationsLine &&
-                (neighborCirc_.forwardNeighborCell() == CellConfigurationsVertex ||
-                 neighborCirc_.backwardNeighborCell() == CellConfigurationsVertex));
+        return (neighborCirc_.neighborCell() == CellConfigurationLine &&
+                (neighborCirc_.forwardNeighborCell() == CellConfigurationVertex ||
+                 neighborCirc_.backwardNeighborCell() == CellConfigurationVertex));
     }
 };
 
@@ -901,7 +901,7 @@ public:
         int totalheight = height_ + 4;
 
         cellImage.resize(totalwidth, totalheight);
-        cellImage = CellConfigurationsRegion;
+        cellImage = CellConfigurationRegion;
 
         labelImage.resize(totalwidth, totalheight);
         labelImage = 0;
@@ -978,7 +978,7 @@ private:
     int label2Cells(BImage & contourImage);
     void labelCircles(int & nodeCount, int & edgeCount);
 
-    void labelLine(NeighborhoodCirculator rayAtStart, int newLabel);
+    void labelLine(OldNeighborhoodCirculator rayAtStart, int newLabel);
 
     void initNodeList(int nodeCount);
     void initEdgeList(int edgeCount);
@@ -993,46 +993,46 @@ private:
 };
 
 // -------------------------------------------------------------------
-//                    NeighborhoodCirculator functions
+//                  OldNeighborhoodCirculator functions
 // -------------------------------------------------------------------
-inline unsigned char NeighborhoodCirculator::cell() const
+inline unsigned char OldNeighborhoodCirculator::cell() const
 {
     return segmentation_->cells[center()];
 }
 
-inline unsigned char NeighborhoodCirculator::neighborCell() const
+inline unsigned char OldNeighborhoodCirculator::neighborCell() const
 {
     return segmentation_->cells[location()];
 }
 
-inline unsigned char NeighborhoodCirculator::forwardNeighborCell() const
+inline unsigned char OldNeighborhoodCirculator::forwardNeighborCell() const
 {
-    return segmentation_->cells[*(neighbor_ + 1)];
+    return segmentation_->cells[center() + neighbor_[1]];
 }
 
-inline unsigned char NeighborhoodCirculator::backwardNeighborCell() const
+inline unsigned char OldNeighborhoodCirculator::backwardNeighborCell() const
 {
-    return segmentation_->cells[*(neighbor_ - 1)];
+    return segmentation_->cells[center() + neighbor_[-1]];
 }
 
-inline int NeighborhoodCirculator::label() const
+inline int OldNeighborhoodCirculator::label() const
 {
     return segmentation_->labels[center()];
 }
 
-inline int NeighborhoodCirculator::neighborLabel() const
+inline int OldNeighborhoodCirculator::neighborLabel() const
 {
     return segmentation_->labels[location()];
 }
 
-inline int NeighborhoodCirculator::forwardNeighborLabel() const
+inline int OldNeighborhoodCirculator::forwardNeighborLabel() const
 {
-    return segmentation_->labels[*(neighbor_ + 1)];
+    return segmentation_->labels[center() + neighbor_[1]];
 }
 
-inline int NeighborhoodCirculator::backwardNeighborLabel() const
+inline int OldNeighborhoodCirculator::backwardNeighborLabel() const
 {
-    return segmentation_->labels[*(neighbor_ - 1)];
+    return segmentation_->labels[center() + neighbor_[-1]];
 }
 
 // -------------------------------------------------------------------
@@ -1096,21 +1096,21 @@ void FourEightSegmentation::initCellImage(BImage & contourImage)
         {
             if(*rx == 0)
             {
-                cells(x,y) = CellConfigurationsRegion;
+                cells(x,y) = CellConfigurationRegion;
             }
             else
             {
-                EightNeighborOffsetCirculator neighbors(EightNeighborCode::SouthEast);
+                EightNeighborOffsetCirculator neighbors(EightNeighborOffsetCirculator::SouthEast);
                 EightNeighborOffsetCirculator end = neighbors;
 
                 int conf = 0;
                 do
                 {
-                    conf = (conf << 1) | rx[*neighbors];
+                    conf = (conf << 1) | rx[neighbors.diff()];
                 }
                 while(--neighbors != end);
 
-                if(cellConfigurations[conf] == CellConfigurationsError)
+                if(cellConfigurations[conf] == CellConfigurationError)
                 {
                     char message[200];
                     sprintf(message, "FourEightSegmentation::init(): "
@@ -1139,18 +1139,18 @@ int FourEightSegmentation::label0Cells()
     {
         for(x=-2; x<width_+2; ++x)
         {
-            if(cells(x,y) == CellConfigurationsVertex)
+            if(cells(x,y) == CellConfigurationVertex)
             {
                 nodes(x,y) = 1;
 
                 // test for forbidden configuration
-                NeighborhoodCirculator n(this, Diff2D(x,y));
-                NeighborhoodCirculator nend = n;
+                OldNeighborhoodCirculator n(this, Diff2D(x,y));
+                OldNeighborhoodCirculator nend = n;
 
                 do
                 {
-                    if(n.neighborCell() == CellConfigurationsLine &&
-                       n.forwardNeighborCell() == CellConfigurationsLine)
+                    if(n.neighborCell() == CellConfigurationLine &&
+                       n.forwardNeighborCell() == CellConfigurationLine)
                     {
                         char msg[200];
                         sprintf(msg,"initFourEightSegmentation(): "
@@ -1173,26 +1173,26 @@ int FourEightSegmentation::label0Cells()
 
 // -------------------------------------------------------------------
 
-int FourEightSegmentation::label1Cells(int number_of_nodes)
+int FourEightSegmentation::label1Cells(int nodeCount)
 {
     int x,y;
 
-    std::vector<int> nodeProcessed(number_of_nodes + 1, 0);
+    std::vector<int> nodeProcessed(nodeCount + 1, 0);
 
-    int number_of_edges = 0;
+    int edgeCount = 0;
 
     for(y=-1; y<=height_; ++y)
     {
         for(x=-1; x<=width_; ++x)
         {
-            if(cells(x,y) != CellConfigurationsVertex)
+            if(cells(x,y) != CellConfigurationVertex)
                 continue;
             if(nodeProcessed[labels(x,y)])
                 continue;
 
             nodeProcessed[labels(x,y)] = 1;
 
-            RayCirculator rayAtStart(this, Diff2D(x,y), EightNeighborCode::West);
+            RayCirculator rayAtStart(this, Diff2D(x,y), EightNeighborOffsetCirculator::West);
             RayCirculator rayEnd = rayAtStart;
 
             do
@@ -1200,13 +1200,13 @@ int FourEightSegmentation::label1Cells(int number_of_nodes)
                 if(rayAtStart.edgeLabel() != 0)
                     continue;
 
-                labelLine(rayAtStart.neighborhoodCirculator(), ++number_of_edges);
+                labelLine(rayAtStart.neighborhoodCirculator(), ++edgeCount);
             }
             while(++rayAtStart != rayEnd);
         }
     }
 
-    return number_of_edges;
+    return edgeCount;
 }
 
 // -------------------------------------------------------------------
@@ -1218,7 +1218,7 @@ int FourEightSegmentation::label2Cells(BImage & contourImage)
 
 // -------------------------------------------------------------------
 
-void FourEightSegmentation::labelCircles(int & number_of_nodes, int & number_of_edges)
+void FourEightSegmentation::labelCircles(int & nodeCount, int & edgeCount)
 {
     int x,y;
 
@@ -1232,20 +1232,20 @@ void FourEightSegmentation::labelCircles(int & number_of_nodes, int & number_of_
             // found a circle
 
             // mark first point as node
-            cells(x,y) = CellConfigurationsVertex;
-            labels(x,y) = ++number_of_nodes;
+            cells(x,y) = CellConfigurationVertex;
+            labels(x,y) = ++nodeCount;
 
-            NeighborhoodCirculator rayAtStart(this, Diff2D(x,y));
-            NeighborhoodCirculator rayEnd = rayAtStart;
+            OldNeighborhoodCirculator rayAtStart(this, Diff2D(x,y));
+            OldNeighborhoodCirculator rayEnd = rayAtStart;
 
             do
             {
-                if(rayAtStart.neighborCell() != CellConfigurationsLine)
+                if(rayAtStart.neighborCell() != CellConfigurationLine)
                     continue;
                 if(rayAtStart.neighborLabel() != 0)
                     continue;
 
-                labelLine(rayAtStart, ++number_of_edges);
+                labelLine(rayAtStart, ++edgeCount);
             }
             while(++rayAtStart != rayEnd);
         }
@@ -1254,7 +1254,7 @@ void FourEightSegmentation::labelCircles(int & number_of_nodes, int & number_of_
 
 // -------------------------------------------------------------------
 
-void FourEightSegmentation::labelLine(NeighborhoodCirculator rayAtStart,
+void FourEightSegmentation::labelLine(OldNeighborhoodCirculator rayAtStart,
                                       int newLabel)
 {
     EdgelIterator line(rayAtStart);
@@ -1268,10 +1268,10 @@ void FourEightSegmentation::labelLine(NeighborhoodCirculator rayAtStart,
 
 // -------------------------------------------------------------------
 
-void FourEightSegmentation::initNodeList(int number_of_nodes)
+void FourEightSegmentation::initNodeList(int nodeCount)
 {
-    nodeList.resize(number_of_nodes, NodeInfo());
-    std::vector<int> areas(number_of_nodes, 0);
+    nodeList.resize(nodeCount, NodeInfo());
+    std::vector<int> areas(nodeCount, 0);
 
     int x,y;
 
@@ -1279,7 +1279,7 @@ void FourEightSegmentation::initNodeList(int number_of_nodes)
     {
         for(x=-1; x<=width_; ++x)
         {
-            if(cells(x,y) != CellConfigurationsVertex)
+            if(cells(x,y) != CellConfigurationVertex)
                 continue;
 
             int index = labels(x,y);
@@ -1291,7 +1291,7 @@ void FourEightSegmentation::initNodeList(int number_of_nodes)
                 nodeList[index].x = x;
                 nodeList[index].y = y;
                 nodeList[index].size = 1;
-                nodeList[index].ray = RayCirculator(this, Diff2D(x,y), EightNeighborCode::West);
+                nodeList[index].ray = RayCirculator(this, Diff2D(x,y), EightNeighborOffsetCirculator::West);
 
                 // calculate degree of the node
                 RayCirculator r = nodeList[index].ray;
@@ -1304,8 +1304,8 @@ void FourEightSegmentation::initNodeList(int number_of_nodes)
                 while(++r != rend);
 
                 // calculate area from following the outer contour of the node
-                NeighborhoodCirculator
-                    neighbor(this, Diff2D(x,y), EightNeighborCode::West);
+                OldNeighborhoodCirculator
+                    neighbor(this, Diff2D(x,y), EightNeighborOffsetCirculator::West);
                 CrackCirculator crack(neighbor);
                 CrackCirculator crackend(crack);
 
@@ -1349,9 +1349,9 @@ void FourEightSegmentation::initNodeList(int number_of_nodes)
 
 // -------------------------------------------------------------------
 
-void FourEightSegmentation::initEdgeList(int number_of_edges)
+void FourEightSegmentation::initEdgeList(int edgeCount)
 {
-    edgeList.resize(number_of_edges, EdgeInfo());
+    edgeList.resize(edgeCount, EdgeInfo());
 
     NodeAccessor node;
     EdgeAccessor edge;
@@ -1397,7 +1397,7 @@ void FourEightSegmentation::initFaceList(BImage & contourImage, int number_of_fa
     // process outer face
     faceList[0].label= 0;
     faceList[0].anchor = Diff2D(-2, -2);
-    RayCirculator ray(this, Diff2D(-1, -1), EightNeighborCode::West);
+    RayCirculator ray(this, Diff2D(-1, -1), EightNeighborOffsetCirculator::West);
     --ray;
     faceList[0].contours.push_back(ContourCirculator(ray));
     contourProcessed[contourLabel(-1, -1)] = true;
@@ -1410,7 +1410,7 @@ void FourEightSegmentation::initFaceList(BImage & contourImage, int number_of_fa
     {
         for(x=0; x<width_; ++x)
         {
-            if(cells(x,y) != CellConfigurationsRegion)
+            if(cells(x,y) != CellConfigurationRegion)
                 continue;
 
             int index = labels(x,y);
@@ -1421,10 +1421,10 @@ void FourEightSegmentation::initFaceList(BImage & contourImage, int number_of_fa
                 faceList[index].anchor = Diff2D(x,y);
 
                 // find incident node
-                if(cells(x-1,y) == CellConfigurationsVertex)
+                if(cells(x-1,y) == CellConfigurationVertex)
                 {
                     // this is the node
-                    RayCirculator ray(this, Diff2D(x-1, y), EightNeighborCode::East);
+                    RayCirculator ray(this, Diff2D(x-1, y), EightNeighborOffsetCirculator::East);
                     --ray;
 
                     vigra_invariant(leftface.label(ray) == index, "FourEightSegmentation::initFaceList()");
@@ -1450,9 +1450,9 @@ void FourEightSegmentation::initFaceList(BImage & contourImage, int number_of_fa
             else
             {
                 // look for inner contours
-                NeighborhoodCirculator
-                    neighbor(this, Diff2D(x,y), EightNeighborCode::East);
-                NeighborhoodCirculator
+                OldNeighborhoodCirculator
+                    neighbor(this, Diff2D(x,y), EightNeighborOffsetCirculator::East);
+                OldNeighborhoodCirculator
                     nend = neighbor;
 
                 do
@@ -1465,10 +1465,10 @@ void FourEightSegmentation::initFaceList(BImage & contourImage, int number_of_fa
                     contourProcessed[bindex] = true;
 
                     // find incident node
-                    if(cells[neighbor.location()] == CellConfigurationsVertex)
+                    if(cells[neighbor.location()] == CellConfigurationVertex)
                     {
                         // this is the node
-                        NeighborhoodCirculator n = neighbor;
+                        OldNeighborhoodCirculator n = neighbor;
                         n.jumpToOpposite();
                         RayCirculator ray(n);
                         --ray;
