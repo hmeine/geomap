@@ -21,8 +21,8 @@ class CellPyramid
 
     struct Level
     {
-        const unsigned int levelIndex() const
-        { return levelIndex_; }
+        const unsigned int index() const
+        { return index_; }
         const Segmentation &segmentation() const
         { return segmentation_; }
         const CellStatistics &cellStatistics() const
@@ -31,11 +31,11 @@ class CellPyramid
         Level(unsigned int l,
               const Segmentation &s,
               const CellStatistics &c)
-        : levelIndex_(l), segmentation_(s), cellStatistics_(c)
+        : index_(l), segmentation_(s), cellStatistics_(c)
         {}
 
       protected:
-        unsigned int   levelIndex_;
+        unsigned int   index_;
         Segmentation   segmentation_;
         CellStatistics cellStatistics_;
 
@@ -181,8 +181,8 @@ class CellPyramid
         if(!levelData)
             return new Level(lastCheckpointIt->second);
 
-        if((levelData->levelIndex() < levelIndex) &&
-           (lastCheckpointIt->first < levelData->levelIndex()))
+        if((levelData->index() < levelIndex) &&
+           (lastCheckpointIt->first < levelData->index()))
             return NULL;
 
         *levelData = lastCheckpointIt->second;
@@ -196,10 +196,10 @@ class CellPyramid
 
         CellInfo *result = NULL; // &levelData->segmentation_.face(0);
 
-        while(levelData->levelIndex_ < gotoLevelIndex)
+        while(levelData->index_ < gotoLevelIndex)
         {
-            result = &performOperation(history_[levelData->levelIndex_], levelData);
-            if(++levelData->levelIndex_ == nextCheckpointLevelIndex_)
+            result = &performOperation(history_[levelData->index_], levelData);
+            if(++levelData->index_ == nextCheckpointLevelIndex_)
                 storeCheckpoint();
         }
 
@@ -293,21 +293,6 @@ class CellPyramid
         return currentLevel_;
     }
 
-    const unsigned int currentLevelIndex() const
-    {
-        return currentLevel_.levelIndex();
-    }
-
-    const Segmentation &currentSegmentation() const
-    {
-        return currentLevel_.segmentation();
-    }
-
-    const CellStatistics &currentCellStatistics() const
-    {
-        return currentLevel_.cellStatistics();
-    }
-
     const Level &gotoLevel(unsigned int levelIndex)
     {
         changeLevelIndexInternal(levelIndex, &currentLevel_);
@@ -334,13 +319,13 @@ class CellPyramid
         unsigned int step =
             gotoLastCheckpointBefore(levelIndex, levelData) ? 1 : 0;
 
-        while((step++ < maxSteps) && (levelData->levelIndex_ < levelIndex))
+        while((step++ < maxSteps) && (levelData->index_ < levelIndex))
         {
-            performOperation(history_[levelData->levelIndex_], levelData);
-            ++levelData->levelIndex_;
+            performOperation(history_[levelData->index_], levelData);
+            ++levelData->index_;
         }
 
-        return (levelData->levelIndex_ == levelIndex);
+        return (levelData->index_ == levelIndex);
     }
 
     unsigned int levelCount() const
@@ -352,9 +337,9 @@ class CellPyramid
     {
         if(!newTop)
             newTop = &currentLevel_;
-        history_.erase(history_.begin() + newTop->levelIndex(),
+        history_.erase(history_.begin() + newTop->index(),
                        history_.end());
-        checkpoints_.erase(checkpoints_.upper_bound(newTop->levelIndex()),
+        checkpoints_.erase(checkpoints_.upper_bound(newTop->index()),
                            checkpoints_.end());
     }
 };
