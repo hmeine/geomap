@@ -4,6 +4,7 @@
 #include <iostream>
 #include <iomanip>
 #include "cellimage.hxx"
+#include "rect2d.hxx"
 
 std::ostream &operator <<(std::ostream &s, vigra::Diff2D const &d)
 {
@@ -30,10 +31,8 @@ std::ostream &operator <<(std::ostream &s, vigra::Rect2D const &r)
     return s;
 }
 
-namespace vigra { namespace CellImage {
-
 std::ostream &operator <<(std::ostream &s,
-                          const CellPixel &p)
+                          const vigra::CellImage::CellPixel &p)
 {
     std::streamsize width= s.width();
     switch(p.type())
@@ -49,7 +48,5 @@ std::ostream &operator <<(std::ostream &s,
     }
     return s;
 }
-
-} }
 
 #endif // MYDEBUG_HXX
