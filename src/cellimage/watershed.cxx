@@ -39,29 +39,6 @@
 using namespace vigra;
 using namespace vigra::functor;
 
-void showNode(CellImage::FourEightSegmentation & seg, int label)
-{
-    CellImage::FourEightSegmentation::NodeAccessor node;
-    CellImage::FourEightSegmentation::EdgeAccessor edge;
-    CellImage::FourEightSegmentation::NodeAtEndAccessor endnode;
-    CellImage::FourEightSegmentation::NodeIterator
-        n = seg.findNode(label);
-
-    std::cout << "Label: " << node.label(n) << ", Location: (" <<
-		node.x(n) << ", " << node.y(n) << ")" << std::endl;
-
-    CellImage::RayCirculator ray = node.rayCirculator(n);
-    CellImage::RayCirculator rend = ray;
-
-    do
-    {
-        std::cout << "( " << edge.label(ray) << ", " << endnode.label(ray) << ") ";
-    }
-    while(++ray != rend);
-
-    std::cout << std::endl;
-}
-
 int main(int argc, char ** argv)
 {
     if(argc != 2)
@@ -76,16 +53,22 @@ int main(int argc, char ** argv)
     {
         ImageImportInfo info(argv[1]);
 
-        vigra_precondition(info.isGrayscale(), "Unable to process color images");
-
         int w = info.width();
         int h = info.height();
-        int x,y;
 
         // create input image
         FImage in(w, h);
 
-        importImage(info, destImage(in));
+        if(info.isGrayscale())
+            importImage(info, destImage(in));
+        else
+        {
+            vigra::BRGBImage temp(w, h);
+            importImage(info, destImage(temp));
+            copyImage(srcImageRange(temp, vigra::RGBToGrayAccessor
+                                    <vigra::BRGBImage::PixelType>()),
+                      destImage(in));
+        }
 
         FImage gradx(w, h), grady(w, h), hess(w,h), grad(w, h);
 
@@ -143,9 +126,9 @@ int main(int argc, char ** argv)
         ArrayOfRegionStatistics<FindMinMax<float> > minmax(raw_region_label);
         inspectTwoImages(srcImageRange(seeds), srcImage(labels), minmax);
 
-        for(y=0; y<h; ++y)
+        for(int y=0; y<h; ++y)
         {
-            for(x=0; x<w; ++x)
+            for(int x=0; x<w; ++x)
             {
                 if(labels(x,y) == 0) continue;
                 if(minmax[labels(x,y)].max == 0)
@@ -178,9 +161,9 @@ int main(int argc, char ** argv)
                             destImage(labels), gradstat, 100000);
 
         // remove regions of size 1
-        for(y=0; y<h; ++y)
+        for(int y=0; y<h; ++y)
         {
-            for(x=0; x<w; ++x)
+            for(int x=0; x<w; ++x)
             {
                 int lab = labels(x,y);
                 if(lab == 0) continue;
