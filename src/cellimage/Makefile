@@ -10,10 +10,11 @@ CELLIMAGE_OBJS = \
 	cellimage_faces.lo \
 	cellimage_pyramid.lo \
 	cellimage_dart+info.lo \
-	foureightsegmentation.lo
+	foureightsegmentation.lo \
+	cellstatistics.lo
 CELLIMAGE_TARGET = cellimage.la
 
-ALL_TARGETS = testfoureight watershed testiterator testrect $(CELLIMAGE_TARGET)
+ALL_TARGETS = $(CELLIMAGE_TARGET) testfoureight
 
 all: $(ALL_TARGETS)
 
@@ -22,7 +23,7 @@ install: $(CELLIMAGE_TARGET)
 	$(LIBINSTALL) $(CELLIMAGE_TARGET) $(dynmoddir)
 
 $(CELLIMAGE_TARGET): $(CELLIMAGE_OBJS)
-	$(LINKCXXMODULE) -o $(CELLIMAGE_TARGET) $(CELLIMAGE_OBJS) $(BOOST_PYTHON_LIB)
+	$(LINKCXXMODULE) -o $(CELLIMAGE_TARGET) $(CELLIMAGE_OBJS) $(BOOST_PYTHON_LIB) $(dynmoddir)/vigrapython.la
 
 testfoureight: testfoureight.o foureightsegmentation.o
 	$(CXX) -o testfoureight testfoureight.o foureightsegmentation.o `vigra-config --impex-lib`
