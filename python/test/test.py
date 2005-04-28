@@ -5,8 +5,13 @@ flowlines = [None, ((293, 282, [[141.62102611009465, 66.356415345091818], [140.0
 map = Map(maxima, flowlines, Size2D(256, 256))
 
 def checkConsistency(map):
+    nodeCount = 0
+    edgeCount = 0
+    faceCount = 0
+    
     valid = True
     for node in map.nodeIter():
+        nodeCount += 1
         assert map.nodes[node._label] == node
         assert node._map == map
         for a in node._darts:
@@ -15,16 +20,31 @@ def checkConsistency(map):
                 valid = False
 
     for edge in map.edgeIter():
+        edgeCount += 1
         assert map.edges[edge._label] == edge
         assert edge._map == map
 
     for face in map.faceIter():
+        faceCount += 1
         assert map.faces[face._label] == face
         assert face._map == map
         for a in face._anchors:
             if a and not map.edges[a.edgeLabel()]:
                 sys.stderr.write("%s contains invalid anchor %d!\n" % (face, a.label()))
                 valid = False
+
+    if nodeCount != map.nodeCount:
+        sys.stderr.write("Map's nodeCount (%d) is wrong: counted %d!\n" %
+                         (map.nodeCount, nodeCount))
+        valid = False
+    if edgeCount != map.edgeCount:
+        sys.stderr.write("Map's edgeCount (%d) is wrong: counted %d!\n" %
+                         (map.edgeCount, edgeCount))
+        valid = False
+    if faceCount != map.faceCount:
+        sys.stderr.write("Map's faceCount (%d) is wrong: counted %d!\n" %
+                         (map.faceCount, faceCount))
+        valid = False
 
     assert valid
                                  
@@ -48,7 +68,7 @@ except TypeError:
     pass
 checkConsistency(map)
 
-sys.exit(0)
+#sys.exit(0)
 
 # --------------------------------------------------------------------
 
@@ -65,7 +85,8 @@ print "random state:", random.getstate()
 def mergeEdgesCandidates(map):
     result = []
     for node in map.nodeIter():
-        if node.degree() == 2:
+        if node.degree() == 2 \
+               and abs(node._darts[0]) != abs(node._darts[1]):
             result.append(node._label)
     return result
 
@@ -76,34 +97,65 @@ def removeBridgeCandidates(map):
             result.append(edge._label)
     return result
 
+def mergeFacesCandidates(map):
+    result = []
+    for edge in map.edgeIter():
+        if edge.leftFaceLabel() != edge.rightFaceLabel():
+            result.append(edge._label)
+    return result
+
+for node in map.nodeIter():
+    if node.degree() == 0:
+        node.uninitialize()
+
 history = ""
+possible = range(3)
 try:
   while True:
     checkConsistency(map)
+
+    if not len(possible):
+        break
     
-    doMergeEdge = random.random() < 0.5
-    if doMergeEdge:
+    operation = random.choice(possible)
+    if operation == 0:
         mec = mergeEdgesCandidates(map)
         if not len(mec):
-            doMergeEdge = False
+            possible.remove(0)
         else:
             dart = map.dart(map.node(random.choice(mec))._darts[0])
-            #print "removing node %d via dart %s" % (dart.startNodeLabel(), dart)
+            print "removing node %d via dart %s" % (dart.startNodeLabel(), dart)
             history += "mergeEdges(map.dart(%d))\n" % (dart.label(), )
             mergeEdges(dart)
-            
-    if not doMergeEdge:
+            possible = range(3)			
+
+    if operation == 1:
         rbc = removeBridgeCandidates(map)
         if not len(rbc):
-            break
+            possible.remove(1)
         else:
             dart = map.dart(random.choice(rbc))
-            #print "removing edge via dart %s" % (dart, )
+            print "removing bridge via dart %s" % (dart, )
             history += "removeBridge(map.dart(%d))\n" % (dart.label(), )
             removeBridge(dart)
+            possible = range(3)			
+
+    if operation == 2:
+        mfc = mergeFacesCandidates(map)
+        if not len(mfc):
+            possible.remove(2)
+        else:
+            dart = map.dart(random.choice(mfc))
+            print "removing edge via dart %s" % (dart, )
+            history += "mergeFaces(map.dart(%d))\n" % (dart.label(), )
+            mergeFaces(dart)
+            possible = range(3)			
 
 except Exception, e:
     print history
     raise
 
-print "no more candidates for Euler ops."
+print "no more candidates for Euler ops:"
+print list(map.nodeIter())
+print list(map.edgeIter())
+print list(map.faceIter())
