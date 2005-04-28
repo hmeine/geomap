@@ -4,22 +4,106 @@ flowlines = [None, ((293, 282, [[141.62102611009465, 66.356415345091818], [140.0
 
 map = Map(maxima, flowlines, Size2D(256, 256))
 
+def checkConsistency(map):
+    valid = True
+    for node in map.nodeIter():
+        assert map.nodes[node._label] == node
+        assert node._map == map
+        for a in node._darts:
+            if not map.edges[abs(a)]:
+                sys.stderr.write("%s contains invalid anchor %d!\n" % (node, a))
+                valid = False
+
+    for edge in map.edgeIter():
+        assert map.edges[edge._label] == edge
+        assert edge._map == map
+
+    for face in map.faceIter():
+        assert map.faces[face._label] == face
+        assert face._map == map
+        for a in face._anchors:
+            if a and not map.edges[a.edgeLabel()]:
+                sys.stderr.write("%s contains invalid anchor %d!\n" % (face, a.label()))
+                valid = False
+
+    assert valid
+                                 
 # execfile("maptest.py")
 # showMapStats(map)
 # bg = readImage("../../../Testimages/blox.gif")
 # d = MapDisplay(bg, map)
 
+checkConsistency(map)
+
 mergeEdges(map.dart(29)) # create loop with two degree-2-nodes
 mergeEdges(map.dart(43)) # lead to infinite loop
 
-for node in map.nodeIter():
-    if node.degree() == 2:
-        dart = map.dart(node._darts[0])
-        print "removing node %d via dart %s" % (dart.startNodeLabel(), dart)
-        mergeEdges(dart)
+checkConsistency(map)
 
-for edge in map.edgeIter():
-    if edge.leftFaceLabel() == edge.rightFaceLabel():
-        dart = edge.dart()
-        print "removing edge %d via dart %s" % (edge._label, dart)
-        removeBridge(dart)
+removeBridge(map.dart(32)) # makes edge 22 a self-loop
+try:
+    mergeEdges(map.dart(22))
+except TypeError:
+    print "caught expected exception."
+    pass
+checkConsistency(map)
+
+sys.exit(0)
+
+# --------------------------------------------------------------------
+
+import random, time
+if len(sys.argv) > 1:
+    seed = long(sys.argv[1])
+else:
+    seed = time.time()
+
+print "using %d as seed." % (seed, )
+random.seed(seed)
+print "random state:", random.getstate()
+
+def mergeEdgesCandidates(map):
+    result = []
+    for node in map.nodeIter():
+        if node.degree() == 2:
+            result.append(node._label)
+    return result
+
+def removeBridgeCandidates(map):
+    result = []
+    for edge in map.edgeIter():
+        if edge.leftFaceLabel() == edge.rightFaceLabel():
+            result.append(edge._label)
+    return result
+
+history = ""
+try:
+  while True:
+    checkConsistency(map)
+    
+    doMergeEdge = random.random() < 0.5
+    if doMergeEdge:
+        mec = mergeEdgesCandidates(map)
+        if not len(mec):
+            doMergeEdge = False
+        else:
+            dart = map.dart(map.node(random.choice(mec))._darts[0])
+            #print "removing node %d via dart %s" % (dart.startNodeLabel(), dart)
+            history += "mergeEdges(map.dart(%d))\n" % (dart.label(), )
+            mergeEdges(dart)
+            
+    if not doMergeEdge:
+        rbc = removeBridgeCandidates(map)
+        if not len(rbc):
+            break
+        else:
+            dart = map.dart(random.choice(rbc))
+            #print "removing edge via dart %s" % (dart, )
+            history += "removeBridge(map.dart(%d))\n" % (dart.label(), )
+            removeBridge(dart)
+
+except Exception, e:
+    print history
+    raise
+
+print "no more candidates for Euler ops."
