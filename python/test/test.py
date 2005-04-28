@@ -18,12 +18,12 @@ def checkConsistency(map):
             if not map.edges[abs(a)]:
                 sys.stderr.write("%s contains invalid anchor %d!\n" % (node, a))
                 valid = False
-
+    
     for edge in map.edgeIter():
         edgeCount += 1
         assert map.edges[edge._label] == edge
         assert edge._map == map
-
+    
     for face in map.faceIter():
         faceCount += 1
         assert map.faces[face._label] == face
@@ -32,7 +32,7 @@ def checkConsistency(map):
             if a and not map.edges[a.edgeLabel()]:
                 sys.stderr.write("%s contains invalid anchor %d!\n" % (face, a.label()))
                 valid = False
-
+    
     if nodeCount != map.nodeCount:
         sys.stderr.write("Map's nodeCount (%d) is wrong: counted %d!\n" %
                          (map.nodeCount, nodeCount))
@@ -45,15 +45,39 @@ def checkConsistency(map):
         sys.stderr.write("Map's faceCount (%d) is wrong: counted %d!\n" %
                          (map.faceCount, faceCount))
         valid = False
-
+    
     assert valid
-                                 
+
+class FaceLookup:
+    def __init__(self, map):
+        self._map = map
+        self.errorCount = 0
+        self.errorLabels = []
+    
+    def __call__(self, faceLabel):
+        if not self._map.face(int(faceLabel+0.5)):
+            self.errorCount += 1
+            if not faceLabel in self.errorLabels:
+                self.errorLabels.append(faceLabel)
+
+def checkLabelConsistency(map):
+    #print "checkLabelConsistency skipped (segfaults)."
+    #return
+    fl = FaceLookup(map)
+    inspectImage(map.labelImage, fl)
+    if fl.errorCount:
+        sys.stderr.write("labelImage contains %d pixels with unknown faces!\n" % (
+            fl.errorCount, ))
+        sys.stderr.write("  unknown face labels found: %s\n" % (fl.errorLabels, ))
+    assert fl.errorCount == 0
+
 # execfile("maptest.py")
 # showMapStats(map)
 # bg = readImage("../../../Testimages/blox.gif")
 # d = MapDisplay(bg, map)
 
 checkConsistency(map)
+checkLabelConsistency(map)
 
 mergeEdges(map.dart(29)) # create loop with two degree-2-nodes
 mergeEdges(map.dart(43)) # lead to infinite loop
@@ -66,7 +90,9 @@ try:
 except TypeError:
     print "caught expected exception."
     pass
+
 checkConsistency(map)
+checkLabelConsistency(map)
 
 #sys.exit(0)
 
@@ -155,7 +181,9 @@ except Exception, e:
     print history
     raise
 
-print "no more candidates for Euler ops:"
-print list(map.nodeIter())
-print list(map.edgeIter())
-print list(map.faceIter())
+checkLabelConsistency(map)
+
+print "finished successfully, no more candidates for Euler ops:"
+print map.nodeCount, "nodes:", list(map.nodeIter())
+print map.edgeCount, "edges:", list(map.edgeIter())
+print map.faceCount, "faces:", list(map.faceIter())
