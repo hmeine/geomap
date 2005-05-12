@@ -475,11 +475,16 @@ void findCriticalPointsNewtonMethod(IMAGEVIEW const & image,
     Map2D<Coordinate> points;
 
     // search for critical points
-    int percent = -1;
+    int percent = -1, lastPercent = -1;
+    std::cerr << "findCriticalPointsNewtonMethod()\n";
     for(int y=1; y <= h-2; ++y)
     {
         percent = 100 * y / h;
-        std::cerr << ".";
+        if(percent != lastPercent)
+        {
+            std::cerr << percent << "%\r";
+            lastPercent = percent;
+        }
         for(int x=1; x <= w-2; ++x)
         {
             for(double dy = 0.0; dy < 1.0; dy += d)
@@ -512,6 +517,7 @@ void findCriticalPointsNewtonMethod(IMAGEVIEW const & image,
             }
         }
     }
+    std::cerr << "done.\n";
 }
 
 template <class T, class VECTOR>
@@ -1215,13 +1221,13 @@ class SubPixelWatersheds
     template <class SrcIterator, class SrcAccessor>
     SubPixelWatersheds(SrcIterator ul, SrcIterator lr, SrcAccessor src)
     : image_(ul, lr, src),
-      initialStep_(0.1), simplifyEpsilon_(0.5)
+      initialStep_(0.1), simplifyEpsilon_(0.05)
     {}
 
     template <class SrcIterator, class SrcAccessor>
     SubPixelWatersheds(triple<SrcIterator, SrcIterator, SrcAccessor> src)
     : image_(src),
-      initialStep_(0.1), simplifyEpsilon_(0.01)
+      initialStep_(0.1), simplifyEpsilon_(0.05)
     {}
 
     int width() const { return image_.width(); }
@@ -1414,7 +1420,6 @@ template <class SplineImageView>
 void
 SubPixelWatersheds<SplineImageView>::findCriticalPoints()
 {
-    std::cerr << "findCriticalPoints()\n";
     minima_.clear();
     saddles_.clear();
     maxima_.clear();
