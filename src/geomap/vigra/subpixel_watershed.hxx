@@ -248,7 +248,7 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
 //   File "<console>", line 1, in ?
 //   File "maptest.py", line 65, in ?
 //     edges.append(img.spw.edge(k))
-// RuntimeError: 
+// RuntimeError:
 // Precondition violation!
 // SplineImageView<ORDER, VALUETYPE>::calculateIndices(): index out of bounds.
 // (/home/meine/local-SuSE-9.0/include/vigra/splineimageview.hxx:518)
@@ -475,8 +475,10 @@ void findCriticalPointsNewtonMethod(IMAGEVIEW const & image,
     Map2D<Coordinate> points;
 
     // search for critical points
+    int percent = -1;
     for(int y=1; y <= h-2; ++y)
     {
+        percent = 100 * y / h;
         std::cerr << ".";
         for(int x=1; x <= w-2; ++x)
         {
@@ -1213,13 +1215,13 @@ class SubPixelWatersheds
     template <class SrcIterator, class SrcAccessor>
     SubPixelWatersheds(SrcIterator ul, SrcIterator lr, SrcAccessor src)
     : image_(ul, lr, src),
-      initialStep_(0.1), storeStep_(0.5)
+      initialStep_(0.1), simplifyEpsilon_(0.5)
     {}
 
     template <class SrcIterator, class SrcAccessor>
     SubPixelWatersheds(triple<SrcIterator, SrcIterator, SrcAccessor> src)
     : image_(src),
-      initialStep_(0.1), storeStep_(0.5)
+      initialStep_(0.1), simplifyEpsilon_(0.01)
     {}
 
     int width() const { return image_.width(); }
@@ -1252,11 +1254,13 @@ class SubPixelWatersheds
                                             image_.dx(x0,y0), image_.dy(x0,y0));
     }
 
+    void setSimplifyEpsilon(double s) { simplifyEpsilon_ = s; }
+
     SplineImageView image_;
     PointArray minima_, saddles_, maxima_, edges_;
     ArrayVector<triple<int, int, int> > edgeIndices_;
     IImage maximage_;
-    double initialStep_, storeStep_;
+    double initialStep_, simplifyEpsilon_;
 };
 
 static int sturmcount, zeroOrder;
@@ -1637,33 +1641,49 @@ if(DEBUG) std::cerr << "stop index, x, y " << index << ' ' << curve.back()[0] <<
     return 0;
 }
 
-template<class PointArray>
-struct SimplifyAccessor
+template<class PointIterator, class TargetArray>
+void simplifyPolygonHelper(
+    const PointIterator &polyBegin, const PointIterator &polyEnd,
+    TargetArray &simple, double epsilon)
 {
-    PointArray &array_;
+    if(polyEnd - polyBegin < 3)
+        return; // no splitpoint necessary
 
-    SimplifyAccessor(PointArray &array)
-    : array_(array)
-    {}
+    // calculate normal of straight end point connection
+    typename TargetArray::value_type
+        straight(*polyEnd - *polyBegin),
+        normal(straight[1], -straight[0]);
+    normal /= normal.magnitude();
 
-    void push_back(const typename PointArray::value_type &p) const
+    double maxDist = epsilon;
+    PointIterator splitPos(polyEnd);
+
+    // search splitpoint
+    for(PointIterator it(polyBegin); it != polyEnd; ++it)
     {
-        if(array_.size() < 2)
-            array_.push_back(p);
-        else
+        double dist = fabs(dot(*it - *polyBegin, normal));
+        if(dist > maxDist)
         {
-            typename PointArray::value_type
-                diff(p - array_[array_.size()-2]),
-                ortho(-diff[1], diff[0]);
-            double dist(dot(array_[array_.size()-2] - array_.back(),
-                            ortho) / ortho.magnitude());
-            if(fabs(dist) < 2e-3)
-                array_.back() = p;
-            else
-                array_.push_back(p);
+            splitPos = it;
+            maxDist = dist;
         }
     }
-};
+
+    if(splitPos != polyEnd)
+    {
+        simplifyPolygonHelper(polyBegin, splitPos, simple, epsilon);
+        simple.push_back(*splitPos);
+        simplifyPolygonHelper(splitPos, polyEnd, simple, epsilon);
+    }
+}
+
+template<class PointArray>
+void simplifyPolygon(const PointArray &poly, PointArray &simple, double epsilon)
+{
+    simple.push_back(poly[0]);
+    simplifyPolygonHelper(poly.begin(), poly.end(), simple, epsilon);
+    simple.push_back(poly[poly.size()-1]);
+}
 
 template <class SplineImageView>
 pair<int, int>
@@ -1677,13 +1697,17 @@ SubPixelWatersheds<SplineImageView>::findEdge(
         if(DEBUG) std::cerr << "starting backward\n";
     int bindex = flowLine(x, y, false, epsilon, backwardCurve);
 
-    // FIXME: use real polygon simplification algorithm
-    SimplifyAccessor<PointArray> edgeBuilder(edge);
-
     for(int i = forwardCurve.size() - 1; i >= 0; --i)
-        edgeBuilder.push_back(forwardCurve[i]);
+        edge.push_back(forwardCurve[i]);
     for(int i = 1; i < (int)backwardCurve.size(); ++i)
-        edgeBuilder.push_back(backwardCurve[i]);
+        edge.push_back(backwardCurve[i]);
+
+    if(simplifyEpsilon_ > 0)
+    {
+        PointArray simplifiedEdge;
+        simplifyPolygon(edge, simplifiedEdge, simplifyEpsilon_);
+        std::swap(edge, simplifiedEdge);
+    }
 
     return pair<int, int>(findex, bindex);
 }
