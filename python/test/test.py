@@ -8,7 +8,7 @@ def checkConsistency(map):
     nodeCount = 0
     edgeCount = 0
     faceCount = 0
-    
+
     valid = True
     for node in map.nodeIter():
         nodeCount += 1
@@ -18,12 +18,12 @@ def checkConsistency(map):
             if not map.edges[abs(a)]:
                 sys.stderr.write("%s contains invalid anchor %d!\n" % (node, a))
                 valid = False
-    
+
     for edge in map.edgeIter():
         edgeCount += 1
         assert map.edges[edge._label] == edge
         assert edge._map == map
-    
+
     for face in map.faceIter():
         faceCount += 1
         assert map.faces[face._label] == face
@@ -32,7 +32,7 @@ def checkConsistency(map):
             if a and not map.edges[a.edgeLabel()]:
                 sys.stderr.write("%s contains invalid anchor %d!\n" % (face, a.label()))
                 valid = False
-    
+
     if nodeCount != map.nodeCount:
         sys.stderr.write("Map's nodeCount (%d) is wrong: counted %d!\n" %
                          (map.nodeCount, nodeCount))
@@ -45,7 +45,7 @@ def checkConsistency(map):
         sys.stderr.write("Map's faceCount (%d) is wrong: counted %d!\n" %
                          (map.faceCount, faceCount))
         valid = False
-    
+
     assert valid
 
 class FaceLookup:
@@ -53,9 +53,11 @@ class FaceLookup:
         self._map = map
         self.errorCount = 0
         self.errorLabels = []
-    
+
     def __call__(self, faceLabel):
-        if not self._map.face(int(faceLabel+0.5)):
+        if faceLabel < 0:
+            return
+        if not self._map.face(int(faceLabel)):
             self.errorCount += 1
             if not faceLabel in self.errorLabels:
                 self.errorLabels.append(faceLabel)
@@ -142,7 +144,7 @@ try:
 
     if not len(possible):
         break
-    
+
     operation = random.choice(possible)
     if operation == 0:
         mec = mergeEdgesCandidates(map)
@@ -153,7 +155,7 @@ try:
             print "removing node %d via dart %s" % (dart.startNodeLabel(), dart)
             history += "mergeEdges(map.dart(%d))\n" % (dart.label(), )
             mergeEdges(dart)
-            possible = range(3)			
+            possible = range(3)
 
     if operation == 1:
         rbc = removeBridgeCandidates(map)
@@ -164,7 +166,7 @@ try:
             print "removing bridge via dart %s" % (dart, )
             history += "removeBridge(map.dart(%d))\n" % (dart.label(), )
             removeBridge(dart)
-            possible = range(3)			
+            possible = range(3)
 
     if operation == 2:
         mfc = mergeFacesCandidates(map)
@@ -175,7 +177,7 @@ try:
             print "removing edge via dart %s" % (dart, )
             history += "mergeFaces(map.dart(%d))\n" % (dart.label(), )
             mergeFaces(dart)
-            possible = range(3)			
+            possible = range(3)
 
 except Exception, e:
     print history
