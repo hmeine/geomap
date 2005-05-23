@@ -57,7 +57,10 @@ class FaceLookup:
     def __call__(self, faceLabel):
         if faceLabel < 0:
             return
-        if not self._map.face(int(faceLabel)):
+        faceLabel = int(faceLabel)
+        try:
+            assert self._map.face(faceLabel) != None
+        except:
             self.errorCount += 1
             if not faceLabel in self.errorLabels:
                 self.errorLabels.append(faceLabel)
@@ -71,6 +74,10 @@ def checkLabelConsistency(map):
         sys.stderr.write("labelImage contains %d pixels with unknown faces!\n" % (
             fl.errorCount, ))
         sys.stderr.write("  unknown face labels found: %s\n" % (fl.errorLabels, ))
+        if fl.errorCount < 40:
+            for p in map.labelImage.size():
+                if int(map.labelImage[p]) in fl.errorLabels:
+                    print "   label %d at %s" % (int(map.labelImage[p]), p)
     assert fl.errorCount == 0
 
 # execfile("maptest.py")
@@ -94,6 +101,15 @@ except TypeError:
     pass
 
 checkConsistency(map)
+checkLabelConsistency(map)
+
+# --------------------------------------------------------------------
+
+# labelImage contains 2 pixels with unknown faces!
+#   unknown face labels found: [99999.0]
+mergeFaces(map.dart(36))
+mergeEdges(map.dart(-28))
+
 checkLabelConsistency(map)
 
 #sys.exit(0)
