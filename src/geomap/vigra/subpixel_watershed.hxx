@@ -244,10 +244,6 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
         yy += syy;
         //if(!image.isInside(xx, yy))
         // FIXME: this check has been replaced to work around the following:
-// Traceback (most recent call last):
-//   File "<console>", line 1, in ?
-//   File "maptest.py", line 65, in ?
-//     edges.append(img.spw.edge(k))
 // RuntimeError:
 // Precondition violation!
 // SplineImageView<ORDER, VALUETYPE>::calculateIndices(): index out of bounds.
@@ -281,6 +277,81 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
                 return Maximum;
             }
         }
+    }
+    return Failed;
+}
+
+template <class IMAGEVIEW>
+CriticalPoint
+findCriticalPointNewtonMethod(IMAGEVIEW const & image,
+                  double x, double y, double & xx, double & yy,
+                  double epsilon, double maxJump)
+{
+    typedef typename IMAGEVIEW::value_type Value;
+    Value zero = NumericTraits<Value>::zero();
+
+    const double epsilon2(epsilon*epsilon);
+    xx = x;
+    yy = y;
+    double sxx, syy;
+    for(int i=0; i<100; ++i) // do at most 100 iterations
+    {
+        Value dx = image.dx(xx, yy);
+        Value dy = image.dy(xx, yy);
+        Value dxx = image.dxx(xx, yy);
+        Value dxy = image.dxy(xx, yy);
+        Value dyy = image.dyy(xx, yy);
+        Value d = dxx*dyy - dxy*dxy;
+        if (d != zero)
+        {
+            sxx = (dxy*dy - dyy*dx) / d;
+            syy = (dxy*dx - dxx*dy) / d;
+        }
+        else
+        {
+            sxx = syy = 0.0;
+        }
+        xx += sxx;
+        yy += syy;
+        //if(!image.isInside(xx, yy))
+        // FIXME: this check has been replaced to work around the following:
+// Precondition violation!
+// SplineImageView<ORDER, VALUETYPE>::calculateIndices(): index out of bounds.
+// (/home/meine/local-SuSE-9.0/include/vigra/splineimageview.hxx:518)
+        if(xx < 1 || xx > (double)(image.width()-2) ||
+           yy < 1 || yy > (double)(image.height()-2))
+        {
+            return Failed; // coordinates out of range
+        }
+        double diff2 = (sxx*sxx + syy*syy);
+        if(diff2 < epsilon2) // convergence
+        {
+            if(d == zero)
+            {
+                if(dx == zero && dy == zero)
+                {
+                    return Saddle;
+                }
+                return Failed;
+
+            }
+            else if (d < zero)
+            {
+                return Saddle;
+            }
+            else if (dxx + dyy > zero)
+            {
+                return Minimum;
+            }
+            else
+            {
+                return Maximum;
+            }
+        }
+
+        double odiff2 = sq(xx-x) + sq(yy-y);
+        if(odiff2 > maxJump)
+            return Failed;
     }
     return Failed;
 }
@@ -413,7 +484,8 @@ public:
         return vectors_.end();
     }
 
-    const_iterator nearest(const Vector2D &v, double maxSquaredDist = NumericTraits<double>::max()) const
+    const_iterator nearest(
+        const Vector2D &v, double maxSquaredDist = NumericTraits<double>::max()) const
     {
         const_iterator midPos(vectors_.lower_bound(v[0]));
         const_iterator nearestPos(end());
@@ -476,13 +548,13 @@ void findCriticalPointsNewtonMethod(IMAGEVIEW const & image,
 
     // search for critical points
     int percent = -1, lastPercent = -1;
-    std::cerr << "findCriticalPointsNewtonMethod()\n";
+    //std::cerr << "\n";
     for(int y=1; y <= h-2; ++y)
     {
         percent = 100 * y / h;
         if(percent != lastPercent)
         {
-            std::cerr << percent << "%\r";
+            std::cerr << "findCriticalPointsNewtonMethod(): " << percent << "%\r";
             lastPercent = percent;
         }
         for(int x=1; x <= w-2; ++x)
@@ -492,7 +564,8 @@ void findCriticalPointsNewtonMethod(IMAGEVIEW const & image,
                 for(double dx = 0.0; dx < 1.0; dx += d)
                 {
                     double xx, yy;
-                    CriticalPoint type = findCriticalPointNewtonMethod(image, x + dx, y + dy, xx, yy, epsilon/10.0);
+                    CriticalPoint type = findCriticalPointNewtonMethod(
+                        image, x + dx, y + dy, xx, yy, epsilon / 10.0, 4.0);
                     if(type == Failed)
                         continue;
 
@@ -517,7 +590,7 @@ void findCriticalPointsNewtonMethod(IMAGEVIEW const & image,
             }
         }
     }
-    std::cerr << "done.\n";
+    std::cerr << "findCriticalPointsNewtonMethod(): done.\n";
 }
 
 template <class T, class VECTOR>
@@ -868,7 +941,7 @@ void rungeKuttaStep2(IMAGEVIEW const & image,
 }
 
 template <class IMAGEVIEW, class PVECTOR, class CVECTOR>
-void findEdgelChain1(IMAGEVIEW const & image, IImage const & maximage,
+void findEdgelChain1(IMAGEVIEW const & image, IImage const & maxImage,
                     PVECTOR const & maxima, CVECTOR & chain,
                     double x, double y, double epsilon)
 {
@@ -932,7 +1005,7 @@ void findEdgelChain1(IMAGEVIEW const & image, IImage const & maximage,
             int i;
             for(i=0; i<4; ++i)
             {
-                int index = maximage(ix+idx[i], iy+idy[i]);
+                int index = maxImage(ix+idx[i], iy+idy[i]);
                 if(index >= 0)
                 {
                     mx = maxima[index][0];
@@ -958,7 +1031,7 @@ void findEdgelChain1(IMAGEVIEW const & image, IImage const & maximage,
 }
 
 template <class IMAGEVIEW, class PVECTOR, class CVECTOR>
-void findEdgelChain2(IMAGEVIEW const & image, IImage const & maximage,
+void findEdgelChain2(IMAGEVIEW const & image, IImage const & maxImage,
                     PVECTOR const & maxima, CVECTOR & chain,
                     double x, double y, double a, double epsilon)
 {
@@ -1041,7 +1114,7 @@ void findEdgelChain2(IMAGEVIEW const & image, IImage const & maximage,
             int i;
             for(i=0; i<4; ++i)
             {
-                int index = maximage(ix+idx[i], iy+idy[i]);
+                int index = maxImage(ix+idx[i], iy+idy[i]);
                 if(index >= 0)
                 {
                     mx = maxima[index][0];
@@ -1141,13 +1214,13 @@ void findEdgelChains(IMAGEVIEW const & image,
     typedef typename IMAGEVIEW::value_type Value;
     typedef typename CVECTOR::value_type EdgelChain;
 
-    IImage maximage(image.size());
-    maximage.init(-1);
+    IImage maxImage(image.size());
+    maxImage.init(-1);
     for(unsigned int i=0; i<maxima.size(); ++i)
     {
         int x = (int)(maxima[i][0] + 0.5);
         int y = (int)(maxima[i][1] + 0.5);
-        maximage(x,y) = i;
+        maxImage(x,y) = i;
     }
 
     for(unsigned int i=0; i<saddles.size(); ++i)
@@ -1160,10 +1233,10 @@ void findEdgelChains(IMAGEVIEW const & image,
         double a = 0.5*VIGRA_CSTD::atan2(-2.0*dxy, dxx-dyy);
 
         EdgelChain forwardChain;
-        detail::findEdgelChain2(image, maximage, maxima, forwardChain,
+        detail::findEdgelChain2(image, maxImage, maxima, forwardChain,
                        x+0.25*VIGRA_CSTD::cos(a), y-0.25*VIGRA_CSTD::sin(a), a, epsilon);
         EdgelChain backwardChain;
-        detail::findEdgelChain2(image, maximage, maxima, backwardChain,
+        detail::findEdgelChain2(image, maxImage, maxima, backwardChain,
                        x-0.25*VIGRA_CSTD::cos(a), y+0.25*VIGRA_CSTD::sin(a), a + M_PI, epsilon);
 
         // join chains
@@ -1210,10 +1283,12 @@ void polynomialRemainder(Poly const & l, Poly const & r, Poly & res)
 
 #define DEBUG 0
 
-template <class SplineImageView>
+template <class SPLINEIMAGEVIEW>
 class SubPixelWatersheds
 {
   public:
+    typedef SPLINEIMAGEVIEW SplineImageView;
+
     typedef TinyVector<double, 2> PointType;
     typedef ArrayVector<PointType> PointArray;
     enum RungeKuttaResult { Success, Outside, StepToLarge };
@@ -1236,7 +1311,7 @@ class SubPixelWatersheds
     void findCriticalPointsInFacet(double x, double y,
                                    PointArray & mi, PointArray & sa, PointArray & ma);
     void findCriticalPoints();
-    void createMaximage();
+    void updateMaxImage();
     double nearestMaximum(double x, double y, double dx, double dy, int & resindex) const;
     int flowLine(double x, double y, bool forward, double epsilon, PointArray & curve);
     pair<int, int> findEdge(double x, double y, double epsilon, PointArray & edge);
@@ -1265,7 +1340,7 @@ class SubPixelWatersheds
     SplineImageView image_;
     PointArray minima_, saddles_, maxima_, edges_;
     ArrayVector<triple<int, int, int> > edgeIndices_;
-    IImage maximage_;
+    IImage maxImage_;
     double initialStep_, simplifyEpsilon_;
 };
 
@@ -1439,30 +1514,30 @@ SubPixelWatersheds<SplineImageView>::findCriticalPoints()
 //         }
 //     }
     findCriticalPointsNewtonMethod(image_, minima_, saddles_, maxima_, 1e-4, 2);
-    createMaximage();
+    updateMaxImage();
 //     std::cerr << "Sturm fired: " << sturmcount << " times\n";
 //     std::cerr << "Zero order fired: " << zeroOrder << " times\n";
 }
 
 template <class SplineImageView>
 void
-SubPixelWatersheds<SplineImageView>::createMaximage()
+SubPixelWatersheds<SplineImageView>::updateMaxImage()
 {
-    maximage_.resize(image_.size());
-    maximage_.init(0);  // means no maximum
+    maxImage_.resize(image_.size());
+    maxImage_.init(0);  // means no maximum
     for(unsigned int i = 1; i<maxima_.size(); ++i)
     {
         int x = (int)VIGRA_CSTD::floor(maxima_[i][0] + 0.5);
         int y = (int)VIGRA_CSTD::floor(maxima_[i][1] + 0.5);
 
-        if(maximage_(x,y) == 0)
+        if(maxImage_(x,y) == 0)
         {
-            maximage_(x,y) = i;  // store index of the subpixel coordinate object
+            maxImage_(x,y) = i;  // store index of the subpixel coordinate object
         }
         else
         {
             // negative index denotes several maxima in the same facet
-            maximage_(x,y) = -std::abs(maximage_(x,y));
+            maxImage_(x,y) = -std::abs(maxImage_(x,y));
         }
     }
 }
@@ -1493,7 +1568,7 @@ SubPixelWatersheds<SplineImageView>::nearestMaximum(double x, double y, double d
             int yy = yi + ys*dyi;
             if(!image_.isInside(xx,yy))
                 continue;
-            int index = maximage_(xx,yy);
+            int index = maxImage_(xx,yy);
             if(index > 0)
             {
                 diff = maxima_[index] - p;
@@ -1594,6 +1669,7 @@ SubPixelWatersheds<SplineImageView>::flowLine(double x, double y, bool forward, 
     double dy = forward
                  ? -h*VIGRA_CSTD::sin(a)
                  :  h*VIGRA_CSTD::sin(a);
+    int failReason = 0; // gave up / too many steps
     if(DEBUG) std::cerr << "x, y, dx, dy " << x << ' ' << y << ' ' << dx << ' ' << dy << '\n';
     int index;
     if(nearestMaximum(x, y, dx, dy, index) < initialStep_)
@@ -1620,39 +1696,51 @@ if(DEBUG) std::cerr << "stop index, x, y " << index << ' ' << curve.back()[0] <<
     for(int k=0; k<10000; ++k)
     {
         double xn, yn;
-        if(rungeKuttaDoubleStepSecondOrder(x, y, h, xn, yn, epsilon) == Success)
+        RungeKuttaResult rungeKuttaResult(
+            rungeKuttaDoubleStepSecondOrder(x, y, h, xn, yn, epsilon));
+        if(rungeKuttaResult == Success)
         {
             x = xn;
             y = yn;
             curve.push_back(PointType(x, y));
             dx = image_.dx(x, y);
             dy = image_.dy(x, y);
-    if(DEBUG) std::cerr << "x, y, dx, dy " << x << ' ' << y << ' ' << dx << ' ' << dy << '\n';
+            if(DEBUG) std::cerr << "x, y, dx, dy " << x << ' ' << y
+                                << ' ' << dx << ' ' << dy << '\n';
             // check if near a maximum
             if(nearestMaximum(x, y, dx, dy, index) < initialStep_)
             {
                 curve.push_back(maxima_[index]);
-        if(DEBUG) std::cerr << "stop index, x, y " << index << ' ' << curve.back()[0] << ' ' << curve.back()[1]<< '\n';
+                if(DEBUG) std::cerr
+                    << "stop index, x, y " << index << ' '
+                    << curve.back()[0] << ' ' << curve.back()[1]<< '\n';
                 return index;
             }
         }
+        else if(rungeKuttaResult == Outside)
+        {
+            if(DEBUG) std::cerr << "outside image\n";
+            failReason = -1; // signal "outside image", curve might still be useful?!
+        }
         else if(h < 1.0e-6)
         {
-        if(DEBUG) std::cerr << "give up\n";
-            return 0; // give up
+            if(DEBUG) std::cerr << "give up\n";
+            return failReason; // give up
         }
     }
-        if(DEBUG) std::cerr << "too many steps\n";
-    return 0;
+    if(DEBUG) std::cerr << "too many steps\n";
+    return failReason;
 }
 
 template<class PointIterator, class TargetArray>
 void simplifyPolygonHelper(
-    const PointIterator &polyBegin, const PointIterator &polyEnd,
+    const PointIterator &polyBegin, PointIterator polyEnd,
     TargetArray &simple, double epsilon)
 {
     if(polyEnd - polyBegin < 3)
-        return; // no splitpoint necessary
+        return; // no splitpoint necessary / possible
+
+    --polyEnd;
 
     // calculate normal of straight end point connection
     typename TargetArray::value_type
