@@ -222,7 +222,7 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
 
     xx = x;
     yy = y;
-    double sxx, syy;
+    double sxx, syy, epsilon2 = epsilon * epsilon;
     for(int i=0; i<100; ++i) // do at most 100 iterations
     {
         Value dx = image.dx(xx, yy);
@@ -230,32 +230,33 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
         Value dxx = image.dxx(xx, yy);
         Value dxy = image.dxy(xx, yy);
         Value dyy = image.dyy(xx, yy);
-        Value d = dxx*dyy - dxy*dxy;
-        if (d != zero)
+        Value det = dxx*dyy - dxy*dxy;
+        if(det != zero)
         {
-            sxx = (dxy*dy - dyy*dx) / d;
-            syy = (dxy*dx - dxx*dy) / d;
+            sxx = (dxy*dy - dyy*dx) / det;
+            syy = (dxy*dx - dxx*dy) / det;
+            xx += sxx;
+            yy += syy;
         }
         else
         {
             sxx = syy = 0.0;
         }
-        xx += sxx;
-        yy += syy;
         //if(!image.isInside(xx, yy))
         // FIXME: this check has been replaced to work around the following:
 // RuntimeError:
 // Precondition violation!
 // SplineImageView<ORDER, VALUETYPE>::calculateIndices(): index out of bounds.
 // (/home/meine/local-SuSE-9.0/include/vigra/splineimageview.hxx:518)
-        if(xx < 1 || xx > (double)(image.width()-2) || yy < 1 || yy > (double)(image.height()-2))
+        if(xx < 1 || xx > (double)(image.width()-2) ||
+           yy < 1 || yy > (double)(image.height()-2))
         {
             return Failed; // coordinates out of range
         }
-        double diff = VIGRA_CSTD::sqrt(sxx*sxx + syy*syy);
-        if(diff < epsilon) // convergence
+        double diff2 = sxx*sxx + syy*syy;
+        if(diff2 < epsilon2) // convergence
         {
-            if(d == zero)
+            if(det == zero)
             {
                 if(dx == zero && dy == zero)
                 {
@@ -264,11 +265,11 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
                 return Failed;
 
             }
-            else if (d < zero)
+            else if(det < zero)
             {
                 return Saddle;
             }
-            else if (dxx + dyy > zero)
+            else if(dxx + dyy > zero)
             {
                 return Minimum;
             }
@@ -290,10 +291,9 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
     typedef typename IMAGEVIEW::value_type Value;
     Value zero = NumericTraits<Value>::zero();
 
-    const double epsilon2(epsilon*epsilon);
     xx = x;
     yy = y;
-    double sxx, syy;
+    double sxx, syy, epsilon2 = epsilon * epsilon;
     for(int i=0; i<100; ++i) // do at most 100 iterations
     {
         Value dx = image.dx(xx, yy);
@@ -301,18 +301,18 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
         Value dxx = image.dxx(xx, yy);
         Value dxy = image.dxy(xx, yy);
         Value dyy = image.dyy(xx, yy);
-        Value d = dxx*dyy - dxy*dxy;
-        if (d != zero)
+        Value det = dxx*dyy - dxy*dxy;
+        if(det != zero)
         {
-            sxx = (dxy*dy - dyy*dx) / d;
-            syy = (dxy*dx - dxx*dy) / d;
+            sxx = (dxy*dy - dyy*dx) / det;
+            syy = (dxy*dx - dxx*dy) / det;
+            xx += sxx;
+            yy += syy;
         }
         else
         {
             sxx = syy = 0.0;
         }
-        xx += sxx;
-        yy += syy;
         //if(!image.isInside(xx, yy))
         // FIXME: this check has been replaced to work around the following:
 // Precondition violation!
@@ -326,7 +326,7 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
         double diff2 = (sxx*sxx + syy*syy);
         if(diff2 < epsilon2) // convergence
         {
-            if(d == zero)
+            if(det == zero)
             {
                 if(dx == zero && dy == zero)
                 {
@@ -335,11 +335,11 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
                 return Failed;
 
             }
-            else if (d < zero)
+            else if(det < zero)
             {
                 return Saddle;
             }
-            else if (dxx + dyy > zero)
+            else if(dxx + dyy > zero)
             {
                 return Minimum;
             }
@@ -386,7 +386,7 @@ void findCriticalPointsNewtonMethodOld(IMAGEVIEW const & image,
             {
                 saddles.push_back(Coordinate(xx, yy));
             }
-            else if (type == Minimum)
+            else if(type == Minimum)
             {
                 minima.push_back(Coordinate(xx, yy));
             }
@@ -396,6 +396,63 @@ void findCriticalPointsNewtonMethodOld(IMAGEVIEW const & image,
             }
         }
     }
+}
+
+template <class IMAGEVIEW>
+bool
+findDirectedMaximum(IMAGEVIEW const & image,
+                    double x, double y,
+                    double nx, double ny,
+                    double & xx, double & yy,
+                    double epsilon, double maxDist)
+{
+    typedef typename IMAGEVIEW::value_type Value;
+    Value zero = NumericTraits<Value>::zero();
+
+    double norm(sqrt(nx*nx + ny*ny));
+    if(norm)
+    {
+        nx /= norm;
+        ny /= norm;
+    }
+
+    xx = x;
+    yy = y;
+    double sxx, syy, epsilon2 = epsilon * epsilon, maxDist2 = maxDist * maxDist;
+    for(int i=0; i<100; ++i) // do at most 100 iterations
+    {
+        Value d = image.dx(x, y)*nx + image.dy(x, y)*ny;
+        Value dxx = image.dxx(xx, yy);
+        Value dxy = image.dxy(xx, yy);
+        Value dyy = image.dyy(xx, yy);
+        Value d2 = dxx*nx*nx + 2*dxy*ny*nx + dyy*ny*ny;
+
+        if(d2 != zero)
+        {
+            double l = -d / d2;
+            sxx = l * nx;
+            syy = l * ny;
+        }
+        else
+        {
+            sxx = syy = 0.0;
+        }
+        xx += sxx;
+        yy += syy;
+        if(xx < 1 || xx > (double)(image.width()-2) ||
+           yy < 1 || yy > (double)(image.height()-2))
+        {
+            return false; // coordinates out of range
+        }
+
+        if(sxx*sxx + syy*syy < epsilon2) // convergence
+            return (d2 < zero) && (dxx + dyy < zero); // maximum?
+
+        sxx = xx - x; syy = yy - y;
+        if(sxx*sxx + syy*syy > maxDist2) // too far from start
+            return false;
+    }
+    return Failed;
 }
 
 struct CriticalPointHolder
@@ -577,7 +634,7 @@ void findCriticalPointsNewtonMethod(IMAGEVIEW const & image,
                     {
                         saddles.push_back(c);
                     }
-                    else if (type == Minimum)
+                    else if(type == Minimum)
                     {
                         minima.push_back(c);
                     }
@@ -658,7 +715,7 @@ findCriticalPointsInFacet(
                 double t2 = hxx*hyy - hxy*hxy;
                 if(t2 > 0.0)
                 {
-                    if (t1 > 0.0)
+                    if(t1 > 0.0)
                     {
                         minima.push_back(PointType(xx,yy));
                     }
@@ -975,7 +1032,7 @@ void findEdgelChain1(IMAGEVIEW const & image, IImage const & maxImage,
         if(d == 0.0)
             d = epsilon;
         ss = VIGRA_CSTD::pow(epsilon / d, 0.2) * s;
-        if (ss >= s / 2.0) // accept step
+        if(ss >= s / 2.0) // accept step
         {
             // check if we landed outside the image
             if(!image.isInside(xx, yy))
@@ -1075,7 +1132,7 @@ void findEdgelChain2(IMAGEVIEW const & image, IImage const & maxImage,
         if(d < epsilon / 32.0)
             d = epsilon / 32.0;
         ss = VIGRA_CSTD::pow(epsilon / d, 0.2) * s;
-        if (ss >= s / 2.0) // accept step
+        if(ss >= s / 2.0) // accept step
         {
             // check if we landed outside the image
             if(!image.isInside(xx, yy))
@@ -1471,7 +1528,7 @@ SubPixelWatersheds<SplineImageView>::findCriticalPointsInFacet(double x0, double
                 double t2 = hxx*hyy - hxy*hxy;
                 if(t2 > 0.0)
                 {
-                    if (t1 > 0.0)
+                    if(t1 > 0.0)
                     {
                        mi.push_back(PointType(xx,yy));
                     }
