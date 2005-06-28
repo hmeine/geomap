@@ -3,56 +3,6 @@ execfile("testSPWS")
 
 map = Map(maxima, flowlines, Size2D(256, 256))
 
-def checkConsistency(map):
-    nodeCount = 0
-    edgeCount = 0
-    faceCount = 0
-
-    valid = True
-    for node in map.nodeIter():
-        nodeCount += 1
-        assert map.nodes[node._label] == node
-        assert node._map == map
-        for a in node._darts:
-            if not map.edges[abs(a)]:
-                sys.stderr.write("%s contains invalid anchor %d!\n" % (node, a))
-                valid = False
-
-    for edge in map.edgeIter():
-        edgeCount += 1
-        assert map.edges[edge._label] == edge
-        assert edge._map == map
-        try:
-            assert edge._label in map.node(edge._startNodeLabel)._darts
-            assert -edge._label in map.node(edge._endNodeLabel)._darts
-        except:
-            sys.stderr.write("%s has invalid ends!\n  start node: %s\n    end node: %s\n" % (edge, map.node(edge._startNodeLabel), map.node(edge._endNodeLabel)))
-            valid = False
-
-    for face in map.faceIter():
-        faceCount += 1
-        assert map.faces[face._label] == face
-        assert face._map == map
-        for a in face._anchors:
-            if a and not map.edges[a.edgeLabel()]:
-                sys.stderr.write("%s contains invalid anchor %d!\n" % (face, a.label()))
-                valid = False
-
-    if nodeCount != map.nodeCount:
-        sys.stderr.write("Map's nodeCount (%d) is wrong: counted %d!\n" %
-                         (map.nodeCount, nodeCount))
-        valid = False
-    if edgeCount != map.edgeCount:
-        sys.stderr.write("Map's edgeCount (%d) is wrong: counted %d!\n" %
-                         (map.edgeCount, edgeCount))
-        valid = False
-    if faceCount != map.faceCount:
-        sys.stderr.write("Map's faceCount (%d) is wrong: counted %d!\n" %
-                         (map.faceCount, faceCount))
-        valid = False
-
-    assert valid
-
 class FaceLookup:
     def __init__(self, map):
         self._map = map
@@ -92,6 +42,8 @@ def checkLabelConsistency(map):
 
 checkConsistency(map)
 checkLabelConsistency(map)
+
+# --------------------------------------------------------------------
 
 mergeEdges(map.dart(29)) # create loop with two degree-2-nodes
 checkConsistency(map)
