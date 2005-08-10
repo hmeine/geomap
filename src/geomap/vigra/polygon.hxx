@@ -15,15 +15,17 @@ class PointArray
   public:
     typedef POINT Point;
 
-    typedef typename InternalVector::value_type      value_type;
-    typedef typename InternalVector::reference       reference;
-    typedef typename InternalVector::const_reference const_reference;
-    typedef typename InternalVector::pointer         pointer;
-    typedef typename InternalVector::const_pointer   const_pointer;
-    typedef typename InternalVector::iterator        iterator;
-    typedef typename InternalVector::const_iterator  const_iterator;
-    typedef typename InternalVector::size_type       size_type;
-    typedef typename InternalVector::difference_type difference_type;
+    typedef typename InternalVector::value_type             value_type;
+    typedef typename InternalVector::reference              reference;
+    typedef typename InternalVector::const_reference        const_reference;
+    typedef typename InternalVector::pointer                pointer;
+    typedef typename InternalVector::const_pointer          const_pointer;
+    typedef typename InternalVector::iterator               iterator;
+    typedef typename InternalVector::const_iterator         const_iterator;
+    typedef typename InternalVector::reverse_iterator       reverse_iterator;
+    typedef typename InternalVector::const_reverse_iterator const_reverse_iterator;
+    typedef typename InternalVector::size_type              size_type;
+    typedef typename InternalVector::difference_type        difference_type;
 
     PointArray()
     {}
@@ -67,6 +69,26 @@ class PointArray
         return points_.end();
     }
 
+    const_reverse_iterator rbegin() const
+    {
+        return points_.rbegin();
+    }
+
+    reverse_iterator rbegin()
+    {
+        return points_.rbegin();
+    }
+
+    const_reverse_iterator rend() const
+    {
+        return points_.rend();
+    }
+
+    reverse_iterator rend()
+    {
+        return points_.rend();
+    }
+
     void push_back(const_reference v)
     {
         points_.push_back(v);
@@ -77,28 +99,15 @@ class PointArray
         points_.erase(pos);
     }
 
-    void erase(iterator from, iterator to)
-    {
-        points_.erase(from, to);
-    }
-
     iterator insert(iterator pos, const_reference x)
     {
         points_.insert(pos, x);
     }
 
-    template <class InputIterator>
-    void insert(iterator pos, InputIterator f, InputIterator l)
+    size_type size() const
     {
-        points_.insert(pos, f, l);
+        return points_.size();
     }
-
-    void insert(iterator pos, size_type n, const_reference x)
-    {
-        points_.insert(pos, n, x);
-    }
-
-    size_type size() const { return points_.size(); }
 
     void swap(PointArray &rhs)
     {
@@ -120,16 +129,20 @@ class PointArray
 
     PointArray<Point2D> roundToInteger() const
     {
-        PointArray<Point2D> result;
+        PointArray<Point2D> result(points_.size());
         for(unsigned int i = 0; i < points_.size(); ++i)
-            result[i] = Point2D((int)(points_[i][0] + 0.5),
-                                (int)(points_[i][1] + 0.5));
+        {
+            result[i].x = (int)(points_[i][0] + 0.5);
+            result[i].y = (int)(points_[i][1] + 0.5);
+        }
         return result;
     }
 
   protected:
     InternalVector points_;
 };
+
+/********************************************************************/
 
 template<class ITERATOR>
 class PointIter
@@ -152,7 +165,7 @@ class PointIter
         return end_ - begin_;
     }
 
-    const typename Iterator::value_type &next()
+    typename Iterator::value_type next()
     {
         if(begin_ == end_)
         {
@@ -166,14 +179,26 @@ class PointIter
     Iterator begin_, end_;
 };
 
+/********************************************************************/
+
 template<class POINT>
 class Polygon : public PointArray<POINT>
 {
   public:
     typedef PointArray<POINT> Base;
 
-        // TODO: repeat all other typedefs :-(
-    typedef typename Base::size_type size_type;
+    typedef typename Base::Point                  Point;
+    typedef typename Base::value_type             value_type;
+    typedef typename Base::reference              reference;
+    typedef typename Base::const_reference        const_reference;
+    typedef typename Base::pointer                pointer;
+    typedef typename Base::const_pointer          const_pointer;
+    typedef typename Base::iterator               iterator;
+    typedef typename Base::const_iterator         const_iterator;
+    typedef typename Base::reverse_iterator       reverse_iterator;
+    typedef typename Base::const_reverse_iterator const_reverse_iterator;
+    typedef typename Base::size_type              size_type;
+    typedef typename Base::difference_type        difference_type;
 
 /********************************************************************/
 /*                                                                  */
@@ -192,11 +217,23 @@ class Polygon : public PointArray<POINT>
         }
     }
 
-    typedef PointIter<typename Base::InternalVector::const_reverse_iterator>
-        RevPointIter;
-    RevPointIter __reviter__() const
+    void extend(const Polygon &other)
     {
-        return RevPointIter(points_.rbegin(), points_.rend());
+        if(!other.size())
+            return;
+        if(size())
+        {
+            if(lengthValid_)
+                length_ += (other.points_.front() - points_.back()).magnitude();
+            if(partialAreaValid_)
+                partialAreaValid_ += (other.points_.front()[0]*points_.back()[1] -
+                                      other.points_.front()[1]*points_.back()[0]);
+        }
+        if(lengthValid_)
+            length_ += other.length();
+        if(partialAreaValid_)
+            partialArea_ += other.partialArea();
+        points_.insert(points_.end(), other.begin(), other.end());
     }
 
 /********************************************************************/
@@ -260,6 +297,96 @@ class Polygon : public PointArray<POINT>
         return partialArea_;
     }
 
+    void push_back(const_reference v)
+    {
+        if(size())
+        {
+            if(lengthValid_)
+                length_ += (v - points_.back()).magnitude();
+            if(partialAreaValid_)
+                partialAreaValid_ += (v[0]*points_.back()[1] -
+                                      v[1]*points_.back()[0]);
+        }
+        Base::push_back(v);
+    }
+
+    void setPoint(unsigned int pos, const_reference x)
+    {
+        if(lengthValid_)
+        {
+            if(pos > 0)
+            {
+                length_ += (x - points_[pos-1]).magnitude() -
+                           (points_[pos] - points_[pos-1]).magnitude();
+            }
+            if(pos < size() - 1)
+            {
+                length_ += (x - points_[pos+1]).magnitude() -
+                           (points_[pos] - points_[pos+1]).magnitude();
+            }
+        }
+        partialAreaValid_ = false;
+        points_[pos] = x;
+    }
+
+    void erase(iterator pos)
+    {
+        invalidateProperties();
+        Base::erase(pos);
+    }
+
+    iterator insert(iterator pos, const_reference x)
+    {
+        if(lengthValid_)
+        {
+            if(pos > begin())
+                length_ += (x - pos[-1]).magnitude();
+            if(end() - pos >= 1)
+            {
+                length_ += (x - *pos).magnitude();
+                if(pos > begin())
+                    length_ -= (*pos - pos[-1]).magnitude();
+            }
+        }
+        partialAreaValid_ = false;
+        Base::insert(pos, x);
+    }
+
+    Polygon split(unsigned int pos)
+    {
+        if(pos == 0)
+        {
+            Polygon result(1);
+            result[0] = points_[0];
+            swap(result);
+            return result;
+        }
+
+        Polygon result(begin() + pos, end());
+        if(pos > size() / 3)
+        {
+             // heuristic: when splitting off only a "small part",
+             // re-use existing information
+            if(lengthValid_)
+                length_ -= result.length();
+            if(partialAreaValid_)
+                partialArea_ -= result.partialArea();
+        }
+        else
+            invalidateProperties();
+        points_.erase(begin() + pos + 1, end());
+        return result;
+    }
+
+    void swap(Polygon &rhs)
+    {
+        Base::swap(rhs);
+        std::swap(length_, rhs.length_);
+        std::swap(lengthValid_, rhs.lengthValid_);
+        std::swap(partialArea_, rhs.partialArea_);
+        std::swap(partialAreaValid_, rhs.partialAreaValid_);
+    }
+
     void reverse()
     {
         Base::reverse();
@@ -267,17 +394,60 @@ class Polygon : public PointArray<POINT>
             partialArea_ = -partialArea_;
     }
 
-//     void append(typename Base::value_type p)
-//     {
-//         Base::app
-//     }
-
   protected:
     mutable double length_;
     mutable bool lengthValid_;
     mutable double partialArea_;
     mutable bool partialAreaValid_;
 };
+
+/********************************************************************/
+
+template<class PointIterator, class TargetArray>
+void simplifyPolygonHelper(
+    const PointIterator &polyBegin, PointIterator polyEnd,
+    TargetArray &simple, double epsilon)
+{
+    if(polyEnd - polyBegin < 3)
+        return; // no splitpoint necessary / possible
+
+    --polyEnd;
+
+    // calculate normal of straight end point connection
+    typename TargetArray::value_type
+        straight(*polyEnd - *polyBegin),
+        normal(straight[1], -straight[0]);
+    normal /= normal.magnitude();
+
+    double maxDist = epsilon;
+    PointIterator splitPos(polyEnd);
+
+    // search splitpoint
+    for(PointIterator it(polyBegin); it != polyEnd; ++it)
+    {
+        double dist = fabs(dot(*it - *polyBegin, normal));
+        if(dist > maxDist)
+        {
+            splitPos = it;
+            maxDist = dist;
+        }
+    }
+
+    if(splitPos != polyEnd)
+    {
+        simplifyPolygonHelper(polyBegin, splitPos, simple, epsilon);
+        simple.push_back(*splitPos);
+        simplifyPolygonHelper(splitPos, polyEnd, simple, epsilon);
+    }
+}
+
+template<class PointArray>
+void simplifyPolygon(const PointArray &poly, PointArray &simple, double epsilon)
+{
+    simple.push_back(poly[0]);
+    simplifyPolygonHelper(poly.begin(), poly.end(), simple, epsilon);
+    simple.push_back(poly[poly.size()-1]);
+}
 
 } // namespace vigra
 
