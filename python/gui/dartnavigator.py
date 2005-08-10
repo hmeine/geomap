@@ -1,7 +1,9 @@
+# -*- coding: utf-8 -*-
+
 # Form implementation generated from reading ui file 'dartnavigator.ui'
 #
-# Created: Fri Mar 11 02:47:11 2005
-#      by: The PyQt User Interface Compiler (pyuic)
+# Created: Mon Jun 27 13:47:50 2005
+#      by: The PyQt User Interface Compiler (pyuic) 3.13
 #
 # WARNING! All changes made in this file will be lost!
 
@@ -13,52 +15,63 @@ class DartNavigatorBase(QDialog):
     def __init__(self,parent = None,name = None,modal = 0,fl = 0):
         QDialog.__init__(self,parent,name,modal,fl)
 
-        if name == None:
+        if not name:
             self.setName("DartNavigatorBase")
 
-        self.resize(418,133)
-        self.setCaption(self.trUtf8("DartNavigator"))
 
         DartNavigatorBaseLayout = QGridLayout(self,1,1,11,6,"DartNavigatorBaseLayout")
 
         self.nextSigmaButton = QPushButton(self,"nextSigmaButton")
-        self.nextSigmaButton.setText(self.trUtf8("nextSigma"))
 
         DartNavigatorBaseLayout.addWidget(self.nextSigmaButton,1,0)
 
         self.nextPhiButton = QPushButton(self,"nextPhiButton")
-        self.nextPhiButton.setText(self.trUtf8("nextPhi"))
 
         DartNavigatorBaseLayout.addWidget(self.nextPhiButton,0,0)
 
         self.nextAlphaButton = QPushButton(self,"nextAlphaButton")
-        self.nextAlphaButton.setText(self.trUtf8("nextAlpha"))
 
         DartNavigatorBaseLayout.addWidget(self.nextAlphaButton,1,1)
 
         self.prevSigmaButton = QPushButton(self,"prevSigmaButton")
-        self.prevSigmaButton.setText(self.trUtf8("prevSigma"))
 
         DartNavigatorBaseLayout.addWidget(self.prevSigmaButton,1,2)
 
         self.prevPhiButton = QPushButton(self,"prevPhiButton")
-        self.prevPhiButton.setText(self.trUtf8("prevPhi"))
 
         DartNavigatorBaseLayout.addWidget(self.prevPhiButton,0,2)
 
         self.continuousCheckBox = QCheckBox(self,"continuousCheckBox")
-        self.continuousCheckBox.setText(self.trUtf8("continuous"))
 
         DartNavigatorBaseLayout.addWidget(self.continuousCheckBox,0,1)
 
         self.dartLabel = QLabel(self,"dartLabel")
-        self.dartLabel.setText(self.trUtf8(""))
         self.dartLabel.setAlignment(QLabel.WordBreak | QLabel.AlignTop | QLabel.AlignLeft)
 
         DartNavigatorBaseLayout.addMultiCellWidget(self.dartLabel,2,2,0,2)
+
+        self.languageChange()
+
+        self.resize(QSize(585,245).expandedTo(self.minimumSizeHint()))
+        self.clearWState(Qt.WState_Polished)
 
         self.setTabOrder(self.nextPhiButton,self.continuousCheckBox)
         self.setTabOrder(self.continuousCheckBox,self.prevPhiButton)
         self.setTabOrder(self.prevPhiButton,self.nextSigmaButton)
         self.setTabOrder(self.nextSigmaButton,self.nextAlphaButton)
         self.setTabOrder(self.nextAlphaButton,self.prevSigmaButton)
+
+
+    def languageChange(self):
+        self.setCaption(self.__tr("DartNavigator"))
+        self.nextSigmaButton.setText(self.__tr("nextSigma"))
+        self.nextPhiButton.setText(self.__tr("nextPhi"))
+        self.nextAlphaButton.setText(self.__tr("nextAlpha"))
+        self.prevSigmaButton.setText(self.__tr("prevSigma"))
+        self.prevPhiButton.setText(self.__tr("prevPhi"))
+        self.continuousCheckBox.setText(self.__tr("continuous"))
+        self.dartLabel.setText(QString.null)
+
+
+    def __tr(self,s,c = None):
+        return qApp.translate("DartNavigatorBase",s,c)
