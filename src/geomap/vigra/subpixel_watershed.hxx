@@ -1353,13 +1353,13 @@ class SubPixelWatersheds
     template <class SrcIterator, class SrcAccessor>
     SubPixelWatersheds(SrcIterator ul, SrcIterator lr, SrcAccessor src)
     : image_(ul, lr, src),
-      initialStep_(0.1), simplifyEpsilon_(0.05)
+      initialStep_(0.1)
     {}
 
     template <class SrcIterator, class SrcAccessor>
     SubPixelWatersheds(triple<SrcIterator, SrcIterator, SrcAccessor> src)
     : image_(src),
-      initialStep_(0.1), simplifyEpsilon_(0.05)
+      initialStep_(0.1)
     {}
 
     int width() const { return image_.width(); }
@@ -1392,13 +1392,11 @@ class SubPixelWatersheds
                                             image_.dx(x0,y0), image_.dy(x0,y0));
     }
 
-    void setSimplifyEpsilon(double s) { simplifyEpsilon_ = s; }
-
     SplineImageView image_;
     PointArray minima_, saddles_, maxima_, edges_;
     ArrayVector<triple<int, int, int> > edgeIndices_;
     IImage maxImage_;
-    double initialStep_, simplifyEpsilon_;
+    double initialStep_;
 };
 
 static int sturmcount, zeroOrder;
@@ -1789,52 +1787,6 @@ if(DEBUG) std::cerr << "stop index, x, y " << index << ' ' << curve.back()[0] <<
     return failReason;
 }
 
-template<class PointIterator, class TargetArray>
-void simplifyPolygonHelper(
-    const PointIterator &polyBegin, PointIterator polyEnd,
-    TargetArray &simple, double epsilon)
-{
-    if(polyEnd - polyBegin < 3)
-        return; // no splitpoint necessary / possible
-
-    --polyEnd;
-
-    // calculate normal of straight end point connection
-    typename TargetArray::value_type
-        straight(*polyEnd - *polyBegin),
-        normal(straight[1], -straight[0]);
-    normal /= normal.magnitude();
-
-    double maxDist = epsilon;
-    PointIterator splitPos(polyEnd);
-
-    // search splitpoint
-    for(PointIterator it(polyBegin); it != polyEnd; ++it)
-    {
-        double dist = fabs(dot(*it - *polyBegin, normal));
-        if(dist > maxDist)
-        {
-            splitPos = it;
-            maxDist = dist;
-        }
-    }
-
-    if(splitPos != polyEnd)
-    {
-        simplifyPolygonHelper(polyBegin, splitPos, simple, epsilon);
-        simple.push_back(*splitPos);
-        simplifyPolygonHelper(splitPos, polyEnd, simple, epsilon);
-    }
-}
-
-template<class PointArray>
-void simplifyPolygon(const PointArray &poly, PointArray &simple, double epsilon)
-{
-    simple.push_back(poly[0]);
-    simplifyPolygonHelper(poly.begin(), poly.end(), simple, epsilon);
-    simple.push_back(poly[poly.size()-1]);
-}
-
 template <class SplineImageView>
 pair<int, int>
 SubPixelWatersheds<SplineImageView>::findEdge(
@@ -1851,13 +1803,6 @@ SubPixelWatersheds<SplineImageView>::findEdge(
         edge.push_back(forwardCurve[i]);
     for(int i = 1; i < (int)backwardCurve.size(); ++i)
         edge.push_back(backwardCurve[i]);
-
-    if(simplifyEpsilon_ > 0)
-    {
-        PointArray simplifiedEdge;
-        simplifyPolygon(edge, simplifiedEdge, simplifyEpsilon_);
-        std::swap(edge, simplifiedEdge);
-    }
 
     return pair<int, int>(findex, bindex);
 }
