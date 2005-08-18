@@ -56,7 +56,12 @@ Polygon__setitem__(Polygon & p, int i, typename Polygon::value_type v)
 template<class Polygon>
 void insert(Polygon & p, int pos, typename Polygon::const_reference x)
 {
-    checkPointIndex(pos, p.size());
+    // this would be the original python semantics, but I wonder who
+    // wants to insert at a non-existent position (e.g. index 42 for a
+    // 5-element list)?
+//     if(pos >= p.size())
+//         p.push_back(x);
+    checkPointIndex(pos, p.size() + 1);
     p.insert(p.begin() + pos, x);
 }
 
