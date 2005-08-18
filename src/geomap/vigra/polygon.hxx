@@ -405,20 +405,19 @@ class Polygon : public PointArray<POINT>
 
 template<class PointIterator, class TargetArray>
 void simplifyPolygonHelper(
-    const PointIterator &polyBegin, PointIterator polyEnd,
+    const PointIterator &polyBegin, const PointIterator &polyEnd,
     TargetArray &simple, double epsilon)
 {
     if(polyEnd - polyBegin < 3)
         return; // no splitpoint necessary / possible
 
-    --polyEnd;
-
-    PointIterator splitPos(polyEnd);
+    PointIterator splitPos(polyEnd), lastPoint(polyEnd);
+    --lastPoint;
     double maxDist = epsilon;
 
     // calculate normal of straight end point connection
     typename TargetArray::value_type
-        straight(*polyEnd - *polyBegin),
+        straight(*lastPoint - *polyBegin),
         normal(straight[1], -straight[0]);
 
     // search splitpoint
@@ -426,7 +425,8 @@ void simplifyPolygonHelper(
     {
         normal /= normal.magnitude();
 
-        for(PointIterator it(polyBegin); it != polyEnd; ++it)
+        PointIterator it(polyBegin);
+        for(++it; it != lastPoint; ++it)
         {
             double dist = fabs(dot(*it - *polyBegin, normal));
             if(dist > maxDist)
@@ -439,7 +439,8 @@ void simplifyPolygonHelper(
     else
     {
         // start- and end-points identical?! -> look for most distant point
-        for(PointIterator it(polyBegin); it != polyEnd; ++it)
+        PointIterator it(polyBegin);
+        for(++it; it != lastPoint; ++it)
         {
             double dist = (*it - *polyBegin).magnitude();
             if(dist > maxDist)
