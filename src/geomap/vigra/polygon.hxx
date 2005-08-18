@@ -413,23 +413,40 @@ void simplifyPolygonHelper(
 
     --polyEnd;
 
+    PointIterator splitPos(polyEnd);
+    double maxDist = epsilon;
+
     // calculate normal of straight end point connection
     typename TargetArray::value_type
         straight(*polyEnd - *polyBegin),
         normal(straight[1], -straight[0]);
-    normal /= normal.magnitude();
-
-    double maxDist = epsilon;
-    PointIterator splitPos(polyEnd);
 
     // search splitpoint
-    for(PointIterator it(polyBegin); it != polyEnd; ++it)
+    if(normal.magnitude() > 1e-6)
     {
-        double dist = fabs(dot(*it - *polyBegin, normal));
-        if(dist > maxDist)
+        normal /= normal.magnitude();
+
+        for(PointIterator it(polyBegin); it != polyEnd; ++it)
         {
-            splitPos = it;
-            maxDist = dist;
+            double dist = fabs(dot(*it - *polyBegin, normal));
+            if(dist > maxDist)
+            {
+                splitPos = it;
+                maxDist = dist;
+            }
+        }
+    }
+    else
+    {
+        // start- and end-points identical?! -> look for most distant point
+        for(PointIterator it(polyBegin); it != polyEnd; ++it)
+        {
+            double dist = (*it - *polyBegin).magnitude();
+            if(dist > maxDist)
+            {
+                splitPos = it;
+                maxDist = dist;
+            }
         }
     }
 
