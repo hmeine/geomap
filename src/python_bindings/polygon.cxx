@@ -160,6 +160,7 @@ void defPolygon()
         .def("split", &split<PythonPolygon>)
         .def("length", &PythonPolygon::length)
         .def("partialArea", &PythonPolygon::partialArea)
+        .def("reverse", &PythonPolygon::reverse)
         .def("invalidateProperties", &PythonPolygon::invalidateProperties)
     ;
 
