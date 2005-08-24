@@ -76,7 +76,7 @@
                 <string></string>
             </property>
             <property name="alignment">
-                <set>WordBreak|AlignTop|AlignLeft</set>
+                <set>AlignTop|AlignLeft</set>
             </property>
         </widget>
     </grid>

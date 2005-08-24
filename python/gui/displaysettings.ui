@@ -1,0 +1,94 @@
+<!DOCTYPE UI><UI version="3.3" stdsetdef="1">
+<class>DisplaySettings</class>
+<author>Hans Meine &lt;hans_meine@gmx.net&gt;</author>
+<widget class="QWidget">
+    <property name="name">
+        <cstring>Form10</cstring>
+    </property>
+    <hbox>
+        <property name="name">
+            <cstring>unnamed</cstring>
+        </property>
+        <widget class="QButtonGroup">
+            <property name="name">
+                <cstring>backgroundGroup</cstring>
+            </property>
+            <property name="title">
+                <string>Background</string>
+            </property>
+            <hbox>
+                <property name="name">
+                    <cstring>unnamed</cstring>
+                </property>
+                <widget class="QRadioButton">
+                    <property name="name">
+                        <cstring>radioButton2</cstring>
+                    </property>
+                    <property name="text">
+                        <string>&amp;Original</string>
+                    </property>
+                    <property name="accel">
+                        <string>Alt+O</string>
+                    </property>
+                    <property name="checked">
+                        <bool>true</bool>
+                    </property>
+                </widget>
+                <widget class="QRadioButton">
+                    <property name="name">
+                        <cstring>radioButton4</cstring>
+                    </property>
+                    <property name="enabled">
+                        <bool>false</bool>
+                    </property>
+                    <property name="text">
+                        <string>w/ &amp;Colors</string>
+                    </property>
+                    <property name="accel">
+                        <string>Alt+C</string>
+                    </property>
+                </widget>
+                <widget class="QRadioButton">
+                    <property name="name">
+                        <cstring>radioButton3</cstring>
+                    </property>
+                    <property name="text">
+                        <string>Region &amp;Labels</string>
+                    </property>
+                    <property name="accel">
+                        <string>Alt+L</string>
+                    </property>
+                </widget>
+                <widget class="QRadioButton">
+                    <property name="name">
+                        <cstring>radioButton5</cstring>
+                    </property>
+                    <property name="text">
+                        <string>Region &amp;Means</string>
+                    </property>
+                    <property name="accel">
+                        <string>Alt+M</string>
+                    </property>
+                </widget>
+            </hbox>
+        </widget>
+        <widget class="QToolButton">
+            <property name="name">
+                <cstring>paintbrushButton</cstring>
+            </property>
+            <property name="text">
+                <string>APB</string>
+            </property>
+        </widget>
+        <widget class="QToolButton">
+            <property name="name">
+                <cstring>naviButton</cstring>
+            </property>
+            <property name="text">
+                <string>nav</string>
+            </property>
+        </widget>
+    </hbox>
+</widget>
+<layoutdefaults spacing="6" margin="11"/>
+</UI>
