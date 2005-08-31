@@ -5,6 +5,17 @@
     <property name="name">
         <cstring>Form10</cstring>
     </property>
+    <property name="geometry">
+        <rect>
+            <x>0</x>
+            <y>0</y>
+            <width>932</width>
+            <height>70</height>
+        </rect>
+    </property>
+    <property name="caption">
+        <string>Form10</string>
+    </property>
     <hbox>
         <property name="name">
             <cstring>unnamed</cstring>
@@ -13,8 +24,14 @@
             <property name="name">
                 <cstring>backgroundGroup</cstring>
             </property>
+            <property name="frameShape">
+                <enum>NoFrame</enum>
+            </property>
+            <property name="lineWidth">
+                <number>0</number>
+            </property>
             <property name="title">
-                <string>Background</string>
+                <string></string>
             </property>
             <hbox>
                 <property name="name">
@@ -36,7 +53,7 @@
                 </widget>
                 <widget class="QRadioButton">
                     <property name="name">
-                        <cstring>radioButton4</cstring>
+                        <cstring>colorButton</cstring>
                     </property>
                     <property name="enabled">
                         <bool>false</bool>
@@ -46,6 +63,17 @@
                     </property>
                     <property name="accel">
                         <string>Alt+C</string>
+                    </property>
+                </widget>
+                <widget class="QRadioButton">
+                    <property name="name">
+                        <cstring>gmRadioButton</cstring>
+                    </property>
+                    <property name="text">
+                        <string>&amp;Boundary Indicator</string>
+                    </property>
+                    <property name="accel">
+                        <string>Alt+B</string>
                     </property>
                 </widget>
                 <widget class="QRadioButton">
@@ -72,12 +100,29 @@
                 </widget>
             </hbox>
         </widget>
+        <widget class="QCheckBox">
+            <property name="name">
+                <cstring>normalizeCB</cstring>
+            </property>
+            <property name="text">
+                <string>&amp;normalize</string>
+            </property>
+            <property name="accel">
+                <string>Alt+N</string>
+            </property>
+        </widget>
         <widget class="QToolButton">
             <property name="name">
                 <cstring>paintbrushButton</cstring>
             </property>
             <property name="text">
-                <string>APB</string>
+                <string>&amp;APB</string>
+            </property>
+            <property name="accel">
+                <string>Alt+A</string>
+            </property>
+            <property name="toolTip" stdset="0">
+                <string>Active Paintbrush tool</string>
             </property>
         </widget>
         <widget class="QToolButton">
@@ -85,7 +130,13 @@
                 <cstring>naviButton</cstring>
             </property>
             <property name="text">
-                <string>nav</string>
+                <string>na&amp;v</string>
+            </property>
+            <property name="accel">
+                <string>Alt+V</string>
+            </property>
+            <property name="toolTip" stdset="0">
+                <string>Tool which lets you open a DartNavigator dialog by clicking near a node.</string>
             </property>
         </widget>
     </hbox>
