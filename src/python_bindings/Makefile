@@ -11,7 +11,8 @@ MODULE = $(patsubst %.la,%.so,$(TARGET))
 
 OBJS = \
     hourglassmodule.lo \
-	polygon.lo
+	polygon.lo \
+	statistics.lo \
 # Ulli added the following to OBJS, uncomment if you need this:
 #    $(INT2BUILDDIR)/src/vigracmodule/.libs/pythonimage.o
 
@@ -37,4 +38,5 @@ ifneq "$(MAKECMDGOALS)" "clean"
 include hourglass.d
 include hourglassmodule.ld
 include polygon.ld
+include statistics.ld
 endif
