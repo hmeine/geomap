@@ -1,6 +1,7 @@
 #ifndef VIGRA_POLYGON_HXX
 #define VIGRA_POLYGON_HXX
 
+#include <vigra/diff2d.hxx>
 #include <vector>
 #include <algorithm>
 
@@ -349,7 +350,7 @@ class Polygon : public PointArray<POINT>
             }
         }
         partialAreaValid_ = false;
-        Base::insert(pos, x);
+        return Base::insert(pos, x);
     }
 
     Polygon split(unsigned int pos)
@@ -453,7 +454,7 @@ void simplifyPolygonHelper(
 
     if(splitPos != polyEnd)
     {
-        simplifyPolygonHelper(polyBegin, splitPos, simple, epsilon);
+        simplifyPolygonHelper(polyBegin, splitPos + 1, simple, epsilon);
         simple.push_back(*splitPos);
         simplifyPolygonHelper(splitPos, polyEnd, simple, epsilon);
     }
@@ -467,7 +468,250 @@ void simplifyPolygon(const PointArray &poly, PointArray &simple, double epsilon)
     simple.push_back(poly[poly.size()-1]);
 }
 
+/********************************************************************/
+
+struct ScanlineSegment
+{
+    int begin, end, direction;
+        // enum { Up, Down, Touch } direction;
+
+    ScanlineSegment(int b, int d, int e)
+    : begin(b), end(e), direction(d)
+    {}
+
+    ScanlineSegment()
+    {}
+};
+
+struct ScanlineSegmentCompare
+{
+    bool operator()(const ScanlineSegment &a, const ScanlineSegment &b) const
+    {
+        return a.begin < b.begin;
+    }
+};
+
+struct Scanlines
+{
+    typedef std::vector<ScanlineSegment> Scanline;
+    typedef Scanline value_type;
+
+    int startIndex;
+    std::vector<Scanline> scanlines;
+
+    Scanlines(unsigned int startIndex, unsigned int count)
+    : startIndex(startIndex),
+      scanlines(count - startIndex)
+    {}
+
+    Scanline &operator[](unsigned int index)
+    {
+        return scanlines[index];
+    }
+
+    const Scanline &operator[](unsigned int index) const
+    {
+        return scanlines[index];
+    }
+
+    unsigned int size() const
+    {
+        return scanlines.size();
+    }
+};
+
+template<class Point>
+Scanlines *scanPoly(
+    const PointArray<Point> &points,
+    unsigned int scanLineCount,
+    unsigned int startIndex = 0)
+{
+    Point firstPoint(points[0]), prevPoint(firstPoint);
+    typename Point::value_type s(prevPoint[0]), e(prevPoint[0]);
+
+    unsigned int prevLine((unsigned int)(prevPoint[1] + 0.5));
+    int prevStep;
+
+    ScanlineSegment firstSegment;
+    firstSegment.direction = 0;
+
+    Scanlines *result = new Scanlines(startIndex, scanLineCount);
+
+    for(unsigned int i = 0; i < points.size(); ++i)
+    {
+        typename Point::value_type x(points[i][0]), y(points[i][1]);
+
+        unsigned int line((unsigned int)(y + 0.5));
+        if(line != prevLine)
+        {
+            int step = (line > prevLine ? 1 : -1);
+            for(; prevLine != line; prevLine += step)
+            {
+                double intersectX =
+                    prevPoint[0] + (x-prevPoint[0])
+                    * (prevLine+0.5*step-prevPoint[1])/(y-prevPoint[1]);
+
+                if(s > intersectX)
+                    s = intersectX;
+                else if(e < intersectX)
+                    e = intersectX;
+
+                if(firstSegment.direction)
+                {
+                    (*result)[prevLine - startIndex].push_back(
+                        ScanlineSegment((int)(s + 0.5),
+                                        (step + prevStep)/2,
+                                        (int)(ceil(e + 0.5))));
+                }
+                else
+                {
+                    firstSegment.begin = (int)(s + 0.5);
+                    firstSegment.end = (int)(ceil(e + 0.5));
+                    firstSegment.direction = step;
+                }
+                prevStep = step;
+                s = e = intersectX;
+            }
+        }
+
+        prevPoint = points[i];
+
+        if(s > prevPoint[0])
+            s = prevPoint[0];
+        else if(e < prevPoint[0])
+            e = prevPoint[0];
+    }
+
+    bool closed(firstPoint == prevPoint);
+
+    if(firstSegment.direction)
+    {
+        // TODO: put closed, first + last segment into result
+        if(closed)
+        {
+            int ib = (int)(s + 0.5), ie = (int)(ceil(e + 0.5));
+            if(firstSegment.begin > ib)
+                firstSegment.begin = ib;
+            if(firstSegment.end < ie)
+                firstSegment.end = ie;
+            firstSegment.direction = (firstSegment.direction + prevStep) / 2;
+
+            (*result)[prevLine - startIndex].push_back(
+                firstSegment);
+        }
+        else
+        {
+            (*result)[prevLine - startIndex].push_back(
+                ScanlineSegment((int)(s + 0.5),
+                                0,
+                                (int)(ceil(e + 0.5))));
+            firstSegment.direction = 0;
+            (*result)[(int)(firstPoint[1] + 0.5) - startIndex].push_back(
+                firstSegment);
+        }
+
+        for(unsigned int i = 0; i < result->size(); ++i)
+        {
+            Scanlines::Scanline &scanline((*result)[i]);
+
+            std::sort(scanline.begin(), scanline.end(),
+                      ScanlineSegmentCompare());
+
+            for(unsigned int j = 1; j < scanline.size(); )
+            {
+                if(scanline[j].begin <= scanline[j-1].end)
+                {
+                    if(scanline[j].end > scanline[j-1].end)
+                        scanline[j-1].end = scanline[j].end;
+                    scanline[j-1].direction += scanline[j].direction;
+                    scanline.erase(scanline.begin() + j);
+                }
+                else
+                    ++j;
+            }
+        }
+    }
+    else
+        (*result)[prevLine - startIndex].push_back(
+            ScanlineSegment((int)(s + 0.5),
+                            0,
+                            (int)(ceil(e + 0.5))));
+
+    return result;
+}
+
+template<class DestIterator, class DestAccessor>
+unsigned int fillScannedPoly(
+    const Scanlines &scanlines,
+    typename DestAccessor::value_type value,
+    DestIterator dul, DestAccessor a)
+{
+    bool clean = true;
+    unsigned int pixelCount = 0;
+
+    DestIterator row(dul + scanlines.startIndex);
+    for(unsigned int i = 0; i < scanlines.size(); ++i, ++row)
+    {
+        int inside = 0;
+        unsigned int x = 0;
+        typename DestIterator::next_type it(row.begin());
+        const Scanlines::Scanline &scanline(scanlines[i]);
+        for(unsigned int j = 0; j < scanline.size(); ++j)
+        {
+            if(inside > 0)
+            {
+                while(x < scanline[j].begin)
+                {
+                    a.set(value, it);
+                    ++pixelCount;
+                    ++x, ++it;
+                }
+            }
+            it += scanline[j].end - x;
+            x = scanline[j].end;
+            inside += scanline[j].direction;
+        }
+        if(inside)
+            clean = false;
+    }
+
+    vigra_postcondition(clean, "error in polygon scanlines (not closed?)");
+    return pixelCount;
+}
+
+template<class DestIterator, class DestAccessor>
+unsigned int drawScannedPoly(
+    const Scanlines &scanlines,
+    typename DestAccessor::value_type value,
+    DestIterator dul, DestAccessor a)
+{
+    unsigned int pixelCount = 0;
+
+    DestIterator row(dul + scanlines.startIndex);
+    for(unsigned int i = 0; i < scanlines.size(); ++i, ++row)
+    {
+        unsigned int x = 0;
+        typename DestIterator::next_type it(row.begin());
+        const Scanlines::Scanline &scanline(scanlines[i]);
+        for(unsigned int j = 0; j < scanline.size(); ++j)
+        {
+            it += scanline[j].begin - x;
+            x = scanline[j].begin;
+            while(x < scanline[j].end)
+            {
+                a.set(value, it);
+                ++pixelCount;
+                ++x, ++it;
+            }
+        }
+    }
+
+    return pixelCount;
+}
+
 } // namespace vigra
+
+/********************************************************************/
 
 namespace std
 {

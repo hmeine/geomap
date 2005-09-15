@@ -6,15 +6,9 @@
 using namespace vigra;
 using namespace boost::python;
 
-// class PythonPolygon : public Polygon<Pixel>
-// {
-//     PythonPolygon(
-
-// };
-
-Point2D intPos(const Pixel &p)
+Point2D intPos(const Vector2 &p)
 {
-    return Point2D((int)(p[0]+0.5f), (int)(p[1]+0.5f));
+    return Point2D((int)(p[0]+0.5), (int)(p[1]+0.5));
 }
 
 inline void checkPointIndex(int &i, unsigned int size)
@@ -32,6 +26,14 @@ inline void checkPointIndex(int &i, unsigned int size)
 template<class Array>
 typename Array::value_type
 Array__getitem__(Array const & a, int i)
+{
+    checkPointIndex(i, a.size());
+    return a[i];
+}
+
+template<class Array>
+const typename Array::value_type &
+Array__getitem__byref(Array const & a, int i)
 {
     checkPointIndex(i, a.size());
     return a[i];
@@ -63,6 +65,13 @@ void insert(Polygon & p, int pos, typename Polygon::const_reference x)
 //         p.push_back(x);
     checkPointIndex(pos, p.size() + 1);
     p.insert(p.begin() + pos, x);
+}
+
+template<class Polygon>
+void erase(Polygon & p, int pos)
+{
+    checkPointIndex(pos, p.size() + 1);
+    p.erase(p.begin() + pos);
 }
 
 template<class Polygon>
@@ -106,30 +115,121 @@ Array simplifyPolygon(const Array &a, double epsilon)
     return result;
 }
 
+unsigned int pyFillScannedPoly(
+    const Scanlines &scanlines,
+    PythonImage &targetV,
+    GrayValue value)
+    //const Pixel &value)
+{
+    PythonSingleBandImage target(targetV.subImage(0));
+    return fillScannedPoly(scanlines, value,
+                           target.traverser_begin(),
+                           StandardValueAccessor<GrayValue>());
+}
+
+unsigned int pyDrawScannedPoly(
+    const Scanlines &scanlines,
+    PythonImage &targetV,
+    float value)
+{
+    PythonSingleBandImage target(targetV.subImage(0));
+    return drawScannedPoly(scanlines, value,
+                           target.traverser_begin(),
+                           StandardValueAccessor<GrayValue>());
+}
+
+void markEdgeInLabelImage(
+    const Scanlines &scanlines,
+    PythonImage &labelVImage)
+{
+    PythonSingleBandImage labelImage(labelVImage.subImage(0));
+
+    for(unsigned int y = scanlines.startIndex, i = 0;
+        i < scanlines.size(); ++y, ++i)
+    {
+        const Scanlines::Scanline &scanline(scanlines[i]);
+        for(unsigned int j = 0; j < scanline.size(); ++j)
+        {
+            for(unsigned int x = scanline[j].begin;
+                x < scanline[j].end; ++x)
+            {
+                PythonSingleBandImage::reference old(labelImage(x, y));
+                if(old < 0)
+                    old -= 1;
+                else
+                    old = -1;
+            }
+        }
+    }
+}
+
+list removeEdgeFromLabelImage(
+    const Scanlines &scanlines,
+    PythonImage &labelVImage,
+    GrayValue substituteLabel)
+{
+    PythonSingleBandImage labelImage(labelVImage.subImage(0));
+
+    list result;
+    for(unsigned int y = scanlines.startIndex, i = 0;
+        i < scanlines.size(); ++y, ++i)
+    {
+        const Scanlines::Scanline &scanline(scanlines[i]);
+        for(unsigned int j = 0; j < scanline.size(); ++j)
+        {
+            for(unsigned int x = scanline[j].begin;
+                x < scanline[j].end; ++x)
+            {
+                PythonSingleBandImage::reference old(labelImage(x, y));
+                if(old != -1)
+                {
+                    old += 1;
+                }
+                else
+                {
+                    old = substituteLabel;
+                    result.append(Point2D(x, y));
+                }
+            }
+        }
+    }
+    return result;
+}
+
+template<class Array>
+struct ArrayPickleSuite : pickle_suite
+{
+    static tuple getinitargs(Array const& v)
+    {
+        list l(v);
+        return make_tuple(l);
+    }
+};
+
 void defPolygon()
 {
     def("intPos", &intPos);
 
-    typedef Polygon<Pixel> PythonPolygon;
+    typedef Polygon<Vector2> PythonPolygon;
 
-    typedef PythonPolygon::Base FPointArray;
-    typedef PointIter<FPointArray::const_iterator>
-        FPointIter;
-    defIter<FPointIter>("FPointIter");
-    typedef PointIter<FPointArray::const_reverse_iterator>
-        FPointRevIter;
-    defIter<FPointRevIter>("FPointRevIter");
-    class_<FPointArray>("VectorArray")
-        .def(init<FPointArray>())
-        .def("reverse", &FPointArray::reverse)
-        .def("__len__", &FPointArray::size)
-        .def("__getitem__", &Array__getitem__<FPointArray>)
-        .def("__setitem__", &Array__setitem__<FPointArray>)
-        .def("__iter__", &__iter__<FPointArray>)
-        .def("__reviter__", &__reviter__<FPointArray>)
-        .def("insert", &insert<FPointArray>)
+    typedef PythonPolygon::Base VectorArray;
+    typedef PointIter<VectorArray::const_iterator>
+        VectorIter;
+    defIter<VectorIter>("VectorIter");
+    typedef PointIter<VectorArray::const_reverse_iterator>
+        VectorRevIter;
+    defIter<VectorRevIter>("VectorRevIter");
+    class_<VectorArray>("VectorArray")
+        .def(init<VectorArray>())
+        .def("reverse", &VectorArray::reverse)
+        .def("__len__", &VectorArray::size)
+        .def("__getitem__", &Array__getitem__<VectorArray>)
+        .def("__setitem__", &Array__setitem__<VectorArray>)
+        .def("__iter__", &__iter__<VectorArray>)
+        .def("__reviter__", &__reviter__<VectorArray>)
+        .def("insert", &insert<VectorArray>)
         .def(self * double())
-        .def("roundToInteger", &FPointArray::roundToInteger)
+        .def("roundToInteger", &VectorArray::roundToInteger)
     ;
 
     typedef PointArray<Point2D> IPointArray;
@@ -152,7 +252,8 @@ void defPolygon()
 
     class_<PythonPolygon, bases<PythonPolygon::Base> >("Polygon")
         .def(init<list>())
-        .def(init<FPointArray>())
+        .def(init<VectorArray>())
+        .def("__delitem__", &erase<PythonPolygon>)
         .def("insert", &insert<PythonPolygon>)
         .def("append", &PythonPolygon::push_back)
         .def("extend", &PythonPolygon::extend)
@@ -162,10 +263,38 @@ void defPolygon()
         .def("partialArea", &PythonPolygon::partialArea)
         .def("reverse", &PythonPolygon::reverse)
         .def("invalidateProperties", &PythonPolygon::invalidateProperties)
+        .def_pickle(ArrayPickleSuite<PythonPolygon>())
     ;
 
+    class_<Scanlines>("Scanlines", no_init)
+        .def("__len__", &Scanlines::size)
+        .def("__getitem__", &Array__getitem__byref<Scanlines>,
+             return_internal_reference<>())
+        .def_readonly("startIndex", &Scanlines::startIndex)
+    ;
+
+    class_<Scanlines::Scanline>("Scanline", no_init)
+        .def("__len__", &Scanlines::Scanline::size)
+        .def("__getitem__", &Array__getitem__byref<Scanlines::Scanline>,
+             return_internal_reference<>())
+    ;
+
+    class_<ScanlineSegment>("ScanlineSegment", no_init)
+        .def_readonly("begin", &ScanlineSegment::begin)
+        .def_readonly("direction", &ScanlineSegment::direction)
+        .def_readonly("end", &ScanlineSegment::end)
+    ;
+
+    def("scanPoly", &scanPoly<Vector2>,
+        (arg("points"), arg("scanLineCount"), arg("startIndex") = 0),
+        return_value_policy<manage_new_object>());
+    def("fillScannedPoly", &pyFillScannedPoly);
+    def("drawScannedPoly", &pyDrawScannedPoly);
+    def("markEdgeInLabelImage", &markEdgeInLabelImage);
+    def("removeEdgeFromLabelImage", &removeEdgeFromLabelImage);
+
+    def("simplifyPolygon",
+        (VectorArray (*)(const VectorArray &,double))&simplifyPolygon);
     def("simplifyPolygon",
         (PythonPolygon (*)(const PythonPolygon &,double))&simplifyPolygon);
-    def("simplifyPolygon",
-        (FPointArray (*)(const FPointArray &,double))&simplifyPolygon);
 }
