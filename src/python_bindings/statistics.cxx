@@ -73,6 +73,8 @@ class PolylineStatistics
 
 class QuantileStatistics : public PolylineStatistics
 {
+    typedef std::vector<std::pair<double, double> > Segments;
+    
   public:
     QuantileStatistics()
     {}
@@ -112,9 +114,10 @@ class QuantileStatistics : public PolylineStatistics
     void merge(const QuantileStatistics &otherStats)
     {
         PolylineStatistics::merge(otherStats);
+        Segments::iterator oldEnd(segments_.end());
         segments_.resize(segments_.size() + otherStats.segments_.size());
         std::copy(otherStats.segments_.begin(), otherStats.segments_.end(),
-                  segments_.begin());
+                  oldEnd);
         sorted_ = false;
     }
 
@@ -130,7 +133,7 @@ class QuantileStatistics : public PolylineStatistics
         }
     }
 
-    mutable std::vector<std::pair<double, double> > segments_;
+    mutable Segments segments_;
     mutable bool sorted_;
 };
 
@@ -169,7 +172,7 @@ void defStatistics()
         .def("merge", &PolylineStatistics::merge)
     ;
 
-    class_<QuantileStatistics>("EdgeStatistics")
+    class_<QuantileStatistics, bases<PolylineStatistics> >("EdgeStatistics")
         .def(init<const PointArray<Vector2> &,
                   const SplineImageView<5, GrayValue> &>())
         .def("__call__", &QuantileStatistics::__call__)
