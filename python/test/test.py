@@ -40,46 +40,23 @@ def checkLabelConsistency(map):
 # bg = readImage("../../../Testimages/blox.gif")
 # d = MapDisplay(bg, map)
 
-checkConsistency(map)
+assert checkConsistency(map)
 checkLabelConsistency(map)
 
 # --------------------------------------------------------------------
 
-mergeEdges(map.dart(29)) # create loop with two degree-2-nodes
-checkConsistency(map)
-mergeEdges(map.dart(43)) # lead to infinite loop
-checkConsistency(map)
+from vigra import Vector2
+from hourglass import Polygon, scanPoly
 
-removeBridge(map.dart(32)) # makes edge 22 a self-loop
-try:
-    mergeEdges(map.dart(22))
-except TypeError:
-    print "caught expected exception."
-    pass
-
-checkConsistency(map)
-checkLabelConsistency(map)
-
-# --------------------------------------------------------------------
-
-points = [Vector(232.20846246994, 81.488755298170375),
-          Vector(228.16750125077627, 81.481533365106415),
-          Vector(224.94552025882538, 81.580691309124461)]
-print scanPoly(iter(points), 2, 81)
-assert scanPoly(iter(points), 2, 81) == [
-    [(227.5675290883523, 0, 232.20846557617188)],
-    [(224.94552612304688, 0, 227.5675290883523)]]
-
-# --------------------------------------------------------------------
-
-# labelImage contains 2 pixels with unknown faces!
-#   unknown face labels found: [99999.0]
-mergeFaces(map.dart(36))
-mergeEdges(map.dart(-28))
-
-checkLabelConsistency(map)
-
-#sys.exit(0)
+points = Polygon([Vector2(232.20846246994, 81.488755298170375),
+                  Vector2(228.16750125077627, 81.481533365106415),
+                  Vector2(224.94552025882538, 81.580691309124461)])
+ss = [[(e.begin, e.direction, e.end) for e in list(s)]
+      for s in scanPoly(points, 2, 81)]
+print ss
+assert ss == [
+    [(228, 0, 233)],
+    [(225, 0, 229)]]
 
 # --------------------------------------------------------------------
 
@@ -87,11 +64,11 @@ import random, time
 if len(sys.argv) > 1:
     seed = long(sys.argv[1])
 else:
-    seed = time.time()
+    seed = long(time.time())
 
 print "using %d as seed." % (seed, )
 random.seed(seed)
-print "random state:", random.getstate()
+#print "random state:", random.getstate()
 
 def mergeEdgesCandidates(map):
     result = []
@@ -123,7 +100,7 @@ history = ""
 possible = range(3)
 try:
   while True:
-    checkConsistency(map)
+    assert checkConsistency(map)
 
     if not len(possible):
         break
