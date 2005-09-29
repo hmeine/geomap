@@ -74,7 +74,7 @@ class PolylineStatistics
 class QuantileStatistics : public PolylineStatistics
 {
     typedef std::vector<std::pair<double, double> > Segments;
-    
+
   public:
     QuantileStatistics()
     {}
@@ -114,10 +114,10 @@ class QuantileStatistics : public PolylineStatistics
     void merge(const QuantileStatistics &otherStats)
     {
         PolylineStatistics::merge(otherStats);
-        Segments::iterator oldEnd(segments_.end());
+        Segments::size_type oldSize(segments_.size());
         segments_.resize(segments_.size() + otherStats.segments_.size());
         std::copy(otherStats.segments_.begin(), otherStats.segments_.end(),
-                  oldEnd);
+                  segments_.begin() + oldSize);
         sorted_ = false;
     }
 
