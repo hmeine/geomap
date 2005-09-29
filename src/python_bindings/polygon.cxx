@@ -212,47 +212,47 @@ void defPolygon()
 
     typedef Polygon<Vector2> PythonPolygon;
 
-    typedef PythonPolygon::Base VectorArray;
-    typedef PointIter<VectorArray::const_iterator>
+    typedef PythonPolygon::Base Vector2Array;
+    typedef PointIter<Vector2Array::const_iterator>
         VectorIter;
-    defIter<VectorIter>("VectorIter");
-    typedef PointIter<VectorArray::const_reverse_iterator>
+    defIter<VectorIter>("Vector2Iter");
+    typedef PointIter<Vector2Array::const_reverse_iterator>
         VectorRevIter;
-    defIter<VectorRevIter>("VectorRevIter");
-    class_<VectorArray>("VectorArray")
-        .def(init<VectorArray>())
-        .def("reverse", &VectorArray::reverse)
-        .def("__len__", &VectorArray::size)
-        .def("__getitem__", &Array__getitem__<VectorArray>)
-        .def("__setitem__", &Array__setitem__<VectorArray>)
-        .def("__iter__", &__iter__<VectorArray>)
-        .def("__reviter__", &__reviter__<VectorArray>)
-        .def("insert", &insert<VectorArray>)
+    defIter<VectorRevIter>("Vector2RevIter");
+    class_<Vector2Array>("Vector2Array")
+        .def(init<Vector2Array>())
+        .def("reverse", &Vector2Array::reverse)
+        .def("__len__", &Vector2Array::size)
+        .def("__getitem__", &Array__getitem__<Vector2Array>)
+        .def("__setitem__", &Array__setitem__<Vector2Array>)
+        .def("__iter__", &__iter__<Vector2Array>)
+        .def("__reviter__", &__reviter__<Vector2Array>)
+        .def("insert", &insert<Vector2Array>)
         .def(self * double())
-        .def("roundToInteger", &VectorArray::roundToInteger)
+        .def("roundToInteger", &Vector2Array::roundToInteger)
     ;
 
-    typedef PointArray<Point2D> IPointArray;
-    typedef PointIter<IPointArray::const_iterator>
-        IPointIter;
-    defIter<IPointIter>("IPointIter");
-    typedef PointIter<IPointArray::const_reverse_iterator>
-        IPointRevIter;
-    defIter<IPointRevIter>("IPointRevIter");
-    class_<IPointArray>("Point2DArray")
-        .def(init<IPointArray>())
-        .def("reverse", &IPointArray::reverse)
-        .def("__len__", &IPointArray::size)
-        .def("__getitem__", &Array__getitem__<IPointArray>)
-        .def("__setitem__", &Array__setitem__<IPointArray>)
-        .def("__iter__", &__iter__<IPointArray>)
-        .def("__reviter__", &__reviter__<IPointArray>)
-        .def("insert", &insert<IPointArray>)
+    typedef PointArray<Point2D> Point2DArray;
+    typedef PointIter<Point2DArray::const_iterator>
+        Point2DIter;
+    defIter<Point2DIter>("Point2DIter");
+    typedef PointIter<Point2DArray::const_reverse_iterator>
+        Point2DRevIter;
+    defIter<Point2DRevIter>("Point2DRevIter");
+    class_<Point2DArray>("Point2DArray")
+        .def(init<Point2DArray>())
+        .def("reverse", &Point2DArray::reverse)
+        .def("__len__", &Point2DArray::size)
+        .def("__getitem__", &Array__getitem__<Point2DArray>)
+        .def("__setitem__", &Array__setitem__<Point2DArray>)
+        .def("__iter__", &__iter__<Point2DArray>)
+        .def("__reviter__", &__reviter__<Point2DArray>)
+        .def("insert", &insert<Point2DArray>)
     ;
 
     class_<PythonPolygon, bases<PythonPolygon::Base> >("Polygon")
         .def(init<list>())
-        .def(init<VectorArray>())
+        .def(init<Vector2Array>())
         .def("__delitem__", &erase<PythonPolygon>)
         .def("insert", &insert<PythonPolygon>)
         .def("append", &PythonPolygon::push_back)
@@ -294,7 +294,7 @@ void defPolygon()
     def("removeEdgeFromLabelImage", &removeEdgeFromLabelImage);
 
     def("simplifyPolygon",
-        (VectorArray (*)(const VectorArray &,double))&simplifyPolygon);
+        (Vector2Array (*)(const Vector2Array &,double))&simplifyPolygon);
     def("simplifyPolygon",
         (PythonPolygon (*)(const PythonPolygon &,double))&simplifyPolygon);
 }
