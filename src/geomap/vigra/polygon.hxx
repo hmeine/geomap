@@ -501,7 +501,7 @@ struct Scanlines
 
     Scanlines(unsigned int startIndex, unsigned int count)
     : startIndex(startIndex),
-      scanlines(count - startIndex)
+      scanlines(count)
     {}
 
     Scanline &operator[](unsigned int index)
