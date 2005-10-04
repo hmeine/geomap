@@ -1,6 +1,7 @@
 #include <boost/python.hpp>
 #include <boost/python/detail/api_placeholder.hpp>
-#include "vigra/pythonimage.hxx"
+#include <vigra/gaussians.hxx>
+#include <vigra/pythonimage.hxx>
 #include "vigra/polygon.hxx"
 
 using namespace vigra;
@@ -139,33 +140,82 @@ unsigned int pyDrawScannedPoly(
 }
 
 template<class Array>
-tuple polyAngle(const Array &p, unsigned int i)
+list curvatureList(const Array &p, unsigned int skip = 0)
 {
-    typename Array::value_type
-        s1(p[i+1] - p[i]),
-        s2(p[i+2] - p[i+1]),
-        s3(p[i+2] - p[i]);
+    double pos = 0.0;
+    list result;
 
-    double 
-        a2 = s1.squaredMagnitude(),
-        b2 = s2.squaredMagnitude(),
-        c2 = s3.squaredMagnitude(),
-        a = sqrt(a2),
-        b = sqrt(b2);
+    for(unsigned int i = skip; i < p.size() - 2 - skip; ++i)
+    {
+        typename Array::value_type
+            s1(p[i+1] - p[i]),
+            s2(p[i+2] - p[i+1]),
+            s3(p[i+2] - p[i]);
 
-    static const double eps = 1e-8;
-    if(a < eps || b < eps)
-        return make_tuple(object(), a);
+        double
+            a2 = s1.squaredMagnitude(),
+            b2 = s2.squaredMagnitude(),
+            c2 = s3.squaredMagnitude(),
+            a = sqrt(a2),
+            b = sqrt(b2);
 
-    double gamma = (a2+b2-c2) / (2*a*b), delta;
-    if(gamma > -1.0)
-        delta = M_PI - acos(gamma);
-    else
-        return make_tuple(0.0, a);
+        pos += a;
 
-    if((s1[0]*s3[1] - s3[0]*s1[1]) < 0)
-        return make_tuple(-delta, a);
-    return make_tuple(delta, a);
+        static const double eps = 1e-8;
+        if(a < eps || b < eps)
+            continue;
+
+        double gamma = (a2+b2-c2) / (2*a*b), delta;
+        if(gamma > -1.0)
+        {
+            delta = M_PI - acos(gamma);
+            if((s1[0]*s3[1] - s3[0]*s1[1]) < 0)
+                result.append(make_tuple(pos, -2*delta / (a+b)));
+            else
+                result.append(make_tuple(pos,  2*delta / (a+b)));
+        }
+        else
+            result.append(make_tuple(pos, 0.0));
+    }
+
+    return result;
+}
+
+template<class Array>
+list smoothCurvature(const list &curvatureList, double sigma)
+{
+    list result;
+    Gaussian<> g(sigma);
+    for(int i = 0; i < len(curvatureList); ++i)
+    {
+        tuple posCurv((extract<tuple>(curvatureList[i])()));
+        double pos = extract<double>(posCurv[0])();
+        double mean = 0.0, norm = 0.0;
+        for(int j = i; j < len(curvatureList); ++j)
+        {
+            tuple posCurv((extract<tuple>(curvatureList[j])()));
+            double dist = extract<double>(posCurv[0])() - pos;
+            if(dist > g.radius())
+                break;
+            double curv = extract<double>(posCurv[1])();
+            double w(g(dist));
+            mean += w*curv;
+            norm += w;
+        }
+        for(int j = i - 1; j >= 0; --j)
+        {
+            tuple posCurv((extract<tuple>(curvatureList[j])()));
+            double dist = extract<double>(posCurv[0])() - pos;
+            if(dist < -g.radius())
+                break;
+            double curv = extract<double>(posCurv[1])();
+            double w(g(dist));
+            mean += w*curv;
+            norm += w;
+        }
+        result.append(make_tuple(pos, mean/norm));
+    }
+    return result;
 }
 
 void markEdgeInLabelImage(
@@ -327,5 +377,8 @@ void defPolygon()
         (Vector2Array (*)(const Vector2Array &,double))&simplifyPolygon);
     def("simplifyPolygon",
         (PythonPolygon (*)(const PythonPolygon &,double))&simplifyPolygon);
-    def("polyAngle", &polyAngle<Vector2Array>);
+    def("curvatureList", &curvatureList<Vector2Array>,
+        (arg("pointArray"), arg("skipPoints") = 1));
+    def("smoothCurvature", &smoothCurvature<Vector2Array>,
+        args("curvatureList", "sigma"));
 }
