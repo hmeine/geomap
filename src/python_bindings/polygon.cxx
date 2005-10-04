@@ -138,6 +138,36 @@ unsigned int pyDrawScannedPoly(
                            StandardValueAccessor<GrayValue>());
 }
 
+template<class Array>
+tuple polyAngle(const Array &p, unsigned int i)
+{
+    typename Array::value_type
+        s1(p[i+1] - p[i]),
+        s2(p[i+2] - p[i+1]),
+        s3(p[i+2] - p[i]);
+
+    double 
+        a2 = s1.squaredMagnitude(),
+        b2 = s2.squaredMagnitude(),
+        c2 = s3.squaredMagnitude(),
+        a = sqrt(a2),
+        b = sqrt(b2);
+
+    static const double eps = 1e-8;
+    if(a < eps || b < eps)
+        return make_tuple(object(), a);
+
+    double gamma = (a2+b2-c2) / (2*a*b), delta;
+    if(gamma > -1.0)
+        delta = M_PI - acos(gamma);
+    else
+        return make_tuple(0.0, a);
+
+    if((s1[0]*s3[1] - s3[0]*s1[1]) < 0)
+        return make_tuple(-delta, a);
+    return make_tuple(delta, a);
+}
+
 void markEdgeInLabelImage(
     const Scanlines &scanlines,
     PythonImage &labelVImage)
@@ -297,4 +327,5 @@ void defPolygon()
         (Vector2Array (*)(const Vector2Array &,double))&simplifyPolygon);
     def("simplifyPolygon",
         (PythonPolygon (*)(const PythonPolygon &,double))&simplifyPolygon);
+    def("polyAngle", &polyAngle<Vector2Array>);
 }
