@@ -45,6 +45,14 @@ checkLabelConsistency(map)
 
 # --------------------------------------------------------------------
 
+p1 = Polygon([Vector2(1, 0), Vector2(2, 0)])
+p2 = Polygon([Vector2(2, 0), Vector2(3, 0)])
+p1.extend(p2)
+assert len(p1) == 3, "Polygon composition should prevent duplicate points:\n  %s" % (
+    list(p1), )
+
+# --------------------------------------------------------------------
+
 from vigra import Vector2
 from hourglass import Polygon, scanPoly
 
