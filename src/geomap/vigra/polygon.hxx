@@ -222,19 +222,31 @@ class Polygon : public PointArray<POINT>
     {
         if(!other.size())
             return;
+        
+        Polygon::const_iterator otherBegin(other.begin());
         if(size())
         {
-            if(lengthValid_)
-                length_ += (other.points_.front() - points_.back()).magnitude();
-            if(partialAreaValid_)
-                partialAreaValid_ += (other.points_.front()[0]*points_.back()[1] -
-                                      other.points_.front()[1]*points_.back()[0]);
+            if(*otherBegin == points_.back())
+            {
+                // don't copy first pixel
+                ++otherBegin;
+            }
+            else
+            {
+                if(lengthValid_)
+                    length_ +=
+                        (other.points_.front() - points_.back()).magnitude();
+                if(partialAreaValid_)
+                    partialAreaValid_ +=
+                        (other.points_.front()[0]*points_.back()[1] -
+                         other.points_.front()[1]*points_.back()[0]);
+            }
         }
         if(lengthValid_)
             length_ += other.length();
         if(partialAreaValid_)
             partialArea_ += other.partialArea();
-        points_.insert(points_.end(), other.begin(), other.end());
+        points_.insert(points_.end(), otherBegin, other.end());
     }
 
 /********************************************************************/
