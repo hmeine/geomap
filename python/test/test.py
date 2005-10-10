@@ -1,7 +1,37 @@
+from vigra import Vector2
+from hourglass import Polygon, scanPoly
+
+def scanPoly2List(*args):
+    return [[(e.begin, e.direction, e.end) for e in list(s)]
+            for s in scanPoly(*args)]
+
+execfile("testPolygons")
+ss = scanPoly2List(miniPoly, 2, 81)
+print ss
+assert ss == \
+       [[(228, 0, 233)], [(225, 0, 229)]]
+assert scanPoly2List(smallPoly, 5, 180) == \
+       [[], [], [(66, 0, 68)], [], []]
+assert scanPoly2List(openPoly, 11, 188) == \
+       [[(177, 0, 178)], [(177, 1, 179)], [(178, 1, 179)], [(178, 1, 179)], [(178, 1, 179)], [(178, 1, 179)], [(178, 1, 179)], [(178, 1, 179)], [(178, 1, 179)], [(178, 1, 179)], [(178, 0, 179)]]
+assert scanPoly2List(closedPoly, 20, 104) == \
+       [[(86, 0, 88)], [(85, 0, 89)], [(83, 1, 86), (88, -1, 89)], [(82, 1, 84), (87, -1, 89)], [(81, 1, 83), (87, -1, 88)], [(80, 1, 82), (87, -1, 88)], [(79, 1, 81), (87, -1, 88)], [(79, 1, 80), (87, -1, 88)], [(78, 1, 80), (87, -1, 88)], [(78, 1, 79), (87, -1, 88)], [(78, 1, 79), (86, -1, 88)], [(77, 1, 79), (86, -1, 87)], [(77, 1, 79), (86, -1, 87)], [(78, 1, 79), (86, -1, 87)], [(78, 1, 79), (86, -1, 88)], [(78, 1, 79), (87, -1, 88)], [(78, 1, 79), (87, -1, 88)], [(78, 1, 79), (81, -1, 88)], [(78, 0, 82)], []]
+print "scanPoly tested OK."
+
+# --------------------------------------------------------------------
+
+p1 = Polygon([Vector2(1, 0), Vector2(2, 0)])
+p2 = Polygon([Vector2(2, 0), Vector2(3, 0)])
+p1.extend(p2)
+assert len(p1) == 3, "Polygon composition should prevent duplicate points:\n  %s" % (
+    list(p1), )
+
+# --------------------------------------------------------------------
+
 execfile("map.py")
 execfile("testSPWS")
 
-map = Map(maxima, flowlines, Size2D(256, 256))
+map = Map(maxima, [fl and fl[0] or None for fl in flowlines], Size2D(256, 256))
 
 class FaceLookup:
     def __init__(self, map):
@@ -42,29 +72,6 @@ def checkLabelConsistency(map):
 
 assert checkConsistency(map)
 checkLabelConsistency(map)
-
-# --------------------------------------------------------------------
-
-p1 = Polygon([Vector2(1, 0), Vector2(2, 0)])
-p2 = Polygon([Vector2(2, 0), Vector2(3, 0)])
-p1.extend(p2)
-assert len(p1) == 3, "Polygon composition should prevent duplicate points:\n  %s" % (
-    list(p1), )
-
-# --------------------------------------------------------------------
-
-from vigra import Vector2
-from hourglass import Polygon, scanPoly
-
-points = Polygon([Vector2(232.20846246994, 81.488755298170375),
-                  Vector2(228.16750125077627, 81.481533365106415),
-                  Vector2(224.94552025882538, 81.580691309124461)])
-ss = [[(e.begin, e.direction, e.end) for e in list(s)]
-      for s in scanPoly(points, 2, 81)]
-print ss
-assert ss == [
-    [(228, 0, 233)],
-    [(225, 0, 229)]]
 
 # --------------------------------------------------------------------
 
