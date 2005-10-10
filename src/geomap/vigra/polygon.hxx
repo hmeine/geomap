@@ -222,7 +222,7 @@ class Polygon : public PointArray<POINT>
     {
         if(!other.size())
             return;
-        
+
         Polygon::const_iterator otherBegin(other.begin());
         if(size())
         {
@@ -484,11 +484,15 @@ void simplifyPolygon(const PointArray &poly, PointArray &simple, double epsilon)
 
 struct ScanlineSegment
 {
-    int begin, end, direction;
+    int begin, direction, end;
         // enum { Up, Down, Touch } direction;
 
     ScanlineSegment(int b, int d, int e)
-    : begin(b), end(e), direction(d)
+    : begin(b), direction(d), end(e)
+    {}
+
+    ScanlineSegment(double b, int d, double e)
+    : begin((int)(b+0.5)), direction(d), end((int)(ceil(e + 0.5)))
     {}
 
     ScanlineSegment()
@@ -571,27 +575,25 @@ Scanlines *scanPoly(
                 if(firstSegment.direction)
                 {
                     (*result)[prevLine - startIndex].push_back(
-                        ScanlineSegment((int)(s + 0.5),
-                                        (step + prevStep)/2,
-                                        (int)(ceil(e + 0.5))));
+                        ScanlineSegment(s, (step + prevStep)/2, e));
                 }
                 else
                 {
-                    firstSegment.begin = (int)(s + 0.5);
-                    firstSegment.end = (int)(ceil(e + 0.5));
-                    firstSegment.direction = step;
+                    firstSegment = ScanlineSegment(s, step, e);
                 }
                 prevStep = step;
                 s = e = intersectX;
             }
         }
 
-        prevPoint = points[i];
+        if(s > x)
+            s = x;
+        else if(e < x)
+            e = x;
 
-        if(s > prevPoint[0])
-            s = prevPoint[0];
-        else if(e < prevPoint[0])
-            e = prevPoint[0];
+        // using (x, y) is possibly faster than points[i]
+        prevPoint[0] = x;
+        prevPoint[1] = y;
     }
 
     bool closed(firstPoint == prevPoint);
@@ -614,9 +616,7 @@ Scanlines *scanPoly(
         else
         {
             (*result)[prevLine - startIndex].push_back(
-                ScanlineSegment((int)(s + 0.5),
-                                0,
-                                (int)(ceil(e + 0.5))));
+                ScanlineSegment(s, 0, e));
             firstSegment.direction = 0;
             (*result)[(int)(firstPoint[1] + 0.5) - startIndex].push_back(
                 firstSegment);
@@ -645,9 +645,7 @@ Scanlines *scanPoly(
     }
     else
         (*result)[prevLine - startIndex].push_back(
-            ScanlineSegment((int)(s + 0.5),
-                            0,
-                            (int)(ceil(e + 0.5))));
+            ScanlineSegment(s, 0, e));
 
     return result;
 }
