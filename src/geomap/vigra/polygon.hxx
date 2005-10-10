@@ -556,6 +556,28 @@ struct Scanlines
     {
         return scanlines.size();
     }
+
+    void normalize()
+    {
+        for(unsigned int i = 0; i < size(); ++i)
+        {
+            Scanlines::Scanline &scanline((*this)[i]);
+            
+            std::sort(scanline.begin(), scanline.end(),
+                      ScanlineSegmentCompare());
+            
+            for(unsigned int j = 1; j < scanline.size(); )
+            {
+                if(scanline[j].begin <= scanline[j-1].end)
+                {
+                    scanline[j-1].joinSuccessor(scanline[j]);
+                    scanline.erase(scanline.begin() + j);
+                }
+                else
+                    ++j;
+            }
+        }
+    }
 };
 
 template<class Point>
@@ -683,24 +705,7 @@ Scanlines *scanPoly(
     }
 
     // normalize result (sort, merge overlapping)
-    for(unsigned int i = 0; i < result->size(); ++i)
-    {
-        Scanlines::Scanline &scanline((*result)[i]);
-
-        std::sort(scanline.begin(), scanline.end(),
-                  ScanlineSegmentCompare());
-
-        for(unsigned int j = 1; j < scanline.size(); )
-        {
-            if(scanline[j].begin <= scanline[j-1].end)
-            {
-                scanline[j-1].joinSuccessor(scanline[j]);
-                scanline.erase(scanline.begin() + j);
-            }
-            else
-                ++j;
-        }
-    }
+    result->normalize();
 
     return result;
 }
