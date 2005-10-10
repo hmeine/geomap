@@ -600,6 +600,7 @@ Scanlines *scanPoly(
         prevPoint[1] = y;
     }
 
+    // return only one segment
     if(i >= points.size())
     {
         result->append(prevLine, ScanlineSegment(s, 0, e));
@@ -617,12 +618,14 @@ Scanlines *scanPoly(
     else if(e < intersectX)
         e = intersectX;
 
+    // store first segment (might need to be extended at the end)
     ScanlineSegment firstSegment(s, step, e);
 
     int prevStep = step;
     s = e = intersectX;
     prevLine += step;
 
+    // find remaining ScanlineSegments:
     for(; i < points.size(); ++i)
     {
         x = points[i][0];
@@ -662,8 +665,10 @@ Scanlines *scanPoly(
     }
 
     // TODO: put closed, first + last segment into result
-    if(firstPoint == prevPoint)
+
+    if(firstPoint == prevPoint) // closed?
     {
+        // closed polygon, join end segments
         ScanlineSegment lastSegment(s, prevStep, e);
         firstSegment.join(lastSegment);
         firstSegment.direction /= 2;
@@ -671,11 +676,13 @@ Scanlines *scanPoly(
     }
     else
     {
+        // open polygon, mark directions of ends as unknown
         result->append(prevLine, ScanlineSegment(s, 0, e));
         firstSegment.direction = 0;
         result->append((int)(firstPoint[1] + 0.5), firstSegment);
     }
 
+    // normalize result (sort, merge overlapping)
     for(unsigned int i = 0; i < result->size(); ++i)
     {
         Scanlines::Scanline &scanline((*result)[i]);
@@ -689,7 +696,7 @@ Scanlines *scanPoly(
             {
                 scanline[j-1].joinSuccessor(scanline[j]);
                 scanline.erase(scanline.begin() + j);
-                }
+            }
             else
                 ++j;
         }
