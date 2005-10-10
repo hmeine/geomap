@@ -497,6 +497,23 @@ struct ScanlineSegment
 
     ScanlineSegment()
     {}
+
+        // joins two (overlapping) segments
+    void join(const ScanlineSegment &other)
+    {
+        if(other.begin < begin)
+            begin = other.begin;
+        joinSuccessor(other);
+    }
+
+        // joins two successive (overlapping) segments,
+        // assumes that other.begin >= this->begin
+    void joinSuccessor(const ScanlineSegment &other)
+    {
+        if(other.end > end)
+            end = other.end;
+        direction += other.direction;
+    }
 };
 
 struct ScanlineSegmentCompare
@@ -601,20 +618,14 @@ Scanlines *scanPoly(
         prevPoint[1] = y;
     }
 
-    bool closed(firstPoint == prevPoint);
-
     if(firstSegment.direction)
     {
         // TODO: put closed, first + last segment into result
-        if(closed)
+        if(firstPoint == prevPoint)
         {
-            int ib = (int)(s + 0.5), ie = (int)(ceil(e + 0.5));
-            if(firstSegment.begin > ib)
-                firstSegment.begin = ib;
-            if(firstSegment.end < ie)
-                firstSegment.end = ie;
-            firstSegment.direction = (firstSegment.direction + prevStep) / 2;
-
+            ScanlineSegment lastSegment(s, prevStep, e);
+            firstSegment.join(lastSegment);
+            firstSegment.direction /= 2;
             result->append(prevLine, firstSegment);
         }
         else
@@ -635,9 +646,7 @@ Scanlines *scanPoly(
             {
                 if(scanline[j].begin <= scanline[j-1].end)
                 {
-                    if(scanline[j].end > scanline[j-1].end)
-                        scanline[j-1].end = scanline[j].end;
-                    scanline[j-1].direction += scanline[j].direction;
+                    scanline[j-1].joinSuccessor(scanline[j]);
                     scanline.erase(scanline.begin() + j);
                 }
                 else
