@@ -564,6 +564,11 @@ Scanlines *scanPoly(
     unsigned int scanLineCount,
     unsigned int startIndex = 0)
 {
+    Scanlines *result = new Scanlines(startIndex, scanLineCount);
+
+    if(!points.size())
+        return result;
+
     Point
         firstPoint(points[0]),
         prevPoint(firstPoint);
@@ -571,22 +576,62 @@ Scanlines *scanPoly(
         s(prevPoint[0]),
         e(prevPoint[0]);
 
-    int prevLine((int)(prevPoint[1] + 0.5));
-    int prevStep;
+    int prevLine((int)(prevPoint[1] + 0.5)), line;
 
-    ScanlineSegment firstSegment;
-    firstSegment.direction = 0;
-
-    Scanlines *result = new Scanlines(startIndex, scanLineCount);
-
-    for(unsigned int i = 0; i < points.size(); ++i)
+    // build first segment
+    unsigned int i = 0;
+    typename Point::value_type x, y;
+    for(; i < points.size(); ++i)
     {
-        typename Point::value_type x(points[i][0]), y(points[i][1]);
+        x = points[i][0];
+        y = points[i][1];
 
-        int line((unsigned int)(y + 0.5));
+        line = (int)(y + 0.5);
+        if(line != prevLine)
+            break;
+
+        if(s > x)
+            s = x;
+        else if(e < x)
+            e = x;
+
+        // using (x, y) is possibly faster than points[i]
+        prevPoint[0] = x;
+        prevPoint[1] = y;
+    }
+
+    if(i >= points.size())
+    {
+        result->append(prevLine, ScanlineSegment(s, 0, e));
+        return result;
+    }
+
+    int step = (line > prevLine ? 1 : -1);
+
+    double intersectX =
+        prevPoint[0] + (x-prevPoint[0])
+        * (prevLine+0.5*step-prevPoint[1])/(y-prevPoint[1]);
+
+    if(s > intersectX)
+        s = intersectX;
+    else if(e < intersectX)
+        e = intersectX;
+
+    ScanlineSegment firstSegment(s, step, e);
+
+    int prevStep = step;
+    s = e = intersectX;
+    prevLine += step;
+
+    for(; i < points.size(); ++i)
+    {
+        x = points[i][0];
+        y = points[i][1];
+
+        line = (int)(y + 0.5);
         if(line != prevLine)
         {
-            int step = (line > prevLine ? 1 : -1);
+            step = (line > prevLine ? 1 : -1);
             for(; prevLine != line; prevLine += step)
             {
                 double intersectX =
@@ -598,15 +643,9 @@ Scanlines *scanPoly(
                 else if(e < intersectX)
                     e = intersectX;
 
-                if(firstSegment.direction)
-                {
-                    result->append(prevLine,
-                        ScanlineSegment(s, (step + prevStep)/2, e));
-                }
-                else
-                {
-                    firstSegment = ScanlineSegment(s, step, e);
-                }
+                result->append(prevLine,
+                               ScanlineSegment(s, (step + prevStep)/2, e));
+
                 prevStep = step;
                 s = e = intersectX;
             }
@@ -622,44 +661,39 @@ Scanlines *scanPoly(
         prevPoint[1] = y;
     }
 
-    if(firstSegment.direction)
+    // TODO: put closed, first + last segment into result
+    if(firstPoint == prevPoint)
     {
-        // TODO: put closed, first + last segment into result
-        if(firstPoint == prevPoint)
-        {
-            ScanlineSegment lastSegment(s, prevStep, e);
-            firstSegment.join(lastSegment);
-            firstSegment.direction /= 2;
-            result->append(prevLine, firstSegment);
-        }
-        else
-        {
-            result->append(prevLine, ScanlineSegment(s, 0, e));
-            firstSegment.direction = 0;
-            result->append((int)(firstPoint[1] + 0.5), firstSegment);
-        }
-
-        for(unsigned int i = 0; i < result->size(); ++i)
-        {
-            Scanlines::Scanline &scanline((*result)[i]);
-
-            std::sort(scanline.begin(), scanline.end(),
-                      ScanlineSegmentCompare());
-
-            for(unsigned int j = 1; j < scanline.size(); )
-            {
-                if(scanline[j].begin <= scanline[j-1].end)
-                {
-                    scanline[j-1].joinSuccessor(scanline[j]);
-                    scanline.erase(scanline.begin() + j);
-                }
-                else
-                    ++j;
-            }
-        }
+        ScanlineSegment lastSegment(s, prevStep, e);
+        firstSegment.join(lastSegment);
+        firstSegment.direction /= 2;
+        result->append(prevLine, firstSegment);
     }
     else
+    {
         result->append(prevLine, ScanlineSegment(s, 0, e));
+        firstSegment.direction = 0;
+        result->append((int)(firstPoint[1] + 0.5), firstSegment);
+    }
+
+    for(unsigned int i = 0; i < result->size(); ++i)
+    {
+        Scanlines::Scanline &scanline((*result)[i]);
+
+        std::sort(scanline.begin(), scanline.end(),
+                  ScanlineSegmentCompare());
+
+        for(unsigned int j = 1; j < scanline.size(); )
+        {
+            if(scanline[j].begin <= scanline[j-1].end)
+            {
+                scanline[j-1].joinSuccessor(scanline[j]);
+                scanline.erase(scanline.begin() + j);
+                }
+            else
+                ++j;
+        }
+    }
 
     return result;
 }
