@@ -532,12 +532,12 @@ struct Scanlines
     int startIndex;
     std::vector<Scanline> scanlines;
 
-    Scanlines(unsigned int startIndex, unsigned int count)
+    Scanlines(int startIndex, unsigned int count)
     : startIndex(startIndex),
       scanlines(count)
     {}
 
-    void append(unsigned int line, const ScanlineSegment &seg)
+    void append(int line, const ScanlineSegment &seg)
     {
         scanlines[line - startIndex].push_back(seg);
     }
@@ -564,10 +564,14 @@ Scanlines *scanPoly(
     unsigned int scanLineCount,
     unsigned int startIndex = 0)
 {
-    Point firstPoint(points[0]), prevPoint(firstPoint);
-    typename Point::value_type s(prevPoint[0]), e(prevPoint[0]);
+    Point
+        firstPoint(points[0]),
+        prevPoint(firstPoint);
+    typename Point::value_type
+        s(prevPoint[0]),
+        e(prevPoint[0]);
 
-    unsigned int prevLine((unsigned int)(prevPoint[1] + 0.5));
+    int prevLine((int)(prevPoint[1] + 0.5));
     int prevStep;
 
     ScanlineSegment firstSegment;
@@ -579,7 +583,7 @@ Scanlines *scanPoly(
     {
         typename Point::value_type x(points[i][0]), y(points[i][1]);
 
-        unsigned int line((unsigned int)(y + 0.5));
+        int line((unsigned int)(y + 0.5));
         if(line != prevLine)
         {
             int step = (line > prevLine ? 1 : -1);
