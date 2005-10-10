@@ -520,6 +520,11 @@ struct Scanlines
       scanlines(count)
     {}
 
+    void append(unsigned int line, const ScanlineSegment &seg)
+    {
+        scanlines[line - startIndex].push_back(seg);
+    }
+
     Scanline &operator[](unsigned int index)
     {
         return scanlines[index];
@@ -574,7 +579,7 @@ Scanlines *scanPoly(
 
                 if(firstSegment.direction)
                 {
-                    (*result)[prevLine - startIndex].push_back(
+                    result->append(prevLine,
                         ScanlineSegment(s, (step + prevStep)/2, e));
                 }
                 else
@@ -610,16 +615,13 @@ Scanlines *scanPoly(
                 firstSegment.end = ie;
             firstSegment.direction = (firstSegment.direction + prevStep) / 2;
 
-            (*result)[prevLine - startIndex].push_back(
-                firstSegment);
+            result->append(prevLine, firstSegment);
         }
         else
         {
-            (*result)[prevLine - startIndex].push_back(
-                ScanlineSegment(s, 0, e));
+            result->append(prevLine, ScanlineSegment(s, 0, e));
             firstSegment.direction = 0;
-            (*result)[(int)(firstPoint[1] + 0.5) - startIndex].push_back(
-                firstSegment);
+            result->append((int)(firstPoint[1] + 0.5), firstSegment);
         }
 
         for(unsigned int i = 0; i < result->size(); ++i)
@@ -644,8 +646,7 @@ Scanlines *scanPoly(
         }
     }
     else
-        (*result)[prevLine - startIndex].push_back(
-            ScanlineSegment(s, 0, e));
+        result->append(prevLine, ScanlineSegment(s, 0, e));
 
     return result;
 }
