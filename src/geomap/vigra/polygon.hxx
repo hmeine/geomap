@@ -583,9 +583,7 @@ Scanlines *scanPoly(
     if(!points.size())
         return result;
 
-    unsigned int i = 0;
-
-    Point prevPoint(points[i]);
+    Point prevPoint(points[0]);
     typename Point::value_type
         s(prevPoint[0]),
         e(prevPoint[0]);
@@ -593,38 +591,47 @@ Scanlines *scanPoly(
     int prevLine((int)(prevPoint[1] + 0.5));
     int prevStep = 0;
 
-    for(; i < points.size(); ++i)
+    for(unsigned int i = 1; i < points.size(); ++i)
     {
-        typename Point::value_type x(points[i][0]), y(points[i][1]);
+        // read current point coordinates
+        typename Point::value_type
+            x(points[i][0]), y(points[i][1]);
 
-        int line((unsigned int)(y + 0.5));
+        // check whether we are in the right scanline
+        int line((int)(y + 0.5));
         if(line != prevLine)
         {
             int step = (line > prevLine ? 1 : -1);
             for(; prevLine != line; prevLine += step)
             {
-                double intersectX =
-                    prevPoint[0] + (x-prevPoint[0])
-                    * (prevLine+0.5*step-prevPoint[1])/(y-prevPoint[1]);
+                typename Point::value_type intersectX =
+                    prevPoint[0] + (x - prevPoint[0])
+                    * (prevLine + 0.5*step - prevPoint[1])
+                    / (y - prevPoint[1]);
 
+                // before leaving the scanline, include the intersection point
                 if(s > intersectX)
                     s = intersectX;
                 else if(e < intersectX)
                     e = intersectX;
 
+                // save scanline
                 result->append(
                     prevLine, ScanlineSegment(s, step + prevStep, e));
+
+                // initialize next scanline segment
                 prevStep = step;
                 s = e = intersectX;
             }
         }
 
+        // we are in the right scanline, include this point
         if(s > x)
             s = x;
         else if(e < x)
             e = x;
 
-        // using (x, y) is possibly faster than points[i]
+        // remember point (using (x, y) is possibly faster than points[i])
         prevPoint[0] = x;
         prevPoint[1] = y;
     }
