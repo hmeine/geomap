@@ -588,47 +588,69 @@ Scanlines *scanPoly(
         s(prevPoint[0]),
         e(prevPoint[0]);
 
-    int prevLine((int)(prevPoint[1] + 0.5));
-    int prevStep = 0;
+    int prevStep = 0; // how did we get into the current segment?
+    int prevLine; // the scanline we are currently in
+    int prevKLine; // prevLine as Khalimsky coordinate (odd: inter-pixel)
+
+    { // init prevLine and prevKLine from first point
+        typename Point::value_type
+            py(prevPoint[1] + 0.5);
+        prevLine = (int)floor(py);
+
+        prevKLine = 2*prevLine;
+        if(py == prevLine)
+            --prevKLine;
+    }
 
     for(unsigned int i = 1; i < points.size(); ++i)
     {
         // read current point coordinates
         typename Point::value_type
-            x(points[i][0]), y(points[i][1]);
+            x(points[i][0]), y(points[i][1]), ly(y + 0.5);
 
         // check whether we are in the right scanline
-        int line((int)(y + 0.5));
-        if(line != prevLine)
+        int line = ((int)floor(ly)), kLine = 2*line;
+        if(ly == line)
+            --kLine;
+
+        if(kLine != prevKLine)
         {
-            int step = (line > prevLine ? 1 : -1);
-            for(; prevLine != line; prevLine += step)
+            int step = (kLine > prevKLine ? 1 : -1);
+            for(; prevKLine != kLine; prevKLine += step)
             {
                 typename Point::value_type intersectX =
                     prevPoint[0] + (x - prevPoint[0])
                     * (prevLine + 0.5*step - prevPoint[1])
                     / (y - prevPoint[1]);
 
-                // before leaving the scanline, include the intersection point
-                if(s > intersectX)
-                    s = intersectX;
-                else if(e < intersectX)
-                    e = intersectX;
+                if(!(prevKLine & 1))
+                {
+                    // before leaving the scanline, include the intersection point
+                    if(s > intersectX)
+                        s = intersectX;
+                    if(e < intersectX)
+                        e = intersectX;
 
-                // save scanline
-                result->append(
-                    prevLine, ScanlineSegment(s, step + prevStep, e));
+                    // save scanline
+                    result->append(
+                        prevKLine/2, ScanlineSegment(s, step + prevStep, e));
+                }
+                else
+                {
+                    // initialize next scanline segment
+                    s = e = intersectX;
 
-                // initialize next scanline segment
+                    prevLine += step; // needed for intersectX calculation
+                }
                 prevStep = step;
-                s = e = intersectX;
             }
+            prevLine = line;
         }
 
         // we are in the right scanline, include this point
         if(s > x)
             s = x;
-        else if(e < x)
+        if(e < x)
             e = x;
 
         // remember point (using (x, y) is possibly faster than points[i])
@@ -636,7 +658,8 @@ Scanlines *scanPoly(
         prevPoint[1] = y;
     }
 
-    result->append(prevLine, ScanlineSegment(s, prevStep, e));
+    if(!(prevKLine & 1))
+        result->append(prevKLine/2, ScanlineSegment(s, prevStep, e));
 
     // normalize result (sort, merge overlapping)
     result->normalize();
