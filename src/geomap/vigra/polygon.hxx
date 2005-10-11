@@ -583,9 +583,9 @@ Scanlines *scanPoly(
     if(!points.size())
         return result;
 
-    Point
-        firstPoint(points[0]),
-        prevPoint(firstPoint);
+    unsigned int i = 0;
+
+    Point prevPoint(points[i]);
     typename Point::value_type
         s(prevPoint[0]),
         e(prevPoint[0]);
@@ -593,10 +593,7 @@ Scanlines *scanPoly(
     int prevLine((int)(prevPoint[1] + 0.5));
     int prevStep = 0;
 
-    ScanlineSegment firstSegment;
-    firstSegment.direction = 0;
-
-    for(unsigned int i = 0; i < points.size(); ++i)
+    for(; i < points.size(); ++i)
     {
         typename Point::value_type x(points[i][0]), y(points[i][1]);
 
@@ -615,8 +612,8 @@ Scanlines *scanPoly(
                 else if(e < intersectX)
                     e = intersectX;
 
-                result->append(prevLine,
-                               ScanlineSegment(s, step + prevStep, e));
+                result->append(
+                    prevLine, ScanlineSegment(s, step + prevStep, e));
                 prevStep = step;
                 s = e = intersectX;
             }
