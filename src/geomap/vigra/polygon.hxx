@@ -498,14 +498,6 @@ struct ScanlineSegment
     ScanlineSegment()
     {}
 
-        // joins two (overlapping) segments
-    void join(const ScanlineSegment &other)
-    {
-        if(other.begin < begin)
-            begin = other.begin;
-        joinSuccessor(other);
-    }
-
         // joins two successive (overlapping) segments,
         // assumes that other.begin >= this->begin
     void joinSuccessor(const ScanlineSegment &other)
@@ -562,10 +554,10 @@ struct Scanlines
         for(unsigned int i = 0; i < size(); ++i)
         {
             Scanlines::Scanline &scanline((*this)[i]);
-            
+
             std::sort(scanline.begin(), scanline.end(),
                       ScanlineSegmentCompare());
-            
+
             for(unsigned int j = 1; j < scanline.size(); )
             {
                 if(scanline[j].begin <= scanline[j-1].end)
@@ -598,65 +590,20 @@ Scanlines *scanPoly(
         s(prevPoint[0]),
         e(prevPoint[0]);
 
-    int prevLine((int)(prevPoint[1] + 0.5)), line;
+    int prevLine((int)(prevPoint[1] + 0.5));
+    int prevStep = 0;
 
-    // build first segment
-    unsigned int i = 0;
-    typename Point::value_type x, y;
-    for(; i < points.size(); ++i)
+    ScanlineSegment firstSegment;
+    firstSegment.direction = 0;
+
+    for(unsigned int i = 0; i < points.size(); ++i)
     {
-        x = points[i][0];
-        y = points[i][1];
+        typename Point::value_type x(points[i][0]), y(points[i][1]);
 
-        line = (int)(y + 0.5);
-        if(line != prevLine)
-            break;
-
-        if(s > x)
-            s = x;
-        else if(e < x)
-            e = x;
-
-        // using (x, y) is possibly faster than points[i]
-        prevPoint[0] = x;
-        prevPoint[1] = y;
-    }
-
-    // return only one segment
-    if(i >= points.size())
-    {
-        result->append(prevLine, ScanlineSegment(s, 0, e));
-        return result;
-    }
-
-    int step = (line > prevLine ? 1 : -1);
-
-    double intersectX =
-        prevPoint[0] + (x-prevPoint[0])
-        * (prevLine+0.5*step-prevPoint[1])/(y-prevPoint[1]);
-
-    if(s > intersectX)
-        s = intersectX;
-    else if(e < intersectX)
-        e = intersectX;
-
-    // store first segment (might need to be extended at the end)
-    ScanlineSegment firstSegment(s, step, e);
-
-    int prevStep = step;
-    s = e = intersectX;
-    prevLine += step;
-
-    // find remaining ScanlineSegments:
-    for(; i < points.size(); ++i)
-    {
-        x = points[i][0];
-        y = points[i][1];
-
-        line = (int)(y + 0.5);
+        int line((unsigned int)(y + 0.5));
         if(line != prevLine)
         {
-            step = (line > prevLine ? 1 : -1);
+            int step = (line > prevLine ? 1 : -1);
             for(; prevLine != line; prevLine += step)
             {
                 double intersectX =
@@ -669,8 +616,7 @@ Scanlines *scanPoly(
                     e = intersectX;
 
                 result->append(prevLine,
-                               ScanlineSegment(s, (step + prevStep)/2, e));
-
+                               ScanlineSegment(s, step + prevStep, e));
                 prevStep = step;
                 s = e = intersectX;
             }
@@ -686,23 +632,7 @@ Scanlines *scanPoly(
         prevPoint[1] = y;
     }
 
-    // TODO: put closed, first + last segment into result
-
-    if(firstPoint == prevPoint) // closed?
-    {
-        // closed polygon, join end segments
-        ScanlineSegment lastSegment(s, prevStep, e);
-        firstSegment.join(lastSegment);
-        firstSegment.direction /= 2;
-        result->append(prevLine, firstSegment);
-    }
-    else
-    {
-        // open polygon, mark directions of ends as unknown
-        result->append(prevLine, ScanlineSegment(s, 0, e));
-        firstSegment.direction = 0;
-        result->append((int)(firstPoint[1] + 0.5), firstSegment);
-    }
+    result->append(prevLine, ScanlineSegment(s, prevStep, e));
 
     // normalize result (sort, merge overlapping)
     result->normalize();
