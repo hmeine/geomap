@@ -145,7 +145,7 @@ list curvatureList(const Array &p, unsigned int skip = 0)
     double pos = 0.0;
     list result;
 
-    for(unsigned int i = skip; i < p.size() - 2 - skip; ++i)
+    for(int i = skip; i < p.size() - 2 - skip; ++i)
     {
         typename Array::value_type
             s1(p[i+1] - p[i]),
