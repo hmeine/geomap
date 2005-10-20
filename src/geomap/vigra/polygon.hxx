@@ -102,7 +102,7 @@ class PointArray
 
     iterator insert(iterator pos, const_reference x)
     {
-        points_.insert(pos, x);
+        return points_.insert(pos, x);
     }
 
     size_type size() const
@@ -237,7 +237,7 @@ class Polygon : public PointArray<POINT>
                     length_ +=
                         (other.points_.front() - points_.back()).magnitude();
                 if(partialAreaValid_)
-                    partialAreaValid_ +=
+                    partialArea_ +=
                         (other.points_.front()[0]*points_.back()[1] -
                          other.points_.front()[1]*points_.back()[0]);
             }
@@ -317,7 +317,7 @@ class Polygon : public PointArray<POINT>
             if(lengthValid_)
                 length_ += (v - points_.back()).magnitude();
             if(partialAreaValid_)
-                partialAreaValid_ += (v[0]*points_.back()[1] -
+                partialArea_ += (v[0]*points_.back()[1] -
                                       v[1]*points_.back()[0]);
         }
         Base::push_back(v);
@@ -680,7 +680,7 @@ unsigned int fillScannedPoly(
     for(unsigned int i = 0; i < scanlines.size(); ++i, ++row)
     {
         int inside = 0;
-        unsigned int x = 0;
+        int x = 0;
         typename DestIterator::next_type it(row.begin());
         const Scanlines::Scanline &scanline(scanlines[i]);
         for(unsigned int j = 0; j < scanline.size(); ++j)
@@ -717,7 +717,7 @@ unsigned int drawScannedPoly(
     DestIterator row(dul + scanlines.startIndex);
     for(unsigned int i = 0; i < scanlines.size(); ++i, ++row)
     {
-        unsigned int x = 0;
+        int x = 0;
         typename DestIterator::next_type it(row.begin());
         const Scanlines::Scanline &scanline(scanlines[i]);
         for(unsigned int j = 0; j < scanline.size(); ++j)
