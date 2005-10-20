@@ -12,7 +12,7 @@ Point2D intPos(const Vector2 &p)
     return Point2D((int)(p[0]+0.5), (int)(p[1]+0.5));
 }
 
-inline void checkPointIndex(int &i, unsigned int size)
+inline void checkPointIndex(int &i, int size)
 {
     if(i < 0)
         i += size;
@@ -230,7 +230,7 @@ void markEdgeInLabelImage(
         const Scanlines::Scanline &scanline(scanlines[i]);
         for(unsigned int j = 0; j < scanline.size(); ++j)
         {
-            for(unsigned int x = scanline[j].begin;
+            for(int x = scanline[j].begin;
                 x < scanline[j].end; ++x)
             {
                 PythonSingleBandImage::reference old(labelImage(x, y));
@@ -257,7 +257,7 @@ list removeEdgeFromLabelImage(
         const Scanlines::Scanline &scanline(scanlines[i]);
         for(unsigned int j = 0; j < scanline.size(); ++j)
         {
-            for(unsigned int x = scanline[j].begin;
+            for(int x = scanline[j].begin;
                 x < scanline[j].end; ++x)
             {
                 PythonSingleBandImage::reference old(labelImage(x, y));
