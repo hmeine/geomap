@@ -137,8 +137,9 @@ class QuantileStatistics : public PolylineStatistics
     mutable bool sorted_;
 };
 
-struct QuantilePickleSuite : boost::python::pickle_suite
+class QuantilePickleSuite : public boost::python::pickle_suite
 {
+  public:
     static tuple getstate(const QuantileStatistics& w)
     {
         list segments;
