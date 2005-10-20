@@ -493,9 +493,8 @@ struct CriticalPointsCompare
 template <class T>
 struct NormTraits<PythonVectorView<T> >
 {
-    typedef TinyVector<T, SIZE> Type;
-    typedef typename Type::SquaredNormType    SquaredNormType;
-    typedef typename Type::NormType           NormType;
+    typedef typename NumericTraits<T>::RealPromote    SquaredNormType;
+    typedef typename NumericTraits<T>::RealPromote           NormType;
 };
 
 template <class T>
@@ -679,8 +678,6 @@ findCriticalPointsInFacet(
     x0 = VIGRA_CSTD::floor(x0 + 0.5);
     y0 = VIGRA_CSTD::floor(y0 + 0.5);
 
-    fprintf(stderr, "findCriticalPointsInFacet()\n");
-
     DImage splineCoeffs(3,3);
     s.coefficientArray(x0, y0, splineCoeffs);
     double j = splineCoeffs(0,0);
@@ -703,7 +700,7 @@ findCriticalPointsInFacet(
     polyCoeffs[5] = -2.0*a*b*b + 8.0*a*a*e;
 
     double eps = 1.0e-7;
-    StaticPolynomial<5, double> px(polyCoeffs, 5, eps);
+    StaticPolynomial<5, double> px(polyCoeffs, 5, 1e-14);
     ArrayVector<double> rx;
     if(!polynomialRealRoots(px, rx))
         return;
