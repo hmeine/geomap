@@ -1393,20 +1393,6 @@ class SubPixelWatersheds
     RungeKuttaResult rungeKuttaDoubleStepSecondOrder(double x0, double y0, double & h,
                             double & x, double & y, double epsilon, double dx, double dy);
 
-    RungeKuttaResult rungeKuttaStepSecondOrder(double x0, double y0, double h,
-                                               double & x, double & y)
-    {
-        return rungeKuttaStepSecondOrder(x0, y0, h, x, y,
-                                         image_.dx(x0, y0), image_.dy(x0, y0));
-    }
-
-    RungeKuttaResult rungeKuttaDoubleStepSecondOrder(double x0, double y0, double & h,
-                                                     double & x, double & y, double epsilon)
-    {
-        return rungeKuttaDoubleStepSecondOrder(x0, y0, h, x, y, epsilon,
-                                            image_.dx(x0,y0), image_.dy(x0,y0));
-    }
-
     SplineImageView image_;
     PointArray minima_, saddles_, maxima_, edges_;
     ArrayVector<triple<int, int, int> > edgeIndices_;
@@ -1683,8 +1669,17 @@ SubPixelWatersheds<SplineImageView>::rungeKuttaStepSecondOrder(
     y1 = y0 + 0.5*h*dy;
     if(!image_.isInside(x1, y1))
         return Outside;
-    x2 = x0 + h*image_.dx(x1, y1);
-    y2 = y0 + h*image_.dy(x1, y1);
+    dx = image_.dx(x1, y1);
+    dy = image_.dy(x1, y1);
+    double norm = hypot(dx, dy);
+    if(!norm) // critical point?
+    {
+        x = x1;
+        y = y1;
+        return Success;
+    }
+    x2 = x0 + h*dx/norm;
+    y2 = y0 + h*dy/norm;
     if(!image_.isInside(x2, y2))
         return Outside;
     x = x2;
@@ -1700,12 +1695,29 @@ SubPixelWatersheds<SplineImageView>::rungeKuttaDoubleStepSecondOrder(
 {
     double x1, x2, y1, y2;
     if(rungeKuttaStepSecondOrder(x0, y0, 2.0 * h, x1, y1, dx, dy) == Outside ||
-       rungeKuttaStepSecondOrder(x0, y0, h, x2, y2, dx, dy) == Outside ||
-       rungeKuttaStepSecondOrder(x2, y2, h, x2, y2) == Outside)
+       rungeKuttaStepSecondOrder(x0, y0, h, x2, y2, dx, dy) == Outside)
     {
         h /= 4.0;
         return Outside;
     }
+    dx = image_.dx(x2, y2);
+    dy = image_.dy(x2, y2);
+    double norm = hypot(dx, dy);
+    if(!norm) // critical point
+    {
+        x = x2;
+        y = y2;
+        return Success;
+    }
+    dx /= norm;
+    dy /= norm;
+    if(rungeKuttaStepSecondOrder(x2, y2, h, x2, y2, dx, dy) == Outside)
+    {
+        h /= 4.0;
+        return Outside;
+    }
+
+    // estimate error and desirable step size (hh)
     dx = x2 - x1;
     dy = y2 - y1;
     double d = std::max(std::abs(dx), std::abs(dy));
@@ -1716,6 +1728,7 @@ SubPixelWatersheds<SplineImageView>::rungeKuttaDoubleStepSecondOrder(
         h = hh;
         return StepToLarge;
     }
+
     x = x2;
     y = y2;
     h = hh;
@@ -1754,8 +1767,14 @@ SubPixelWatersheds<SplineImageView>::flowLine(double x, double y, bool forward, 
     curve.push_back(PointType(x, y));
     dx = image_.dx(x, y);
     dy = image_.dy(x, y);
+    double norm = hypot(dx, dy);
+    if(norm) // critical point?
+    {
+        dx /= norm;
+        dy /= norm;
+    }
 if(DEBUG) std::cerr << "x, y, dx, dy " << x << ' ' << y << ' ' << dx << ' ' << dy << '\n';
-    // check if near a maximum
+    // check if near a maximum in direction dx/dy
     if(nearestMaximum(x, y, dx, dy, index) < initialStep_)
     {
         curve.push_back(maxima_[index]);
@@ -1767,7 +1786,7 @@ if(DEBUG) std::cerr << "stop index, x, y " << index << ' ' << curve.back()[0] <<
     {
         double xn, yn;
         RungeKuttaResult rungeKuttaResult(
-            rungeKuttaDoubleStepSecondOrder(x, y, h, xn, yn, epsilon));
+            rungeKuttaDoubleStepSecondOrder(x, y, h, xn, yn, epsilon, dx, dy));
         if(rungeKuttaResult == Success)
         {
             x = xn;
@@ -1775,6 +1794,12 @@ if(DEBUG) std::cerr << "stop index, x, y " << index << ' ' << curve.back()[0] <<
             curve.push_back(PointType(x, y));
             dx = image_.dx(x, y);
             dy = image_.dy(x, y);
+            double norm = hypot(dx, dy);
+            if(norm) // critical point?
+            {
+                dx /= norm;
+                dy /= norm;
+            }
             if(DEBUG) std::cerr << "x, y, dx, dy " << x << ' ' << y
                                 << ' ' << dx << ' ' << dy << '\n';
             // check if near a maximum
