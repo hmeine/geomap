@@ -242,14 +242,7 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
         {
             sxx = syy = 0.0;
         }
-        //if(!image.isInside(xx, yy))
-        // FIXME: this check has been replaced to work around the following:
-// RuntimeError:
-// Precondition violation!
-// SplineImageView<ORDER, VALUETYPE>::calculateIndices(): index out of bounds.
-// (/home/meine/local-SuSE-9.0/include/vigra/splineimageview.hxx:518)
-        if(xx < 1 || xx > (double)(image.width()-2) ||
-           yy < 1 || yy > (double)(image.height()-2))
+        if(!image.isInside(xx, yy))
         {
             return Failed; // coordinates out of range
         }
