@@ -1572,12 +1572,24 @@ SubPixelWatersheds<SplineImageView>::findCriticalPoints()
 //     std::cerr << "Zero order fired: " << zeroOrder << " times\n";
 }
 
+struct PointSort
+{
+    template <class Point>
+    bool operator()(Point const & l, Point const & r) const
+    {
+        double yl = VIGRA_CSTD::floor(l[1] + 0.5);
+        double yr = VIGRA_CSTD::floor(r[1] + 0.5);
+        return (yl < yr) || (yl == yr && VIGRA_CSTD::floor(l[0] + 0.5) < VIGRA_CSTD::floor(r[0] + 0.5));
+    }
+};
+
 template <class SplineImageView>
 void
 SubPixelWatersheds<SplineImageView>::updateMaxImage()
 {
     maxImage_.resize(image_.size());
     maxImage_.init(0);  // means no maximum
+    std::sort(maxima_.begin()+1, maxima_.end(), PointSort()); // necessary so that points in the same facet are consecutive
     for(unsigned int i = 1; i<maxima_.size(); ++i)
     {
         int x = (int)VIGRA_CSTD::floor(maxima_[i][0] + 0.5);
@@ -1641,7 +1653,7 @@ SubPixelWatersheds<SplineImageView>::nearestMaximum(double x, double y, double d
                     dist = sd;
                     resindex = -index;
                 }
-                diff = maxima_[-index+1] - p;
+                diff = maxima_[-index+1] - p; // assumes that points from the same facet are consecutive
                 sd = diff.magnitude();
                 if(sd < dist && diff[0]*dx + diff[1]*dy >= 0)
                 {
