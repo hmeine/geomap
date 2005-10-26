@@ -242,13 +242,18 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
         {
             sxx = syy = 0.0;
         }
-        if(!image.isInside(xx, yy))
+        if(!image.isValid(xx, yy))
         {
             return Failed; // coordinates out of range
         }
         double diff2 = sxx*sxx + syy*syy;
         if(diff2 < epsilon2) // convergence
         {
+            if(xx < -epsilon || xx > (double)(image.width())-1.0+epsilon ||
+               yy < -epsilon || yy > (double)(image.height())-1.0+epsilon)
+            {
+                return Failed; // coordinates out of range
+            }
             if(det == zero)
             {
                 if(dx == zero && dy == zero)
@@ -306,19 +311,18 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
         {
             sxx = syy = 0.0;
         }
-        //if(!image.isInside(xx, yy))
-        // FIXME: this check has been replaced to work around the following:
-// Precondition violation!
-// SplineImageView<ORDER, VALUETYPE>::calculateIndices(): index out of bounds.
-// (/home/meine/local-SuSE-9.0/include/vigra/splineimageview.hxx:518)
-        if(xx < 1 || xx > (double)(image.width()-2) ||
-           yy < 1 || yy > (double)(image.height()-2))
+        if(!image.isValid(xx, yy))
         {
             return Failed; // coordinates out of range
         }
         double diff2 = (sxx*sxx + syy*syy);
         if(diff2 < epsilon2) // convergence
         {
+            if(xx < -epsilon || xx > (double)(image.width())-1.0+epsilon ||
+               yy < -epsilon || yy > (double)(image.height())-1.0+epsilon)
+            {
+                return Failed; // coordinates out of range
+            }
             if(det == zero)
             {
                 if(dx == zero && dy == zero)
@@ -616,7 +620,7 @@ void findCriticalPointsNewtonMethod(IMAGEVIEW const & image,
     // search for critical points
     int percent = -1, lastPercent = -1;
     //std::cerr << "\n";
-    for(int y=1; y <= h-2; ++y)
+    for(int y=0; y <= h-1; ++y)
     {
         percent = 100 * y / h;
         if(percent != lastPercent)
@@ -624,7 +628,7 @@ void findCriticalPointsNewtonMethod(IMAGEVIEW const & image,
             std::cerr << "findCriticalPointsNewtonMethod(): " << percent << "%\r";
             lastPercent = percent;
         }
-        for(int x=1; x <= w-2; ++x)
+        for(int x=0; x <= w-1; ++x)
         {
             for(double dy = 0.0; dy < 1.0; dy += d)
             {
