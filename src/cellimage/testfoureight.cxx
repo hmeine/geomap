@@ -14,7 +14,7 @@ using namespace vigra;
 using namespace vigra::functor;
 using namespace vigra::cellimage;
 
-typedef FourEightSegmentation::DartTraverser DartTraverser;
+typedef GeoMap::DartTraverser DartTraverser;
 
 template<class ARRAY>
 std::ostream &outputArray(std::ostream &s, ARRAY &d, unsigned int len)
@@ -35,7 +35,7 @@ std::ostream &operator <<(std::ostream &s, std::vector<T> d)
     return s;
 }
 
-void testNodeDegrees(FourEightSegmentation &seg,
+void testNodeDegrees(GeoMap &seg,
                      unsigned int expected[], unsigned int sizeofExpected)
 {
     unsigned int lenExpected = sizeofExpected / sizeof(unsigned int);
@@ -48,7 +48,7 @@ void testNodeDegrees(FourEightSegmentation &seg,
     std::vector<unsigned int> real(seg.nodeCount());
     unsigned int pos = 0;
     bool goodData = true;
-    for(FourEightSegmentation::NodeIterator
+    for(GeoMap::NodeIterator
             node= seg.nodesBegin(); node.inRange(); ++node, ++pos)
     {
         real[pos] = node->degree;
@@ -69,28 +69,28 @@ void testNodeDegrees(FourEightSegmentation &seg,
     should(goodData);
 }
 
-void validateAnchors(FourEightSegmentation &seg)
+void validateAnchors(GeoMap &seg)
 {
-    for(FourEightSegmentation::NodeIterator
+    for(GeoMap::NodeIterator
             node= seg.nodesBegin(); node.inRange(); ++node)
     {
         shouldEqual(node->anchor.isSingular(), node->degree == 0);
     }
 }
 
-struct FourEightSegmentationTest
+struct GeoMapTest
 {
-    cellimage::FourEightSegmentation *segmentation;
+    cellimage::GeoMap *segmentation;
 
-    FourEightSegmentationTest()
+    GeoMapTest()
     {
         BImage image;
         ImageImportInfo info("testboundaries.png");
         image.resize(info.size());
         importImage(info, destImage(image));
 
-        std::cerr << "creating FourEightSegmentation from testboundaries.png..";
-        segmentation = new FourEightSegmentation(srcImageRange(image), 0,
+        std::cerr << "creating GeoMap from testboundaries.png..";
+        segmentation = new GeoMap(srcImageRange(image), 0,
 												 CellTypeVertex);
         std::cerr << "done.\n";
 
@@ -109,8 +109,8 @@ struct FourEightSegmentationTest
 
 struct ConsistencyTest
 {
-    cellimage::FourEightSegmentation *segmentation;
-	
+    cellimage::GeoMap *segmentation;
+
     ConsistencyTest()
     {
         IImage image;
@@ -118,8 +118,8 @@ struct ConsistencyTest
         image.resize(info.size());
         importImage(info, destImage(image));
 
-        std::cerr << "creating FourEightSegmentation from labels.xv..";
-        segmentation = new FourEightSegmentation(srcImageRange(image), 0,
+        std::cerr << "creating GeoMap from labels.xv..";
+        segmentation = new GeoMap(srcImageRange(image), 0,
 												 CellTypeVertex);
         std::cerr << "done.\n";
     }
@@ -144,22 +144,22 @@ struct ConsistencyTest
 	}
 };
 
-struct FourEightSegmentationTestSuite
+struct GeoMapTestSuite
 : public vigra::test_suite
 {
-    FourEightSegmentationTestSuite()
-    : vigra::test_suite("FourEightSegmentationTestSuite")
+    GeoMapTestSuite()
+    : vigra::test_suite("GeoMapTestSuite")
     {
-        add(testCase(&FourEightSegmentationTest::test));
+        add(testCase(&GeoMapTest::test));
         add(testCase(&ConsistencyTest::test));
     }
 };
 
 int main(int argc, char ** argv)
 {
-    FourEightSegmentationTestSuite fourEightSegmentationTestSuite;
-    int failed = fourEightSegmentationTestSuite.run();
-    std::cout << fourEightSegmentationTestSuite.report() << std::endl;
+    GeoMapTestSuite geoMapTestSuite;
+    int failed = geoMapTestSuite.run();
+    std::cout << geoMapTestSuite.report() << std::endl;
 
     return failed;
 }
