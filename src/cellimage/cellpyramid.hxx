@@ -5,7 +5,7 @@
 #include <map>
 
 /* Known design weaknesses:
- * - cutHead() calls storeCheckpoint to restore nextCheckpointLevelIndex_
+ * - cutApex() calls storeCheckpoint to restore nextCheckpointLevelIndex_
  */
 
 namespace vigra {
@@ -317,7 +317,7 @@ class CellPyramid
     }
 
         // called after adjusting topLevel_ to remove levels above
-    void cutHead()
+    void cutApex()
     {
         history_.erase(history_.begin() + topLevel_.index(), history_.end());
         checkpoints_.erase(checkpoints_.upper_bound(topLevel_.index()),
@@ -439,14 +439,19 @@ class CellPyramid
         return topLevel_;
     }
 
-    Level *getLevel(unsigned int levelIndex) const
+    Level *getLastCheckpointBefore(unsigned int levelIndex) const
     {
         vigra_precondition(levelIndex < levelCount(),
-                           "getLevel(): invalid level index given");
+            "getLevel/getLastCheckpointBefore(): invalid level index given");
         typename CheckpointMap::const_iterator lastCheckpointIt =
             checkpoints_.upper_bound(levelIndex);
         --lastCheckpointIt;
-        Level *result = new Level(lastCheckpointIt->second);
+        return new Level(lastCheckpointIt->second);
+    }
+
+    Level *getLevel(unsigned int levelIndex) const
+    {
+        Level *result = getLastCheckpointBefore(levelIndex);
         result->gotoLevel(levelIndex);
         return result;
     }
@@ -471,23 +476,33 @@ class CellPyramid
 
     void cutAbove(const Level &level)
     {
-        vigra_precondition(topLevel_.index() == levelCount()-1,
-                           "cutAbove(): topLevel_ is not the top level anymore");
+        if(topLevel_.index() != levelCount()-1)
+        {
+            std::cerr << "topLevel_.index() == " << topLevel_.index()
+                      << " but levelCount() == " << levelCount() << "\n";
+            vigra_precondition(topLevel_.index() == levelCount()-1,
+                               "cutAbove(): topLevel_ is not the top level anymore");
+        }
         if(topLevel_.index() != level.index())
         {
             topLevel_ = level;
-            cutHead();
+            cutApex();
         }
     }
 
     void cutAbove(unsigned int levelIndex)
     {
-        vigra_precondition(topLevel_.index() == levelCount()-1,
-                           "cutAbove(): topLevel_ is not the top level anymore");
+        if(topLevel_.index() != levelCount()-1)
+        {
+            std::cerr << "topLevel_.index() == " << topLevel_.index()
+                      << " but levelCount() == " << levelCount() << "\n";
+            vigra_precondition(topLevel_.index() == levelCount()-1,
+                               "cutAbove(): topLevel_ is not the top level anymore");
+        }
         if(topLevel_.index() > levelIndex)
         {
             topLevel_.gotoLevel(levelIndex);
-            cutHead();
+            cutApex();
         }
     }
 };
