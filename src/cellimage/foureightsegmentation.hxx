@@ -194,6 +194,7 @@ public:
 
     EdgelIterator &jumpToOpposite()
     {
+        atEnd_ = false;
         while(!atEnd())
             operator++();
         neighborCirc_.swapCenterNeighbor();
@@ -208,6 +209,78 @@ public:
     const CellImageEightCirculator::base_type &base() const
     {
         return neighborCirc_.base();
+    }
+};
+
+template <class IMAGEITERATOR>
+class CrackEdgeIterator : public CrackContourCirculator<IMAGEITERATOR>
+{
+    bool atEnd_;
+
+  public:
+    typedef CrackContourCirculator<IMAGEITERATOR> Base;
+
+        /** the circulator tag
+        */
+        //    typedef forward_iterator_tag iterator_category;
+
+    typedef typename Base::NEIGHBORHOODCIRCULATOR NeighborhoodCirculator;
+
+    CrackEdgeIterator(NeighborhoodCirculator const & circ)
+    : Base(circ), atEnd_(false)
+    {}
+
+    bool atEnd() const
+    {
+        return atEnd_;
+    }
+
+    bool inRange() const
+    {
+        return !atEnd_;
+    }
+
+    EdgelIterator &operator++()
+    {
+        unsigned char edgeCount = 1;
+        typename NeighborhoodCirculator::value_type label(label_);
+        if(*neighborCirc_ != label)
+        {
+            label = *neighborCirc_;
+            ++edgeCount;
+        }
+        if(neighborCirc_[1] != label)
+        {
+            label = neighborCirc_[1];
+            ++edgeCount;
+        }
+        if(neighborCirc_[2] != label)
+        {
+            label = neighborCirc_[2];
+            ++edgeCount;
+        }
+        atEnd_ = (edgeCount > 2);
+
+        if(!atEnd_)
+            Base::operator++();
+        else
+        {
+            // turn around:
+            neighborCirc_.turnRight();
+            neighborCirc_.moveCenterToNeighbor();
+            neighborCirc_.turnRight();
+        }
+
+        return *this;
+    }
+
+    EdgelIterator &jumpToOpposite()
+    {
+        atEnd_ = false;
+        while(!atEnd())
+            operator++();
+        neighborCirc_.swapCenterNeighbor();
+        return *this;
     }
 };
 
@@ -263,6 +336,10 @@ public:
         }
 
     private:
+            // the "careful" sigma operations guarantee that at least
+            // one step is made (they work even if isSingular()), and
+            // do not loop infinitely in case no edge is attached
+            // (i.e. if the dart is indeed singular)        
         DartTraverser &carefulNextSigma() throw ()
         {
             CellImageEightCirculator nend = neighborCirc_;
@@ -450,10 +527,10 @@ public:
             // ATM we don't need correct equality checks for singular
             // darts.
 
-            //if(!isSingular())
+            if(!isSingular())
                 return neighborCirc_ == o.neighborCirc_;
-            //else
-                //return startNodeLabel() == o.startNodeLabel();
+            else
+                return startNodeLabel() == o.startNodeLabel();
         }
 
         bool operator!=(DartTraverser const &o) const throw ()
@@ -603,7 +680,6 @@ public:
     : initialized_(false)
     {
         deepCopy(other);
-        initialized_ = true;
     }
 
     template<class SrcIter, class SrcAcc>
@@ -868,8 +944,6 @@ void initGeoMapContourImage(SrcIter ul, SrcIter lr, SrcAcc src,
         }
     }
 }
-
-void validateDart(const GeoMap::DartTraverser &dart);
 
 void debugDart(const GeoMap::DartTraverser &dart);
 
