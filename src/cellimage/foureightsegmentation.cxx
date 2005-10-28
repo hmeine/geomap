@@ -15,6 +15,19 @@ namespace vigra {
 
 namespace cellimage {
 
+inline void validateDart(const GeoMap::DartTraverser &dart)
+{
+#ifndef NDEBUG
+    vigra_precondition(dart.neighborCirculator().center()->type() == CellTypeVertex,
+                       "dart is not attached to a node");
+    vigra_precondition(dart.startNode().initialized(),
+                       "dart's startNode is not valid (initialized())");
+    if(!dart.isSingular())
+        vigra_precondition(dart.edge().initialized(),
+                           "dart's edge is not valid (initialized())");
+#endif
+}
+
 struct FindMaxLabel
 {
     CellLabel maxLabel_;
@@ -104,7 +117,8 @@ unsigned int GeoMap::findComponentAnchor(
         // look for edgeLabel
         for(ConstContourComponentsIterator contour= contours.begin();
             contour != contours.end(); ++contour, ++result)
-            if(contour->edgeLabel() == dart.edgeLabel())
+            if(!contour->isSingular() &&
+               (contour->edgeLabel() == dart.edgeLabel()))
                 return result;
 
         // we have to circulate through all contours now.. :-(
@@ -171,7 +185,15 @@ GeoMap::FaceInfo &GeoMap::removeIsolatedNode(const DartTraverser & dart)
     node.uninitialize();
     --nodeCount_;
 #ifndef NDEBUG
-    checkConsistency();
+    try
+    {
+        checkConsistency();
+    }
+    catch(vigra::StdException &e)
+    {
+        std::cerr << "OPERATION: removeIsolatedNode(" << dart << ")\n";
+        throw;
+    }
 #endif
     return face;
 }
@@ -195,8 +217,8 @@ GeoMap::FaceInfo &GeoMap::mergeFaces(const DartTraverser & dart)
         "GeoMap::mergeFaces(): dart is singular or edge is a bridge");
 
     // find indices of contour components to be merged
-    unsigned int contour1 = findComponentAnchor(survivor, removedDart);
-    unsigned int contour2 = findComponentAnchor(mergedFace, removedDart);
+    const unsigned int contour1(findComponentAnchor(survivor, removedDart));
+    const unsigned int contour2(findComponentAnchor(mergedFace, removedDart));
 
     // re-use an old anchor for the merged contour
     if(survivor.contours[contour1].edgeLabel() == mergedEdge.label)
@@ -209,9 +231,13 @@ GeoMap::FaceInfo &GeoMap::mergeFaces(const DartTraverser & dart)
                 survivor.contours[contour1].nextPhi();
         }
     }
+    vigra_postcondition(
+        (survivor.contours[contour1].edgeLabel() != mergedEdge.label)
+        || (node1.label == node2.label),
+        "did not find an anchor for merged contour!\n");
 
     // update contours
-    for(unsigned int i = 0; i < mergedFace.contours.size(); i++)
+    for(unsigned int i = 0; i < mergedFace.contours.size(); ++i)
         if(i != contour2)
             survivor.contours.push_back(mergedFace.contours[i]);
 
@@ -242,7 +268,15 @@ GeoMap::FaceInfo &GeoMap::mergeFaces(const DartTraverser & dart)
     --faceCount_;
     // FIXME: also update maxFaceLabel / maxEdgeLabel
 #ifndef NDEBUG
-    checkConsistency();
+    try
+    {
+        checkConsistency();
+    }
+    catch(vigra::StdException &e)
+    {
+        std::cerr << "OPERATION: mergeFaces(" << dart << ")\n";
+        throw;
+    }
 #endif
     return survivor;
 }
@@ -266,8 +300,18 @@ GeoMap::FaceInfo &GeoMap::removeBridge(const DartTraverser & dart)
     DartTraverser newAnchor2(edge.end);
     newAnchor2.prevSigma();
 
+    const unsigned int contourIndex(findComponentAnchor(face, dart));
+
+#ifndef NDEBUG
+    vigra_invariant(
+        (newAnchor1 != newAnchor2) &&
+        (newAnchor1.startNodeLabel() == node1.label) &&
+        (newAnchor2.startNodeLabel() == node2.label),
+        "GeoMap::removeBridge(): new anchors unusable");
+
+#endif // NDEBUG
+
     // update anchors
-    unsigned int contourIndex = findComponentAnchor(face, dart);
     face.contours[contourIndex] = newAnchor1;
     face.contours.push_back(newAnchor2);
 
@@ -290,7 +334,15 @@ GeoMap::FaceInfo &GeoMap::removeBridge(const DartTraverser & dart)
     edge.uninitialize();
     --edgeCount_;
 #ifndef NDEBUG
-    checkConsistency();
+    try
+    {
+        checkConsistency();
+    }
+    catch(vigra::StdException &e)
+    {
+        std::cerr << "OPERATION: removeBridge(" << dart << ")\n";
+        throw;
+    }
 #endif
     return face;
 }
@@ -348,7 +400,15 @@ GeoMap::EdgeInfo &GeoMap::mergeEdges(const DartTraverser & dart)
     mergedEdge.uninitialize();
     --edgeCount_;
 #ifndef NDEBUG
-    checkConsistency();
+    try
+    {
+        checkConsistency();
+    }
+    catch(vigra::StdException &e)
+    {
+        std::cerr << "OPERATION: mergeEdges(" << dart << ")\n";
+        throw;
+    }
 #endif
     return survivor;
 }
@@ -386,6 +446,8 @@ GeoMap &GeoMap::deepCopy(const GeoMap &other)
             contour->reparent(this);
         }
     }
+
+    initialized_ = other.initialized_; // should be always true
 
     return *this;
 }
@@ -501,7 +563,8 @@ void GeoMap::checkConsistency()
                || (cc->isSingular() && (cc->startNode().degree > 0)))
             {
                 consistent = false;
-                std::cerr << "face " << it->label << "'s anchor is broken: ";
+                std::cerr << "face " << it->label << "'s anchor at position "
+                          << (cc - it->contours.begin()) << " is broken: ";
                 debugDart(*cc);
             }
             DartTraverser dart(*cc);
@@ -514,7 +577,7 @@ void GeoMap::checkConsistency()
                           << "  anchor:  "; debugDart(*cc);
                 std::cerr << "  becomes: "; debugDart(dart);
             }
-            int maxSteps= 400;
+            int maxSteps= 10000;
             do
             {
                 if(dart.leftFaceLabel() != it->label)
@@ -530,10 +593,21 @@ void GeoMap::checkConsistency()
                 consistent = false;
                 std::cerr << "face " << it->label << "'s contours are broken:\n"
                           << "  anchor: "; debugDart(*cc);
-                std::cerr << "  does not return: "; debugDart(dart);
+                std::cerr << "  did not return after " << maxSteps << " steps: ";
+                debugDart(dart);
             }
+
+//  for(unsigned int i = 1; i < face.contours.size(); ++i)
+//      for(unsigned int j = 0; j < i; ++j)
+//          if(face.contours[i] == face.contours[j])
+//          {
+//                 consistent = false;
+//                 std::cerr << "face " << face.label << "'s contours contains one dart twice:\n  ";
+//              debugDart(face.contours[i]);
+//          }
         }
     }
+
     vigra_postcondition(consistent, "consistency check failed");
 }
 
@@ -1098,17 +1172,6 @@ void GeoMap::initFaceList(BImage & contourImage, CellLabel maxFaceLabel)
             }
         }
     }
-}
-
-void validateDart(const GeoMap::DartTraverser &dart)
-{
-    vigra_precondition(dart.neighborCirculator().center()->type() == CellTypeVertex,
-                       "dart is not attached to a node");
-    vigra_precondition(dart.startNode().initialized(),
-                       "dart's startNode is not valid (initialized())");
-    if(!dart.isSingular())
-        vigra_precondition(dart.edge().initialized(),
-                           "dart's edge is not valid (initialized())");
 }
 
 void debugDart(const GeoMap::DartTraverser &dart)
