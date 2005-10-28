@@ -1,7 +1,12 @@
-include ../../interactive/config/Makefile.include
+PLATFORM = $(shell /software/Modules/bin/platform)
+#PLATFORM = gentoo
+curdir = .
+
+INT2BUILDDIR = ../../interactive2/build-$(PLATFORM)
+include $(INT2BUILDDIR)/config/Makefile.include
 
 CXXFLAGS = -Wall -Wno-deprecated -O2 -DNDEBUG
-CPPFLAGS += -I. -I../../test/include
+CPPFLAGS += `vigra-interactive-config --cppflags` -I../../test/include # -I.
 
 CELLIMAGE_OBJS = \
 	cellimage_module.lo \
@@ -23,7 +28,7 @@ install: $(CELLIMAGE_TARGET)
 	$(LIBINSTALL) $(CELLIMAGE_TARGET) $(dynmoddir)
 
 $(CELLIMAGE_TARGET): $(CELLIMAGE_OBJS)
-	$(LINKCXXMODULE) -o $(CELLIMAGE_TARGET) $(CELLIMAGE_OBJS) $(BOOST_PYTHON_LIB) $(dynmoddir)/vigrapython.la
+	$(LINKCXXMODULE) -o $(CELLIMAGE_TARGET) $(CELLIMAGE_OBJS) $(BOOST_PYTHON_LIB) $(dynmoddir)/vigracmodule.la
 
 testfoureight: testfoureight.o foureightsegmentation.o
 	$(CXX) -o testfoureight testfoureight.o foureightsegmentation.o `vigra-config --impex-lib`
@@ -46,7 +51,7 @@ test: test.o
 
 clean::
 	rm -f $(ALL_TARGETS)
-	rm -f *.o test core *.plg *ilk
+	rm -f *.[do] *.l[doa] test core *.plg *ilk
 	rm -f seeds.xv res.xv labelImage.xv
 	rm -rf Debug ii_files
 
