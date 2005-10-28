@@ -4,21 +4,21 @@
 #include "cellpyramid.hxx"
 
 using namespace vigra;
-using namespace python;
+using namespace boost::python;
 using namespace vigra::cellimage;
 
-typedef vigra::CellPyramid<FourEightSegmentation, CellStatistics>
-    FourEightPyramid;
+typedef vigra::CellPyramid<GeoMap, CellStatistics>
+    GeoMapPyramid;
 
 using namespace boost::python;
 
-FourEightPyramid::Operation &historyGetItem(FourEightPyramid::History &history,
-											long index)
+GeoMapPyramid::Operation &historyGetItem(GeoMapPyramid::History &history,
+										 long index)
 {
 	if((index >= (long)history.size()) || (index < -(long)history.size()))
 	{
-		PyErr_SetObject(PyExc_IndexError, vigra::ownedPyObject(index));
-		python::throw_error_already_set();
+		PyErr_SetObject(PyExc_IndexError, incref(object(index).ptr()));
+		throw_error_already_set();
 	}
 	if(index < 0)
 		index += history.size();
@@ -28,56 +28,59 @@ FourEightPyramid::Operation &historyGetItem(FourEightPyramid::History &history,
 void definePyramid()
 {
 	scope fourEightPyramidScope(
-	class_<FourEightPyramid>("FourEightPyramid", no_init)
-		//init<const FourEightSegmentation&>())
-		.def("storeCheckpoint", &FourEightPyramid::storeCheckpoint)
-		.def("removeIsolatedNode", &FourEightPyramid::removeIsolatedNode,
+	class_<GeoMapPyramid>("GeoMapPyramid", no_init)
+		//init<const GeoMap&>())
+		.def("storeCheckpoint", &GeoMapPyramid::storeCheckpoint)
+		.def("removeIsolatedNode", &GeoMapPyramid::removeIsolatedNode,
 			 return_internal_reference<>())
-		.def("mergeFaces", &FourEightPyramid::mergeFaces,
+		.def("mergeFaces", &GeoMapPyramid::mergeFaces,
 			 return_internal_reference<>())
-		.def("removeBridge", &FourEightPyramid::removeBridge,
+		.def("removeBridge", &GeoMapPyramid::removeBridge,
 			 return_internal_reference<>())
-		.def("mergeEdges", &FourEightPyramid::mergeEdges,
+		.def("mergeEdges", &GeoMapPyramid::mergeEdges,
 			 return_internal_reference<>())
-		.def("removeEdge", &FourEightPyramid::removeEdge,
+		.def("removeEdge", &GeoMapPyramid::removeEdge,
 			 return_internal_reference<>())
-		.def("removeEdgeWithEnds", &FourEightPyramid::removeEdgeWithEnds,
+		.def("removeEdgeWithEnds", &GeoMapPyramid::removeEdgeWithEnds,
 			 return_internal_reference<>())
-		.def("topLevel", (FourEightPyramid::Level &(FourEightPyramid::*)(void))
-			 &FourEightPyramid::topLevel, return_internal_reference<>())
-		.def("__get__", (FourEightPyramid::Level *(FourEightPyramid::*)(unsigned int))
-			 &FourEightPyramid::getLevel, return_value_policy<manage_new_object>())
-		.def("__len__", &FourEightPyramid::levelCount)
-		.def("cutAbove", (void(FourEightPyramid::*)(const FourEightPyramid::Level &))
-			 &FourEightPyramid::cutAbove)
-		.def("cutAbove", (void(FourEightPyramid::*)(unsigned int))
-			 &FourEightPyramid::cutAbove)
-		.def_readonly("history", &FourEightPyramid::history_));
+		.def("beginComposite", &GeoMapPyramid::beginComposite)
+		.def("changeIntoComposite", &GeoMapPyramid::changeIntoComposite)
+		.def("endComposite", &GeoMapPyramid::endComposite)
+		.def("topLevel", (GeoMapPyramid::Level &(GeoMapPyramid::*)(void))
+			 &GeoMapPyramid::topLevel, return_internal_reference<>())
+		.def("__get__", (GeoMapPyramid::Level *(GeoMapPyramid::*)(unsigned int))
+			 &GeoMapPyramid::getLevel, return_value_policy<manage_new_object>())
+		.def("__len__", &GeoMapPyramid::levelCount)
+		.def("cutAbove", (void(GeoMapPyramid::*)(const GeoMapPyramid::Level &))
+			 &GeoMapPyramid::cutAbove)
+		.def("cutAbove", (void(GeoMapPyramid::*)(unsigned int))
+			 &GeoMapPyramid::cutAbove)
+		.def_readonly("history", &GeoMapPyramid::history_));
 
-	class_<FourEightPyramid::Level>("Level", no_init)
-		.def("index", &FourEightPyramid::Level::index)
-		.def("segmentation", &FourEightPyramid::Level::segmentation,
+	class_<GeoMapPyramid::Level>("Level", no_init)
+		.def("index", &GeoMapPyramid::Level::index)
+		.def("segmentation", &GeoMapPyramid::Level::segmentation,
 			 return_internal_reference<>())
-		.def("cellStatistics", &FourEightPyramid::Level::cellStatistics,
+		.def("cellStatistics", &GeoMapPyramid::Level::cellStatistics,
 			 return_internal_reference<>())
-		.def("approachLevel", &FourEightPyramid::Level::approachLevel)
-		.def("gotoLevel", &FourEightPyramid::Level::gotoLevel)
-		.def("cutHead", &FourEightPyramid::Level::cutHead);
+		.def("approachLevel", &GeoMapPyramid::Level::approachLevel)
+		.def("gotoLevel", &GeoMapPyramid::Level::gotoLevel);
 
-	enum_<FourEightPyramid::OperationType>("OperationType")
-		.value("RemoveIsolatedNode", FourEightPyramid::RemoveIsolatedNode)
-		.value("MergeFaces", FourEightPyramid::MergeFaces)
-		.value("RemoveBridge", FourEightPyramid::RemoveBridge)
-		.value("MergeEdges", FourEightPyramid::MergeEdges)
-		.value("RemoveEdge", FourEightPyramid::RemoveEdge)
-		.value("RemoveEdgeWithEnds", FourEightPyramid::RemoveEdgeWithEnds);
+	enum_<GeoMapPyramid::OperationType>("OperationType")
+		.value("RemoveIsolatedNode", GeoMapPyramid::RemoveIsolatedNode)
+		.value("MergeFaces", GeoMapPyramid::MergeFaces)
+		.value("RemoveBridge", GeoMapPyramid::RemoveBridge)
+		.value("MergeEdges", GeoMapPyramid::MergeEdges)
+		.value("RemoveEdge", GeoMapPyramid::RemoveEdge)
+		.value("RemoveEdgeWithEnds", GeoMapPyramid::RemoveEdgeWithEnds)
+		.value("RemoveEdgeWithEnds", GeoMapPyramid::Composite);
 
-	class_<FourEightPyramid::Operation>("Operation", no_init)
-		.def_readonly("type", &FourEightPyramid::Operation::type)
-		.def_readonly("param", &FourEightPyramid::Operation::param);
+	class_<GeoMapPyramid::Operation>("Operation", no_init)
+		.def_readonly("type", &GeoMapPyramid::Operation::type);
+//		.def_readonly("param", &GeoMapPyramid::Operation::param);
 
-	class_<FourEightPyramid::History>("History", no_init)
-		.def("__len__", &FourEightPyramid::History::size)
+	class_<GeoMapPyramid::History>("History", no_init)
+		.def("__len__", &GeoMapPyramid::History::size)
 		.def("__getitem__", &historyGetItem,
 			 return_internal_reference<>());
 }

@@ -1,4 +1,5 @@
 #include "cellimage_module.hxx"
+#include <vigra/pythonimage.hxx>
 
 using vigra::cellimage::CellImage;
 using vigra::cellimage::CellPixel;
@@ -35,17 +36,28 @@ void setPixel(CellImage & image, vigra::Diff2D const & i, CellPixel const & valu
     image[i] = value;
 }
 
-vigra::cellimage::FourEightSegmentation *
-createFourEightSegmentation(
+vigra::cellimage::GeoMap *
+createGeoMap(
     vigra::PythonSingleBandImage &image,
     float boundaryValue,
 	vigra::cellimage::CellType cornerType)
 {
-    return new vigra::cellimage::FourEightSegmentation(
+    return new vigra::cellimage::GeoMap(
 		srcImageRange(image), boundaryValue, cornerType);
 }
 
-using namespace python;
+void validateDart(const vigra::cellimage::GeoMap::DartTraverser &dart)
+{
+    vigra_precondition(dart.neighborCirculator().center()->type() ==
+                       vigra::cellimage::CellTypeVertex,
+                       "dart is not attached to a node");
+    vigra_precondition(dart.startNode().initialized(),
+                       "dart's startNode is not valid (initialized())");
+    if(!dart.isSingular())
+        vigra_precondition(dart.edge().initialized(),
+                           "dart's edge is not valid (initialized())");
+}
+using namespace boost::python;
 using namespace vigra::cellimage;
 
 void definePyramid();
@@ -88,24 +100,24 @@ BOOST_PYTHON_MODULE_INIT(cellimage)
     def("validateDart", &validateDart);
     def("debugDart", &debugDart);
 
-    def("createFourEightSegmentation", createFourEightSegmentation,
+    def("createGeoMap", createGeoMap,
         return_value_policy<manage_new_object>());
 
-    scope fourEightSegmentation(
-        class_<FourEightSegmentation>("FourEightSegmentation", no_init)
-        .def("maxNodeLabel", &FourEightSegmentation::maxNodeLabel)
+    scope geoMap(
+        class_<GeoMap>("GeoMap", no_init)
+        .def("maxNodeLabel", &GeoMap::maxNodeLabel)
         .add_property("nodes", &NodeListProxy::create)
-        .def("maxEdgeLabel", &FourEightSegmentation::maxEdgeLabel)
+        .def("maxEdgeLabel", &GeoMap::maxEdgeLabel)
         .add_property("edges", &EdgeListProxy::create)
-        .def("maxFaceLabel", &FourEightSegmentation::maxFaceLabel)
+        .def("maxFaceLabel", &GeoMap::maxFaceLabel)
         .add_property("faces", &FaceListProxy::create)
-        .def("removeIsolatedNode", &FourEightSegmentation::removeIsolatedNode,
+        .def("removeIsolatedNode", &GeoMap::removeIsolatedNode,
              return_internal_reference<>())
-        .def("mergeFaces", &FourEightSegmentation::mergeFaces,
+        .def("mergeFaces", &GeoMap::mergeFaces,
              return_internal_reference<>())
-        .def("removeBridge", &FourEightSegmentation::removeBridge,
+        .def("removeBridge", &GeoMap::removeBridge,
              return_internal_reference<>())
-        .def("mergeEdges", &FourEightSegmentation::mergeEdges,
+        .def("mergeEdges", &GeoMap::mergeEdges,
              return_internal_reference<>()));
 
     defineDartTraverser();

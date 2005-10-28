@@ -1,17 +1,17 @@
 #include "cellimage_module.hxx"
 
 using namespace vigra;
-using namespace python;
+using namespace boost::python;
 using namespace vigra::cellimage;
 
 void defineEdges()
 {
-    class_<FourEightSegmentation::EdgeIterator>("EdgeIterator")
-        .def("__iter__", (FourEightSegmentation::EdgeIterator &(*)(FourEightSegmentation::EdgeIterator &))&returnSelf,
+    class_<GeoMap::EdgeIterator>("EdgeIterator")
+        .def("__iter__", (GeoMap::EdgeIterator &(*)(GeoMap::EdgeIterator &))&returnSelf,
              return_internal_reference<>())
-        .def("next", (FourEightSegmentation::EdgeInfo &(*)(FourEightSegmentation::EdgeIterator &))&nextIterPos,
+        .def("next", (GeoMap::EdgeInfo &(*)(GeoMap::EdgeIterator &))&nextIterPos,
              // this is not really true, since the true owner would be
-             // the FourEightSegmentation object (however, it's
+             // the GeoMap object (however, it's
              // lifetime is expected to be long enough):
              return_internal_reference<>());
 

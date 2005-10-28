@@ -1,17 +1,17 @@
 #include "cellimage_module.hxx"
 
 using namespace vigra;
-using namespace python;
+using namespace boost::python;
 using namespace vigra::cellimage;
 
 void defineFaces()
 {
-    class_<FourEightSegmentation::FaceIterator>("FaceIterator")
-        .def("__iter__", (FourEightSegmentation::FaceIterator &(*)(FourEightSegmentation::FaceIterator &))&returnSelf,
+    class_<GeoMap::FaceIterator>("FaceIterator")
+        .def("__iter__", (GeoMap::FaceIterator &(*)(GeoMap::FaceIterator &))&returnSelf,
              return_internal_reference<>())
-        .def("next", (FourEightSegmentation::FaceInfo &(*)(FourEightSegmentation::FaceIterator &))&nextIterPos,
+        .def("next", (GeoMap::FaceInfo &(*)(GeoMap::FaceIterator &))&nextIterPos,
              // this is not really true, since the true owner would be
-             // the FourEightSegmentation object (however, it's
+             // the GeoMap object (however, it's
              // lifetime is expected to be long enough:
              return_internal_reference<>());
 

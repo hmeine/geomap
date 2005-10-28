@@ -1,9 +1,8 @@
 #ifndef CELLIMAGE_MODULE_HXX
 #define CELLIMAGE_MODULE_HXX
 
-#include <vigra/vigrapython.hxx>
-#include <vigra/pythonimage.hxx>
 #include "foureightsegmentation.hxx"
+#include <boost/python.hpp>
 
 template<class T>
 T &returnSelf(T &v)
@@ -24,33 +23,35 @@ typename Iterator::reference nextIterPos(Iterator &v)
 
 struct NodeListProxy
 {
-    NodeListProxy(vigra::cellimage::FourEightSegmentation *segmentation)
+    NodeListProxy(vigra::cellimage::GeoMap *segmentation)
     : segmentation_(segmentation)
     {}
 
-    static NodeListProxy create(vigra::cellimage::FourEightSegmentation *segmentation)
+    static NodeListProxy create(vigra::cellimage::GeoMap *segmentation)
     {
         return NodeListProxy(segmentation);
     }
 
-    vigra::cellimage::FourEightSegmentation *segmentation_;
+    vigra::cellimage::GeoMap *segmentation_;
 
     long __len__() const
     {
         return segmentation_->nodeCount();
     }
 
-    vigra::cellimage::FourEightSegmentation::NodeInfo &__getitem__(long index)
+    vigra::cellimage::GeoMap::NodeInfo &__getitem__(long index)
     {
         if(index > (long)segmentation_->maxNodeLabel())
         {
-            PyErr_SetObject(PyExc_IndexError, vigra::ownedPyObject(index));
-            python::throw_error_already_set();
+            PyErr_SetObject(
+                PyExc_IndexError,
+                boost::python::incref(boost::python::object(index).ptr()));
+            boost::python::throw_error_already_set();
         }
         return segmentation_->node(index);
     }
 
-    vigra::cellimage::FourEightSegmentation::NodeIterator __iter__()
+    vigra::cellimage::GeoMap::NodeIterator __iter__()
     {
         return segmentation_->nodesBegin();
     }
@@ -58,33 +59,35 @@ struct NodeListProxy
 
 struct EdgeListProxy
 {
-    EdgeListProxy(vigra::cellimage::FourEightSegmentation *segmentation)
+    EdgeListProxy(vigra::cellimage::GeoMap *segmentation)
     : segmentation_(segmentation)
     {}
 
-    static EdgeListProxy create(vigra::cellimage::FourEightSegmentation *segmentation)
+    static EdgeListProxy create(vigra::cellimage::GeoMap *segmentation)
     {
         return EdgeListProxy(segmentation);
     }
 
-    vigra::cellimage::FourEightSegmentation *segmentation_;
+    vigra::cellimage::GeoMap *segmentation_;
 
     long __len__() const
     {
         return segmentation_->edgeCount();
     }
 
-    vigra::cellimage::FourEightSegmentation::EdgeInfo &__getitem__(long index)
+    vigra::cellimage::GeoMap::EdgeInfo &__getitem__(long index)
     {
         if(index > (long)segmentation_->maxEdgeLabel())
         {
-            PyErr_SetObject(PyExc_IndexError, vigra::ownedPyObject(index));
-            python::throw_error_already_set();
+            PyErr_SetObject(
+                PyExc_IndexError,
+                boost::python::incref(boost::python::object(index).ptr()));
+            boost::python::throw_error_already_set();
         }
         return segmentation_->edge(index);
     }
 
-    vigra::cellimage::FourEightSegmentation::EdgeIterator __iter__()
+    vigra::cellimage::GeoMap::EdgeIterator __iter__()
     {
         return segmentation_->edgesBegin();
     }
@@ -92,33 +95,35 @@ struct EdgeListProxy
 
 struct FaceListProxy
 {
-    FaceListProxy(vigra::cellimage::FourEightSegmentation *segmentation)
+    FaceListProxy(vigra::cellimage::GeoMap *segmentation)
     : segmentation_(segmentation)
     {}
 
-    static FaceListProxy create(vigra::cellimage::FourEightSegmentation *segmentation)
+    static FaceListProxy create(vigra::cellimage::GeoMap *segmentation)
     {
         return FaceListProxy(segmentation);
     }
 
-    vigra::cellimage::FourEightSegmentation *segmentation_;
+    vigra::cellimage::GeoMap *segmentation_;
 
     long __len__() const
     {
         return segmentation_->faceCount();
     }
 
-    vigra::cellimage::FourEightSegmentation::FaceInfo &__getitem__(long index)
+    vigra::cellimage::GeoMap::FaceInfo &__getitem__(long index)
     {
         if(index > (long)segmentation_->maxFaceLabel())
         {
-            PyErr_SetObject(PyExc_IndexError, vigra::ownedPyObject(index));
-            python::throw_error_already_set();
+            PyErr_SetObject(
+                PyExc_IndexError,
+                boost::python::incref(boost::python::object(index).ptr()));
+            boost::python::throw_error_already_set();
         }
         return segmentation_->face(index);
     }
 
-    vigra::cellimage::FourEightSegmentation::FaceIterator __iter__()
+    vigra::cellimage::GeoMap::FaceIterator __iter__()
     {
         return segmentation_->facesBegin();
     }
