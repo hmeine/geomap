@@ -120,7 +120,8 @@ BOOST_PYTHON_MODULE_INIT(cellimage)
         .def("removeBridge", &GeoMap::removeBridge,
              return_internal_reference<>())
         .def("mergeEdges", &GeoMap::mergeEdges,
-             return_internal_reference<>()));
+             return_internal_reference<>())
+        .def_readonly("cellImage", &GeoMap::cellImage));
 
     defineDartTraverser();
     defineCellInfos();
