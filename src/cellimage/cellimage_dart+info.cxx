@@ -5,9 +5,45 @@ using namespace vigra;
 using namespace boost::python;
 using namespace vigra::cellimage;
 
+class DartIterator
+{
+public:
+    DartIterator(const GeoMap::DartTraverser &dart)
+    : it_(dart.neighborCirculator()),
+      cellsUL_(dart.segmentation()->cells)
+    {}
+
+    DartIterator __iter__()
+    {
+        return *this;
+    }
+
+    Diff2D next()
+    {
+        if(it_.atEnd())
+        {
+            PyErr_SetString(PyExc_StopIteration, "");
+            boost::python::throw_error_already_set();
+        }
+        Diff2D result(it_.neighborCirculator().base() - cellsUL_);
+        ++it_;
+        return result;
+    }
+
+    EdgelIterator it_;
+    CellImage::traverser cellsUL_;
+};
+
+DartIterator DartTraverser__iter__(const GeoMap::DartTraverser &dart)
+{
+    return DartIterator(dart);
+}
+
 void defineDartTraverser()
 {
-    class_<GeoMap::DartTraverser>("DartTraverser", init<const GeoMap::DartTraverser &>())
+    class_<GeoMap::DartTraverser> scope(
+        "DartTraverser", init<const GeoMap::DartTraverser &>());
+    scope
         .def("nextAlpha", &GeoMap::DartTraverser::nextAlpha, return_internal_reference<>())
         .def("prevAlpha", &GeoMap::DartTraverser::prevAlpha, return_internal_reference<>())
         .def("nextPhi", &GeoMap::DartTraverser::nextPhi, return_internal_reference<>())
@@ -27,8 +63,13 @@ void defineDartTraverser()
         .def("edge", &GeoMap::DartTraverser::edge, return_internal_reference<>())
         .def("leftFace", &GeoMap::DartTraverser::leftFace, return_internal_reference<>())
         .def("rightFace", &GeoMap::DartTraverser::rightFace, return_internal_reference<>())
+        .def("__iter__", &DartTraverser__iter__)
         .def(self == self)
         .def(self != self);
+
+    class_<DartIterator>("DartIterator", init<const GeoMap::DartTraverser &>())
+        .def("__iter__", &DartIterator::__iter__)
+        .def("next", &DartIterator::next);
 }
 
 GeoMap::DartTraverser &contourGetItem(
