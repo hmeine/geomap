@@ -1,5 +1,6 @@
 #include "cellimage_module.hxx"
 #include <vigra/pythonimage.hxx>
+#include <boost/python/make_constructor.hpp>
 
 using vigra::cellimage::CellImage;
 using vigra::cellimage::CellPixel;
@@ -38,12 +39,13 @@ void setPixel(CellImage & image, vigra::Diff2D const & i, CellPixel const & valu
 
 vigra::cellimage::GeoMap *
 createGeoMap(
-    vigra::PythonSingleBandImage &image,
+    vigra::PythonImage &image,
     float boundaryValue,
 	vigra::cellimage::CellType cornerType)
 {
+    vigra::PythonSingleBandImage simage(image.subImage(0));
     return new vigra::cellimage::GeoMap(
-		srcImageRange(image), boundaryValue, cornerType);
+		srcImageRange(simage), boundaryValue, cornerType);
 }
 
 void validateDart(const vigra::cellimage::GeoMap::DartTraverser &dart)
@@ -99,12 +101,12 @@ BOOST_PYTHON_MODULE_INIT(cellimage)
 
     def("validateDart", &validateDart);
     def("debugDart", &debugDart);
-
-    def("createGeoMap", createGeoMap,
-        return_value_policy<manage_new_object>());
-
     scope geoMap(
         class_<GeoMap>("GeoMap", no_init)
+        .def("__init__", make_constructor(
+                 &createGeoMap, default_call_policies(),
+                 (arg("image"), arg("edgeLabel"),
+                  arg("cornerType") = CellTypeVertex)))
         .def("maxNodeLabel", &GeoMap::maxNodeLabel)
         .add_property("nodes", &NodeListProxy::create)
         .def("maxEdgeLabel", &GeoMap::maxEdgeLabel)
