@@ -14,7 +14,11 @@
 #include <list>
 #include <vector>
 
+#ifndef USE_COLOR
 typedef vigra::FImage OriginalImage;
+#else
+typedef vigra::FRGBImage OriginalImage;
+#endif
 typedef vigra::FImage GradientImage;
 
 typedef vigra::TinyVector<float, 2> Float2D;
