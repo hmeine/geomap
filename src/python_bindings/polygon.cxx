@@ -125,6 +125,7 @@ unsigned int pyFillScannedPoly(
     PythonSingleBandImage target(targetV.subImage(0));
     return fillScannedPoly(scanlines, value,
                            target.traverser_begin(),
+                           target.size(),
                            StandardValueAccessor<GrayValue>());
 }
 
@@ -136,6 +137,7 @@ unsigned int pyDrawScannedPoly(
     PythonSingleBandImage target(targetV.subImage(0));
     return drawScannedPoly(scanlines, value,
                            target.traverser_begin(),
+                           target.size(),
                            StandardValueAccessor<GrayValue>());
 }
 
