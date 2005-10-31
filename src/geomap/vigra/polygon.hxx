@@ -676,17 +676,20 @@ Scanlines *scanPoly(
     return result;
 }
 
-template<class DestIterator, class DestAccessor>
+template<class DestIterator, class SizeType, class DestAccessor>
 unsigned int fillScannedPoly(
     const Scanlines &scanlines,
     typename DestAccessor::value_type value,
-    DestIterator dul, DestAccessor a)
+    DestIterator dul, SizeType ds, DestAccessor a)
 {
     bool clean = true;
     unsigned int pixelCount = 0;
 
-    DestIterator row(dul + scanlines.startIndex);
-    for(unsigned int i = 0; i < scanlines.size(); ++i, ++row)
+    unsigned int i = std::max(0, -scanlines.startIndex),
+          firstRow = std::max(0, scanlines.startIndex),
+         lastIndex = std::min(scanlines.size(), ds[1] - firstRow);
+    DestIterator row(dul + firstRow);
+    for(; i < scanlines.size(); ++i, ++row)
     {
         int inside = 0;
         int x = 0;
@@ -694,6 +697,13 @@ unsigned int fillScannedPoly(
         const Scanlines::Scanline &scanline(scanlines[i]);
         for(unsigned int j = 0; j < scanline.size(); ++j)
         {
+            int end = scanline[j].end;
+            if(end > ds[0])
+            {
+                if(scanline[j].begin > ds[0])
+                    break;
+                end = ds[0];
+            }
             if(inside > 0)
             {
                 while(x < scanline[j].begin)
@@ -703,8 +713,8 @@ unsigned int fillScannedPoly(
                     ++x, ++it;
                 }
             }
-            it += scanline[j].end - x;
-            x = scanline[j].end;
+            it += end - x;
+            x = end;
             inside += scanline[j].direction;
         }
         if(inside)
@@ -715,25 +725,40 @@ unsigned int fillScannedPoly(
     return pixelCount;
 }
 
-template<class DestIterator, class DestAccessor>
+template<class DestIterator, class SizeType, class DestAccessor>
 unsigned int drawScannedPoly(
     const Scanlines &scanlines,
     typename DestAccessor::value_type value,
-    DestIterator dul, DestAccessor a)
+    DestIterator dul, SizeType ds, DestAccessor a)
 {
     unsigned int pixelCount = 0;
 
-    DestIterator row(dul + scanlines.startIndex);
-    for(unsigned int i = 0; i < scanlines.size(); ++i, ++row)
+    unsigned int i = std::max(0, -scanlines.startIndex),
+          firstRow = std::max(0, scanlines.startIndex),
+         lastIndex = std::min(scanlines.size(), ds[1] - firstRow);
+    DestIterator row(dul + firstRow);
+    for(; i < scanlines.size(); ++i, ++row)
     {
         int x = 0;
         typename DestIterator::next_type it(row.begin());
         const Scanlines::Scanline &scanline(scanlines[i]);
         for(unsigned int j = 0; j < scanline.size(); ++j)
         {
-            it += scanline[j].begin - x;
-            x = scanline[j].begin;
-            while(x < scanline[j].end)
+            // X range checking
+            int begin = scanline[j].begin,
+                  end = scanline[j].end;
+            if(begin < 0)
+                begin = 0;
+            if(end > ds[0])
+            {
+                if(scanline[j].begin > ds[0])
+                    break;
+                end = ds[0];
+            }
+
+            it += begin - x;
+            x = begin;
+            while(x < end)
             {
                 a.set(value, it);
                 ++pixelCount;
