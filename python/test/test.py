@@ -22,7 +22,45 @@ assert scanPoly2List(Polygon([
     Vector2(4.5, 0.5)]), 7) == \
     [[], [(1, 2, 1), (5, -2, 5)], [(1, 2, 1), (5, -2, 5)], [(1, 2, 1), (3, -2, 3)], [(1, 2, 1), (3, -2, 3)], [], []]
 
-print "scanPoly tested OK."
+print "basic scanPoly tested OK."
+
+# --------------------------------------------------------------------
+
+from operator import setitem
+def distinct(l):
+    d = {}
+    map(setitem, (d,)*len(l), l, [])
+    return d.keys()
+
+def points(scanlines):
+    result = []
+    for i, scanline in enumerate(scanlines):
+        for segment in scanline:
+            for x in range(segment.begin, segment.end):
+                result.append((x, i+scanlines.startIndex))
+    return result
+
+p1 = Polygon([Vector2(95.5, 49.5), Vector2(97, 50), Vector2(98, 51), Vector2(99, 50), Vector2(100, 50), Vector2(101, 50), Vector2(102, 50), Vector2(103, 50), Vector2(104, 49)])
+p2 = Polygon([Vector2(101.5, 46.5), Vector2(103, 48), Vector2(104, 49)])
+
+r1 = points(scanPoly(p1, 20, 40))
+r1.extend(points(scanPoly(p2, 60)))
+r1 = distinct(r1)
+
+p2.reverse()
+p1.extend(p2)
+r2 = points(scanPoly(p1, 80))
+r2 = distinct(r2)
+
+assert r1 == r2, "composition / reversing changes scanlines?!"
+
+p1.reverse()
+r2 = points(scanPoly(p1, 80))
+r2 = distinct(r2)
+
+assert r1 == r2, "reversing changes scanlines?!"
+
+print "scanPoly composition/reversability tested OK."
 
 # --------------------------------------------------------------------
 
@@ -37,47 +75,33 @@ assert len(p1) == 3, "Polygon composition should prevent duplicate points:\n  %s
 execfile("map.py")
 execfile("testSPWS")
 
-map = Map(maxima, [fl and fl[0] or None for fl in flowlines], Size2D(256, 256))
-
-class FaceLookup:
-    def __init__(self, map):
-        self._map = map
-        self.errorCount = 0
-        self.errorLabels = []
-
-    def __call__(self, faceLabel):
-        if faceLabel < 0:
-            return
-        faceLabel = int(faceLabel)
-        try:
-            assert self._map.face(faceLabel) != None
-        except:
-            self.errorCount += 1
-            if not faceLabel in self.errorLabels:
-                self.errorLabels.append(faceLabel)
-
-def checkLabelConsistency(map):
-    #print "checkLabelConsistency skipped (segfaults)."
-    #return
-    fl = FaceLookup(map)
-    inspectImage(map.labelImage, fl)
-    if fl.errorCount:
-        sys.stderr.write("labelImage contains %d pixels with unknown faces!\n" % (
-            fl.errorCount, ))
-        sys.stderr.write("  unknown face labels found: %s\n" % (fl.errorLabels, ))
-        if fl.errorCount < 40:
-            for p in map.labelImage.size():
-                if int(map.labelImage[p]) in fl.errorLabels:
-                    print "   label %d at %s" % (int(map.labelImage[p]), p)
-    assert fl.errorCount == 0
+map = Map(maxima, [fl and fl[0] for fl in flowlines], Size2D(256, 256))
 
 # execfile("maptest.py")
 # showMapStats(map)
 # bg = readImage("../../../Testimages/blox.gif")
 # d = MapDisplay(bg, map)
 
-assert checkConsistency(map)
-checkLabelConsistency(map)
+assert checkConsistency(map), "map inconsistent"
+assert checkLabelConsistency(map), "map.labelImage inconsistent"
+
+# --------------------------------------------------------------------
+
+def checkPolygons(map):
+    clean = True
+    for edge in map.edgeIter():
+        l, pa = edge.length(), edge.partialArea()
+        p = Polygon(edge)
+        p.invalidateProperties()
+        if abs(l - p.length()) > 1e-6:
+            print "edge %d: length wrong (was %s, is %s)" % (
+                edge._label, l, p.length())
+            clean = False
+        if abs(pa - p.partialArea()) > 1e-6:
+            print "edge %d: partial area wrong (was %s, is %s)" % (
+                edge._label, pa, p.partialArea())
+            clean = False
+    return clean
 
 # --------------------------------------------------------------------
 
