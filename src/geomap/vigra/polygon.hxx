@@ -531,7 +531,9 @@ struct Scanlines
 
     void append(int line, const ScanlineSegment &seg)
     {
-        scanlines[line - startIndex].push_back(seg);
+        int index = line - startIndex;
+        if(index >= 0 && index < scanlines.size())
+            scanlines[line - startIndex].push_back(seg);
     }
 
     Scanline &operator[](unsigned int index)
