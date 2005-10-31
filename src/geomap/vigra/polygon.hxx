@@ -533,7 +533,7 @@ struct Scanlines
     {
         int index = line - startIndex;
         if(index >= 0 && index < scanlines.size())
-            scanlines[line - startIndex].push_back(seg);
+            scanlines[index].push_back(seg);
     }
 
     Scanline &operator[](unsigned int index)
@@ -618,14 +618,21 @@ Scanlines *scanPoly(
         if(kLine != prevKLine)
         {
             int step = (kLine > prevKLine ? 1 : -1);
+            if(prevKLine & 1)
+            {
+                // ensure that (prevLine + 0.5*step) will be a correct intersectY:
+                prevLine = (prevKLine-step) / 2;
+            }
+
             for(; prevKLine != kLine; prevKLine += step)
             {
-                typename Point::value_type intersectX =
-                    prevPoint[0] + (x - prevPoint[0])
-                    * (prevLine + 0.5*step - prevPoint[1])
-                    / (y - prevPoint[1]);
+                // we are leaving a scanline (actually, possibly only
+                // an inter-pixel line if prevKLine is odd)
+                typename Point::value_type
+                    intersectX = prevPoint[0] + (x - prevPoint[0])
+                    * ((prevLine + 0.5*step) - prevPoint[1]) / (y - prevPoint[1]);
 
-                if(!(prevKLine & 1))
+                if(!(prevKLine & 1)) // even Khalimsky coordinate?
                 {
                     // before leaving the scanline, include the intersection point
                     if(s > intersectX)
@@ -637,7 +644,7 @@ Scanlines *scanPoly(
                     result->append(
                         prevKLine/2, ScanlineSegment(s, step + prevStep, e));
                 }
-                else
+                else // coming from inter-pixel line
                 {
                     // initialize next scanline segment
                     s = e = intersectX;
