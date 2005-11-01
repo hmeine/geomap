@@ -20,7 +20,7 @@ def pixelMapData(geomap, offset, scale):
 
     return nodes, edges
 
-def pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(2, 2)):
+def pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0)):
     nodes, edges = pixelMapData(geomap, offset, scale)
     return Map(nodes, edges, geomap.cellImage.size() * scale)
 
@@ -32,12 +32,24 @@ e("img")
 # ce = regionImageToCrackEdgeImage(lab, 0)
 # geomap = GeoMap(ce, 0, CellType.Line)
 
+print "- watershed segmentation..."
 lab, count = watershedSegmentation(e.img.bi.gm, KeepContours)
+
+print "- creating pixel-based GeoMap..."
 geomap = GeoMap(lab, 0, CellType.Vertex)
 
 # face = geomap.faces[14]
 # for c in face.contours:
 #     print list(iter(c))
 
+print "- converting pixel-based GeoMap..."
+Map.performEdgeSplits = False
 spmap = pixelMap2subPixelMap(geomap)
+
+print "- creating display..."
 d = MapDisplay(e.img, spmap)
+
+print "*** split results: ***"
+for edge in spmap.edgeIter():
+    if hasattr(edge, "isSplitResultOf"):
+        print edge
