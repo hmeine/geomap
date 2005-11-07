@@ -49,7 +49,8 @@ spmap = pixelMap2subPixelMap(geomap)
 print "- creating display..."
 d = MapDisplay(e.img, spmap)
 
-print "*** split results: ***"
-for edge in spmap.edgeIter():
-    if hasattr(edge, "isSplitResultOf"):
-        print edge
+if spmap.performEdgeSplits:
+    print "*** split results: ***"
+    for edge in spmap.edgeIter():
+        if hasattr(edge, "isSplitResultOf"):
+            print edge
