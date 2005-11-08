@@ -9,7 +9,7 @@ void defineNodes()
     class_<GeoMap::NodeIterator>("NodeIterator")
         .def("__iter__", (GeoMap::NodeIterator &(*)(GeoMap::NodeIterator &))&returnSelf,
              return_internal_reference<>())
-        .def("next", (GeoMap::NodeInfo &(*)(GeoMap::NodeIterator &))&nextIterPos,
+        .def("next", &nextIterPos<GeoMap::NodeIterator>,
              // this is not really true, since the true owner would be
              // the GeoMap object (however, it's
              // lifetime is expected to be long enough):

@@ -39,37 +39,78 @@ DartIterator DartTraverser__iter__(const GeoMap::DartTraverser &dart)
     return DartIterator(dart);
 }
 
+template <class RET, RET (GeoMap::DartTraverser::* FCT)()>
+RET pyTraverserFct(GeoMap::DartTraverser & self)
+{
+    return (self.*FCT)();
+}
+
+template <class RET, RET (GeoMap::DartTraverser::* FCT)() const>
+RET pyTraverserConstFct(GeoMap::DartTraverser const & self)
+{
+    return (self.*FCT)();
+}
+
 void defineDartTraverser()
 {
-    class_<GeoMap::DartTraverser> scope(
-        "DartTraverser", init<const GeoMap::DartTraverser &>());
+    typedef GeoMap::DartTraverser DT;
+    
+    class_<DT> scope(
+        "DartTraverser", init<const DT &>());
+#ifndef _MSC_VER
     scope
-        .def("nextAlpha", &GeoMap::DartTraverser::nextAlpha, return_internal_reference<>())
-        .def("prevAlpha", &GeoMap::DartTraverser::prevAlpha, return_internal_reference<>())
-        .def("nextPhi", &GeoMap::DartTraverser::nextPhi, return_internal_reference<>())
-        .def("prevPhi", &GeoMap::DartTraverser::prevPhi, return_internal_reference<>())
-        .def("nextSigma", &GeoMap::DartTraverser::nextSigma, return_internal_reference<>())
-        .def("prevSigma", &GeoMap::DartTraverser::prevSigma, return_internal_reference<>())
-        .def("isSingular", &GeoMap::DartTraverser::isSingular)
-		//.def("carefulNextSigma", &GeoMap::DartTraverser::carefulNextSigma)
-		//.def("carefulPrevSigma", &GeoMap::DartTraverser::carefulPrevSigma)
-        .def("startNodeLabel", &GeoMap::DartTraverser::startNodeLabel)
-        .def("endNodeLabel", &GeoMap::DartTraverser::endNodeLabel)
-        .def("edgeLabel", &GeoMap::DartTraverser::edgeLabel)
-        .def("leftFaceLabel", &GeoMap::DartTraverser::leftFaceLabel)
-        .def("rightFaceLabel", &GeoMap::DartTraverser::rightFaceLabel)
-        .def("startNode", &GeoMap::DartTraverser::startNode, return_internal_reference<>())
-        .def("endNode", &GeoMap::DartTraverser::endNode, return_internal_reference<>())
-        .def("edge", &GeoMap::DartTraverser::edge, return_internal_reference<>())
-        .def("leftFace", &GeoMap::DartTraverser::leftFace, return_internal_reference<>())
-        .def("rightFace", &GeoMap::DartTraverser::rightFace, return_internal_reference<>())
+        .def("nextAlpha", &DT::nextAlpha, return_internal_reference<>());
+        .def("prevAlpha", &DT::prevAlpha, return_internal_reference<>())
+        .def("nextPhi", &DT::nextPhi, return_internal_reference<>())
+        .def("prevPhi", &DT::prevPhi, return_internal_reference<>())
+        .def("nextSigma", &DT::nextSigma, return_internal_reference<>())
+        .def("prevSigma", &DT::prevSigma, return_internal_reference<>())
+        .def("isSingular", &DT::isSingular)
+		//.def("carefulNextSigma", &DT::carefulNextSigma)
+		//.def("carefulPrevSigma", &DT::carefulPrevSigma)
+        .def("startNodeLabel", &DT::startNodeLabel)
+        .def("endNodeLabel", &DT::endNodeLabel)
+        .def("edgeLabel", &DT::edgeLabel)
+        .def("leftFaceLabel", &DT::leftFaceLabel)
+        .def("rightFaceLabel", &DT::rightFaceLabel)
+        .def("startNode", &DT::startNode, return_internal_reference<>())
+        .def("endNode", &DT::endNode, return_internal_reference<>())
+        .def("edge", &DT::edge, return_internal_reference<>())
+        .def("leftFace", &DT::leftFace, return_internal_reference<>())
+        .def("rightFace", &DT::rightFace, return_internal_reference<>())
         .def("__iter__", &DartTraverser__iter__)
         .def(self == self)
         .def(self != self);
+#else  // _MSC_VER
+    scope
+        .def("nextAlpha", &pyTraverserFct<DT&, &DT::nextAlpha>, return_internal_reference<>())
+        .def("prevAlpha", &pyTraverserFct<DT&, &DT::prevAlpha>, return_internal_reference<>())
+        .def("nextPhi", &pyTraverserFct<DT&, &DT::nextPhi>, return_internal_reference<>())
+        .def("prevPhi", &pyTraverserFct<DT&, &DT::prevPhi>, return_internal_reference<>())
+        .def("nextSigma", &pyTraverserFct<DT&, &DT::nextSigma>, return_internal_reference<>())
+        .def("prevSigma", &pyTraverserFct<DT&, &DT::prevSigma>, return_internal_reference<>())
+        .def("isSingular", &pyTraverserConstFct<bool, &DT::isSingular>)
+		//.def("carefulNextSigma", &DT::carefulNextSigma)
+		//.def("carefulPrevSigma", &DT::carefulPrevSigma)
+        .def("startNodeLabel", &pyTraverserConstFct<CellLabel, &DT::startNodeLabel>)
+        .def("endNodeLabel", &pyTraverserConstFct<CellLabel, &DT::endNodeLabel>)
+        .def("edgeLabel", &pyTraverserConstFct<CellLabel, &DT::edgeLabel>)
+        .def("leftFaceLabel", &pyTraverserConstFct<CellLabel, &DT::leftFaceLabel>)
+        .def("rightFaceLabel", &pyTraverserConstFct<CellLabel, &DT::rightFaceLabel>)
+        .def("startNode", &pyTraverserConstFct<GeoMap::NodeInfo &,&DT::startNode>, return_internal_reference<>())
+        .def("endNode", &pyTraverserConstFct<GeoMap::NodeInfo &,&DT::endNode>, return_internal_reference<>())
+        .def("edge", &pyTraverserConstFct<GeoMap::EdgeInfo &,&DT::edge>, return_internal_reference<>())
+        .def("leftFace", &pyTraverserConstFct<GeoMap::FaceInfo &,&DT::leftFace>, return_internal_reference<>())
+        .def("rightFace", &pyTraverserConstFct<GeoMap::FaceInfo &,&DT::rightFace>, return_internal_reference<>())
+        .def("__iter__", &DartTraverser__iter__)
+        .def(self == self)
+        .def(self != self);
+#endif
 
-    class_<DartIterator>("DartIterator", init<const GeoMap::DartTraverser &>())
+    class_<DartIterator>("DartIterator", init<const DT &>())
         .def("__iter__", &DartIterator::__iter__)
         .def("next", &DartIterator::next);
+
 }
 
 GeoMap::DartTraverser &contourGetItem(

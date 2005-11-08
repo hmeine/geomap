@@ -72,7 +72,7 @@ class EdgeProtection
     bool protectEdge(vigra::cellimage::CellLabel edgeLabel,
                      FlagType flag, bool protect = true)
     {
-        if((bool)(edgeProtection_[edgeLabel] & flag) != protect)
+        if(((edgeProtection_[edgeLabel] & flag) != 0) != protect)
         {
             edgeProtection_[edgeLabel] ^= flag;
             return true;
@@ -82,7 +82,7 @@ class EdgeProtection
 
     bool edgeProtected(vigra::cellimage::CellLabel edgeLabel) const
     {
-        return (bool)edgeProtection_[edgeLabel];
+        return edgeProtection_[edgeLabel] != 0;
     }
 
     bool sameProtection(vigra::cellimage::CellLabel edgeLabel1,
@@ -94,7 +94,7 @@ class EdgeProtection
     bool edgeProtected(vigra::cellimage::CellLabel edgeLabel,
                        FlagType flag) const
     {
-        return (bool)(edgeProtection_[edgeLabel] & flag);
+        return (edgeProtection_[edgeLabel] & flag) != 0;
     }
 };
 

@@ -59,6 +59,15 @@ void validateDart(const vigra::cellimage::GeoMap::DartTraverser &dart)
         vigra_precondition(dart.edge().initialized(),
                            "dart's edge is not valid (initialized())");
 }
+
+#ifdef _MSC_VER
+// HACK??? the linker should find this in the boost_python library, but it doesn't
+namespace boost { namespace python { namespace detail
+{
+  BOOST_PYTHON_DECL PyObject* current_scope = 0;
+}}}
+#endif
+
 using namespace boost::python;
 using namespace vigra::cellimage;
 
@@ -101,6 +110,7 @@ BOOST_PYTHON_MODULE_INIT(cellimage)
 
     def("validateDart", &validateDart);
     def("debugDart", &debugDart);
+
     scope geoMap(
         class_<GeoMap>("GeoMap", no_init)
         .def("__init__", make_constructor(

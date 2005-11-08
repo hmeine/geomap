@@ -7,7 +7,7 @@
 #include "debugimage.hxx"
 #include "crop.hxx"
 
-#ifndef NDEBUG
+#if !defined(NDEBUG) && !defined(_MSC_VER)
 #  warning Consistency checks will be done after every Euler operation!
 #endif
 
@@ -75,8 +75,8 @@ GeoMap::GeoMap(const CellImage &importImage)
 
     nodeCount_ = edgeCount_ = faceCount_ = 0;
 
-    if(maxNodeLabel+maxEdgeLabel+maxFaceLabel>25000)
-        std::cerr << maxNodeLabel/nodeCount_;
+//    if(maxNodeLabel+maxEdgeLabel+maxFaceLabel>25000)
+//        std::cerr << maxNodeLabel/nodeCount_;
 
     std::cerr << "  initializing nodeList..\n";
     initNodeList(maxNodeLabel);
@@ -189,7 +189,7 @@ GeoMap::FaceInfo &GeoMap::removeIsolatedNode(const DartTraverser & dart)
     {
         checkConsistency();
     }
-    catch(vigra::StdException &e)
+    catch(vigra::StdException &)
     {
         std::cerr << "OPERATION: removeIsolatedNode(" << dart << ")\n";
         throw;
@@ -272,7 +272,7 @@ GeoMap::FaceInfo &GeoMap::mergeFaces(const DartTraverser & dart)
     {
         checkConsistency();
     }
-    catch(vigra::StdException &e)
+    catch(vigra::StdException &)
     {
         std::cerr << "OPERATION: mergeFaces(" << dart << ")\n";
         throw;
@@ -338,7 +338,7 @@ GeoMap::FaceInfo &GeoMap::removeBridge(const DartTraverser & dart)
     {
         checkConsistency();
     }
-    catch(vigra::StdException &e)
+    catch(vigra::StdException &)
     {
         std::cerr << "OPERATION: removeBridge(" << dart << ")\n";
         throw;
@@ -404,7 +404,7 @@ GeoMap::EdgeInfo &GeoMap::mergeEdges(const DartTraverser & dart)
     {
         checkConsistency();
     }
-    catch(vigra::StdException &e)
+    catch(vigra::StdException &)
     {
         std::cerr << "OPERATION: mergeEdges(" << dart << ")\n";
         throw;
@@ -653,7 +653,12 @@ void GeoMap::initCellImage(BImage & contourImage, CellType cornerType)
                                     Rect2D(x, y, x+5, y+5)),
                                std::cerr);
                     char message[200];
-                    snprintf(message, 200, "GeoMap::init(): "
+#ifdef _MSC_VER
+                    _snprintf
+#else
+                    snprintf
+#endif
+                        (message, 200, "GeoMap::init(): "
                             "Configuration at (%d, %d) must be thinned further (found configuration %d)",
                             x, y, conf);
 

@@ -872,7 +872,7 @@ public:
 
     bool initialized_;
 
-    friend struct DartTraverser;
+    friend class DartTraverser;
 
     void initCellImage(BImage &contourImage, CellType cornerType);
     CellLabel label0Cells();

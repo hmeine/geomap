@@ -9,7 +9,7 @@ void defineFaces()
     class_<GeoMap::FaceIterator>("FaceIterator")
         .def("__iter__", (GeoMap::FaceIterator &(*)(GeoMap::FaceIterator &))&returnSelf,
              return_internal_reference<>())
-        .def("next", (GeoMap::FaceInfo &(*)(GeoMap::FaceIterator &))&nextIterPos,
+        .def("next", &nextIterPos<GeoMap::FaceIterator>,
              // this is not really true, since the true owner would be
              // the GeoMap object (however, it's
              // lifetime is expected to be long enough:

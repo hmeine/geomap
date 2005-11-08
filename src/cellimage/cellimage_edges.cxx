@@ -9,7 +9,7 @@ void defineEdges()
     class_<GeoMap::EdgeIterator>("EdgeIterator")
         .def("__iter__", (GeoMap::EdgeIterator &(*)(GeoMap::EdgeIterator &))&returnSelf,
              return_internal_reference<>())
-        .def("next", (GeoMap::EdgeInfo &(*)(GeoMap::EdgeIterator &))&nextIterPos,
+        .def("next", &nextIterPos<GeoMap::EdgeIterator>,
              // this is not really true, since the true owner would be
              // the GeoMap object (however, it's
              // lifetime is expected to be long enough):
