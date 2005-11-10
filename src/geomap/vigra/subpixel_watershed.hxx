@@ -1773,6 +1773,13 @@ SubPixelWatersheds<SplineImageView>::flowLine(double x, double y, bool forward, 
 
     x = x + dx;
     y = y + dy;
+
+    if(x < epsilon || x > (double)(image_.width())-1.0-epsilon ||
+       y < epsilon || y > (double)(image_.height())-1.0-epsilon)
+    {
+        return -2; // unwanted edge parallel to border
+    }
+
     curve.push_back(PointType(x, y));
     dx = image_.dx(x, y);
     dy = image_.dy(x, y);
@@ -1826,7 +1833,7 @@ if(DEBUG) std::cerr << "stop index, x, y " << index << ' ' << curve.back()[0] <<
             if(DEBUG) std::cerr << "outside image\n";
             failReason = -1; // signal "outside image", curve might still be useful?!
         }
-        else if(h < 1.0e-6)
+        if(h < 1.0e-6)
         {
             if(DEBUG) std::cerr << "give up\n";
             return failReason; // give up
