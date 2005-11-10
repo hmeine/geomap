@@ -532,7 +532,7 @@ struct Scanlines
     void append(int line, const ScanlineSegment &seg)
     {
         int index = line - startIndex;
-        if(index >= 0 && index < scanlines.size())
+        if(index >= 0 && index < static_cast<int>(scanlines.size()))
             scanlines[index].push_back(seg);
     }
 
