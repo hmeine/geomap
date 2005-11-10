@@ -75,15 +75,18 @@ assert len(p1) == 3, "Polygon composition should prevent duplicate points:\n  %s
 execfile("map.py")
 execfile("testSPWS")
 
-map = Map(maxima, [fl and fl[0] for fl in flowlines], Size2D(256, 256))
+for maxima, flowlines, size in [
+    (maxima2, flowlines2, Size2D(39, 39)),
+    (maxima1, flowlines1, Size2D(256, 256))]:
+    map = Map(maxima, flowlines, size)
+
+    assert checkConsistency(map), "map inconsistent"
+    assert checkLabelConsistency(map), "map.labelImage inconsistent"
 
 # execfile("maptest.py")
 # showMapStats(map)
 # bg = readImage("../../../Testimages/blox.gif")
 # d = MapDisplay(bg, map)
-
-assert checkConsistency(map), "map inconsistent"
-assert checkLabelConsistency(map), "map.labelImage inconsistent"
 
 # --------------------------------------------------------------------
 
