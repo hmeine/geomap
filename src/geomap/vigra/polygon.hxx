@@ -133,8 +133,8 @@ class PointArray
         PointArray<Point2D> result(points_.size());
         for(unsigned int i = 0; i < points_.size(); ++i)
         {
-            result[i].x = (int)(points_[i][0] + 0.5);
-            result[i].y = (int)(points_[i][1] + 0.5);
+            result[i].x = (int)floor(points_[i][0] + 0.5);
+            result[i].y = (int)floor(points_[i][1] + 0.5);
         }
         return result;
     }
@@ -492,7 +492,7 @@ struct ScanlineSegment
     {}
 
     ScanlineSegment(double b, int d, double e)
-    : begin((int)(b+0.5)), direction(d), end((int)(ceil(e + 0.5)))
+    : begin((int)floor(b+0.5)), direction(d), end((int)(ceil(e + 0.5)))
     {}
 
     ScanlineSegment()
