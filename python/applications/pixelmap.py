@@ -1,5 +1,8 @@
 execfile("maptest.py")
 
+sys.path.append('../cellimage')
+from cellimage import *
+
 def pixelMapData(geomap, offset, scale):
     nodes = [None] * geomap.maxNodeLabel()
     for node in geomap.nodes:
@@ -7,7 +10,6 @@ def pixelMapData(geomap, offset, scale):
         center = Vector2(*ul) + Vector2(node.bounds.width() - 1,
                                         node.bounds.height() - 1) / 2
         nodes[node.label] = (center+offset) * scale
-
     edges = [None] * geomap.maxEdgeLabel()
     for edge in geomap.edges:
         points = [(Vector2(*p)+offset) * scale for p in iter(edge.start)]
@@ -17,7 +19,6 @@ def pixelMapData(geomap, offset, scale):
         points.append(nodes[endNodeLabel])
         edges[edge.label] = (
             startNodeLabel, endNodeLabel, Polygon(points))
-
     return nodes, edges
 
 def pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0),
@@ -25,17 +26,17 @@ def pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0),
     nodes, edges = pixelMapData(geomap, offset, scale)
     if labelImageSize == None:
         labelImageSize = geomap.cellImage.size() * scale
-    return Map(nodes, edges, labelImageSize)
+    return Map(nodes, edges, labelImageSize,
+               performBorderClosing = False, performEdgeSplits = False)
 
-from cellimage import *
-e = Experiment("../../../Testimages/blox.gif", "grad")
+e = Experiment(filename, "grad")
 e("img")
 
-crackEdges = True
+crackEdges = 8  # can be 0, 4, or 8
 
 print "- watershed segmentation..."
 if crackEdges:
-    lab, count = watershedUnionFind8(e.img.bi.gm)
+    lab, count = eval('watershedUnionFind'+str(crackEdges))(e.img.bi.gm)
     ce = regionImageToCrackEdgeImage(lab, 0)
 else:
     lab, count = watershedSegmentation(e.img.bi.gm, KeepContours)
@@ -46,21 +47,19 @@ if crackEdges:
 else:
     geomap = GeoMap(lab, 0, CellType.Vertex)
 
-# face = geomap.faces[14]
-# for c in face.contours:
-#     print list(iter(c))
-
 print "- converting pixel-based GeoMap..."
-Map.performBorderClosing = False # pixel-based GeoMap already has borders
-Map.performEdgeSplits = False
 if crackEdges:
     spmap = pixelMap2subPixelMap(
         geomap, 0.5, labelImageSize = (geomap.cellImage.size()-Size2D(3,3))/2)
 else:
-    spmap = pixelMap2subPixelMap(geomap)
+    spmap = pixelMap2subPixelMap(geomap, 
+                labelImageSize = (geomap.cellImage.size()-Size2D(4,4)))
+spmap.faceStats = FaceIntensityStatistics(spmap, e.img.view)
+mergeZeroPixelFaces(spmap)
 
 print "- creating display..."
 d = MapDisplay(e.img, spmap)
+d.setCaption(str(e.img.name+' crackEdges '+str(crackEdges)).replace("_", " "))
 
 if spmap.performEdgeSplits:
     print "*** split results: ***"
