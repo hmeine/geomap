@@ -9,8 +9,8 @@
         <rect>
             <x>0</x>
             <y>0</y>
-            <width>932</width>
-            <height>70</height>
+            <width>416</width>
+            <height>180</height>
         </rect>
     </property>
     <property name="caption">
@@ -31,9 +31,9 @@
                 <number>0</number>
             </property>
             <property name="title">
-                <string></string>
+                <string>Background Image</string>
             </property>
-            <hbox>
+            <vbox>
                 <property name="name">
                     <cstring>unnamed</cstring>
                 </property>
@@ -97,48 +97,127 @@
                     <property name="accel">
                         <string>Alt+M</string>
                     </property>
+                    <property name="buttonGroupId">
+                        <number>4</number>
+                    </property>
                 </widget>
-            </hbox>
+            </vbox>
         </widget>
-        <widget class="QCheckBox">
+        <widget class="QLayoutWidget">
             <property name="name">
-                <cstring>normalizeCB</cstring>
+                <cstring>layout22</cstring>
             </property>
-            <property name="text">
-                <string>&amp;normalize</string>
-            </property>
-            <property name="accel">
-                <string>Alt+N</string>
-            </property>
+            <vbox>
+                <property name="name">
+                    <cstring>unnamed</cstring>
+                </property>
+                <widget class="QCheckBox">
+                    <property name="name">
+                        <cstring>normalizeCB</cstring>
+                    </property>
+                    <property name="text">
+                        <string>&amp;normalize</string>
+                    </property>
+                    <property name="accel">
+                        <string>Alt+N</string>
+                    </property>
+                </widget>
+                <spacer>
+                    <property name="name">
+                        <cstring>spacer12</cstring>
+                    </property>
+                    <property name="orientation">
+                        <enum>Vertical</enum>
+                    </property>
+                    <property name="sizeType">
+                        <enum>Expanding</enum>
+                    </property>
+                    <property name="sizeHint">
+                        <size>
+                            <width>20</width>
+                            <height>41</height>
+                        </size>
+                    </property>
+                </spacer>
+            </vbox>
         </widget>
-        <widget class="QToolButton">
+        <spacer>
             <property name="name">
-                <cstring>paintbrushButton</cstring>
+                <cstring>spacer7</cstring>
             </property>
-            <property name="text">
-                <string>&amp;APB</string>
+            <property name="orientation">
+                <enum>Horizontal</enum>
             </property>
-            <property name="accel">
-                <string>Alt+A</string>
+            <property name="sizeType">
+                <enum>Fixed</enum>
             </property>
-            <property name="toolTip" stdset="0">
-                <string>Active Paintbrush tool</string>
+            <property name="sizeHint">
+                <size>
+                    <width>30</width>
+                    <height>20</height>
+                </size>
             </property>
-        </widget>
-        <widget class="QToolButton">
+        </spacer>
+        <widget class="QButtonGroup">
             <property name="name">
-                <cstring>naviButton</cstring>
+                <cstring>toolChoice</cstring>
             </property>
-            <property name="text">
-                <string>na&amp;v</string>
+            <property name="frameShape">
+                <enum>NoFrame</enum>
             </property>
-            <property name="accel">
-                <string>Alt+V</string>
+            <property name="title">
+                <string>Tool</string>
             </property>
-            <property name="toolTip" stdset="0">
-                <string>Tool which lets you open a DartNavigator dialog by clicking near a node.</string>
+            <property name="selectedId" stdset="0">
+                <number>0</number>
             </property>
+            <vbox>
+                <property name="name">
+                    <cstring>unnamed</cstring>
+                </property>
+                <widget class="QRadioButton">
+                    <property name="name">
+                        <cstring>radioButton6</cstring>
+                    </property>
+                    <property name="text">
+                        <string>None</string>
+                    </property>
+                </widget>
+                <widget class="QRadioButton">
+                    <property name="name">
+                        <cstring>radioButton7</cstring>
+                    </property>
+                    <property name="text">
+                        <string>Navigator</string>
+                    </property>
+                </widget>
+                <widget class="QRadioButton">
+                    <property name="name">
+                        <cstring>radioButton8</cstring>
+                    </property>
+                    <property name="text">
+                        <string>Active Paintbrush</string>
+                    </property>
+                </widget>
+            </vbox>
         </widget>
+        <spacer>
+            <property name="name">
+                <cstring>spacer8</cstring>
+            </property>
+            <property name="orientation">
+                <enum>Horizontal</enum>
+            </property>
+            <property name="sizeType">
+                <enum>Expanding</enum>
+            </property>
+            <property name="sizeHint">
+                <size>
+                    <width>16</width>
+                    <height>20</height>
+                </size>
+            </property>
+        </spacer>
     </hbox>
 </widget>
 <layoutdefaults spacing="6" margin="11"/>
