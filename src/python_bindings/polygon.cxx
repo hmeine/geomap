@@ -9,7 +9,7 @@ using namespace boost::python;
 
 Point2D intPos(const Vector2 &p)
 {
-    return Point2D((int)(p[0]+0.5), (int)(p[1]+0.5));
+    return Point2D((int)floor(p[0]+0.5), (int)floor(p[1]+0.5));
 }
 
 inline void checkPointIndex(int &i, int size)
