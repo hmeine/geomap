@@ -487,23 +487,6 @@ struct CriticalPointsCompare
     }
 };
 
-template <class T>
-struct NormTraits<PythonVectorView<T> >
-{
-    typedef typename NumericTraits<T>::RealPromote    SquaredNormType;
-    typedef typename NumericTraits<T>::RealPromote           NormType;
-};
-
-template <class T>
-static typename NormTraits<T>::SquaredNormType
-squaredNorm(PythonVectorView<T> const & v)
-{
-    typename NormTraits<T>::SquaredNormType res = vigra::squaredNorm(v[0]);
-    for(int i=1; i<v.size(); ++i)
-        res += vigra::squaredNorm(v[i]);
-    return res;
-}
-
 template<class Vector2D>
 class Map2D
 {
