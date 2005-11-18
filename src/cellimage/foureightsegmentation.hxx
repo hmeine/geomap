@@ -480,16 +480,18 @@ public:
 
         CellLabel leftFaceLabel() const throw ()
         {
-//             vigra_precondition(neighborCirc_[1].type() == CellTypeRegion,
-//                 "insufficient algorithm for DartTraverser::leftFaceLabel()");
-            return neighborCirc_[1].label();
+            // FIXME: will this always work when two points of the same edge are adjacent to this node ???
+            return neighborCirc_[1].type() == CellTypeRegion
+                      ? neighborCirc_[1].label()
+                      : neighborCirc_[2].label();
         }
 
         CellLabel rightFaceLabel() const throw ()
         {
-//             vigra_precondition(neighborCirc_[-1].type() == CellTypeRegion,
-//                 "insufficient algorithm for DartTraverser::rightFaceLabel()");
-            return neighborCirc_[-1].label();
+            // FIXME: will this always work when two points of the same edge are adjacent to this node ???
+            return neighborCirc_[-1].type() == CellTypeRegion
+                      ? neighborCirc_[-1].label()
+                      : neighborCirc_[-2].label();
         }
 
         NodeInfo &startNode() const throw ()
@@ -556,6 +558,16 @@ public:
                 (neighborCirc_.center() - segmentation_->cells),
                 neighborCirc_.direction());
             segmentation_ = segmentation;
+        }
+        
+        Diff2D centerCoordinate() const
+        {
+            return (neighborCirc_.center() - segmentation_->cellImage.upperLeft()) - Diff2D(2,2);
+        }
+
+        int direction() const
+        {
+            return (int)neighborCirc_.direction();
         }
 
         typedef unsigned int Serialized;
