@@ -226,14 +226,24 @@ void markEdgeInLabelImage(
 {
     PythonSingleBandImage labelImage(labelVImage.subImage(0));
 
-    for(unsigned int y = scanlines.startIndex, i = 0;
-        i < scanlines.size(); ++y, ++i)
+    // clip to image range vertically:
+    int y = std::max(0, scanlines.startIndex()),
+     endY = std::min(labelImage.height(), scanlines.endIndex());
+
+    for(; y < endY; ++y)
     {
-        const Scanlines::Scanline &scanline(scanlines[i]);
+        const Scanlines::Scanline &scanline(scanlines[y]);
         for(unsigned int j = 0; j < scanline.size(); ++j)
         {
-            for(int x = scanline[j].begin;
-                x < scanline[j].end; ++x)
+            // X range checking
+            int begin = scanline[j].begin,
+                  end = scanline[j].end;
+            if(begin < 0)
+                begin = 0;
+            if(end > labelImage.width())
+                end = labelImage.width();
+
+            for(int x = begin; x < end; ++x)
             {
                 PythonSingleBandImage::reference old(labelImage(x, y));
                 if(old < 0)
@@ -247,20 +257,28 @@ void markEdgeInLabelImage(
 
 list removeEdgeFromLabelImage(
     const Scanlines &scanlines,
-    PythonImage &labelVImage,
+    PythonSingleBandImage &labelImage,
     GrayValue substituteLabel)
 {
-    PythonSingleBandImage labelImage(labelVImage.subImage(0));
-
     list result;
-    for(unsigned int y = scanlines.startIndex, i = 0;
-        i < scanlines.size(); ++y, ++i)
+    // clip to image range vertically:
+    int y = std::max(0, scanlines.startIndex()),
+     endY = std::min(labelImage.height(), scanlines.endIndex());
+
+    for(; y < endY; ++y)
     {
-        const Scanlines::Scanline &scanline(scanlines[i]);
+        const Scanlines::Scanline &scanline(scanlines[y]);
         for(unsigned int j = 0; j < scanline.size(); ++j)
         {
-            for(int x = scanline[j].begin;
-                x < scanline[j].end; ++x)
+            // X range checking
+            int begin = scanline[j].begin,
+                  end = scanline[j].end;
+            if(begin < 0)
+                begin = 0;
+            if(end > labelImage.width())
+                end = labelImage.width();
+
+            for(int x = begin; x < end; ++x)
             {
                 PythonSingleBandImage::reference old(labelImage(x, y));
                 if(old != -1)
@@ -303,6 +321,7 @@ void defPolygon()
     defIter<VectorRevIter>("Vector2RevIter");
     class_<Vector2Array>("Vector2Array")
         .def(init<Vector2Array>())
+        .def(init<list>())
         .def("reverse", &Vector2Array::reverse)
         .def("__len__", &Vector2Array::size)
         .def("__getitem__", &Array__getitem__<Vector2Array>)
@@ -333,8 +352,8 @@ void defPolygon()
     ;
 
     class_<PythonPolygon, bases<PythonPolygon::Base> >("Polygon")
-        .def(init<list>())
         .def(init<Vector2Array>())
+        .def(init<list>()) // FIXME: use implicitly_convertible if possible
         .def("__delitem__", &erase<PythonPolygon>)
         .def("insert", &insert<PythonPolygon>)
         .def("append", &PythonPolygon::push_back)
@@ -353,7 +372,8 @@ void defPolygon()
         .def("__len__", &Scanlines::size)
         .def("__getitem__", &Array__getitem__byref<Scanlines>,
              return_internal_reference<>())
-        .def_readonly("startIndex", &Scanlines::startIndex)
+        .def("startIndex", &Scanlines::startIndex)
+        .def("endIndex", &Scanlines::startIndex)
     ;
 
     class_<Scanlines::Scanline>("Scanline", no_init)
