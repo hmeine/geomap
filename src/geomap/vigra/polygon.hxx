@@ -40,6 +40,23 @@ class PointArray
     : points_(b, e)
     {}
 
+/********************************************************************/
+/*                                                                  */
+/*             python stuff (should go into a subclass)             */
+/*                                                                  */
+/********************************************************************/
+
+    PointArray(::boost::python::list l)
+    : points_(::boost::python::len(l))
+    {
+        for(unsigned int i = 0; i < points_.size(); ++i)
+        {
+            points_[i] = ::boost::python::extract<POINT>(l[i]);
+        }
+    }
+
+/********************************************************************/
+
     const_reference operator[](difference_type index) const
     {
         return points_[index];
@@ -201,56 +218,6 @@ class Polygon : public PointArray<POINT>
     typedef typename Base::size_type              size_type;
     typedef typename Base::difference_type        difference_type;
 
-/********************************************************************/
-/*                                                                  */
-/*             python stuff (should go into a subclass)             */
-/*                                                                  */
-/********************************************************************/
-
-    Polygon(::boost::python::list l)
-    : Base(::boost::python::len(l)),
-      lengthValid_(false),
-      partialAreaValid_(false)
-    {
-        for(unsigned int i = 0; i < points_.size(); ++i)
-        {
-            points_[i] = ::boost::python::extract<POINT>(l[i]);
-        }
-    }
-
-    void extend(const Polygon &other)
-    {
-        if(!other.size())
-            return;
-
-        Polygon::const_iterator otherBegin(other.begin());
-        if(size())
-        {
-            if(*otherBegin == points_.back())
-            {
-                // don't copy first pixel
-                ++otherBegin;
-            }
-            else
-            {
-                if(lengthValid_)
-                    length_ +=
-                        (other.points_.front() - points_.back()).magnitude();
-                if(partialAreaValid_)
-                    partialArea_ +=
-                        (other.points_.front()[0]*points_.back()[1] -
-                         other.points_.front()[1]*points_.back()[0]);
-            }
-        }
-        if(lengthValid_)
-            length_ += other.length();
-        if(partialAreaValid_)
-            partialArea_ += other.partialArea();
-        points_.insert(points_.end(), otherBegin, other.end());
-    }
-
-/********************************************************************/
-
     Polygon(Base points)
     : Base(points),
       lengthValid_(false),
@@ -321,6 +288,37 @@ class Polygon : public PointArray<POINT>
                                       v[1]*points_.back()[0]);
         }
         Base::push_back(v);
+    }
+
+    void extend(const Polygon &other)
+    {
+        if(!other.size())
+            return;
+
+        Polygon::const_iterator otherBegin(other.begin());
+        if(size())
+        {
+            if(*otherBegin == points_.back())
+            {
+                // don't copy first pixel
+                ++otherBegin;
+            }
+            else
+            {
+                if(lengthValid_)
+                    length_ +=
+                        (other.points_.front() - points_.back()).magnitude();
+                if(partialAreaValid_)
+                    partialArea_ +=
+                        (other.points_.front()[0]*points_.back()[1] -
+                         other.points_.front()[1]*points_.back()[0]);
+            }
+        }
+        if(lengthValid_)
+            length_ += other.length();
+        if(partialAreaValid_)
+            partialArea_ += other.partialArea();
+        points_.insert(points_.end(), otherBegin, other.end());
     }
 
     void setPoint(unsigned int pos, const_reference x)
@@ -521,41 +519,51 @@ struct Scanlines
     typedef std::vector<ScanlineSegment> Scanline;
     typedef Scanline value_type;
 
-    int startIndex;
-    std::vector<Scanline> scanlines;
+    int startIndex_;
+    std::vector<Scanline> scanlines_;
 
     Scanlines(int startIndex, unsigned int count)
-    : startIndex(startIndex),
-      scanlines(count)
+    : startIndex_(startIndex),
+      scanlines_(count)
     {}
 
     void append(int line, const ScanlineSegment &seg)
     {
-        int index = line - startIndex;
-        if(index >= 0 && index < static_cast<int>(scanlines.size()))
-            scanlines[index].push_back(seg);
+        int index = line - startIndex_;
+        if(index >= 0 && index < (int)scanlines_.size())
+            scanlines_[index].push_back(seg);
+    }
+
+    int startIndex() const
+    {
+        return startIndex_;
+    }
+
+    int endIndex() const
+    {
+        return scanlines_.size() - startIndex_;
     }
 
     Scanline &operator[](unsigned int index)
     {
-        return scanlines[index];
+        return scanlines_[index - startIndex_];
     }
 
     const Scanline &operator[](unsigned int index) const
     {
-        return scanlines[index];
+        return scanlines_[index - startIndex_];
     }
 
     unsigned int size() const
     {
-        return scanlines.size();
+        return scanlines_.size();
     }
 
     void normalize()
     {
         for(unsigned int i = 0; i < size(); ++i)
         {
-            Scanlines::Scanline &scanline((*this)[i]);
+            Scanlines::Scanline &scanline(scanlines_[i]);
 
             std::sort(scanline.begin(), scanline.end(),
                       ScanlineSegmentCompare());
@@ -578,7 +586,7 @@ template<class Point>
 Scanlines *scanPoly(
     const PointArray<Point> &points,
     unsigned int scanLineCount,
-    unsigned int startIndex = 0)
+    int startIndex = 0)
 {
     Scanlines *result = new Scanlines(startIndex, scanLineCount);
 
@@ -685,28 +693,39 @@ unsigned int fillScannedPoly(
     bool clean = true;
     unsigned int pixelCount = 0;
 
-    unsigned int i = std::max(0, -scanlines.startIndex),
-          firstRow = std::max(0, scanlines.startIndex),
-         lastIndex = std::min(scanlines.size(), ds[1] - firstRow);
-    DestIterator row(dul + firstRow);
-    for(; i < scanlines.size(); ++i, ++row)
+    // clip to image range vertically:
+    int y = std::max(0, scanlines.startIndex()),
+     endY = std::min(ds[1], scanlines.endIndex());
+
+    for(DestIterator row(dul + y); y < endY; ++y, ++row)
     {
         int inside = 0;
         int x = 0;
         typename DestIterator::next_type it(row.begin());
-        const Scanlines::Scanline &scanline(scanlines[i]);
+        const Scanlines::Scanline &scanline(scanlines[y]);
         for(unsigned int j = 0; j < scanline.size(); ++j)
         {
-            int end = scanline[j].end;
+            // X range checking
+            int begin = scanline[j].begin,
+                  end = scanline[j].end;
+            if(begin < 0)
+            {
+                begin = 0;
+                if(end < 0)
+                    end = 0;
+            }
             if(end > ds[0])
             {
-                if(scanline[j].begin > ds[0])
-                    break;
                 end = ds[0];
+                if(begin > ds[0])
+                    begin = ds[0];
             }
+
             if(inside > 0)
             {
-                while(x < scanline[j].begin)
+                std::cerr << "filling " << (it - dul) << " from " << x << " to " << begin << "\n";
+
+                while(x < begin)
                 {
                     a.set(value, it);
                     ++pixelCount;
@@ -733,15 +752,15 @@ unsigned int drawScannedPoly(
 {
     unsigned int pixelCount = 0;
 
-    unsigned int i = std::max(0, -scanlines.startIndex),
-          firstRow = std::max(0, scanlines.startIndex),
-         lastIndex = std::min(scanlines.size(), ds[1] - firstRow);
-    DestIterator row(dul + firstRow);
-    for(; i < scanlines.size(); ++i, ++row)
+    // clip to image range vertically:
+    int y = std::max(0, scanlines.startIndex()),
+     endY = std::min(ds[1], scanlines.endIndex());
+
+    for(DestIterator row(dul + y); y < endY; ++y, ++row)
     {
         int x = 0;
         typename DestIterator::next_type it(row.begin());
-        const Scanlines::Scanline &scanline(scanlines[i]);
+        const Scanlines::Scanline &scanline(scanlines[y]);
         for(unsigned int j = 0; j < scanline.size(); ++j)
         {
             // X range checking
@@ -750,11 +769,7 @@ unsigned int drawScannedPoly(
             if(begin < 0)
                 begin = 0;
             if(end > ds[0])
-            {
-                if(scanline[j].begin > ds[0])
-                    break;
                 end = ds[0];
-            }
 
             it += begin - x;
             x = begin;
