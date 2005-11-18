@@ -2,6 +2,7 @@
 #include "cellconfigurations.hxx"
 
 #include <iostream>
+#include <algorithm>
 #include <set>
 #include "mydebug.hxx"
 #include "debugimage.hxx"
@@ -611,14 +612,34 @@ void GeoMap::checkConsistency()
     vigra_postcondition(consistent, "consistency check failed");
 }
 
+
 /********************************************************************/
+
+struct ChooseCellConfiguration
+{
+    CellType * cornerTypeLut_;
+    static CellType preferVertex[6], preferEdge[6];
+    
+    ChooseCellConfiguration(CellType cornerType)
+    : cornerTypeLut_(cornerType == CellTypeVertex ? preferVertex : preferEdge)
+    {}
+    
+    CellType operator()(CellType c) const
+    {
+        return cornerTypeLut_[c];
+    }
+};
+
+CellType ChooseCellConfiguration::preferVertex[6] = {
+    CellTypeRegion, CellTypeLine, CellTypeVertex, CellTypeError, CellTypeVertex, CellTypeError};
+CellType ChooseCellConfiguration::preferEdge[6] = {
+    CellTypeRegion, CellTypeLine, CellTypeVertex, CellTypeError, CellTypeLine, CellTypeLine};
 
 void GeoMap::initCellImage(BImage & contourImage, CellType cornerType)
 {
-    cellConfigurations[5] = cornerType;
-    cellConfigurations[20] = cornerType;
-    cellConfigurations[80] = cornerType;
-    cellConfigurations[65] = cornerType;
+    CellType cellConf[256];
+    std::transform(cellConfigurations, cellConfigurations+256, cellConf, 
+                   ChooseCellConfiguration(cornerType));
 
     CellPixel regionPixel(CellTypeRegion, 0);
 
@@ -647,7 +668,7 @@ void GeoMap::initCellImage(BImage & contourImage, CellType cornerType)
                 }
                 while(--neighbors != end);
 
-                if(cellConfigurations[conf] == CellTypeError)
+                if(cellConf[conf] == CellTypeError)
                 {
                     debugImage(crop(srcImageRange(contourImage),
                                     Rect2D(x, y, x+5, y+5)),
@@ -665,7 +686,7 @@ void GeoMap::initCellImage(BImage & contourImage, CellType cornerType)
                     vigra_precondition(0, message);
                 }
 
-                cell->setType(cellConfigurations[conf], 0);
+                cell->setType(cellConf[conf], 0);
             }
         }
     }
@@ -696,7 +717,7 @@ CellLabel GeoMap::label0Cells()
             else
             {
                 nodes(x,y) = 1;
-
+#if 0
                 // test for forbidden configuration
                 CellImageEightCirculator n(cell);
                 CellImageEightCirculator nend = n;
@@ -713,6 +734,7 @@ CellLabel GeoMap::label0Cells()
                     }
                 }
                 while(++n != nend);
+#endif
             }
         }
     }

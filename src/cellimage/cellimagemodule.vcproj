@@ -117,6 +117,7 @@
 				AdditionalLibraryDirectories="&quot;$(PYTHON_ROOT)\libs&quot;;C:\lib"
 				IgnoreDefaultLibraryNames="libcd"
 				ProgramDatabaseFile=".\Release/cellimagemodule.pdb"
+				SubSystem="0"
 				ImportLibrary=".\Release/cellimagemodule.lib"/>
 			<Tool
 				Name="VCMIDLTool"

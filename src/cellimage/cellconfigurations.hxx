@@ -36,7 +36,7 @@ CellTypeVertex, /* 4 */
   /*  #  */
   /*  ## */
   /*     */
-CellTypeVertex, /* 5 */
+CellTypeVertexOrLine, /* 5 */
 
   /*  ## */
   /*  #  */
@@ -76,7 +76,7 @@ CellTypeVertex, /* 12 */
   /* ##  */
   /*  ## */
   /*     */
-CellTypeVertex, /* 13 */
+CellTypeVertexOrLine, /* 13 */
 
   /* ### */
   /*  #  */
@@ -111,7 +111,7 @@ CellTypeLine,   /* 19 */
   /*  #  */
   /* ##  */
   /*     */
-CellTypeVertex, /* 20 */
+CellTypeVertexOrLine, /* 20 */
 
   /*  #  */
   /* ### */
@@ -121,7 +121,7 @@ CellTypeVertex, /* 21 */
   /*  ## */
   /* ##  */
   /*     */
-CellTypeVertex, /* 22 */
+CellTypeVertexOrLine, /* 22 */
 
   /*  ## */
   /* ### */
@@ -271,7 +271,7 @@ CellTypeLine,   /* 51 */
   /*  #  */
   /* ##  */
   /* #   */
-CellTypeVertex, /* 52 */
+CellTypeVertexOrLine, /* 52 */
 
   /*  #  */
   /* ### */
@@ -281,7 +281,7 @@ CellTypeVertex, /* 53 */
   /*  ## */
   /* ##  */
   /* #   */
-CellTypeError,  /* 54 */
+CellTypeErrorOrLine,  /* 54 */
 
   /*  ## */
   /* ### */
@@ -336,7 +336,7 @@ CellTypeVertex, /* 64 */
   /*     */
   /*  ## */
   /*  #  */
-CellTypeVertex, /* 65 */
+CellTypeVertexOrLine, /* 65 */
 
   /*   # */
   /*  #  */
@@ -346,7 +346,7 @@ CellTypeLine,   /* 66 */
   /*   # */
   /*  ## */
   /*  #  */
-CellTypeVertex, /* 67 */
+CellTypeVertexOrLine, /* 67 */
 
   /*  #  */
   /*  #  */
@@ -411,7 +411,7 @@ CellTypeVertex, /* 79 */
   /*     */
   /* ##  */
   /*  #  */
-CellTypeVertex, /* 80 */
+CellTypeVertexOrLine, /* 80 */
 
   /*     */
   /* ### */
@@ -451,7 +451,7 @@ CellTypeVertex, /* 87 */
   /* #   */
   /* ##  */
   /*  #  */
-CellTypeVertex, /* 88 */
+CellTypeVertexOrLine, /* 88 */
 
   /* #   */
   /* ### */
@@ -466,7 +466,7 @@ CellTypeVertex, /* 90 */
   /* # # */
   /* ### */
   /*  #  */
-CellTypeError,  /* 91 */
+CellTypeVertex,  /* 91 */
 
   /* ##  */
   /* ##  */
@@ -496,7 +496,7 @@ CellTypeVertex, /* 96 */
   /*     */
   /*  ## */
   /* ##  */
-CellTypeVertex, /* 97 */
+CellTypeVertexOrLine, /* 97 */
 
   /*   # */
   /*  #  */
@@ -506,7 +506,7 @@ CellTypeLine,   /* 98 */
   /*   # */
   /*  ## */
   /* ##  */
-CellTypeError,  /* 99 */
+CellTypeErrorOrLine,  /* 99 */
 
   /*  #  */
   /*  #  */
@@ -556,7 +556,7 @@ CellTypeLine,   /* 108 */
   /* ##  */
   /*  ## */
   /* ##  */
-CellTypeError,  /* 109 */
+CellTypeVertex,  /* 109 */
 
   /* ### */
   /*  #  */
@@ -676,7 +676,7 @@ CellTypeLine,   /* 132 */
   /*  #  */
   /*  ## */
   /*   # */
-CellTypeVertex, /* 133 */
+CellTypeVertexOrLine, /* 133 */
 
   /*  ## */
   /*  #  */
@@ -716,7 +716,7 @@ CellTypeLine,   /* 140 */
   /* ##  */
   /*  ## */
   /*   # */
-CellTypeError,  /* 141 */
+CellTypeErrorOrLine,  /* 141 */
 
   /* ### */
   /*  #  */
@@ -916,7 +916,7 @@ CellTypeVertex, /* 180 */
   /*  #  */
   /* ### */
   /* # # */
-CellTypeError,  /* 181 */
+CellTypeVertex,  /* 181 */
 
   /*  ## */
   /* ##  */
@@ -1051,7 +1051,7 @@ CellTypeError,  /* 207 */
   /*     */
   /* ##  */
   /*  ## */
-CellTypeVertex, /* 208 */
+CellTypeVertexOrLine, /* 208 */
 
   /*     */
   /* ### */
@@ -1081,7 +1081,7 @@ CellTypeVertex, /* 213 */
   /*  ## */
   /* ##  */
   /*  ## */
-CellTypeError,  /* 214 */
+CellTypeVertex,  /* 214 */
 
   /*  ## */
   /* ### */
@@ -1091,7 +1091,7 @@ CellTypeVertex, /* 215 */
   /* #   */
   /* ##  */
   /*  ## */
-CellTypeError,  /* 216 */
+CellTypeErrorOrLine,  /* 216 */
 
   /* #   */
   /* ### */

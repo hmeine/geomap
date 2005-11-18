@@ -581,7 +581,7 @@ public:
         void tryNextSigma() throw ()
         {
             ++neighborCirc_;
-
+            
             if(badDiagonalConfig())
                 ++neighborCirc_;
         }
@@ -598,9 +598,10 @@ public:
             // vertex pixels
         bool badDiagonalConfig() const
         {
-            return (neighborCirc_->type() == CellTypeLine &&
-                    (neighborCirc_[1].type() == CellTypeVertex ||
-                     neighborCirc_[-1].type() == CellTypeVertex));
+            return (neighborCirc_.isDiagonal() &&
+                    neighborCirc_->type() == CellTypeLine &&
+                    (neighborCirc_[1].type() != CellTypeRegion ||
+                     neighborCirc_[-1].type() != CellTypeRegion));
         }
     };
 

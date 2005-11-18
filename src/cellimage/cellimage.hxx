@@ -12,7 +12,9 @@ namespace cellimage {
 enum CellType { CellTypeRegion = 0,
                 CellTypeLine = 1,
                 CellTypeVertex = 2,
-                CellTypeError = 3 };
+                CellTypeError = 3,
+                CellTypeVertexOrLine = 4,
+                CellTypeErrorOrLine = 5 };
 
 // -------------------------------------------------------------------
 //                          CellPixel, CellImage
