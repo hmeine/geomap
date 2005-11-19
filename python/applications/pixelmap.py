@@ -1,7 +1,8 @@
 execfile("maptest.py")
 
-sys.path.append('../cellimage')
-from cellimage import *
+if not '../cellimage' in sys.path:
+    sys.path.append('../cellimage')
+    from cellimage import *
 
 def pixelMapData(geomap, offset, scale):
     nodes = [None] * geomap.maxNodeLabel()
@@ -29,10 +30,51 @@ def pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0),
     return Map(nodes, edges, labelImageSize,
                performBorderClosing = False, performEdgeSplits = False)
 
-e = Experiment(filename, "grad")
+def cannyEdgeImageThinning(img):
+    lut = [0]*256
+    for k in [183, 222, 123, 237, 219, 111, 189, 246, 220, 115, 205, 
+              55, 103, 157, 118, 217]:
+        lut[k] = 1
+    res=GrayImage(img.size())
+    res[1:-1,1:-1].copyValues(img[1:-1,1:-1])
+    for y in range(1, res.height()-1):
+        for x in range(1, res.width()-1):
+            if res[x,y]:
+                res[x,y] = 1
+                continue # no edge pixel
+            n = [k for k in res.neighborhood8((x,y))]
+            conf = 0
+            pt, nt = [], []
+            for k in range(8):
+                conf |= int(n[k] == 0) << k
+                if n[k] == 0 and n[k-1] != 0:
+                    nt.append(k)
+                if n[k] != 0 and n[k-1] == 0:
+                    pt.append(k)
+                    lab = n[k]
+            if len(pt) != 1:
+                if lut[conf]:
+                    res[x,y] = 1
+                continue 
+            if nt[0] > pt[0]:
+                pt[0] += 8
+            if pt[0]-nt[0] >= 3:
+                res[x,y] = 1
+    return res[1:-1,1:-1].clone()
+
+def cannyEdgeMap(i, scale, thresh):
+    edgeImage = cannyEdgeImage(i, scale, thresh)
+    edgeImage = self.cannyEdgeImageThinning(edgeImage)
+    lab,count = labelImageWithBackground4(edgeImage)
+    geomap = GeoMap(lab, 0, CellType.Line)
+    spmap = self.pixelMap2subPixelMap(geomap, offset = Vector2(1,1),
+                                      labelImageSize = i.size())
+    return spmap 
+
+e = Experiment('kreuzung.png', "grad")
 e("img")
 
-crackEdges = 8  # can be 0, 4, or 8
+crackEdges = 0  # can be 0, 4, or 8
 
 print "- watershed segmentation..."
 if crackEdges:
