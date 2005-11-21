@@ -257,9 +257,11 @@ void markEdgeInLabelImage(
 
 list removeEdgeFromLabelImage(
     const Scanlines &scanlines,
-    PythonSingleBandImage &labelImage,
+    PythonImage &labelVImage,
     GrayValue substituteLabel)
 {
+    PythonSingleBandImage labelImage(labelVImage.subImage(0));
+
     list result;
     // clip to image range vertically:
     int y = std::max(0, scanlines.startIndex()),
