@@ -723,8 +723,6 @@ unsigned int fillScannedPoly(
 
             if(inside > 0)
             {
-                std::cerr << "filling " << (it - dul) << " from " << x << " to " << begin << "\n";
-
                 while(x < begin)
                 {
                     a.set(value, it);
