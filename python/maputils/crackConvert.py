@@ -1,12 +1,19 @@
 import copy
 
 # --------------------------------------------------------------------
-# 							USAGE EXAMPLE
+#                           USAGE EXAMPLE
 # --------------------------------------------------------------------
 
 def crackEdgeMap(labelImage):
+    sys.stdout.write("- looking for local connections..."); c = time.clock()
     cc = crackConnectionImage(labelImage)
+    sys.stdout.write("done. (%ss)\n" % (time.clock()-c, ))
+
+    sys.stdout.write("- following crack edges..."); c = time.clock()
     nodes, edges = crackConnections(cc)
+    sys.stdout.write("done. (%ss)\n" % (time.clock()-c, ))
+
+    sys.stdout.write("- creating Map...\n")
     return Map(nodes, edges, labelImage.size())
 
 # --------------------------------------------------------------------
@@ -49,22 +56,30 @@ def crackConnectionImage(labelImage):
 
     return result
 
+_dirOffset = [Size2D(1, 0), Size2D(0, -1), Size2D(-1, 0), Size2D(0, 1)]
+_dirVector = [Vector2(1, 0), Vector2(0, -1), Vector2(-1, 0), Vector2(0, 1)]
+_turnRight = [3, 0, 1, 2]
+_turnLeft  = [1, 2, 3, 0]
+
+# flag whether multiple steps into the same direction should be pruned:
+simplifyStraight = False
+
 def followEdge(crackConnectionImage, pos, direction):
     pos = Point2D(*pos)
     dirName = ["right", "up", "left", "down"]
 # 	sys.stderr.write("following crack edge from %s in '%s'-direction.." % (
 # 		pos, dirName[direction]))
-    dirOffset = [Size2D(1, 0), Size2D(0, -1), Size2D(-1, 0), Size2D(0, 1)]
-    dirVector = [Vector2(1, 0), Vector2(0, -1), Vector2(-1, 0), Vector2(0, 1)]
-    turnRight = [3, 0, 1, 2]
-    turnLeft  = [1, 2, 3, 0]
     vPos = Vector2(*pos) - Vector2(0.5, 0.5)
     result = [copy.copy(vPos)]
+    prevDirection = None
     while True:
-        vPos += dirVector[direction]
-        result.append(copy.copy(vPos))
+        vPos += _dirVector[direction]
+        if not simplifyStraight or prevDirection != direction:
+            result.append(copy.copy(vPos))
+        else:
+            result[-1] = copy.copy(vPos)
         #result.append(Vector2(*pos) - Vector2(0.5, 0.5) + 0.5*dirVector[direction])
-        pos += dirOffset[direction]
+        pos += _dirOffset[direction]
         if not pos in crackConnectionImage.size():
             break
 
@@ -72,10 +87,11 @@ def followEdge(crackConnectionImage, pos, direction):
         if degree[connection] != 2:
             break
 
-        direction = turnRight[direction]
+        prevDirection = direction
+        direction = _turnRight[direction]
         while connection & connections[direction] == 0:
-            direction = turnLeft[direction]
-#    result.append(Vector2(*pos) - Vector2(0.5, 0.5))
+            direction = _turnLeft[direction]
+# 	result.append(Vector2(*pos) - Vector2(0.5, 0.5))
 # 	sys.stderr.write(" %d steps.\n" % (len(result)-2, ))
     return result, pos, connections[(direction+2)%4]
 
