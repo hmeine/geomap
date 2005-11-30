@@ -4,14 +4,17 @@ from hourglass import Polygon
 execfile("map.py")
 execfile("testSPWS")
 
-for maxima, flowlines, size in [
-    (maxima2, flowlines2, Size2D(39, 39)),
-    (maxima1, flowlines1, Size2D(256, 256)),
-    ]:
-    map = Map(maxima, flowlines, size)
+# The following data contains edges that run out of the image range,
+# which ATM leads to overlapping edges after border closing. That
+# violates some assumptions and would lead to errors if we actually
+# worked with that Map.
+map = Map(maxima2, flowlines2, Size2D(39, 39))
+assert checkConsistency(map), "map inconsistent"
+assert checkLabelConsistency(map), "map.labelImage inconsistent"
 
-    assert checkConsistency(map), "map inconsistent"
-    assert checkLabelConsistency(map), "map.labelImage inconsistent"
+map = Map(maxima1, flowlines1, Size2D(256, 256))
+assert checkConsistency(map), "map inconsistent"
+assert checkLabelConsistency(map), "map.labelImage inconsistent"
 
 # execfile("maptest.py")
 # showMapStats(map)
@@ -86,7 +89,7 @@ try:
 
     if not len(possible):
         break
-    
+
     operation = random.choice(possible)
     changed = False
     try:
