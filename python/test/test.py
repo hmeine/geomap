@@ -105,7 +105,10 @@ try:
             dart = map.node(nodeLabel).anchor()
             print "removing node %d via %s" % (nodeLabel, dart)
             history += "mergeEdges(map.dart(%d))\n" % (dart.label(), )
-            mergeEdges(dart)
+            mergePos = dart[0]
+            survivor = mergeEdges(dart)
+            assert mergePos in [survivor[i] for i in survivor.mergeIndices], \
+                   "mergeIndices do not point to merge position!"
             changed = True
 
       if operation == 1:
