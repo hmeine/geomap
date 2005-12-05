@@ -12,6 +12,19 @@ Point2D intPos(const Vector2 &p)
     return Point2D((int)floor(p[0]+0.5), (int)floor(p[1]+0.5));
 }
 
+double angleTheta(double dx, double dy)
+{
+    double denom = fabs(dx) + fabs(dy);
+    if(!denom)
+        return 0.0;
+    double result = dy / denom;
+    if(dx < 0)
+        result = 2 - result;
+//     else if(dy < 0)
+//         result = 4 + result;
+    return result;
+}
+
 inline void checkPointIndex(int &i, int size)
 {
     if(i < 0)
@@ -325,6 +338,9 @@ struct ArrayPickleSuite : pickle_suite
 void defPolygon()
 {
     def("intPos", &intPos);
+    def("angleTheta", &angleTheta,
+        "angleTheta(vector) - calculates value between -1..3 with same sorting "
+        "behaviour as the angle");
 
     typedef BBoxPolygon<Vector2> PythonPolygon;
 
