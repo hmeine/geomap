@@ -40,6 +40,20 @@ Array__getitem__byref(Array const & a, int i)
     return a[i];
 }
 
+const Scanlines::value_type &
+Scanlines__getitem__(Scanlines const & s, unsigned int i)
+{
+    if(i < 0 || i >= s.size())
+//     if(i < s.startIndex() || i >= s.endIndex())
+    {
+        PyErr_SetString(PyExc_IndexError,
+            "scanline index out of bounds.");
+        throw_error_already_set();
+    }
+    return s[i+s.startIndex()];
+//     return s[i];
+}
+
 template<class Array>
 void
 Array__setitem__(Array & a, int i, typename Array::value_type v)
@@ -312,9 +326,10 @@ void defPolygon()
 {
     def("intPos", &intPos);
 
-    typedef Polygon<Vector2> PythonPolygon;
+    typedef BBoxPolygon<Vector2> PythonPolygon;
 
-    typedef PythonPolygon::Base Vector2Array;
+    typedef PythonPolygon::Base Vector2Polygon;
+    typedef Vector2Polygon::Base Vector2Array;
     typedef PointIter<Vector2Array::const_iterator>
         VectorIter;
     defIter<VectorIter>("Vector2Iter");
@@ -353,7 +368,7 @@ void defPolygon()
         .def("insert", &insert<Point2DArray>)
     ;
 
-    class_<PythonPolygon, bases<PythonPolygon::Base> >("Polygon")
+    class_<PythonPolygon, bases<Vector2Array> >("Polygon")
         .def(init<Vector2Array>())
         .def(init<list>()) // FIXME: use implicitly_convertible if possible
         .def("__delitem__", &erase<PythonPolygon>)
@@ -364,18 +379,44 @@ void defPolygon()
         .def("split", &split<PythonPolygon>)
         .def("length", &PythonPolygon::length)
         .def("partialArea", &PythonPolygon::partialArea)
+        .def("boundingBox", &PythonPolygon::boundingBox)
         .def("swap", &PythonPolygon::swap)
         .def("reverse", &PythonPolygon::reverse)
         .def("invalidateProperties", &PythonPolygon::invalidateProperties)
         .def_pickle(ArrayPickleSuite<PythonPolygon>())
     ;
 
+    typedef PythonPolygon::BoundingBox BoundingBox;
+    class_<BoundingBox>("BoundingBox")
+        .def("begin", (const Vector2 &(BoundingBox::*)() const)
+             &BoundingBox::begin, return_internal_reference<>())
+        .def("end", (const Vector2 &(BoundingBox::*)() const)
+             &BoundingBox::end, return_internal_reference<>())
+        .def("moveTo", &BoundingBox::moveTo)
+        .def("moveBy", &BoundingBox::moveBy)
+        .def("area", &BoundingBox::volume)
+        .def("size", &BoundingBox::size)
+        .def("isEmpty", &BoundingBox::isEmpty)
+        .def("contains", (bool (BoundingBox::*)(const Vector2 &) const)
+             &BoundingBox::contains)
+        .def("contains", (bool (BoundingBox::*)(const BoundingBox &) const)
+             &BoundingBox::contains)
+        .def("intersects", &BoundingBox::intersects)
+        .def(self == self)
+        .def(self != self)
+        .def(self |= Vector2())
+        .def(self | Vector2())
+        .def(self |= self)
+        .def(self | self)
+        .def(self &= self)
+        .def(self & self)
+    ;
+
     class_<Scanlines>("Scanlines", no_init)
         .def("__len__", &Scanlines::size)
-        .def("__getitem__", &Array__getitem__byref<Scanlines>,
-             return_internal_reference<>())
+        .def("__getitem__", &Scanlines__getitem__, return_internal_reference<>())
         .def("startIndex", &Scanlines::startIndex)
-        .def("endIndex", &Scanlines::startIndex)
+        .def("endIndex", &Scanlines::endIndex)
     ;
 
     class_<Scanlines::Scanline>("Scanline", no_init)
