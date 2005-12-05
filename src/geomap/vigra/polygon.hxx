@@ -4,6 +4,7 @@
 #include <vigra/diff2d.hxx>
 #include <vector>
 #include <algorithm>
+#include "box.hxx"
 
 namespace vigra {
 
@@ -237,8 +238,6 @@ class Polygon : public PointArray<POINT>
       partialAreaValid_(false)
     {}
 
-        // Polygon(const Polygon&);
-
     template <class InputIterator>
     Polygon(InputIterator b, InputIterator e)
     : Base(b, e),
@@ -410,6 +409,137 @@ class Polygon : public PointArray<POINT>
     mutable bool lengthValid_;
     mutable double partialArea_;
     mutable bool partialAreaValid_;
+};
+
+/********************************************************************/
+
+// assumes that Point is a TinyVector
+template<class POINT>
+class BBoxPolygon : public Polygon<POINT>
+{
+  public:
+    typedef Polygon<POINT> Base;
+
+    typedef typename Base::Point                  Point;
+    typedef typename Base::value_type             value_type;
+    typedef typename Base::reference              reference;
+    typedef typename Base::const_reference        const_reference;
+    typedef typename Base::pointer                pointer;
+    typedef typename Base::const_pointer          const_pointer;
+    typedef typename Base::iterator               iterator;
+    typedef typename Base::const_iterator         const_iterator;
+    typedef typename Base::reverse_iterator       reverse_iterator;
+    typedef typename Base::const_reverse_iterator const_reverse_iterator;
+    typedef typename Base::size_type              size_type;
+    typedef typename Base::difference_type        difference_type;
+
+    typedef Box<typename Point::value_type, 2> BoundingBox;
+
+    BBoxPolygon(typename Base::Base points)
+    : Base(points),
+      boundingBoxValid_(false)
+    {}
+
+    BBoxPolygon(Base poly)
+    : Base(poly),
+      boundingBoxValid_(false)
+    {}
+
+    BBoxPolygon()
+    : boundingBoxValid_(false)
+    {}
+
+    BBoxPolygon(size_type n)
+    : Base(n),
+      boundingBoxValid_(false)
+    {}
+
+    template <class InputIterator>
+    BBoxPolygon(InputIterator b, InputIterator e)
+    : Base(b, e),
+      boundingBoxValid_(false)
+    {}
+
+    BoundingBox boundingBox() const
+    {
+        if(!boundingBoxValid_)
+        {
+            boundingBox_ = BoundingBox();
+            for(unsigned int i = 1; i < points_.size(); ++i)
+                boundingBox_ |= points_[i];
+            boundingBoxValid_ = true;
+        }
+        return boundingBox_;
+    }
+
+    void push_back(const_reference v)
+    {
+        if(boundingBoxValid_)
+            boundingBox_ |= v;
+        Base::push_back(v);
+    }
+
+    void extend(const BBoxPolygon &other)
+    {
+        if(boundingBoxValid_)
+            boundingBox_ |= other.boundingBox();
+        Base::extend(other);
+    }
+
+    void setPoint(unsigned int pos, const_reference x)
+    {
+        if(boundingBoxValid_)
+        {
+            if((x[0] < points_[pos][0]) &&
+               (points_[pos][0] == boundingBox_.end()[0]) ||
+               (x[0] > points_[pos][0]) &&
+               (points_[pos][0] == boundingBox_.begin()[0]) ||
+               (x[1] < points_[pos][1]) &&
+               (points_[pos][1] == boundingBox_.end()[1]) ||
+               (x[1] > points_[pos][1]) &&
+               (points_[pos][1] == boundingBox_.begin()[1]))
+                boundingBoxValid_ = false;
+        }
+        Base::setPoint(pos, x);
+    }
+
+    void erase(iterator pos)
+    {
+        if(boundingBoxValid_ && (
+               (*pos)[0] == boundingBox_.begin()[0] ||
+               (*pos)[0] == boundingBox_.end()[0] ||
+               (*pos)[1] == boundingBox_.begin()[1] ||
+               (*pos)[1] == boundingBox_.end()[1]))
+            boundingBoxValid_ = false;
+        Base::erase(pos);
+    }
+
+    iterator insert(iterator pos, const_reference x)
+    {
+        if(boundingBoxValid_)
+            boundingBox_ |= x;
+        return Base::insert(pos, x);
+    }
+
+    BBoxPolygon split(unsigned int pos)
+    {
+        BBoxPolygon result;
+        Base base(Base::split(pos));
+        static_cast<Base &>(result).swap(base);
+        result.boundingBoxValid_ = boundingBoxValid_ = false;
+        return result;
+    }
+
+    void swap(BBoxPolygon &rhs)
+    {
+        Base::swap(rhs);
+        std::swap(boundingBox_, rhs.boundingBox_);
+        std::swap(boundingBoxValid_, rhs.boundingBoxValid_);
+    }
+
+  protected:
+    mutable BoundingBox boundingBox_;
+    mutable bool boundingBoxValid_;
 };
 
 /********************************************************************/
