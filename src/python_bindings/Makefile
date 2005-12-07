@@ -27,7 +27,10 @@ install: $(TARGET)
 	$(LIBINSTALL) $(TARGET) $(dynmoddir)
 
 hourglass: hourglass.o
-	$(CXX) -o hourglass hourglass.o $(IMPEX_LIB)
+	$(CXX) -o $@ $< $(IMPEX_LIB)
+
+delaunay: delaunay.o deltest.o
+	$(CXX) -o $@ delaunay.o deltest.o
 
 $(INT2BUILDDIR)/config/Makefile.include:
 	@echo
