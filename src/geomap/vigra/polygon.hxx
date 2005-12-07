@@ -146,6 +146,14 @@ class PointArray
         return result;
     }
 
+    PointArray operator+(const Point &offset) const
+    {
+        PointArray result(points_.size());
+        for(unsigned int i = 0; i < points_.size(); ++i)
+            result[i] = points_[i] + offset;
+        return result;
+    }
+
     PointArray<Point2D> roundToInteger() const
     {
         PointArray<Point2D> result(points_.size());

@@ -363,6 +363,7 @@ void defPolygon()
         .def("__reviter__", &__reviter__<Vector2Array>)
         .def("insert", &insert<Vector2Array>)
         .def(self * double())
+        .def(self + Vector2())
         .def("roundToInteger", &Vector2Array::roundToInteger)
     ;
 
