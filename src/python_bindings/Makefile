@@ -13,6 +13,7 @@ OBJS = \
     hourglassmodule.lo \
 	polygon.lo \
 	statistics.lo \
+	delaunay.lo \
 # Ulli added the following to OBJS, uncomment if you need this:
 #    $(INT2BUILDDIR)/src/vigracmodule/.libs/pythonimage.o
 
@@ -39,6 +40,7 @@ $(INT2BUILDDIR)/config/Makefile.include:
 
 ifneq "$(MAKECMDGOALS)" "clean"
 include hourglass.d
+include delaunay.ld
 include hourglassmodule.ld
 include polygon.ld
 include statistics.ld
