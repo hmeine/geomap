@@ -3,6 +3,7 @@
 #include <vigra/gaussians.hxx>
 #include <vigra/pythonimage.hxx>
 #include "vigra/polygon.hxx"
+#include "delaunay.hxx"
 
 using namespace vigra;
 using namespace boost::python;
@@ -12,16 +13,18 @@ Point2D intPos(const Vector2 &p)
     return Point2D((int)floor(p[0]+0.5), (int)floor(p[1]+0.5));
 }
 
-double angleTheta(double dx, double dy)
+double angleTheta(double dy, double dx)
 {
     double denom = fabs(dx) + fabs(dy);
     if(!denom)
         return 0.0;
     double result = dy / denom;
     if(dx < 0)
+    {
         result = 2 - result;
-//     else if(dy < 0)
-//         result = 4 + result;
+        if(dy < 0)
+            result = result - 4;
+    }
     return result;
 }
 
@@ -335,12 +338,89 @@ struct ArrayPickleSuite : pickle_suite
     }
 };
 
+list sigmaOrbit(const QuadEdge *edge)
+{
+    const QuadEdge *orig(edge);
+    list result;
+    do
+    {
+        if(edge->dest().label())
+        {
+            int edgeLabel = edge->holderIndex();
+            if(edge->isAnchor())
+                result.append( edgeLabel);
+            else
+                result.append(-edgeLabel);
+        }
+        // this is confusing; I understood nextOrg() was the right
+        // one, but apparently that would've been in a clockwise
+        // manner (contrary to the documentation)..
+        edge = edge->prevOrg();
+    }
+    while(edge != orig);
+    return result;
+}
+
+tuple delaunay(const PointArray<Vector2> &points)
+{
+    // Construct a large surrounding triangle containing all points:
+    Vector2 p1(-1e12, -1e8), p2(1e12, -1e8), p3(0.0, 3e16);
+    Subdivision mesh(p1, p2, p3);
+
+    list nodePositions, edges, orbits;
+    nodePositions.append(object()); // node labels start with 1
+    orbits.append(object());
+
+    for(unsigned int i = 0; i < points.size(); ++i)
+    {
+        if(mesh.insertSite(points[i]) > 0)
+            nodePositions.append(points[i]);
+        else
+            nodePositions.append(object());
+    }
+
+    for(Subdivision::NodeIterator it = mesh.nodesBegin();
+        it != mesh.nodesEnd(); ++it)
+    {
+        orbits.append(object());
+    }
+
+    for(Subdivision::EdgeIterator it = mesh.edgesBegin();
+        it != mesh.edgesEnd(); ++it)
+    {
+        if(!*it)
+        {
+            edges.append(object());
+            continue;
+        }
+
+        const QuadEdge *edge((*it)->e);
+        const DelaunayNode &o(edge->org()), &d(edge->dest());
+        if(!o.label() || !d.label())
+        {
+            edges.append(object());
+            continue;
+        }
+
+        edges.append(make_tuple(o.label(), d.label()));
+
+        if(!orbits[o.label()])
+            orbits[o.label()] = sigmaOrbit(edge);
+        if(!orbits[d.label()])
+            orbits[d.label()] = sigmaOrbit(edge->opposite());
+    }
+
+    return make_tuple(nodePositions, edges, orbits);
+}
+
 void defPolygon()
 {
     def("intPos", &intPos);
     def("angleTheta", &angleTheta,
-        "angleTheta(vector) - calculates value between -1..3 with same sorting "
-        "behaviour as the angle");
+        "angleTheta(dy, dx)\n"
+        "  calculates an efficient substitute value with the same sorting behavior\n"
+        "  as the angle returned by math.atan2(dy, dx) (but ranged -2..2).\n"
+        "  It does *not* give the angle, and seems to be only around 17% faster.");
 
     typedef BBoxPolygon<Vector2> PythonPolygon;
 
@@ -464,4 +544,6 @@ void defPolygon()
         (arg("pointArray"), arg("skipPoints") = 1));
     def("smoothCurvature", &smoothCurvature<Vector2Array>,
         args("curvatureList", "sigma"));
+
+    def("delaunay", &delaunay);
 }
