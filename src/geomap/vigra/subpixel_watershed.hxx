@@ -59,13 +59,15 @@ void findCriticalPoints48Neighborhood(IMAGE const & image,
         {
             NeighborhoodCirculator<Traverser, EightNeighborCode> c(ix);
             Value v = *ix, z = NumericTraits<Value>::zero(), s;
-            int i;
-            for(i = 0; i < steps; ++i, c += d)
+            int i = 0;
+            do
             {
                 s = sign(v - *c);
                 if(s != z)
                     break;
+                c += d;
             }
+            while(++i < steps);
             if(i == steps)
                 continue; // plateau
             int countSignChanges = 0, countZeros = 0;
@@ -592,7 +594,6 @@ void findCriticalPointsNewtonMethod(IMAGEVIEW const & image,
     int h = image.height();
 
     typedef typename IMAGEVIEW::value_type Value;
-    Value zero = NumericTraits<Value>::zero();
     typedef typename VECTOR::value_type Coordinate;
 
     double d = 1.0 / oversampling;
@@ -660,7 +661,7 @@ findCriticalPointsInFacet(
 
     DImage splineCoeffs(3,3);
     s.coefficientArray(x0, y0, splineCoeffs);
-    double j = splineCoeffs(0,0);
+    //double j = splineCoeffs(0,0);
     double g = splineCoeffs(1,0);
     double e = splineCoeffs(2,0);
     double h = splineCoeffs(0,1);
@@ -1380,7 +1381,7 @@ class SubPixelWatersheds
     double initialStep_;
 };
 
-static int sturmcount, zeroOrder;
+// static int sturmcount, zeroOrder;
 
 template <class SplineImageView>
 void
@@ -1418,7 +1419,7 @@ SubPixelWatersheds<SplineImageView>::findCriticalPointsInFacet(double x0, double
     polys[5].minimizeOrder();
     if(polys[5].order() == 0)
     {
-        zeroOrder++;
+        //zeroOrder++;
         std::cerr << x0 << "/" << y0 << " resulted in zero-order poly!\n";
         return;
     }
@@ -1455,7 +1456,7 @@ SubPixelWatersheds<SplineImageView>::findCriticalPointsInFacet(double x0, double
         }
         if(leftCount == rightCount)
         {
-            ++sturmcount;
+            //++sturmcount;
             return; // interval [-0.5, 0.5] cannot contain a zero
         }
     }
