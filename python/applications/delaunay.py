@@ -1,6 +1,6 @@
 def isContourEdge(edge, maxNodeLabel = None):
     "helper function for delaunayMap()"
-    
+
     dist = abs(edge.startNodeLabel() - edge.endNodeLabel())
     if dist == 1:
         return True
@@ -11,52 +11,76 @@ def isContourEdge(edge, maxNodeLabel = None):
             maxNodeLabel -= 1
     return (dist == maxNodeLabel - 1)
 
-def delaunayMap(edge, size):
+def delaunayMap(face, size, performCleaning = True):
     "USAGE: dlm = delaunayMap(polygon, mapSize)"
-    
-    print "- performing Delaunay Triangulation..."
-    nodePositions, edges, nodes = delaunay(edge)
+
+    c = face.contours()
+    jumpPoints = [0]
+    points = contourPoly(c[0])
+    del points[-1]
+    jumpPoints.append(len(points))
+    for anchor in c[1:]:
+        points.extend(contourPoly(anchor))
+        del points[-1]
+        jumpPoints.append(len(points))
+
+    print "- performing Delaunay Triangulation (%d points)..." % len(points)
+    nodePositions, edges, nodes = delaunay(points)
+    #nodePositions = [None] + [node for node in nodePositions if node]
 
     print "- storing result in a Map..."
     edges = [startEnd and
              (startEnd[0], startEnd[1],
               [nodePositions[startEnd[0]], nodePositions[startEnd[1]]])
              for startEnd in edges]
-    
+
     result = Map(nodePositions, edges, size,
                  performBorderClosing= False,
                  sigmaOrbits = nodes,
                  skipLabelImage = True)
 
-    maxNodeLabel = len(edge)-1
-    while not result.nodes[maxNodeLabel]:
-        # if `edge' is a closed polygon, adding the last point will
-        # not have lead to a new node:
-        maxNodeLabel -= 1
+    for edge in result.edgeIter():
+        edge.isContourEdge = False
 
-    # "peel off" outer delaunay edges:
-    print "- reducing delaunay triangulation to inner part",
-    isClean = False
-    while not isClean:
-        isClean = True
-        # start with outer edge
-        dart = result.face(0).contours()[0].clone()
-        while True:
-            if not isContourEdge(dart):
-                while not isContourEdge(dart, maxNodeLabel):
-                    sys.stdout.write("."); sys.stdout.flush()
-                    startNode = dart.startNode()
-                    mergeFaces(dart)
-                    dart = startNode.anchor()
-                    while dart.leftFaceLabel() != 0:
-                        dart.nextSigma()
-                isClean = False
+    i = 0
+    while i < len(jumpPoints) - 1:
+        contourStartLabel = jumpPoints[i] + 1 # +1 for conversion of
+        contourEndLabel = jumpPoints[i+1] + 1 #    point indices -> node labels
+        dart = result.node(contourStartLabel).anchor()
+        for nodeLabel in range(contourStartLabel+1, contourEndLabel):
+            j = dart.startNode().degree() + 2
+            while dart.endNodeLabel() != nodeLabel and j > 0:
+                dart.nextSigma()
+                j -= 1
+            assert j > 0, "Original contour fragment missing in Delauny map!"
+            dart.edge().isContourEdge = dart.label()
+            dart.nextAlpha()
+        j = dart.startNode().degree() + 1
+        while dart.endNodeLabel() != contourStartLabel and j > 0:
+            dart.nextSigma()
+            j -= 1
+        assert j > 0, "Original contour fragment missing in Delauny map!"
+        dart.edge().isContourEdge = dart.label()
+        i += 1
 
-            # walk around outer contour:
-            if dart.nextPhi() == result.face(0).contours()[0]:
-                break
-
+    if performCleaning:
+        print "- reducing delaunay triangulation to inner part",
+        cleanOuter(result)
     return result
+
+def cleanOuter(map):
+    for edge in map.edgeIter():
+        if edge.isContourEdge:
+            dart = map.dart(edge.isContourEdge)
+            assert dart.edgeLabel() == edge.label(), str(edge)
+            while True:
+                mergeDart = dart.clone().prevSigma()
+                if mergeDart.edge().isContourEdge:
+                    break
+                mergeFaces(mergeDart).isOutside = True
+                sys.stderr.write(".")
+
+            qt.qApp.processEvents()
 
 def middlePoint(twoPointEdge):
     return (twoPointEdge[0] + twoPointEdge[1])/2
@@ -68,24 +92,18 @@ def catMap(delaunayMap):
     regions are triangles (such a Map is returned by
     delaunayMap())."""
 
-    maxNodeLabel = len(delaunayMap.nodes)-1
-    while not delaunayMap.nodes[maxNodeLabel]:
-        maxNodeLabel -= 1
-
-    for edge in delaunayMap.edgeIter():
-        edge.isContourEdge = isContourEdge(edge, maxNodeLabel)
-
     nodePositions = [None]
     sigmaOrbits = [None]
     originalDarts = [None]
 
-    faceIt = delaunayMap.faceIter()
-    faceIt.next() # skip infinite face
-    for triangle in faceIt:
+    for triangle in delaunayMap.faceIter():
+        if hasattr(triangle, "isOutside"):
+            continue
+
         c = triangle.contours()
         assert len(c) == 1
         assert len(list(c[0].phiOrbit())) == 3
-        
+
         dart1 = triangle.contours()[0].clone()
         dart2 = dart1.clone().nextPhi()
         dart3 = dart2.clone().nextPhi()
@@ -127,9 +145,9 @@ def catMap(delaunayMap):
 
     edgeTriples = [None]
 
-    faceIt = delaunayMap.faceIter()
-    faceIt.next() # skip infinite face
-    for triangle in faceIt:
+    for triangle in delaunayMap.faceIter():
+        if hasattr(triangle, "isOutside"):
+            continue
         if triangle.type != "S":
             #print triangle.type + "-triangle", triangle.label(), originalDarts[triangle.nodeLabel]
             for dart in triangle.innerDarts:
@@ -164,7 +182,7 @@ def catMap(delaunayMap):
                     nodePositions[nextTriangle.nodeLabel] = middlePoint(dart)
                 else:
                     edgePoints.append(nodePositions[nextTriangle.nodeLabel])
-                    
+
                 sigmaOrbits[nextTriangle.nodeLabel][
                     originalDarts[nextTriangle.nodeLabel].index(dart.label())] \
                     = -edgeLabel
@@ -176,3 +194,10 @@ def catMap(delaunayMap):
 
     return Map(nodePositions, edgeTriples, delaunayMap.imageSize(),
                sigmaOrbits = sigmaOrbits)
+
+def pruneSkeleton(skelMap, minLength):
+    for edge in skelMap.edgeIter():
+        if (edge.startNode().degree() == 1 or edge.endNode().degree() == 1) and \
+               edge.length() < minLength:
+            print "pruning", edge
+            removeBridge(edge.dart())
