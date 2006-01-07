@@ -375,8 +375,8 @@ tuple delaunay(const PointArray<Vector2> &points)
     {
         if(mesh.insertSite(points[i]) > 0)
             nodePositions.append(points[i]);
-        else
-            nodePositions.append(object());
+//         else
+//             nodePositions.append(object());
     }
 
     for(Subdivision::NodeIterator it = mesh.nodesBegin();
@@ -485,12 +485,14 @@ void defPolygon()
 
     typedef PythonPolygon::BoundingBox BoundingBox;
     class_<BoundingBox>("BoundingBox")
+        .def(init<BoundingBox>())
+        .def(init<const Vector2 &, const Vector2 &>())
         .def("begin", (const Vector2 &(BoundingBox::*)() const)
              &BoundingBox::begin, return_internal_reference<>())
         .def("end", (const Vector2 &(BoundingBox::*)() const)
              &BoundingBox::end, return_internal_reference<>())
-        .def("moveTo", &BoundingBox::moveTo)
-        .def("moveBy", &BoundingBox::moveBy)
+        .def("moveTo", &BoundingBox::moveTo, arg("newBegin"))
+        .def("moveBy", &BoundingBox::moveBy, arg("offset"))
         .def("area", &BoundingBox::volume)
         .def("size", &BoundingBox::size)
         .def("isEmpty", &BoundingBox::isEmpty)
@@ -507,6 +509,7 @@ void defPolygon()
         .def(self | self)
         .def(self &= self)
         .def(self & self)
+        // FIXME: str/repr
     ;
 
     class_<Scanlines>("Scanlines", no_init)
