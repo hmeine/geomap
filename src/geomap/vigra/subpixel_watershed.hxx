@@ -24,6 +24,7 @@
 
 #include <cmath>
 #include <algorithm>
+#include <iostream>
 #include <map>
 #include "vigra/mathutil.hxx"
 #include "vigra/edgedetection.hxx"
