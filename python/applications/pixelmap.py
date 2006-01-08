@@ -30,9 +30,22 @@ def pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0),
     return Map(nodes, edges, labelImageSize,
                performBorderClosing = False, performEdgeSplits = False)
 
+def crackEdges2MidCracks(spmap, skipEverySecond = False):
+    """Changes all edge geometry in-place, setting one point on the
+    middle of each segment. Set skipEverySecond to True if each pixel
+    crack is represented with two segments."""
+    for edge in spmap.edgeIter():
+        p = Polygon()
+        step = skipEverySecond and 2 or 1
+        p.append(edge[0])
+        for i in range(0, len(edge)-1, step):
+            p.append((edge[i]+edge[i+step])/2)
+        p.append(edge[-1])
+        edge.swap(p)
+
 def cannyEdgeImageThinning(img):
     lut = [0]*256
-    for k in [183, 222, 123, 237, 219, 111, 189, 246, 220, 115, 205, 
+    for k in [183, 222, 123, 237, 219, 111, 189, 246, 220, 115, 205,
               55, 103, 157, 118, 217]:
         lut[k] = 1
     res=GrayImage(img.size())
@@ -55,7 +68,7 @@ def cannyEdgeImageThinning(img):
             if len(pt) != 1:
                 if lut[conf]:
                     res[x,y] = 1
-                continue 
+                continue
             if nt[0] > pt[0]:
                 pt[0] += 8
             if pt[0]-nt[0] >= 3:
@@ -64,17 +77,17 @@ def cannyEdgeImageThinning(img):
 
 def cannyEdgeMap(i, scale, thresh):
     edgeImage = cannyEdgeImage(i, scale, thresh)
-    edgeImage = self.cannyEdgeImageThinning(edgeImage)
-    lab,count = labelImageWithBackground4(edgeImage)
-    geomap = GeoMap(lab, 0, CellType.Line)
-    spmap = self.pixelMap2subPixelMap(geomap, offset = Vector2(1,1),
-                                      labelImageSize = i.size())
-    return spmap 
+    edgeImage = cannyEdgeImageThinning(edgeImage)
+    #lab,count = labelImageWithBackground4(edgeImage)
+    geomap = GeoMap(edgeImage, 0, CellType.Line)
+    spmap = pixelMap2subPixelMap(geomap, offset = Vector2(1,1),
+                                 labelImageSize = i.size())
+    return spmap
 
 e = Experiment('kreuzung.png', "grad")
 e("img")
 
-crackEdges = 0  # can be 0, 4, or 8
+crackEdges = 8  # can be 0, 4, or 8
 
 print "- watershed segmentation..."
 if crackEdges:
@@ -93,8 +106,9 @@ print "- converting pixel-based GeoMap..."
 if crackEdges:
     spmap = pixelMap2subPixelMap(
         geomap, 0.5, labelImageSize = (geomap.cellImage.size()-Size2D(3,3))/2)
+    crackEdges2MidCracks(spmap, True)
 else:
-    spmap = pixelMap2subPixelMap(geomap, 
+    spmap = pixelMap2subPixelMap(geomap,
                 labelImageSize = (geomap.cellImage.size()-Size2D(4,4)))
 spmap.faceStats = FaceIntensityStatistics(spmap, e.img.view)
 mergeZeroPixelFaces(spmap)
