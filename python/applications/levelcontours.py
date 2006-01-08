@@ -51,9 +51,13 @@ def predictorCorrectorStep(s, x, y, h, epsilon):
         return None, None
 
 class ZeroEdges:
-    # zero crossings of oriented second derivative, the Laplacian, or the height ridge by splines
+    """zero crossings of an image, its oriented second derivative, the
+    Laplacian, or the height ridge by splines"""
+    
     def __init__(self, image, method = "haralick"):
-#        image = gaussianSmoothing(image, scale)
+        """method should be one of:
+        'direct', 'haralick', 'laplace', or 'splineridge'"""
+        
         s = SplineImageView5(image)
         self.i = s
         z = GrayImage(image.size())
@@ -74,6 +78,13 @@ class ZeroEdges:
         self.z = SplineImageView3(z)
         self.regions = transformImage(z, '\l x: x > 0? 1: x<0? -1: 0')
         self.m = method
+
+    def _addFacetIntersection(facetX, facetY, point):
+        facetIndex = facetX + 10000*facetY
+        if self.facets.has_key(facetIndex):
+            self.facets[facetIndex].append((xx,yy))
+        else:
+            self.facets[facetIndex] = [(xx, yy)]
 
     def points(self, useConstraint = True, t = 1e-7):
         p = []
@@ -112,46 +123,35 @@ class ZeroEdges:
                 gx, gy, gxx, gxy, gyy = z.dx(x,y), z.dy(x,y), i.dxx(x,y), i.dxy(x,y), i.dyy(x,y)
                 return gx**2 * gxx + 2*gx*gy*gxy + gy**2 * gyy <= 0.0
 
-        for x,y in self.i.size() - Size2D(1,1):
-            c = self.z.coefficients(x,y)
-            px = [c[k,0] for k in range(4)]
-            py = [c[0,k] for k in range(4)]
-            rx = polynomialRealRoots(px)
-            for k in rx:
+        for x, y in self.i.size() - Size2D(1, 1):
+            c = self.z.coefficients(x, y)
+            xPoly = [c[k,0] for k in range(4)]
+            yPoly = [c[0,k] for k in range(4)]
+
+            for k in polynomialRealRoots(xPoly):
                 if k < 0.0 or k >= 1.0:
                     continue
-                xx, yy = x+k, y
-                if not checkConstraint(self.z, self.i, xx, yy, t):
+
+                p = (x + k, y)
+                if not checkConstraint(self.z, self.i, p[0], p[1], t):
                     continue
-                p.append((xx,yy))
-                findex = x + 10000*y
-                if self.facets.has_key(findex):
-                    self.facets[findex].append((xx,yy))
-                else:
-                    self.facets[findex] = [(xx, yy)]
-                findex -= 10000
-                if self.facets.has_key(findex):
-                    self.facets[findex].append((xx,yy))
-                else:
-                    self.facets[findex] = [(xx, yy)]
-            ry = polynomialRealRoots(py)
-            for k in ry:
+                p.append(p)
+
+                self._addFacetIntersection(x, y,   p)
+                self._addFacetIntersection(x, y-1, p)
+
+            for k in polynomialRealRoots(yPoly):
                 if k < 0.0 or k >= 1.0:
                     continue
-                xx, yy = x, y + k
-                if not checkConstraint(self.z, self.i, xx, yy, t):
+
+                p = (x, y + k)
+                if not checkConstraint(self.z, self.i, p[0], p[1], t):
                     continue
-                p.append((xx,yy))
-                findex = x + 10000*y
-                if self.facets.has_key(findex):
-                    self.facets[findex].append((xx,yy))
-                else:
-                    self.facets[findex] = [(xx, yy)]
-                findex -= 1
-                if self.facets.has_key(findex):
-                    self.facets[findex].append((xx,yy))
-                else:
-                    self.facets[findex] = [(xx, yy)]
+                p.append(p)
+
+                self._addFacetIntersection(x,   y, p)
+                self._addFacetIntersection(x-1, y, p)
+
         return p
 
     def edges(self, useConstraint = True, t = 1e-7):
@@ -160,6 +160,7 @@ class ZeroEdges:
         except:
             self.points(useConstraint, t)
             f = self.facets
+
         e = []
         for k in f.values():
             if len(k) == 1:
@@ -182,10 +183,9 @@ def distinct(l):
     return d.keys()
 
 def levelEdgesMap(edges):
-    assert len(edges[0]) == 2 and len(edges[0][0]) == 2, \
+    assert len(edges[0]) >= 2 and len(edges[0][0]) == 2, \
            "mapFromZeroEdges() expects output of ZeroEdges.edges() as parameter!"
 
-    print "- preparing Map data..."
     nodePositions = [ep[0] for ep in ee]
     nodePositions.extend([ep[1] for ep in ee])
 
