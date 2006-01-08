@@ -11,16 +11,22 @@ def isContourEdge(edge, maxNodeLabel = None):
             maxNodeLabel -= 1
     return (dist == maxNodeLabel - 1)
 
-def delaunayMap(face, size, performCleaning = True):
+def delaunayMap(face, size, performCleaning = True, simplifyEpsilon = None):
     "USAGE: dlm = delaunayMap(polygon, mapSize)"
 
     c = face.contours()
     jumpPoints = [0]
     points = contourPoly(c[0])
+    if simplifyEpsilon != None:
+        points = simplifyPolygon(points, simplifyEpsilon, simplifyEpsilon)
     del points[-1]
     jumpPoints.append(len(points))
     for anchor in c[1:]:
-        points.extend(contourPoly(anchor))
+        innerContour = contourPoly(anchor)
+        if simplifyEpsilon != None:
+            innerContour = simplifyPolygon(
+                innerContour, simplifyEpsilon, simplifyEpsilon)
+        points.extend(innerContour)
         del points[-1]
         jumpPoints.append(len(points))
 
@@ -64,11 +70,12 @@ def delaunayMap(face, size, performCleaning = True):
         i += 1
 
     if performCleaning:
-        print "- reducing delaunay triangulation to inner part",
         cleanOuter(result)
     return result
 
 def cleanOuter(map):
+    sys.stdout.write("- reducing delaunay triangulation to inner part")
+    sys.stdout.flush()
     for edge in map.edgeIter():
         if edge.isContourEdge:
             dart = map.dart(edge.isContourEdge)
@@ -78,9 +85,10 @@ def cleanOuter(map):
                 if mergeDart.edge().isContourEdge:
                     break
                 mergeFaces(mergeDart).isOutside = True
-                sys.stderr.write(".")
+                sys.stdout.write(".")
 
             qt.qApp.processEvents()
+    print
 
 def middlePoint(twoPointEdge):
     return (twoPointEdge[0] + twoPointEdge[1])/2
@@ -139,7 +147,24 @@ def catMap(delaunayMap):
 
         if triangle.type != "S":
             triangle.nodeLabel = len(nodePositions)
-            nodePositions.append((dart1[0]+dart2[0]+dart3[0])/3)
+            nodePos = (dart1[0]+dart2[0]+dart3[0])/3
+            if triangle.type == "J":
+                a = (dart2[0]-dart1[0]).magnitude()
+                b = (dart3[0]-dart2[0]).magnitude()
+                c = (dart1[0]-dart3[0]).magnitude()
+                sv = Vector(a, b, c)
+                sv /= sv.magnitude()
+                if dot(sv, Vector(1, 1, 1)) < 1.6:
+                    s = [a,b,c]
+                    s.sort()
+                    if s[2] == a:
+                        nodePos = (dart2[0]+dart1[0])/2
+                    elif s[2] == b:
+                        nodePos = (dart3[0]+dart2[0])/2
+                    else:
+                        nodePos = (dart1[0]+dart3[0])/2
+            nodePositions.append(nodePos)
+
             originalDarts.append([d.label() for d in triangle.innerDarts])
             sigmaOrbits.append([None]*len(triangle.innerDarts))
 
@@ -196,8 +221,11 @@ def catMap(delaunayMap):
                sigmaOrbits = sigmaOrbits)
 
 def pruneSkeleton(skelMap, minLength):
+    count = 0
     for edge in skelMap.edgeIter():
         if (edge.startNode().degree() == 1 or edge.endNode().degree() == 1) and \
                edge.length() < minLength:
             print "pruning", edge
+            count += 1
             removeBridge(edge.dart())
+    return count
