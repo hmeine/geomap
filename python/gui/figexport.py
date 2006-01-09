@@ -79,6 +79,11 @@ class FigExporter:
         return result
 
     def addBackgroundWithFrame(self, bgImageFilename, **params):
+        if not params.has_key("roi"):
+            size = readImage(bgImageFilename).size()
+            params["roi"] = BoundingBox(
+                Vector2(0, 0), Vector2(size[0], size[1]))
+
         bgRect = self.addROIRect(**params)
 
         bgImage = fig.PictureBBox(0, 0, 1, 1, bgImageFilename)
