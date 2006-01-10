@@ -81,7 +81,7 @@ CellTypeVertexOrLine, /* 13 */
   /* ### */
   /*  #  */
   /*     */
-CellTypeError,  /* 14 */
+CellTypeVertex,  /* 14 */
 
   /* ### */
   /*  ## */
@@ -291,7 +291,7 @@ CellTypeError,  /* 55 */
   /* #   */
   /* ##  */
   /* #   */
-CellTypeError,  /* 56 */
+CellTypeVertex,  /* 56 */
 
   /* #   */
   /* ### */
@@ -666,7 +666,7 @@ CellTypeLine,   /* 130 */
   /*   # */
   /*  ## */
   /*   # */
-CellTypeError,  /* 131 */
+CellTypeVertex,  /* 131 */
 
   /*  #  */
   /*  #  */
@@ -1131,7 +1131,7 @@ CellTypeVertex, /* 223 */
   /*     */
   /*  #  */
   /* ### */
-CellTypeError,  /* 224 */
+CellTypeVertex,  /* 224 */
 
   /*     */
   /*  ## */
