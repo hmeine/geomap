@@ -6,6 +6,13 @@
 
 namespace vigra {
 
+inline std::ostream &
+operator<<(std::ostream & out, const cellimage::CellPixel & d)
+{
+    out << d.type() << ": " << d.label();
+    return out;
+}
+
 template <class SrcIter, class SrcAcc, class ValueType>
 void debugImageImpl(SrcIter sul, SrcIter slr, SrcAcc sa,
                     ValueType, std::ostream &outs, int width)
