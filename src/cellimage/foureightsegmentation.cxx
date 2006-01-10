@@ -1201,17 +1201,6 @@ void GeoMap::initFaceList(BImage & contourImage, CellLabel maxFaceLabel)
     }
 }
 
-void debugDart(const GeoMap::DartTraverser &dart)
-{
-    std::cerr << dart << "\n";
-}
-
-} // namespace cellimage
-
-} // namespace vigra
-
-using namespace vigra::cellimage;
-
 std::ostream &
 operator<<(std::ostream & out, const GeoMap::DartTraverser & d)
 {
@@ -1287,3 +1276,16 @@ operator<<(std::ostream & out, const GeoMap::DartTraverser & d)
     out << "]";
     return out;
 }
+
+
+void debugDart(const GeoMap::DartTraverser &dart)
+{
+    std::cerr << dart << "\n";
+}
+
+} // namespace cellimage
+
+} // namespace vigra
+
+using namespace vigra::cellimage;
+
