@@ -75,7 +75,6 @@ def delaunayMap(face, size, performCleaning = True, simplifyEpsilon = None):
 
 def cleanOuter(map):
     sys.stdout.write("- reducing delaunay triangulation to inner part")
-    sys.stdout.flush()
     for edge in map.edgeIter():
         if edge.isContourEdge:
             dart = map.dart(edge.isContourEdge)
@@ -86,14 +85,15 @@ def cleanOuter(map):
                     break
                 mergeFaces(mergeDart).isOutside = True
                 sys.stdout.write(".")
-
-            qt.qApp.processEvents()
+                sys.stdout.flush()
     print
 
 def middlePoint(twoPointEdge):
     return (twoPointEdge[0] + twoPointEdge[1])/2
 
-def catMap(delaunayMap):
+def catMap(delaunayMap,
+           includeTerminalPositions = False,
+           joinMiddleThreshold = 1.61):
     """Extract a CAT (chordal axis transform) from a Map object
     containing a Delaunay Triangulation.
     Assumes that all edges have only two points and that all finite
@@ -154,7 +154,7 @@ def catMap(delaunayMap):
                 c = (dart1[0]-dart3[0]).magnitude()
                 sv = Vector(a, b, c)
                 sv /= sv.magnitude()
-                if dot(sv, Vector(1, 1, 1)) < 1.6:
+                if dot(sv, Vector(1, 1, 1)) < joinMiddleThreshold:
                     s = [a,b,c]
                     s.sort()
                     if s[2] == a:
@@ -178,6 +178,10 @@ def catMap(delaunayMap):
             for dart in triangle.innerDarts:
                 #print "following limb starting with", dart
 
+                # remember triangle side we started from for later
+                # pruning by "morphological ratio":
+                startSide = dart[0], dart[1]
+
                 edgeLabel = len(edgeTriples)
                 sigmaOrbits[triangle.nodeLabel][
                     originalDarts[triangle.nodeLabel].index(dart.label())] \
@@ -185,8 +189,16 @@ def catMap(delaunayMap):
 
                 edgePoints = []
                 if triangle.type == "T":
-                    nodePositions[triangle.nodeLabel] = middlePoint(dart)
+                    if not includeTerminalPositions:
+                        # correct node position onto this triangle side:
+                        nodePositions[triangle.nodeLabel] = middlePoint(dart)
+                    else:
+                        # include opposite position
+                        nodePositions[triangle.nodeLabel] = (
+                            dart.clone().nextPhi())[-1]
+                        edgePoints.append(nodePositions[triangle.nodeLabel])
                 else:
+                    # node position != side -> include in edge geometry
                     edgePoints.append(nodePositions[triangle.nodeLabel])
 
                 while True:
@@ -204,7 +216,14 @@ def catMap(delaunayMap):
                         break
 
                 if nextTriangle.type == "T":
-                    nodePositions[nextTriangle.nodeLabel] = middlePoint(dart)
+                    if not includeTerminalPositions:
+                        # correct node position onto this triangle side:
+                        nodePositions[nextTriangle.nodeLabel] = middlePoint(dart)
+                    else:
+                        # include opposite position
+                        nodePositions[nextTriangle.nodeLabel] = (
+                            dart.clone().nextPhi())[-1]
+                        edgePoints.append(nodePositions[nextTriangle.nodeLabel])
                 else:
                     edgePoints.append(nodePositions[nextTriangle.nodeLabel])
 
@@ -212,20 +231,103 @@ def catMap(delaunayMap):
                     originalDarts[nextTriangle.nodeLabel].index(dart.label())] \
                     = -edgeLabel
 
+                # see above, for later pruning:
+                endSide = dart[0], dart[1]
+
                 edgeTriples.append((
-                    triangle.nodeLabel, nextTriangle.nodeLabel, edgePoints))
+                    triangle.nodeLabel, nextTriangle.nodeLabel, edgePoints,
+                    startSide, endSide))
 
             del triangle.innerDarts
 
-    return Map(nodePositions, edgeTriples, delaunayMap.imageSize(),
-               sigmaOrbits = sigmaOrbits)
+    result = Map(nodePositions, edgeTriples, delaunayMap.imageSize(),
+                 sigmaOrbits = sigmaOrbits)
+    for edge in result.edgeIter():
+        edge.startSide = edgeTriples[edge.label()][3]
+        edge.endSide = edgeTriples[edge.label()][4]
+    return result
 
-def pruneSkeleton(skelMap, minLength):
+def _pruneBarbsInternal(skel):
     count = 0
-    for edge in skelMap.edgeIter():
-        if (edge.startNode().degree() == 1 or edge.endNode().degree() == 1) and \
-               edge.length() < minLength:
+    for edge in skel.edgeIter():
+        if edge.isBarb:
             print "pruning", edge
             count += 1
             removeBridge(edge.dart())
+        else:
+            del edge.isBarb
     return count
+
+def pruneBarbsByLength(skel, minLength):
+    for edge in skel.edgeIter():
+        edge.isBarb = edge.startNode().degree() == 1 or \
+                      edge.endNode().degree() == 1 and \
+                      edge.length() < minLength
+    return _pruneBarbsInternal(skel)
+
+def pruneBarbsByDist(skel, maxDist):
+    for edge in skel.edgeIter():
+        edge.isBarb = False
+
+    for node in skel.nodeIter():
+        if node.degree() != 1:
+            continue
+
+        p = node.position()
+
+        dart = node.anchor()
+        while True:
+            if (dart[0] - p).magnitude() < maxDist or \
+                   (dart[-1] - p).magnitude() < maxDist:
+                dart.edge().isBarb = True
+            if dart.nextPhi() == node.anchor():
+                break
+
+    return _pruneBarbsInternal(skel)
+
+#             pruneDart = dart.clone()
+#             dart.nextPhi()
+#             removeBridge(pruneDart)
+
+def pruneBarbs(skel):
+    for edge in skel.edgeIter():
+        edge.isBarb = edge.startNode().degree() == 1 or \
+                      edge.endNode().degree() == 1
+    return _pruneBarbsInternal(skel)
+
+def pruneByMorphologicalSignificance(skel, ratio = 0.1):
+    for edge in skel.edgeIter():
+        edge.isBarb = False
+
+        if edge.startNode().degree() == 1:
+            edge.isBarb = True
+
+            endSide = edge.endSide[0]-edge.endSide[1]
+            minDist = ratio * endSide.magnitude()
+
+            endNormal = Vector2(endSide[1], -endSide[0])
+            endNormal /= endNormal.magnitude()
+
+            for p in edge:
+                if abs(dot(p - edge[-1], endNormal)) > minDist:
+                    edge.isBarb = False
+                    break
+
+            if edge.isBarb:
+                continue # no need to test other side
+
+        if edge.endNode().degree() == 1:
+            edge.isBarb = True
+
+            startSide = edge.startSide[0]-edge.startSide[1]
+            minDist = ratio * max(1.0, startSide.magnitude())
+
+            startNormal = Vector2(startSide[1], -startSide[0])
+            startNormal /= startNormal.magnitude()
+
+            for p in edge:
+                if abs(dot(p - edge[0], startNormal)) > minDist:
+                    edge.isBarb = False
+                    break
+
+    return _pruneBarbsInternal(skel)
