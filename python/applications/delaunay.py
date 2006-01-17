@@ -11,24 +11,59 @@ def isContourEdge(edge, maxNodeLabel = None):
             maxNodeLabel -= 1
     return (dist == maxNodeLabel - 1)
 
-def delaunayMap(face, size, performCleaning = True, simplifyEpsilon = None):
-    "USAGE: dlm = delaunayMap(polygon, mapSize)"
+def delaunayMap(face, size, simplifyEpsilon = None,
+                markContour = True, performCleaning = True):
+    """USAGE: dlm = delaunayMap(face, mapSize)
 
-    c = face.contours()
-    jumpPoints = [0]
-    points = contourPoly(c[0])
-    if simplifyEpsilon != None:
-        points = simplifyPolygon(points, simplifyEpsilon, simplifyEpsilon)
-    del points[-1]
-    jumpPoints.append(len(points))
-    for anchor in c[1:]:
-        innerContour = contourPoly(anchor)
+    `face` should be a Map.Face object, and all its contours will be
+    extracted.  (If a list of points or a Polygon is passed as `face`,
+    it is assumed to contain exactly one contour.)  `mapSize` is used
+    to initialize the Map with the resulting edges.
+      
+    Optional keyword parameters:
+
+    simplifyEpsilon
+      If given, each contour polygon is simplified by calling
+      simplifyPolygon with this epsilon as parameter (default None ->
+      don't use simplifyPolygon).
+
+    markContour
+      If True(default), the point list is expected to be a sorted
+      list, and edges between successive entries are marked as contour
+      edges (an exception is raised if such a connection is
+      missing). A `jumpPoints` list is used to mark multiple
+      contours.
+
+    performCleaning
+      If True(default), all edges outside (left) of the marked contour
+      are removed in a post-processing step.  (This has no effect if
+      `markContour` is False.)"""
+
+    if type(face) == tuple:
+        points, jumpPoints = face
+    elif type(face) in (list, Polygon):
+        points = Polygon(face)
+        if points[-1] == points[0]:
+            del points[-1]
+        jumpPoints = [0, len(points)]
+    else:
+        jumpPoints = [0]
+
+        c = face.contours()
+        points = contourPoly(c[0])
         if simplifyEpsilon != None:
-            innerContour = simplifyPolygon(
-                innerContour, simplifyEpsilon, simplifyEpsilon)
-        points.extend(innerContour)
+            points = simplifyPolygon(points, simplifyEpsilon, simplifyEpsilon)
         del points[-1]
         jumpPoints.append(len(points))
+
+        for anchor in c[1:]:
+            innerContour = contourPoly(anchor)
+            if simplifyEpsilon != None:
+                innerContour = simplifyPolygon(
+                    innerContour, simplifyEpsilon, simplifyEpsilon)
+            points.extend(innerContour)
+            del points[-1]
+            jumpPoints.append(len(points))
 
     print "- performing Delaunay Triangulation (%d points)..." % len(points)
     nodePositions, edges, nodes = delaunay(points)
@@ -44,6 +79,9 @@ def delaunayMap(face, size, performCleaning = True, simplifyEpsilon = None):
                  performBorderClosing= False,
                  sigmaOrbits = nodes,
                  skipLabelImage = True)
+
+    if not markContour:
+        return result
 
     for edge in result.edgeIter():
         edge.isContourEdge = False
@@ -260,14 +298,26 @@ def _pruneBarbsInternal(skel):
 
 def pruneBarbsByLength(skel, minLength):
     for edge in skel.edgeIter():
-        edge.isBarb = edge.startNode().degree() == 1 or \
-                      edge.endNode().degree() == 1 and \
+        edge.isBarb = (edge.startNode().degree() == 1 or \
+                       edge.endNode().degree() == 1) and \
                       edge.length() < minLength
     return _pruneBarbsInternal(skel)
+
+def leaveCircle(points, dir, center, radius):
+    r2 = radius * radius
+    i = dir
+    try:
+        while (points[i] - center).squaredMagnitude() < r2:
+            i += dir
+    except IndexError:
+        i -= dir
+    return i
 
 def pruneBarbsByDist(skel, maxDist):
     for edge in skel.edgeIter():
         edge.isBarb = False
+
+    maxCutLength = maxDist * math.pi # ;-)
 
     for node in skel.nodeIter():
         if node.degree() != 1:
@@ -277,13 +327,44 @@ def pruneBarbsByDist(skel, maxDist):
 
         dart = node.anchor()
         while True:
-            if (dart[0] - p).magnitude() < maxDist or \
-                   (dart[-1] - p).magnitude() < maxDist:
+            if (dart[0] - p).magnitude() < maxDist:
                 dart.edge().isBarb = True
+                if (dart[-1] - p).magnitude() > maxCutLength:
+                    dart.edge().isBarb = False
+                    dart.edge().barbNodeLabel = (dart.startNodeLabel(), p)
+            elif (dart[-1] - p).magnitude() < maxDist:
+                dart.edge().isBarb = True
+                if (dart[0] - p).magnitude() > maxCutLength:
+                    dart.edge().isBarb = False
+                    dart.edge().barbNodeLabel = (dart.endNodeLabel(), p)
             if dart.nextPhi() == node.anchor():
                 break
 
-    return _pruneBarbsInternal(skel)
+    result = _pruneBarbsInternal(skel)
+    #removeCruft(skel, 3)
+
+    shortenLength = maxCutLength * 2 / 3
+
+    for edge in skel.edgeIter():
+        edge.isBarb = False
+        if hasattr(edge, "barbNodeLabel"):
+            print "shortening", edge
+            barbNodeLabel, endPos = edge.barbNodeLabel
+            if barbNodeLabel == edge.startNodeLabel():
+                #i, p = arcLength2Pos(shortenLength, edge)
+                i = leaveCircle(edge, 1, endPos, shortenLength)
+                if i < len(edge)-1:
+                    splitEdge(edge, i).isBarb = False
+                    edge.isBarb = True
+            else:
+                #i, p = arcLength2Pos(edge.length()-shortenLength, dart)
+                i = leaveCircle(edge, -1, endPos, shortenLength)
+                if i < len(edge)-1:
+                    newEdge = splitEdge(edge, i).isBarb = True
+
+    result += _pruneBarbsInternal(skel)
+
+    #return result
 
 #             pruneDart = dart.clone()
 #             dart.nextPhi()
