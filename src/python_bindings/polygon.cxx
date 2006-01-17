@@ -13,6 +13,16 @@ Point2D intPos(const Vector2 &p)
     return Point2D((int)floor(p[0]+0.5), (int)floor(p[1]+0.5));
 }
 
+template<class Box>
+PyObject * Box__repr__(Box const & b)
+{
+    std::stringstream s;
+
+    s << "<BoundingBox " << b.begin() << ".." << b.end() << ">";
+
+    return PyString_FromString(s.str().c_str());
+}
+
 double angleTheta(double dy, double dx)
 {
     double denom = fabs(dx) + fabs(dy);
@@ -510,6 +520,7 @@ void defPolygon()
         .def("contains", (bool (BoundingBox::*)(const BoundingBox &) const)
              &BoundingBox::contains)
         .def("intersects", &BoundingBox::intersects)
+        .def("__repr__", &Box__repr__<BoundingBox>)
         .def(self == self)
         .def(self != self)
         .def(self |= Vector2())
