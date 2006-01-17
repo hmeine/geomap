@@ -405,6 +405,12 @@ class Polygon : public PointArray<POINT>
         std::swap(partialAreaValid_, rhs.partialAreaValid_);
     }
 
+//     void swap(PointArray &rhs)
+//     {
+//         Base::swap(rhs);
+//         invalidateProperties();
+//     }
+
     void reverse()
     {
         Base::reverse();
@@ -552,17 +558,18 @@ class BBoxPolygon : public Polygon<POINT>
 
 /********************************************************************/
 
-template<class PointIterator, class TargetArray>
+template<bool useMaxStep, class PointIterator, class TargetArray>
 void simplifyPolygonHelper(
     const PointIterator &polyBegin, const PointIterator &polyEnd,
-    TargetArray &simple, double epsilon)
+    TargetArray &simple, double epsilon,
+    double maxStep = vigra::NumericTraits<double>::max())
 {
     if(polyEnd - polyBegin < 3)
         return; // no splitpoint necessary / possible
 
     PointIterator splitPos(polyEnd), lastPoint(polyEnd);
     --lastPoint;
-    double maxDist = epsilon;
+    double maxDist = useMaxStep ? 0.0 : epsilon;
 
     // calculate normal of straight end point connection
     typename TargetArray::value_type
@@ -600,19 +607,37 @@ void simplifyPolygonHelper(
         }
     }
 
+    if(useMaxStep)
+    {
+        if((maxDist <= epsilon) && (straight.magnitude() <= maxStep))
+            return;
+    }
+
     if(splitPos != polyEnd)
     {
-        simplifyPolygonHelper(polyBegin, splitPos + 1, simple, epsilon);
+        simplifyPolygonHelper<useMaxStep>(
+            polyBegin, splitPos + 1, simple, epsilon, maxStep);
         simple.push_back(*splitPos);
-        simplifyPolygonHelper(splitPos, polyEnd, simple, epsilon);
+        simplifyPolygonHelper<useMaxStep>(
+            splitPos, polyEnd, simple, epsilon, maxStep);
     }
 }
 
 template<class PointArray>
-void simplifyPolygon(const PointArray &poly, PointArray &simple, double epsilon)
+void simplifyPolygon(
+    const PointArray &poly, PointArray &simple, double epsilon)
 {
     simple.push_back(poly[0]);
-    simplifyPolygonHelper(poly.begin(), poly.end(), simple, epsilon);
+    simplifyPolygonHelper<false>(poly.begin(), poly.end(), simple, epsilon);
+    simple.push_back(poly[poly.size()-1]);
+}
+
+template<class PointArray>
+void simplifyPolygon(
+    const PointArray &poly, PointArray &simple, double epsilon, double maxStep)
+{
+    simple.push_back(poly[0]);
+    simplifyPolygonHelper<true>(poly.begin(), poly.end(), simple, epsilon, maxStep);
     simple.push_back(poly[poly.size()-1]);
 }
 
