@@ -146,6 +146,14 @@ Array simplifyPolygon(const Array &a, double epsilon)
     return result;
 }
 
+template<class Array>
+Array simplifyPolygon(const Array &a, double epsilon, double maxStep)
+{
+    Array result;
+    simplifyPolygon(a, result, epsilon, maxStep);
+    return result;
+}
+
 unsigned int pyFillScannedPoly(
     const Scanlines &scanlines,
     PythonImage &targetV,
@@ -486,7 +494,8 @@ void defPolygon()
     typedef PythonPolygon::BoundingBox BoundingBox;
     class_<BoundingBox>("BoundingBox")
         .def(init<BoundingBox>())
-        .def(init<const Vector2 &, const Vector2 &>())
+        .def(init<const Vector2 &>(args("size")))
+        .def(init<const Vector2 &, const Vector2 &>(args("begin", "end")))
         .def("begin", (const Vector2 &(BoundingBox::*)() const)
              &BoundingBox::begin, return_internal_reference<>())
         .def("end", (const Vector2 &(BoundingBox::*)() const)
@@ -540,9 +549,18 @@ void defPolygon()
     def("removeEdgeFromLabelImage", &removeEdgeFromLabelImage);
 
     def("simplifyPolygon",
-        (Vector2Array (*)(const Vector2Array &,double))&simplifyPolygon);
+        (Vector2Array (*)(const Vector2Array &,double))&simplifyPolygon,
+        args("points", "perpendicularDistEpsilon"));
     def("simplifyPolygon",
-        (PythonPolygon (*)(const PythonPolygon &,double))&simplifyPolygon);
+        (PythonPolygon (*)(const PythonPolygon &,double))&simplifyPolygon,
+        args("polygon", "perpendicularDistEpsilon"));
+    def("simplifyPolygon",
+        (Vector2Array (*)(const Vector2Array &,double,double))&simplifyPolygon,
+        args("points", "perpendicularDistEpsilon", "maxStep"));
+    def("simplifyPolygon",
+        (PythonPolygon (*)(const PythonPolygon &,double,double))&simplifyPolygon),
+        args("points", "perpendicularDistEpsilon", "maxStep");
+
     def("curvatureList", &curvatureList<Vector2Array>,
         (arg("pointArray"), arg("skipPoints") = 1));
     def("smoothCurvature", &smoothCurvature<Vector2Array>,
