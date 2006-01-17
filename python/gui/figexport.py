@@ -42,14 +42,14 @@ def clipPoly(polygon, clipRect):
     return result
 
 _qtColor2figColorMapping = {
-    Qt.black : fig.colorBlack,
-    Qt.blue : fig.colorBlue,
-    Qt.green : fig.colorGreen,
-    Qt.cyan : fig.colorCyan,
-    Qt.red : fig.colorRed,
-    Qt.magenta : fig.colorMagenta,
-    Qt.yellow : fig.colorYellow,
-    Qt.white : fig.colorWhite,
+    qt.Qt.black : fig.colorBlack,
+    qt.Qt.blue : fig.colorBlue,
+    qt.Qt.green : fig.colorGreen,
+    qt.Qt.cyan : fig.colorCyan,
+    qt.Qt.red : fig.colorRed,
+    qt.Qt.magenta : fig.colorMagenta,
+    qt.Qt.yellow : fig.colorYellow,
+    qt.Qt.white : fig.colorWhite,
     }
 
 def qtColor2figColor(color):
@@ -131,8 +131,12 @@ class FigExporter:
         result = []
         for edge in map.edgeIter():
             if hasattr(edge, "color"):
-                parts = self.addClippedPoly(
-                    edge, penColor = qtColor2figColor(edge.color), **attr)
+                penColor = edge.color
+                if type(penColor) == qt.QColor:
+                    penColor = qtColor2figColor(penColor)
+                thisattr = dict(attr)
+                thisattr["penColor"] = penColor
+                parts = self.addClippedPoly(edge, **thisattr)
             else:
                 parts = self.addClippedPoly(edge, **attr)
             result.extend(parts)
