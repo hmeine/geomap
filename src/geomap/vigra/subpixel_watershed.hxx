@@ -505,6 +505,12 @@ public:
             typename CoordMap::value_type((vector2D)[0], vector2D));
     }
 
+    void erase(const iterator &it)
+    {
+        vectors_.erase(it);
+    }
+
+        // assumes that Vector2D(x, y) is a valid constructor:
     void insert(CoordType x, CoordType y)
     {
         vectors_.insert(
@@ -544,10 +550,26 @@ public:
     const_iterator nearest(
         const Vector2D &v, double maxSquaredDist = NumericTraits<double>::max()) const
     {
-        const_iterator midPos(vectors_.lower_bound(v[0]));
-        const_iterator nearestPos(end());
+        return search(begin(), vectors_.lower_bound(v[0]), end(),
+                      v, maxSquaredDist);
+    }
 
-        for(const_iterator it = midPos; it != vectors_.end(); ++it)
+    iterator nearest(
+        const Vector2D &v, double maxSquaredDist = NumericTraits<double>::max())
+    {
+        return search(begin(), vectors_.lower_bound(v[0]), end(),
+                      v, maxSquaredDist);
+    }
+
+protected:
+    template<class ITERATOR>
+    static ITERATOR search(
+        const ITERATOR &begin, ITERATOR midPos, const ITERATOR &end,
+        const Vector2D &v, double maxSquaredDist)
+    {
+        ITERATOR nearestPos(end);
+
+        for(ITERATOR it = midPos; it != end; ++it)
         {
             if(squaredNorm(it->first - v[0]) > maxSquaredDist)
                 break;
@@ -560,10 +582,10 @@ public:
             }
         }
 
-        if(midPos == begin())
+        if(midPos == begin)
             return nearestPos;
 
-        for(const_iterator it = --midPos; true; --it)
+        for(ITERATOR it = --midPos; true; --it)
         {
             if(squaredNorm(v[0] - it->first) > maxSquaredDist)
                 break;
@@ -575,14 +597,13 @@ public:
                 maxSquaredDist = dist;
             }
 
-            if(it == vectors_.begin())
+            if(it == begin)
                 break;
         }
 
         return nearestPos;
     }
 
-protected:
     CoordMap vectors_;
 };
 
