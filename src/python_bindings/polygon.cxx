@@ -1,5 +1,6 @@
 #include <boost/python.hpp>
 #include <boost/python/detail/api_placeholder.hpp>
+#include <boost/python/make_constructor.hpp>
 #include <vigra/gaussians.hxx>
 #include <vigra/pythonimage.hxx>
 #include "vigra/polygon.hxx"
@@ -11,6 +12,13 @@ using namespace boost::python;
 Point2D intPos(const Vector2 &p)
 {
     return Point2D((int)floor(p[0]+0.5), (int)floor(p[1]+0.5));
+}
+
+template<class Box>
+Box *createBoxFromRect2D(const Rect2D &r)
+{
+    return new Box(typename Box::Vector(r.left(), r.top()),
+                   typename Box::Vector(r.right(), r.bottom()));
 }
 
 template<class Box>
@@ -495,6 +503,7 @@ void defPolygon()
         .def("length", &PythonPolygon::length)
         .def("partialArea", &PythonPolygon::partialArea)
         .def("boundingBox", &PythonPolygon::boundingBox)
+        .def("contains", &PythonPolygon::contains)
         .def("swap", &PythonPolygon::swap)
         .def("reverse", &PythonPolygon::reverse)
         .def("invalidateProperties", &PythonPolygon::invalidateProperties)
@@ -506,6 +515,7 @@ void defPolygon()
         .def(init<BoundingBox>())
         .def(init<const Vector2 &>(args("size")))
         .def(init<const Vector2 &, const Vector2 &>(args("begin", "end")))
+        .def("__init__", make_constructor(&createBoxFromRect2D<BoundingBox>))
         .def("begin", (const Vector2 &(BoundingBox::*)() const)
              &BoundingBox::begin, return_internal_reference<>())
         .def("end", (const Vector2 &(BoundingBox::*)() const)
@@ -520,7 +530,7 @@ void defPolygon()
         .def("contains", (bool (BoundingBox::*)(const BoundingBox &) const)
              &BoundingBox::contains)
         .def("intersects", &BoundingBox::intersects)
-        .def("__repr__", &Box__repr__<BoundingBox>)
+        .def("__repr__", &Box__repr__<BoundingBox>) // TODO: __str__?
         .def(self == self)
         .def(self != self)
         .def(self |= Vector2())
@@ -529,7 +539,6 @@ void defPolygon()
         .def(self | self)
         .def(self &= self)
         .def(self & self)
-        // FIXME: str/repr
     ;
 
     class_<Scanlines>("Scanlines", no_init)
