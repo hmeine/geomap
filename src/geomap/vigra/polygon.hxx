@@ -284,6 +284,41 @@ class Polygon : public PointArray<POINT>
         return partialArea_;
     }
 
+        /**
+         * Tests whether the given point lies within this polygon.
+         * Requires that this polygon is closed.
+
+         * The result of testing points which lie directly on the
+         * polylines (or are incident with the support points) is
+         * undefined.  (ATM, the implementation uses half-open
+         * intervals, so points on the left/top border are included,
+         * in contrast to the ones on the right/bottom.)
+         */
+    bool contains(const_reference point) const
+    {
+        vigra_precondition(points_[size()-1] == points_[0],
+                           "Polygon::contains() requires polygon to be closed!");
+        int result = 0;
+        bool above = points_[0][1] < point[1];
+        for(unsigned int i = 1; i < size(); ++i)
+        {
+            bool now = points_[i][1] < point[1];
+            if(now != above)
+            {
+                typename Point::value_type intersectX =
+                    points_[i-1][0] + 
+                    (points_[i][0] - points_[i-1][0]) *
+                    (point[1]      - points_[i-1][1]) /
+                    (points_[i][1] - points_[i-1][1]);
+                if(intersectX < point[0])
+                    ++result;
+
+                above = now;
+            }
+        }
+        return result % 2;
+    }
+
     void push_back(const_reference v)
     {
         if(size())
