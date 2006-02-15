@@ -509,6 +509,13 @@ class BBoxPolygon : public Polygon<POINT>
       boundingBoxValid_(false)
     {}
 
+    bool contains(const_reference point) const
+    {
+        if(!boundingBox().contains(point))
+            return false;
+        return Base::contains(point);
+    }
+
     BoundingBox boundingBox() const
     {
         if(!boundingBoxValid_)
