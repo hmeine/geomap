@@ -450,8 +450,7 @@ void defPolygon()
 
     typedef BBoxPolygon<Vector2> PythonPolygon;
 
-    typedef PythonPolygon::Base Vector2Polygon;
-    typedef Vector2Polygon::Base Vector2Array;
+    typedef PythonPolygon::Base::Base Vector2Array;
     typedef PointIter<Vector2Array::const_iterator>
         VectorIter;
     defIter<VectorIter>("Vector2Iter");
