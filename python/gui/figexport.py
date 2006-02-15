@@ -1,4 +1,4 @@
-def intersectLine(inside, outside, clipRect):
+def _intersectLine(inside, outside, clipRect):
     if outside[1] > clipRect.end()[1]:
         return inside + (outside-inside) * \
                (clipRect.end()[1]-inside[1])/(outside[1]-inside[1])
@@ -28,14 +28,14 @@ def clipPoly(polygon, clipRect):
         p = Polygon()
 
         if i > 0 and i < len(polygon):
-            p.append(intersectLine(polygon[i], polygon[i-1], clipRect))
+            p.append(_intersectLine(polygon[i], polygon[i-1], clipRect))
 
         while i < len(polygon) and clipRect.contains(polygon[i]):
             p.append(polygon[i])
             i += 1
 
         if i < len(polygon):
-            p.append(intersectLine(polygon[i-1], polygon[i], clipRect))
+            p.append(_intersectLine(polygon[i-1], polygon[i], clipRect))
 
         result.append(p)
 
@@ -154,15 +154,19 @@ class FigExporter:
         return [self.addEdge(polygon, **attr)
                 for polygon in clipPoly(polygon, clipRect)]
 
-    def addEdge(self, points, **attr):
+    def addEdge(self, points, simplifyEpsilon = 0.5, **attr):
         o = self.offset
         if self.roi:
             o = o - self.roi.begin() # don't modify in-place!
-        pp = simplifyPolygon(
-            Polygon([(point + o) * self.scale for point in points]), 0.5)
+        pp = Polygon([(point + o) * self.scale for point in points])
+        if simplifyEpsilon:
+            pp = simplifyPolygon(pp, simplifyEpsilon)
         fp = fig.Polygon([intPos(v) for v in pp],
                          closed = pp[0] == pp[-1])
         for a in attr:
             setattr(fp, a, attr[a])
         self.f.append(fp)
         return fp
+
+    def save(self, filename):
+        file(filename, "w").write(str(self.f))
