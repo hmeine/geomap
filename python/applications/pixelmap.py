@@ -87,7 +87,12 @@ def cannyEdgeMap(i, scale, thresh):
 e = Experiment('kreuzung.png', "grad")
 e("img")
 
-crackEdges = 8  # can be 0, 4, or 8
+# crackEdges can be:
+# 0: 8-connected edges on 4-connected background
+# 4: crack edges between 4-connected watershed regions
+# 8: crack edges between 8-connected watershed regions
+#    (still leads to disconnected regions in the map ATM)
+crackEdges = 8
 
 print "- watershed segmentation..."
 if crackEdges:
@@ -106,7 +111,7 @@ print "- converting pixel-based GeoMap..."
 if crackEdges:
     spmap = pixelMap2subPixelMap(
         geomap, 0.5, labelImageSize = (geomap.cellImage.size()-Size2D(3,3))/2)
-    crackEdges2MidCracks(spmap, True)
+    crackEdges2MidCracks(spmap, True) # comment out to get original crack edges
 else:
     spmap = pixelMap2subPixelMap(geomap,
                 labelImageSize = (geomap.cellImage.size()-Size2D(4,4)))
