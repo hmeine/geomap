@@ -243,10 +243,11 @@ list curvatureList(const Array &p, int dx = 5, unsigned int skip = 0)
 }
 
 template<class Array>
-list smoothCurvature(const list &curvatureList, double sigma)
+list gaussianConvolveByArcLength(const list &curvatureList,
+                                 double sigma, int derivativeOrder = 0)
 {
     list result;
-    Gaussian<> g(sigma);
+    Gaussian<> g(sigma, derivativeOrder);
     for(int i = 0; i < len(curvatureList); ++i)
     {
         tuple posCurv((extract<tuple>(curvatureList[i])()));
@@ -274,7 +275,9 @@ list smoothCurvature(const list &curvatureList, double sigma)
             mean += w*curv;
             norm += w;
         }
-        result.append(make_tuple(pos, mean/norm));
+        if(!derivativeOrder)
+            mean /= norm;
+        result.append(make_tuple(pos, mean));
     }
     return result;
 }
@@ -590,8 +593,9 @@ void defPolygon()
         "with indices (i-dx, i, i+dx), ignoring skipPoints points from both ends.\n"
         "returns a list of (arcLength, curvature) pairs,\n"
         "whose length is len(pointArray) - 2*dx - 2*skipPoints.");
-    def("smoothCurvature", &smoothCurvature<Vector2Array>,
-        args("curvatureList", "sigma"));
+    def("gaussianConvolveByArcLength", &gaussianConvolveByArcLength<Vector2Array>,
+        (arg("curvatureList"), arg("sigma"), arg("derivativeOrder") = 0));
+    // FIXME: document properly
 
     def("delaunay", &delaunay);
 }
