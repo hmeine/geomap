@@ -198,17 +198,20 @@ unsigned int pyDrawScannedPoly(
 }
 
 template<class Array>
-list curvatureList(const Array &p, unsigned int skip = 0)
+list curvatureList(const Array &p, int dx = 5, unsigned int skip = 0)
 {
     double pos = 0.0;
+    for(unsigned int i = 0; i < dx + skip - 1; ++i)
+        pos += (p[i+1]-p[i]).magnitude();
+
     list result;
 
-    for(unsigned int i = skip; i < p.size() - 2 - skip; ++i)
+    for(unsigned int i = skip; i < p.size() - 2*dx - skip; ++i)
     {
         typename Array::value_type
-            s1(p[i+1] - p[i]),
-            s2(p[i+2] - p[i+1]),
-            s3(p[i+2] - p[i]);
+            s1(p[i+  dx] - p[i]),
+            s2(p[i+2*dx] - p[i+dx]),
+            s3(p[i+2*dx] - p[i]);
 
         double
             a2 = s1.squaredMagnitude(),
@@ -217,7 +220,7 @@ list curvatureList(const Array &p, unsigned int skip = 0)
             a = sqrt(a2),
             b = sqrt(b2);
 
-        pos += a;
+        pos += (p[i+dx] - p[i+dx-1]).magnitude();
 
         static const double eps = 1e-8;
         if(a < eps || b < eps)
@@ -581,7 +584,12 @@ void defPolygon()
         args("points", "perpendicularDistEpsilon", "maxStep");
 
     def("curvatureList", &curvatureList<Vector2Array>,
-        (arg("pointArray"), arg("skipPoints") = 1));
+        (arg("pointArray"), arg("dx") = 5, arg("skipPoints") = 1),
+        "curvatureList(pointArray, dx = 5, skipPoints = 1)\n"
+        "calculates curvatures values for each triangle between point triples\n"
+        "with indices (i-dx, i, i+dx), ignoring skipPoints points from both ends.\n"
+        "returns a list of (arcLength, curvature) pairs,\n"
+        "whose length is len(pointArray) - 2*dx - 2*skipPoints.");
     def("smoothCurvature", &smoothCurvature<Vector2Array>,
         args("curvatureList", "sigma"));
 
