@@ -243,34 +243,68 @@ list curvatureList(const Array &p, int dx = 5, unsigned int skip = 0)
 }
 
 template<class Array>
-list gaussianConvolveByArcLength(const list &curvatureList,
-                                 double sigma, int derivativeOrder = 0)
+list tangentList(const Array &p, int dx = 5, unsigned int skip = 0)
+{
+    double pos = 0.0, prevSigma = 0.0;
+    for(unsigned int i = 0; i < dx + skip - 1; ++i)
+        pos += (p[i+1]-p[i]).magnitude();
+
+    list result;
+
+    for(unsigned int i = skip; i < p.size() - 2*dx - skip; ++i)
+    {
+        typename Array::value_type
+            s(p[i+2*dx] - p[i]);
+
+        pos += (p[i+dx] - p[i+dx-1]).magnitude();
+
+        static const double eps = 1e-14;
+        if(s.squaredMagnitude() < eps)
+            continue;
+
+        double sigma = atan2(s[1], s[0]), diff(sigma - prevSigma);
+        if(diff < -M_PI)
+            sigma += 2*M_PI;
+        else if(diff > M_PI)
+            sigma -= 2*M_PI;
+        prevSigma = sigma;
+
+        result.append(make_tuple(pos, sigma));
+    }
+
+    return result;
+}
+
+template<class Array, class ValueType>
+list gaussianConvolveByArcLengthInternal(
+    const list &arcLengthList,
+    double sigma, int derivativeOrder = 0)
 {
     list result;
     Gaussian<> g(sigma, derivativeOrder);
-    for(int i = 0; i < len(curvatureList); ++i)
+    for(int i = 0; i < len(arcLengthList); ++i)
     {
-        tuple posCurv((extract<tuple>(curvatureList[i])()));
-        double pos = extract<double>(posCurv[0])();
-        double mean = 0.0, norm = 0.0;
-        for(int j = i; j < len(curvatureList); ++j)
+        tuple posCurv((extract<tuple>(arcLengthList[i])()));
+        double pos = extract<double>(posCurv[0])(), norm = 0.0;
+        ValueType mean(vigra::NumericTraits<ValueType>::zero());
+        for(int j = i; j < len(arcLengthList); ++j)
         {
-            tuple posCurv((extract<tuple>(curvatureList[j])()));
+            tuple posCurv((extract<tuple>(arcLengthList[j])()));
             double dist = extract<double>(posCurv[0])() - pos;
             if(dist > g.radius())
                 break;
-            double curv = extract<double>(posCurv[1])();
+            ValueType curv = extract<ValueType>(posCurv[1])();
             double w(g(dist));
             mean += w*curv;
             norm += w;
         }
         for(int j = i - 1; j >= 0; --j)
         {
-            tuple posCurv((extract<tuple>(curvatureList[j])()));
+            tuple posCurv((extract<tuple>(arcLengthList[j])()));
             double dist = extract<double>(posCurv[0])() - pos;
             if(dist < -g.radius())
                 break;
-            double curv = extract<double>(posCurv[1])();
+            ValueType curv = extract<ValueType>(posCurv[1])();
             double w(g(dist));
             mean += w*curv;
             norm += w;
@@ -280,6 +314,23 @@ list gaussianConvolveByArcLength(const list &curvatureList,
         result.append(make_tuple(pos, mean));
     }
     return result;
+}
+
+template<class Array>
+list gaussianConvolveByArcLength(const list &arcLengthList,
+                                 double sigma, int derivativeOrder = 0)
+{
+    if(extract<double>(arcLengthList[0][1]).check())
+        return gaussianConvolveByArcLengthInternal<Array, double>(
+            arcLengthList, sigma, derivativeOrder);
+    if(extract<Vector2>(arcLengthList[0][1]).check())
+        return gaussianConvolveByArcLengthInternal<Array, Vector2>(
+            arcLengthList, sigma, derivativeOrder);
+    PyErr_SetString(PyExc_TypeError,
+        "gaussianConvolveByArcLength: arcLengthList can only be applied on lists\n"
+        "of pairs containing floats or Vector2s as second values to be processed.");
+    throw_error_already_set();
+    return list(); // never reached
 }
 
 void markEdgeInLabelImage(
@@ -593,8 +644,15 @@ void defPolygon()
         "with indices (i-dx, i, i+dx), ignoring skipPoints points from both ends.\n"
         "returns a list of (arcLength, curvature) pairs,\n"
         "whose length is len(pointArray) - 2*dx - 2*skipPoints.");
+    def("tangentList", &tangentList<Vector2Array>,
+        (arg("pointArray"), arg("dx") = 5, arg("skipPoints") = 1),
+        "tangentList(pointArray, dx = 5, skipPoints = 1)\n"
+        "calculates tangent angles from each chord between the point with\n"
+        "indices (i-dx, i+dx), ignoring skipPoints points from both ends.\n"
+        "returns a list of (arcLength, angle) pairs,\n"
+        "whose length is len(pointArray) - 2*dx - 2*skipPoints.");
     def("gaussianConvolveByArcLength", &gaussianConvolveByArcLength<Vector2Array>,
-        (arg("curvatureList"), arg("sigma"), arg("derivativeOrder") = 0));
+        (arg("arcLengthList"), arg("sigma"), arg("derivativeOrder") = 0));
     // FIXME: document properly
 
     def("delaunay", &delaunay);
