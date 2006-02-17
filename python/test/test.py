@@ -2,6 +2,7 @@ from vigra import Vector2
 from hourglass import Polygon
 
 execfile("map.py")
+# execfile("maptest.py")
 execfile("testSPWS")
 
 # The following data contains edges that run out of the image range,
@@ -13,29 +14,27 @@ assert checkConsistency(map), "map inconsistent"
 assert checkLabelConsistency(map), "map.labelImage inconsistent"
 
 # merge faces so that survivor has a hole:
-mergeFaces(map.dart(210))
-mergeFaces(map.dart(214))
+mergeFaces(map.dart(213))
+mergeFaces(map.dart(19))
 mergeFaces(map.dart(28))
-mergeFaces(map.dart(188))
-mergeFaces(map.dart(196))
+mergeFaces(map.dart(33))
 mergeFaces(map.dart(222))
 removeBridge(map.dart(31))
 mergeFaces(map.dart(18))
 
-assert len(map.face(1).contours()) > 1
-assert map.face(1).contains(Vector2(5,12))
-assert not map.face(1).contains(Vector2(12,12)) # in hole
+assert len(map.face(2).contours()) > 1 # should have hole
+assert map.face(2).contains(Vector2(5,12)) # in region, but not within hole
+assert not map.face(2).contains(Vector2(12,12)) # in hole
+
+# --------------------------------------------------------------------
 
 map = Map(maxima1, flowlines1, Size2D(256, 256))
 assert checkConsistency(map), "map inconsistent"
 assert checkLabelConsistency(map), "map.labelImage inconsistent"
 
-# execfile("maptest.py")
 # showMapStats(map)
 # bg = readImage("../../../Testimages/blox.gif")
 # d = MapDisplay(bg, map)
-
-# --------------------------------------------------------------------
 
 assert map.faceAt(Vector2(91,  86.4)) == map.face(13)
 assert map.faceAt(Vector2(91,  85.8)) == map.face(5)
