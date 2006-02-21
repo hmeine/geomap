@@ -3,6 +3,7 @@
 #include <boost/python/make_constructor.hpp>
 #include <vigra/gaussians.hxx>
 #include <vigra/pythonimage.hxx>
+#include <cmath>
 #include "vigra/polygon.hxx"
 #include "delaunay.hxx"
 
@@ -33,7 +34,7 @@ PyObject * Box__repr__(Box const & b)
 
 double angleTheta(double dy, double dx)
 {
-    double denom = fabs(dx) + fabs(dy);
+    double denom = std::fabs(dx) + std::fabs(dy);
     if(!denom)
         return 0.0;
     double result = dy / denom;
@@ -289,9 +290,11 @@ tuple singleGaussianConvolveAtArcLength(
     int i, double arcLengthPos,
     const Gaussian<> &g)
 {
-    ValueType sum(vigra::NumericTraits<ValueType>::zero());
-    double norm = 0.0;
+    std::cerr << "singleGaussianConvolveAtArcLength(.., " << i << ", " << arcLengthPos << ");\n";
 
+    ValueType sum(vigra::NumericTraits<ValueType>::zero());
+
+    double lnorm = 0.0;
     for(int j = i; j < len(arcLengthList); ++j)
     {
         tuple posCurv((extract<tuple>(arcLengthList[j])()));
@@ -301,9 +304,10 @@ tuple singleGaussianConvolveAtArcLength(
         ValueType curv = extract<ValueType>(posCurv[1])();
         double w(g(dist));
         sum += w*curv;
-        norm += w;
+        lnorm += w;
     }
-
+    
+    double rnorm = 0.0;
     for(int j = i - 1; j >= 0; --j)
     {
         tuple posCurv((extract<tuple>(arcLengthList[j])()));
@@ -313,11 +317,24 @@ tuple singleGaussianConvolveAtArcLength(
         ValueType curv = extract<ValueType>(posCurv[1])();
         double w(g(dist));
         sum += w*curv;
-        norm += w;
+        rnorm += w;
     }
 
     if(!g.derivativeOrder())
-        sum /= norm; // FIXME: assert abs(norm) < epsilon
+        sum /= (lnorm+rnorm);
+    else if(g.derivativeOrder() % 1)
+    {
+        double disparity = std::fabs(rnorm) - std::fabs(lnorm);
+        if(disparity > 0)
+            sum += disparity * extract<ValueType>(arcLengthList[0][1])();
+        else
+            sum += -disparity * extract<ValueType>(arcLengthList[-1][1])();
+    }
+    else
+    {
+        sum += -lnorm * extract<ValueType>(arcLengthList[0][1])();
+        sum += -rnorm * extract<ValueType>(arcLengthList[-1][1])();
+    }
 
     return make_tuple(arcLengthPos, sum);
 }
@@ -355,7 +372,7 @@ list gaussianConvolveByArcLength(const list &arcLengthList,
 }
 
 template<class ValueType>
-list makeEquidistantGaussianInternal(
+list equidistantGaussiansInternal(
     const list &arcLengthList, double sigma, double distance)
 {
     list result;
@@ -364,7 +381,7 @@ list makeEquidistantGaussianInternal(
     int edgeIndex = 0;
     for(double pos = 0; pos < totalLength; pos += distance)
     {
-        while(extract<double>(arcLengthList[edgeIndex][0]) <= pos)
+        while(extract<double>(arcLengthList[edgeIndex][0]) < pos)
             ++edgeIndex;
 
         result.append(singleGaussianConvolveAtArcLength<ValueType>(
@@ -373,17 +390,17 @@ list makeEquidistantGaussianInternal(
     return result;
 }
 
-list makeEquidistantGaussian(const list &arcLengthList,
+list equidistantGaussians(const list &arcLengthList,
                              double sigma, double distance)
 {
     if(extract<double>(arcLengthList[0][1]).check())
-        return gaussianConvolveByArcLengthInternal<double>(
+        return equidistantGaussiansInternal<double>(
             arcLengthList, sigma, distance);
     if(extract<Vector2>(arcLengthList[0][1]).check())
-        return gaussianConvolveByArcLengthInternal<Vector2>(
+        return equidistantGaussiansInternal<Vector2>(
             arcLengthList, sigma, distance);
     PyErr_SetString(PyExc_TypeError,
-        "makeEquidistantGaussian: arcLengthList can only be applied on lists\n"
+        "equidistantGaussians: arcLengthList can only be applied on lists\n"
         "of pairs containing floats or Vector2s as second values to be processed.");
     throw_error_already_set();
     return list(); // never reached
@@ -711,7 +728,7 @@ void defPolygon()
         "whose length is len(pointArray) - 2*dx - 2*skipPoints.");
     def("gaussianConvolveByArcLength", &gaussianConvolveByArcLength,
         (arg("arcLengthList"), arg("sigma"), arg("derivativeOrder") = 0));
-    def("makeEquidistantGaussian", &makeEquidistantGaussian,
+    def("equidistantGaussians", &equidistantGaussians,
         args("edgeArcLengthList", "sigma", "distance"));
     // FIXME: document properly
 
