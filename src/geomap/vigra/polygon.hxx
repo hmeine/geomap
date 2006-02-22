@@ -452,6 +452,8 @@ class Polygon : public PointArray<POINT>
         if(partialAreaValid_)
             partialArea_ = -partialArea_;
     }
+    
+    POINT nearestPoint(const_reference p) const;
 
   protected:
     mutable double length_;
@@ -459,6 +461,50 @@ class Polygon : public PointArray<POINT>
     mutable double partialArea_;
     mutable bool partialAreaValid_;
 };
+
+template <class POINT>
+POINT Polygon<POINT>::nearestPoint(const_reference p) const
+{
+    double dist = NumericTraits<double>::max();
+    POINT r;
+    for(unsigned int k=1; k<this->size(); ++k)
+    {
+        POINT dp = (*this)[k] - (*this)[k-1];
+        POINT dc = p - (*this)[k-1];
+        double t = dot(dp, dc);
+        if(t != 0.0)
+            t /= squaredNorm(dp);
+        if(t > 1.0)
+        {
+            double d = norm((*this)[k]-p);
+            if (d < dist)
+            {
+                dist = d;
+                r = (*this)[k];
+            }
+        }
+        else if(t < 0.0)
+        {
+            double d = norm((*this)[k-1]-p);
+            if (d < dist)
+            {
+                dist = d;
+                r = (*this)[k-1];
+            }
+        }
+        else
+        {
+            POINT pp = (*this)[k-1] + t*dp;
+            double d = norm(pp-p);
+            if (d < dist)
+            {
+                dist = d;
+                r = pp;
+            }
+        }
+    }
+    return r;
+}
 
 /********************************************************************/
 

@@ -637,6 +637,7 @@ void defPolygon()
         .def("contains", &PythonPolygon::contains)
         .def("swap", &PythonPolygon::swap)
         .def("reverse", &PythonPolygon::reverse)
+        .def("nearestPoint", &PythonPolygon::nearestPoint)
         .def("invalidateProperties", &PythonPolygon::invalidateProperties)
         .def_pickle(ArrayPickleSuite<PythonPolygon>())
     ;
