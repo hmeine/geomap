@@ -72,9 +72,12 @@ class FigExporter:
 
     All addFoo() variants allow to set properties of the resulting fig
     objects via keyword arguments, e.g. addROIRect(myroi, depth = 40,
-    penColor = fig.colorYellow), cf. documentation of fig.Object ."""
+    penColor = fig.colorYellow), cf. documentation of fig.Object .
+
+    For a discussion of the scaling/clipping, see documentation of
+    __init__()."""
     
-    def __init__(self, scale = 30, roi = None):
+    def __init__(self, scale = 30, roi = None, offset = Vector2(0.5, 0.5)):
         """fe = FigExporter(90.0, BoundingBox(10, 10, 50, 50))
 
         Initializes a FigExporter with the given scale and roi.
@@ -84,17 +87,26 @@ class FigExporter:
 
         A roi is given as BoundingBox object (default None == no
         clipping) and represents a range in the original image (before
-        scaling)."""
+        scaling).
+
+        An optional parameter offset (default: Vector2(0.5, 0.5)) is
+        used to move all edges / points within the roi; this is
+        intended to make e.g. Vector2(14.1, 10.0) be a little to the
+        right of the *center* of the pixel (14, 10).
+
+        The transformation parameters are stored as properties scale,
+        roi, and offset, and these settings can be queried or even
+        changed at any time (between adding objects)."""
         
         self.f = fig.File()
         self.scale = scale
         self.roi = roi
-        self.offset = Vector2(0.5, 0.5)
+        self.offset = offset
 
     def addROIRect(self, roi = None, **attr):
         """fe.addROIRect(roi, depth = 85, ...)
 
-        Adds a rectangle around the given roi.
+        Adds a rectangle around the given roi (ignoring fe.offset).
         If roi == None (default), the roi of the FigExporter itself is used.
         The fig.PolyBox object is returned."""
         
