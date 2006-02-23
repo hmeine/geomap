@@ -112,8 +112,9 @@ class FigExporter:
         
         assert roi or self.roi, "addROIRect(): no ROI given!?"
         if roi == None:
-            roi = BoundingBox(self.roi)
+            roi = self.roi
         if self.roi:
+            roi = BoundingBox(roi) # don't modify in-place
             roi.moveBy(-self.roi.begin())
         result = fig.PolyBox(roi.begin()[0] * self.scale,
                              roi.begin()[1] * self.scale,
@@ -125,7 +126,7 @@ class FigExporter:
         return result
 
     def addBackgroundWithFrame(self, bgImageFilename, **params):
-        """fe.addROIRect(bgImageFilename, depth = 85, ...)
+        """fe.addBackgroundWithFrame(bgImageFilename, depth = 85, ...)
 
         Adds a picture object to the fig.File, framed by an additional
         rectangle.  See addROIRect().  If no roi is given (via a
@@ -219,7 +220,7 @@ class FigExporter:
         if self.roi:
             o = o - self.roi.begin() # don't modify in-place!
         for i, point in enumerate(points):
-            if not self.roi.contains(point):
+            if not self.roi.contains(point+self.offset):
                 continue
             p = intPos((point + o) * self.scale)
             dc = fig.Circle(p, radius)
