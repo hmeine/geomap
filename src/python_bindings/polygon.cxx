@@ -3,6 +3,7 @@
 #include <boost/python/make_constructor.hpp>
 #include <vigra/gaussians.hxx>
 #include <vigra/pythonimage.hxx>
+#include <vigra/linear_algebra.hxx>
 #include <cmath>
 #include "vigra/polygon.hxx"
 #include "delaunay.hxx"
@@ -420,6 +421,60 @@ list equidistantGaussians(const list &arcLengthList,
     return list(); // never reached
 }
 
+double fitParabola(const list &xyList)
+{
+    double sumAl4 = 0.0, sumAl3 = 0.0, sumAl2 = 0.0, sumAl = 0.0;
+    double sumAl2Theta = 0.0, sumAlTheta = 0.0, sumTheta = 0.0;
+    int count = 0;
+
+    for(int i = 0; i < len(xyList); ++i)
+    {
+        double al = extract<double>(xyList[i][0])();
+        double theta = extract<double>(xyList[i][1])();
+
+        sumAl     += al;
+        double al2 = al*al;
+        sumAl2    += al2;
+        double al3 = al2*al;
+        sumAl3    += al3;
+        double al4 = al3*al;
+        sumAl4    += al4;
+
+        sumAl2Theta += theta*al*al;
+        sumAlTheta  += theta*al;
+        sumTheta    += theta;
+
+        ++count;
+    }
+
+    vigra::Matrix<double> matrix(3, 3);
+    matrix(0, 0) = sumAl4; matrix(0, 1) = sumAl3; matrix(0, 2) = sumAl2;
+    matrix(1, 0) = sumAl3; matrix(1, 1) = sumAl2; matrix(1, 2) = sumAl;
+    matrix(2, 0) = sumAl2; matrix(2, 1) = sumAl; matrix(2, 2) = count;
+
+    vigra::Matrix<double> ergs(3, 1);
+    ergs(0, 0) = sumAl2Theta;
+    ergs(1, 0) = sumAlTheta;
+    ergs(2, 0) = sumTheta;
+
+    vigra::Matrix<double> result(3, 1);
+    linearSolve(matrix, ergs, result);
+    double p0 = result(0, 0);
+    double p1 = result(1, 0);
+    double p2 = result(2, 0);
+
+    double error = 0.0;
+    for(int i = 0; i < len(xyList); ++i)
+    {
+        double al = extract<double>(xyList[i][0])();
+        double theta = extract<double>(xyList[i][1])();
+        error += squaredNorm(p0*al*al + p1*al + p2 - theta);
+    }
+    error = sqrt(error / len(xyList));
+
+    return error;
+}
+
 /********************************************************************/
 
 void markEdgeInLabelImage(
@@ -747,5 +802,9 @@ void defPolygon()
         args("edgeArcLengthList", "sigma", "distance"));
     // FIXME: document properly
 
+    def("fitParabola", &fitParabola, args("xyList"),
+        "fitParabola(xyList)\n"
+        "fits a parabola to the (x,y) pairs in xyList and returns the\n"
+        "mean squared error.\n");
     def("delaunay", &delaunay);
 }
