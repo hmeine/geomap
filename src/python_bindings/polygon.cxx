@@ -201,6 +201,13 @@ unsigned int pyDrawScannedPoly(
 template<class Array>
 list curvatureList(const Array &p, int dx = 5, unsigned int skip = 0)
 {
+    if(p.size() < 2*dx + 2*skip)
+    {
+        PyErr_SetString(PyExc_ValueError,
+            "curvatureList: polygon too small (less than 2*dx + 2*skip points).");
+        throw_error_already_set();
+    }
+
     double pos = 0.0;
     for(unsigned int i = 0; i < dx + skip - 1; ++i)
         pos += (p[i+1]-p[i]).magnitude();
@@ -246,6 +253,13 @@ list curvatureList(const Array &p, int dx = 5, unsigned int skip = 0)
 template<class Array>
 list tangentList(const Array &p, int dx = 5, unsigned int skip = 0)
 {
+    if(p.size() < 2*dx + 2*skip)
+    {
+        PyErr_SetString(PyExc_ValueError,
+            "tangentList: polygon too small (less than 2*dx + 2*skip points).");
+        throw_error_already_set();
+    }
+
     double pos = 0.0, prevSigma = 0.0;
     for(unsigned int i = 0; i < dx + skip - 1; ++i)
         pos += (p[i+1]-p[i]).magnitude();
@@ -290,7 +304,7 @@ tuple singleGaussianConvolveAtArcLength(
     int i, double arcLengthPos,
     const Gaussian<> &g)
 {
-    std::cerr << "singleGaussianConvolveAtArcLength(.., " << i << ", " << arcLengthPos << ");\n";
+    //std::cerr << "singleGaussianConvolveAtArcLength(.., " << i << ", " << arcLengthPos << ");\n";
 
     ValueType sum(vigra::NumericTraits<ValueType>::zero());
 
@@ -306,7 +320,7 @@ tuple singleGaussianConvolveAtArcLength(
         sum += w*curv;
         lnorm += w;
     }
-    
+
     double rnorm = 0.0;
     for(int j = i - 1; j >= 0; --j)
     {
@@ -322,7 +336,7 @@ tuple singleGaussianConvolveAtArcLength(
 
     if(!g.derivativeOrder())
         sum /= (lnorm+rnorm);
-    else if(g.derivativeOrder() % 1)
+    else if(g.derivativeOrder() & 1)
     {
         double disparity = std::fabs(rnorm) - std::fabs(lnorm);
         if(disparity > 0)
