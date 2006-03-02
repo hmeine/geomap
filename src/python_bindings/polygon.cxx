@@ -251,6 +251,27 @@ list curvatureList(const Array &p, int dx = 5, unsigned int skip = 0)
     return result;
 }
 
+struct ContinuousDirection
+{
+    double prevAngle, offset;
+
+    ContinuousDirection()
+    : prevAngle(0.0),
+      offset(0.0)
+    {}
+
+    double operator()(double angle)
+    {
+        double diff = angle - prevAngle;
+        if(diff < -M_PI/2)
+            offset += M_PI;
+        else if(diff > M_PI/2)
+            offset -= M_PI;
+        prevAngle = angle;
+        return angle + offset;
+    }
+};
+
 template<class Array>
 list tangentList(const Array &p, int dx = 5, unsigned int skip = 0)
 {
@@ -261,11 +282,12 @@ list tangentList(const Array &p, int dx = 5, unsigned int skip = 0)
         throw_error_already_set();
     }
 
-    double pos = 0.0, prevSigma = 0.0;
+    double pos = 0.0;
     for(unsigned int i = 0; i < dx + skip - 1; ++i)
         pos += (p[i+1]-p[i]).magnitude();
 
     list result;
+    ContinuousDirection makeContinuous;
 
     for(unsigned int i = skip; i < p.size() - 2*dx - skip; ++i)
     {
@@ -278,14 +300,8 @@ list tangentList(const Array &p, int dx = 5, unsigned int skip = 0)
         if(s.squaredMagnitude() < eps)
             continue;
 
-        double sigma = atan2(s[1], s[0]), diff(sigma - prevSigma);
-        if(diff < -M_PI)
-            sigma += 2*M_PI;
-        else if(diff > M_PI)
-            sigma -= 2*M_PI;
-        prevSigma = sigma;
-
-        result.append(make_tuple(pos, sigma));
+        result.append(
+            make_tuple(pos, makeContinuous(VIGRA_CSTD::atan2(s[1], s[0]))));
     }
 
     return result;
@@ -380,7 +396,7 @@ list gaussianConvolveByArcLength(const list &arcLengthList,
         return gaussianConvolveByArcLengthInternal<Vector2>(
             arcLengthList, sigma, derivativeOrder);
     PyErr_SetString(PyExc_TypeError,
-        "gaussianConvolveByArcLength: arcLengthList can only be applied on lists\n"
+        "gaussianConvolveByArcLength(arcLengthList, ...) can only be applied on lists\n"
         "of pairs containing floats or Vector2s as second values to be processed.");
     throw_error_already_set();
     return list(); // never reached
@@ -395,7 +411,7 @@ singleGaussianConvolveAtArcLengthReflective(
     const Gaussian<> &g)
 {
     typedef typename PointList::value_type ValueType;
-    
+
     vigra_precondition(arcLengthList.size() == pointList.size(),
         "singleGaussianConvolveAtArcLengthReflective(): Input lists must have the same size.");
 
@@ -408,12 +424,11 @@ singleGaussianConvolveAtArcLengthReflective(
         "singleGaussianConvolveAtArcLengthReflective(): Filter longer than polygon.");
 
     ValueType lastPoint = pointList[lastIndex];
-    
     for(int j = i; true; ++j)
     {
-        int k = (j > lastIndex) 
-                    ? 2*lastIndex - j
-                    : j;
+        int k = (j > lastIndex)
+                ? 2*lastIndex - j
+                : j;
         double pos = arcLengthList[k];
         ValueType point = pointList[k];
         if(j > lastIndex)
@@ -462,7 +477,7 @@ singleGaussianConvolveAtArcLengthCyclic(
     const Gaussian<> &g)
 {
     typedef typename PointList::value_type ValueType;
-    
+
     vigra_precondition(arcLengthList.size() == pointList.size(),
         "singleGaussianConvolveAtArcLengthCyclic(): Input lists must have the same size.");
 
@@ -474,11 +489,9 @@ singleGaussianConvolveAtArcLengthCyclic(
     vigra_precondition(totalLength > g.radius(),
         "singleGaussianConvolveAtArcLengthCyclic(): Filter longer than polygon.");
 
-    ValueType lastPoint = pointList[lastIndex];
-    
     for(int j = i; true; ++j)
     {
-        int k = (j > lastIndex) 
+        int k = (j > lastIndex)
                     ? j - (lastIndex + 1)
                     : j;
         double pos = arcLengthList[k];
@@ -495,10 +508,9 @@ singleGaussianConvolveAtArcLengthCyclic(
         norm += w;
     }
 
-    ValueType firstPoint = pointList[0];
     for(int j = i - 1; true; --j)
     {
-        int k = (j < 0) 
+        int k = (j < 0)
                     ? lastIndex + 1 + j
                     : j;
         double pos = arcLengthList[k];
@@ -534,7 +546,7 @@ list gaussianConvolveByArcLengthCyclicInternal(
         arcLengths[i] = extract<double>(arcLengthList[i][0])();
         points[i] = extract<ValueType>(arcLengthList[i][1])();
     }
-    
+
     list result;
     Gaussian<> g(sigma, derivativeOrder);
     for(unsigned int i = 0; i < size; ++i)
@@ -547,7 +559,7 @@ list gaussianConvolveByArcLengthCyclicInternal(
 }
 
 list gaussianConvolveByArcLengthCyclic(const list &arcLengthList,
-                                 double sigma, int derivativeOrder = 0)
+                                       double sigma, int derivativeOrder = 0)
 {
     if(extract<double>(arcLengthList[0][1]).check())
         return gaussianConvolveByArcLengthCyclicInternal<double>(
@@ -556,7 +568,7 @@ list gaussianConvolveByArcLengthCyclic(const list &arcLengthList,
         return gaussianConvolveByArcLengthCyclicInternal<Vector2>(
             arcLengthList, sigma, derivativeOrder);
     PyErr_SetString(PyExc_TypeError,
-        "gaussianConvolveByArcLengthCyclic: arcLengthList can only be applied on lists\n"
+        "gaussianConvolveByArcLengthCyclic(arcLengthList, ...) can only be applied on lists\n"
         "of pairs containing floats or Vector2s as second values to be processed.");
     throw_error_already_set();
     return list(); // never reached
@@ -568,26 +580,26 @@ template<class Array>
 list tangentListGaussianReflective(const Array &points, double sigma, double diff = 0.0)
 {
     typedef typename Array::value_type Point;
-    
+
     unsigned int size = points.size();
-    
+
     // compute arc lengths
     ArrayVector<double> arcLengths(size);
     arcLengths[0] = 0.0;
     for(unsigned int i = 1; i < size; ++i)
         arcLengths[i] = norm(points[i] - points[i-1]) + arcLengths[i-1];
-    
+
     Gaussian<> g(sigma);
     vigra_precondition(arcLengths[size-1] > g.radius(),
         "tangentListGaussianReflective(): Filter longer than polygon.");
 
     list result;
-    double prevAngle = 0.0;
+    ContinuousDirection makeContinuous;
     for(unsigned int i = 0; i < size; ++i)
     {
         double pos = arcLengths[i];
         double dist = (diff == 0.0)
-                        ? (i == 0) 
+                        ? (i == 0)
                             ? (arcLengths[i+1] - pos) / 2.0
                             : (i == size - 1)
                                 ? (pos - arcLengths[i-1]) / 2.0
@@ -604,14 +616,7 @@ list tangentListGaussianReflective(const Array &points, double sigma, double dif
         double dx = p2[0] - p1[0];
         double dy = p2[1] - p1[1];
 
-        double angle = VIGRA_CSTD::atan2(dy, dx), angleDiff(angle - prevAngle);
-        if(angleDiff < -M_PI)
-            angle += 2*M_PI;
-        else if(angleDiff > M_PI)
-            angle -= 2*M_PI;
-        prevAngle = angle;
-
-        result.append(make_tuple(pos, angle));
+        result.append(make_tuple(pos, makeContinuous(VIGRA_CSTD::atan2(dy, dx))));
     }
 
     return result;
@@ -621,31 +626,32 @@ template<class Array>
 list tangentListGaussianCyclic(const Array &points, double sigma, double diff = 0.0)
 {
     typedef typename Array::value_type Point;
-    
+
     unsigned int size = points.size();
-    
+
     // compute arc lengths
     ArrayVector<double> arcLengths(size);
     arcLengths[0] = 0.0;
     for(unsigned int i = 1; i < size; ++i)
         arcLengths[i] = norm(points[i] - points[i-1]) + arcLengths[i-1];
     double restLength = norm(points[0] - points[size-1]);
-    
+
     Gaussian<> g(sigma);
     vigra_precondition(arcLengths[size-1] > g.radius(),
         "tangentListGaussianCyclic(): Filter longer than polygon.");
 
     list result;
-    double prevAngle = 0.0;
+    ContinuousDirection makeContinuous;
     for(unsigned int i = 0; i < size; ++i)
     {
         double pos = arcLengths[i];
         double dist = (diff == 0.0)
-                        ? (i == 0) 
+                        ? (i == 0)
                             ? std::min(restLength, arcLengths[i+1] - pos) / 2.0
                             : (i == size - 1)
                                 ? std::min(pos - arcLengths[i-1], restLength) / 2.0
-                                : std::min(pos - arcLengths[i-1], arcLengths[i+1] - pos) / 2.0
+                                : std::min(pos - arcLengths[i-1],
+                                           arcLengths[i+1] - pos) / 2.0
                         : diff;
         double pos1 = pos - dist;
         double pos2 = pos + dist;
@@ -654,14 +660,7 @@ list tangentListGaussianCyclic(const Array &points, double sigma, double diff = 
         double dx = p2[0] - p1[0];
         double dy = p2[1] - p1[1];
 
-        double angle = VIGRA_CSTD::atan2(dy, dx), angleDiff(angle - prevAngle);
-        if(angleDiff < -M_PI)
-            angle += 2*M_PI;
-        else if(angleDiff > M_PI)
-            angle -= 2*M_PI;
-        prevAngle = angle;
-
-        result.append(make_tuple(pos, angle));
+        result.append(make_tuple(pos, makeContinuous(VIGRA_CSTD::atan2(dy, dx))));
     }
 
     return result;
@@ -687,7 +686,7 @@ list equidistantGaussiansInternal(
 }
 
 list equidistantGaussians(const list &arcLengthList,
-                             double sigma, double distance)
+                          double sigma, double distance)
 {
     if(extract<double>(arcLengthList[0][1]).check())
         return equidistantGaussiansInternal<double>(
@@ -696,10 +695,47 @@ list equidistantGaussians(const list &arcLengthList,
         return equidistantGaussiansInternal<Vector2>(
             arcLengthList, sigma, distance);
     PyErr_SetString(PyExc_TypeError,
-        "equidistantGaussians: arcLengthList can only be applied on lists\n"
+        "equidistantGaussians(arcLengthList, ...) can only be applied on lists\n"
         "of pairs containing floats or Vector2s as second values to be processed.");
     throw_error_already_set();
     return list(); // never reached
+}
+
+list composeTangentLists(const list &tangentLists)
+{
+    list result;
+    double arcLengthOffset = 0.0;
+    ContinuousDirection makeContinuous;
+    for(int i = 0; i < len(tangentLists); ++i)
+    {
+        tuple tllPair((extract<tuple>(tangentLists[i])()));
+        list tangentList((extract<list>(tllPair[0])()));
+        double length((extract<double>(tllPair[1])()));
+        int size = len(tangentList);
+        if(length > 0)
+        {
+            for(int j = 0; j < size; ++j)
+            {
+                double arcLength((extract<double>(tangentList[j][0])()));
+                double angle((extract<double>(tangentList[j][1])()));
+                result.append(make_tuple(arcLength + arcLengthOffset,
+                                         makeContinuous(angle)));
+            }
+            arcLengthOffset += length;
+        }
+        else
+        {
+            arcLengthOffset += -length;
+            for(int j = size - 1; j >= 0; --j)
+            {
+                double arcLength((extract<double>(tangentList[j][0])()));
+                double angle((extract<double>(tangentList[j][1])()));
+                result.append(make_tuple(arcLengthOffset - arcLength,
+                                         makeContinuous(angle)));
+            }
+        }
+    }
+    return result;
 }
 
 double fitParabola(const list &xyList)
@@ -1091,12 +1127,36 @@ void defPolygon()
         "a Gaussian filter with standard deviation sigma and cyclic boundary conditions\n"
         "and then approximates the tangent by the chord between these two points.");
     def("gaussianConvolveByArcLength", &gaussianConvolveByArcLength,
-        (arg("arcLengthList"), arg("sigma"), arg("derivativeOrder") = 0));
+        (arg("arcLengthList"), arg("sigma"), arg("derivativeOrder") = 0),
+        "gaussianConvolveByArcLength(arcLengthList, sigma, derivativeOrder = 0)\n"
+        "performs a convolution with a Gaussian of the specified derivative\n"
+        "order (0 by default) for each element in arcLengthList.\n\n"
+        "arcLengthList should contain (arcLength, value) tuples, and\n"
+        "the Gaussians will be placed and sampled according to the arcLengths.\n"
+        "The values to be convolved may be either floating point numbers or\n"
+        "Vector2 objects.\n\n"
+        "Border treatment: The Gaussians are simply cut at the ends of\n"
+        "arcLengthList.  If derivativeOrder == 0, a smoothing is performed\n"
+        "and each convolution is normalized.\n"
+        "For derivativeOrders > 0, the convolutions cannot be normalized, so\n"
+        "the points are assumed to be equidistant.  However, if the derivative\n"
+        "order is uneven, a disparity of the sampled, cut Gaussian is detected\n"
+        "and the last value is given an appropriate extra weight (\"repeat\"\n"
+        "Border treatment).  If the derivative order is even (and > 0), the\n"
+        "same is done to normalize each half of the filter to zero.\n");
     def("gaussianConvolveByArcLengthCyclic", &gaussianConvolveByArcLengthCyclic,
         (arg("arcLengthList"), arg("sigma"), arg("derivativeOrder") = 0));
     def("equidistantGaussians", &equidistantGaussians,
         args("edgeArcLengthList", "sigma", "distance"));
     // FIXME: document properly
+    def("composeTangentLists", &composeTangentLists,
+        args("tangentLists"),
+        "Composes tangent lists of a chain of (directed) edges into a common one.\n"
+        "The parameter should be a list of (edge, length) pairs, where lenght is\n"
+        "used to increase the arc length offset for the following edges.\n"
+        "The length may also be negative, which means that the tangent list is to\n"
+        "be reversed (the edge \n"
+        );
 
     def("fitParabola", &fitParabola, args("xyList"),
         "fitParabola(xyList)\n"
