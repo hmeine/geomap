@@ -1,5 +1,5 @@
 from vigra import Vector2
-from hourglass import BoundingBox
+from hourglass import BoundingBox, Polygon, simplifyPolygon, intPos
 
 def _intersectLine(inside, outside, clipRect):
     if outside[1] > clipRect.end()[1]:
@@ -244,6 +244,24 @@ class FigExporter:
         
         points = pointOverlay.originalPointlist
         radius = pointOverlay.origRadius
+        return self.addPointCircles(points, radius, **attr)
+
+    def addEdgeOverlay(self, edgeOverlay, **attr):
+        """Adds and returns fig.Polygon for all edges (or -parts, see
+        addClippedPoly) of the given overlay, using the overlays'
+        color."""
+
+        edges = edgeOverlay.originalEdges
+        penColor = edgeOverlay.color
+        if type(penColor) == qt.QColor:
+            penColor = qtColor2figColor(penColor)
+            
+        result = []
+        for edge in edges:
+            parts = self.addClippedPoly(edge, **attr)
+            result.extend(parts)
+        return result
+
         return self.addPointCircles(points, radius, **attr)
 
     def addMapNodes(self, map, radius, returnNodes = False, **attr):
