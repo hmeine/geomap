@@ -1,3 +1,6 @@
+from vigra import Vector2
+from hourglass import BoundingBox
+
 def _intersectLine(inside, outside, clipRect):
     if outside[1] > clipRect.end()[1]:
         return inside + (outside-inside) * \
@@ -49,6 +52,7 @@ def clipPoly(polygon, clipRect):
 
     return result
 
+import qt, fig
 _qtColor2figColorMapping = {
     qt.Qt.black : fig.colorBlack,
     qt.Qt.blue : fig.colorBlue,
