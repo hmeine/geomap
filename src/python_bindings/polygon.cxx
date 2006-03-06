@@ -264,9 +264,19 @@ struct ContinuousDirection
     {
         double diff = angle - prevAngle;
         if(diff < -M_PI/2)
-            offset += M_PI;
+        {
+            if(diff < -M_PI)
+                offset += 2*M_PI;
+            else
+                offset += M_PI;
+        }
         else if(diff > M_PI/2)
-            offset -= M_PI;
+        {
+            if(diff > M_PI)
+                offset -= 2*M_PI;
+            else
+                offset -= M_PI;
+        }
         prevAngle = angle;
         return angle + offset;
     }
