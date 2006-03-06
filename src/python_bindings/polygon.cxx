@@ -389,6 +389,8 @@ list gaussianConvolveByArcLengthInternal(
 list gaussianConvolveByArcLength(const list &arcLengthList,
                                  double sigma, int derivativeOrder = 0)
 {
+    if(!len(arcLengthList))
+        return list();
     if(extract<double>(arcLengthList[0][1]).check())
         return gaussianConvolveByArcLengthInternal<double>(
             arcLengthList, sigma, derivativeOrder);
@@ -561,6 +563,8 @@ list gaussianConvolveByArcLengthCyclicInternal(
 list gaussianConvolveByArcLengthCyclic(const list &arcLengthList,
                                        double sigma, int derivativeOrder = 0)
 {
+    if(!len(arcLengthList))
+        return list();
     if(extract<double>(arcLengthList[0][1]).check())
         return gaussianConvolveByArcLengthCyclicInternal<double>(
             arcLengthList, sigma, derivativeOrder);
@@ -742,9 +746,12 @@ double fitParabola(const list &xyList)
 {
     double sumAl4 = 0.0, sumAl3 = 0.0, sumAl2 = 0.0, sumAl = 0.0;
     double sumAl2Theta = 0.0, sumAlTheta = 0.0, sumTheta = 0.0;
-    int count = 0;
+    int count = len(xyList);
 
-    for(int i = 0; i < len(xyList); ++i)
+    if(!count)
+        return 0.0; // don't give NaN for empty lists!
+
+    for(int i = 0; i < count; ++i)
     {
         double al = extract<double>(xyList[i][0])();
         double theta = extract<double>(xyList[i][1])();
@@ -760,14 +767,12 @@ double fitParabola(const list &xyList)
         sumAl2Theta += theta*al*al;
         sumAlTheta  += theta*al;
         sumTheta    += theta;
-
-        ++count;
     }
 
     vigra::Matrix<double> matrix(3, 3);
     matrix(0, 0) = sumAl4; matrix(0, 1) = sumAl3; matrix(0, 2) = sumAl2;
     matrix(1, 0) = sumAl3; matrix(1, 1) = sumAl2; matrix(1, 2) = sumAl;
-    matrix(2, 0) = sumAl2; matrix(2, 1) = sumAl; matrix(2, 2) = count;
+    matrix(2, 0) = sumAl2; matrix(2, 1) = sumAl;  matrix(2, 2) = count;
 
     vigra::Matrix<double> ergs(3, 1);
     ergs(0, 0) = sumAl2Theta;
@@ -781,13 +786,13 @@ double fitParabola(const list &xyList)
     double p2 = result(2, 0);
 
     double error = 0.0;
-    for(int i = 0; i < len(xyList); ++i)
+    for(int i = 0; i < count; ++i)
     {
         double al = extract<double>(xyList[i][0])();
         double theta = extract<double>(xyList[i][1])();
         error += squaredNorm(p0*al*al + p1*al + p2 - theta);
     }
-    error = sqrt(error / len(xyList));
+    error = sqrt(error / count);
 
     return error;
 }
