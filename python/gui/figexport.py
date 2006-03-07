@@ -252,9 +252,11 @@ class FigExporter:
         color."""
 
         edges = edgeOverlay.originalEdges
-        penColor = edgeOverlay.color
-        if type(penColor) == qt.QColor:
-            penColor = qtColor2figColor(penColor)
+        if not attr.has_key("penColor"):
+            penColor = edgeOverlay.color
+            if type(penColor) == qt.QColor:
+                penColor = qtColor2figColor(penColor)
+            attr["penColor"] = penColor
             
         result = []
         for edge in edges:
