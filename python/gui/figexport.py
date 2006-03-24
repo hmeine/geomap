@@ -1,3 +1,4 @@
+import qt, fig
 from vigra import Vector2
 from hourglass import BoundingBox, Polygon, simplifyPolygon, intPos
 
