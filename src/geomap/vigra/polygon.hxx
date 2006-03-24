@@ -306,7 +306,7 @@ class Polygon : public PointArray<POINT>
             if(now != above)
             {
                 typename Point::value_type intersectX =
-                    points_[i-1][0] + 
+                    points_[i-1][0] +
                     (points_[i][0] - points_[i-1][0]) *
                     (point[1]      - points_[i-1][1]) /
                     (points_[i][1] - points_[i-1][1]);
@@ -452,7 +452,7 @@ class Polygon : public PointArray<POINT>
         if(partialAreaValid_)
             partialArea_ = -partialArea_;
     }
-    
+
     POINT nearestPoint(const_reference p) const;
 
   protected:
@@ -652,7 +652,7 @@ void simplifyPolygonHelper(
     TargetArray &simple, double epsilon,
     double maxStep = vigra::NumericTraits<double>::max())
 {
-    if(polyEnd - polyBegin < 3)
+    if(polyEnd - polyBegin <= 2)
         return; // no splitpoint necessary / possible
 
     PointIterator splitPos(polyEnd), lastPoint(polyEnd);
@@ -755,6 +755,13 @@ struct ScanlineSegment
             end = other.end;
         direction += other.direction;
     }
+
+    bool operator==(const ScanlineSegment &other) const
+    {
+        return (begin == other.begin &&
+                direction == other.direction &&
+                end == other.end);
+    }
 };
 
 struct ScanlineSegmentCompare
@@ -792,7 +799,7 @@ struct Scanlines
 
     int endIndex() const
     {
-        return scanlines_.size() - startIndex_;
+        return scanlines_.size() + startIndex_;
     }
 
     Scanline &operator[](unsigned int index)
