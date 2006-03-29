@@ -1,16 +1,27 @@
-execfile("maptest.py")
+from vigra import *
+from hourglass import Polygon
+addPathFromHere('../cellimage')
+from cellimage import GeoMap, CellType
+from map import Map
 
-if not '../cellimage' in sys.path:
-    sys.path.append('../cellimage')
-    from cellimage import *
+__all__ = ["pixelMapData", "pixelMap2subPixelMap",
+           "crackEdges2MidCracks", "cannyEdgeMap", "pixelWatershedMap"]
 
-def pixelMapData(geomap, offset, scale):
+def pixelMapData(geomap, scale = 1.0, offset = Vector2(0, 0)):
+    """pixelMapData(geomap, scale = 1.0, offset = Vector2(0, 0))
+
+    Extracts node positions and edge geometry from a GeoMap object.
+    For nodes, this function simply calculates their center of mass.
+    All positions are shifted by the optional offset and then scaled
+    with the given factor."""
+
     nodes = [None] * geomap.maxNodeLabel()
     for node in geomap.nodes:
         ul = node.bounds.upperLeft()
         center = Vector2(*ul) + Vector2(node.bounds.width() - 1,
                                         node.bounds.height() - 1) / 2
         nodes[node.label] = (center+offset) * scale
+
     edges = [None] * geomap.maxEdgeLabel()
     for edge in geomap.edges:
         points = [(Vector2(*p)+offset) * scale for p in iter(edge.start)]
@@ -24,31 +35,41 @@ def pixelMapData(geomap, offset, scale):
 
 def pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0),
                          labelImageSize = None):
-    nodes, edges = pixelMapData(geomap, offset, scale)
+    """pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0), labelImageSize = None)
+
+    Uses pixelMapData() to extract the pixel-geomap's geometry and
+    returns a new subpixel-Map object initialized with it.  The
+    labelImageSize defaults to the (scaled) pixel-based geomap's
+    cellImage.size().  See also the documentation of pixelMapData()."""
+    
+    nodes, edges = pixelMapData(geomap, scale, offset)
     if labelImageSize == None:
         labelImageSize = geomap.cellImage.size() * scale
     return Map(nodes, edges, labelImageSize,
                performBorderClosing = False, performEdgeSplits = False)
 
-def crackEdges2MidCracks(spmap, skipEverySecond = False):
-    """Changes all edge geometry in-place, setting one point on the
+def crackEdges2MidCracks(subpixelMap, skipEverySecond = False):
+    """crackEdges2MidCracks(subpixelMap, skipEverySecond = False)
+
+    Changes all edge geometry in-place, setting one point on the
     middle of each segment. Set skipEverySecond to True if each pixel
     crack is represented with two segments."""
-    for edge in spmap.edgeIter():
+    
+    for edge in subpixelMap.edgeIter():
         p = Polygon()
         step = skipEverySecond and 2 or 1
         p.append(edge[0])
         for i in range(0, len(edge)-1, step):
             p.append((edge[i]+edge[i+step])/2)
         p.append(edge[-1])
-        edge.swap(p)
+        edge.swap(p) # FIXME: use edge.setGeometry as soon as that's finished
 
 def cannyEdgeImageThinning(img):
     lut = [0]*256
     for k in [183, 222, 123, 237, 219, 111, 189, 246, 220, 115, 205,
               55, 103, 157, 118, 217]:
         lut[k] = 1
-    res=GrayImage(img.size())
+    res = GrayImage(img.size())
     res[1:-1,1:-1].copyValues(img[1:-1,1:-1])
     for y in range(1, res.height()-1):
         for x in range(1, res.width()-1):
@@ -75,55 +96,58 @@ def cannyEdgeImageThinning(img):
                 res[x,y] = 1
     return res[1:-1,1:-1].clone()
 
-def cannyEdgeMap(i, scale, thresh):
-    edgeImage = cannyEdgeImage(i, scale, thresh)
+def cannyEdgeMap(image, scale, thresh):
+    """cannyEdgeMap(image, scale, thresh)
+
+    Returns a subpixel-Map object containing thinned canny edges
+    obtained from cannyEdgeImage(image, scale, thresh).
+    (Internally creates a pixel GeoMap first.)"""
+    
+    edgeImage = cannyEdgeImage(image, scale, thresh)
     edgeImage = cannyEdgeImageThinning(edgeImage)
-    #lab,count = labelImageWithBackground4(edgeImage)
     geomap = GeoMap(edgeImage, 0, CellType.Line)
-    spmap = pixelMap2subPixelMap(geomap, offset = Vector2(1,1),
-                                 labelImageSize = i.size())
+    spmap = pixelMap2subPixelMap(
+        geomap, offset = Vector2(1,1), labelImageSize = image.size())
     return spmap
 
-e = Experiment('kreuzung.png', "grad")
-e("img")
+def pixelWatershedMap(biImage, crackEdges = 4, midCracks = True):
+    """pixelWatershedMap(biImage, crackEdges = 0, midCracks = True)
 
-# crackEdges can be:
-# 0: 8-connected edges on 4-connected background
-# 4: crack edges between 4-connected watershed regions
-# 8: crack edges between 8-connected watershed regions
-#    (still leads to disconnected regions in the map ATM)
-crackEdges = 8
+    Performs a watershed segmentation on biImage and returns a
+    subpixel-Map containing the resulting contours.  The type of
+    watershed segmentation depends on the 'crackEdges' parameter:
 
-print "- watershed segmentation..."
-if crackEdges:
-    lab, count = eval('watershedUnionFind'+str(crackEdges))(e.img.bi.gm)
-    ce = regionImageToCrackEdgeImage(lab, 0)
-else:
-    lab, count = watershedSegmentation(e.img.bi.gm, KeepContours)
+    0: 8-connected edges on 4-connected background
+    4: crack edges between 4-connected watershed regions
+    8: crack edges between 8-connected watershed regions
+       (still leads to disconnected regions in the map ATM)
 
-print "- creating pixel-based GeoMap..."
-if crackEdges:
-    geomap = GeoMap(ce, 0, CellType.Line)
-else:
-    geomap = GeoMap(lab, 0, CellType.Vertex)
+    If midCracks is True(default), the resulting edges consist of the
+    connected midpoints of the cracks, not of the crack segments
+    themselves."""
+    
+    if crackEdges:
+        print "- Union-Find watershed segmentation..."
+        lab, count = eval('watershedUnionFind' + str(crackEdges))(biImage)
+        ce = regionImageToCrackEdgeImage(lab, 0)
+    else:
+        print "- watershed segmentation..."
+        lab, count = watershedSegmentation(biImage, KeepContours)
 
-print "- converting pixel-based GeoMap..."
-if crackEdges:
-    spmap = pixelMap2subPixelMap(
-        geomap, 0.5, labelImageSize = (geomap.cellImage.size()-Size2D(3,3))/2)
-    crackEdges2MidCracks(spmap, True) # comment out to get original crack edges
-else:
-    spmap = pixelMap2subPixelMap(geomap,
-                labelImageSize = (geomap.cellImage.size()-Size2D(4,4)))
-spmap.faceStats = FaceIntensityStatistics(spmap, e.img.view)
-mergeZeroPixelFaces(spmap)
+    print "- creating pixel-based GeoMap..."
+    if crackEdges:
+        geomap = GeoMap(ce, 0, CellType.Line)
+    else:
+        geomap = GeoMap(lab, 0, CellType.Vertex)
 
-print "- creating display..."
-d = MapDisplay(e.img, spmap)
-d.setCaption(str(e.img.name+' crackEdges '+str(crackEdges)).replace("_", " "))
+    print "- converting pixel-based GeoMap..."
+    if crackEdges:
+        spmap = pixelMap2subPixelMap(
+            geomap, 0.5, labelImageSize = (geomap.cellImage.size()-Size2D(3,3))/2)
+        if midCracks:
+            crackEdges2MidCracks(spmap, True)
+    else:
+        spmap = pixelMap2subPixelMap(geomap,
+                    labelImageSize = (geomap.cellImage.size()-Size2D(4,4)))
 
-if spmap.performEdgeSplits:
-    print "*** split results: ***"
-    for edge in spmap.edgeIter():
-        if hasattr(edge, "isSplitResultOf"):
-            print edge
+    return spmap
