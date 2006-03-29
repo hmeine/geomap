@@ -76,18 +76,21 @@ Array__getitem__byref(Array const & a, int i)
     return a[i];
 }
 
+// index started with zero (commented out) for better python iterations
+// (allowing "for .. in .." or "enumerate(..)")
+// TODO: a better fix would be an extra __iter__:
 const Scanlines::value_type &
 Scanlines__getitem__(Scanlines const & s, unsigned int i)
 {
-    if(i < 0 || i >= s.size())
-//     if(i < s.startIndex() || i >= s.endIndex())
+//     if(i < 0 || i >= s.size())
+    if(i < s.startIndex() || i >= s.endIndex())
     {
         PyErr_SetString(PyExc_IndexError,
             "scanline index out of bounds.");
         throw_error_already_set();
     }
-    return s[i+s.startIndex()];
-//     return s[i];
+//     return s[i+s.startIndex()];
+    return s[i];
 }
 
 template<class Array>
@@ -255,30 +258,23 @@ struct ContinuousDirection
 {
     double prevAngle, offset;
 
-    ContinuousDirection()
-    : prevAngle(0.0),
+    ContinuousDirection(double startAngle = 0.0)
+    : prevAngle(startAngle),
       offset(0.0)
     {}
 
     double operator()(double angle)
     {
+        angle += offset;
         double diff = angle - prevAngle;
-        if(diff < -M_PI/2)
+        if(fabs(diff) > M_PI/2)
         {
-            if(diff < -M_PI)
-                offset += 2*M_PI;
-            else
-                offset += M_PI;
-        }
-        else if(diff > M_PI/2)
-        {
-            if(diff > M_PI)
-                offset -= 2*M_PI;
-            else
-                offset -= M_PI;
+            double delta = -floor((diff + M_PI/2)/M_PI)*M_PI;
+            offset += delta;
+            angle  += delta;
         }
         prevAngle = angle;
-        return angle + offset;
+        return angle;
     }
 };
 
@@ -715,6 +711,49 @@ list equidistantGaussians(const list &arcLengthList,
     return list(); // never reached
 }
 
+double appendTangentList(
+    list &tangents1, double arcLengthOffset,
+    const list &tangents2, double offset,
+    ContinuousDirection &makeContinuous)
+{
+    int size = len(tangents2);
+    if(offset > 0)
+    {
+        for(int j = 0; j < size; ++j)
+        {
+            double arcLength((extract<double>(tangents2[j][0])()));
+            double angle((extract<double>(tangents2[j][1])()));
+            tangents1.append(make_tuple(arcLength + arcLengthOffset,
+                                        makeContinuous(angle)));
+        }
+        arcLengthOffset += offset;
+    }
+    else
+    {
+        arcLengthOffset += -offset;
+        for(int j = size - 1; j >= 0; --j)
+        {
+            double arcLength((extract<double>(tangents2[j][0])()));
+            double angle((extract<double>(tangents2[j][1])()));
+            tangents1.append(make_tuple(arcLengthOffset - arcLength,
+                                        makeContinuous(angle)));
+        }
+    }
+    return arcLengthOffset;
+}
+
+double appendTangentList(
+    list &tangents1, double arcLengthOffset,
+    const list &tangents2, double offset)
+{
+    ContinuousDirection makeContinuous;
+    if(len(tangents1))
+        makeContinuous.prevAngle = extract<double>(tangents1[-1]);
+
+    return appendTangentList(tangents1, arcLengthOffset,
+                             tangents2, offset, makeContinuous);
+}
+
 list composeTangentLists(const list &tangentLists)
 {
     list result;
@@ -725,32 +764,109 @@ list composeTangentLists(const list &tangentLists)
         tuple tllPair((extract<tuple>(tangentLists[i])()));
         list tangentList((extract<list>(tllPair[0])()));
         double length((extract<double>(tllPair[1])()));
-        int size = len(tangentList);
-        if(length > 0)
-        {
-            for(int j = 0; j < size; ++j)
-            {
-                double arcLength((extract<double>(tangentList[j][0])()));
-                double angle((extract<double>(tangentList[j][1])()));
-                result.append(make_tuple(arcLength + arcLengthOffset,
-                                         makeContinuous(angle)));
-            }
-            arcLengthOffset += length;
-        }
-        else
-        {
-            arcLengthOffset += -length;
-            for(int j = size - 1; j >= 0; --j)
-            {
-                double arcLength((extract<double>(tangentList[j][0])()));
-                double angle((extract<double>(tangentList[j][1])()));
-                result.append(make_tuple(arcLengthOffset - arcLength,
-                                         makeContinuous(angle)));
-            }
-        }
+
+        arcLengthOffset = appendTangentList(
+            result, arcLengthOffset,
+            tangentList, length, makeContinuous);
     }
     return result;
 }
+
+struct ParabolaFit
+{
+    ContinuousDirection makeContinuous;
+    double sumAl4, sumAl3, sumAl2, sumAl;
+    double sumAl2Theta, sumAlTheta, sumTheta;
+    int count;
+
+    mutable bool fitDirty;
+    mutable double p0, p1, p2;
+
+    ParabolaFit()
+    {
+        sumAl4 = 0.0, sumAl3 = 0.0, sumAl2 = 0.0, sumAl = 0.0;
+        sumAl2Theta = 0.0, sumAlTheta = 0.0, sumTheta = 0.0;
+        count = 0;
+
+        fitDirty = true;
+    }
+
+    void addTangentList(const list &xyList)
+    {
+        int size = len(xyList);
+
+        for(int i = 0; i < size; ++i)
+        {
+            double al = extract<double>(xyList[i][0])();
+            double theta = extract<double>(xyList[i][1])();
+            theta = makeContinuous(theta);
+
+            sumAl     += al;
+            double al2 = al*al;
+            sumAl2    += al2;
+            double al3 = al2*al;
+            sumAl3    += al3;
+            double al4 = al3*al;
+            sumAl4    += al4;
+
+            sumAl2Theta += theta*al*al;
+            sumAlTheta  += theta*al;
+            sumTheta    += theta;
+        }
+
+        count += size;
+        fitDirty = true;
+    }
+
+    double sumOfSquaredErrors(const list &xyList) const
+    {
+        if(!count)
+            return 0.0;
+
+        ensureFit();
+
+        int size = len(xyList);
+        double error = 0.0;
+        for(int i = 0; i < size; ++i)
+        {
+            double al    = extract<double>(xyList[i][0])();
+            double theta = extract<double>(xyList[i][1])();
+            error += squaredNorm((p0*al + p1)*al + p2 - theta);
+        }
+        return error;
+    }
+
+    tuple parabolaParams() const
+    {
+        ensureFit();
+        return make_tuple(p0, p1, p2);
+    }
+
+  protected:
+    void ensureFit() const
+    {
+        if(fitDirty)
+        {
+            vigra::Matrix<double> matrix(3, 3);
+            matrix(0, 0) = sumAl4; matrix(0, 1) = sumAl3; matrix(0, 2) = sumAl2;
+            matrix(1, 0) = sumAl3; matrix(1, 1) = sumAl2; matrix(1, 2) = sumAl;
+            matrix(2, 0) = sumAl2; matrix(2, 1) = sumAl;  matrix(2, 2) = count;
+
+            vigra::Matrix<double> ergs(3, 1);
+            ergs(0, 0) = sumAl2Theta;
+            ergs(1, 0) = sumAlTheta;
+            ergs(2, 0) = sumTheta;
+
+            vigra::Matrix<double> result(3, 1);
+            linearSolve(matrix, ergs, result);
+            p0 = result(0, 0);
+            p1 = result(1, 0);
+            p2 = result(2, 0);
+
+            fitDirty = false;
+        }
+    }
+};
 
 double fitParabola(const list &xyList)
 {
@@ -800,7 +916,7 @@ double fitParabola(const list &xyList)
     {
         double al = extract<double>(xyList[i][0])();
         double theta = extract<double>(xyList[i][1])();
-        error += squaredNorm(p0*al*al + p1*al + p2 - theta);
+        error += squaredNorm((p0*al + p1)*al + p2 - theta);
     }
     error = sqrt(error / count);
 
@@ -1092,6 +1208,7 @@ void defPolygon()
         .def_readonly("begin", &ScanlineSegment::begin)
         .def_readonly("direction", &ScanlineSegment::direction)
         .def_readonly("end", &ScanlineSegment::end)
+        .def(self == self)
     ;
 
     def("scanPoly", &scanPoly<Vector2>,
@@ -1164,18 +1281,39 @@ void defPolygon()
     def("equidistantGaussians", &equidistantGaussians,
         args("edgeArcLengthList", "sigma", "distance"));
     // FIXME: document properly
+//     def("appendTangentList", (double(*)(list &, double, const list &, double, ContinuousDirection &))&appendTangentList,
+//         args("tangents1", "arcLengthOffset", "tangents2", "offset", "cont"));
+    def("appendTangentList", (double(*)(list &, double, const list &, double))&appendTangentList,
+        args("tangents1", "arcLengthOffset", "tangents2", "offset"),
+        "appendTangentList(tangents1, arcLengthOffset, tangents2, offset)\n\n"
+
+        "Append tangent list tangents2 to existing tangents1.\n"
+        "arcLengthOffset is the offset by which the tangents in tangents2 are\n"
+        "shifted.  offset is the arc length of the second curve; if it is\n"
+        "negative, tangents2 is reversed on-the-fly.  The result of\n"
+        "the append operation is that tangents1 has been extended\n"
+        "(i.e. modified in-place) and the resulting arcLengthOffset is\n"
+        "returned (i.e. arcLengthOffset + abs(offset)).");
+
     def("composeTangentLists", &composeTangentLists,
         args("tangentLists"),
         "Composes tangent lists of a chain of (directed) edges into a common one.\n"
         "The parameter should be a list of (edge, length) pairs, where lenght is\n"
         "used to increase the arc length offset for the following edges.\n"
-        "The length may also be negative, which means that the tangent list is to\n"
-        "be reversed (the edge \n"
-        );
+        "The length may also be negative, which means that the tangent list is\n"
+        "to be reversed (the curve the tangents come from is traversed in the\n"
+        "opposite orientation).");
 
+    class_<ParabolaFit>("ParabolaFit")
+        .def(init<ParabolaFit>())
+        .def("addTangentList", &ParabolaFit::addTangentList)
+        .def("sumOfSquaredErrors", &ParabolaFit::sumOfSquaredErrors)
+        .def("parabolaParams", &ParabolaFit::parabolaParams)
+        .def_readonly("count", &ParabolaFit::count)
+    ;
     def("fitParabola", &fitParabola, args("xyList"),
         "fitParabola(xyList)\n"
         "fits a parabola to the (x,y) pairs in xyList and returns the\n"
-        "mean squared error.\n");
+        "mean squared error.");
     def("delaunay", &delaunay);
 }
