@@ -1,3 +1,8 @@
+import math
+from hourglass import Polygon, delaunay
+from map import Map
+from vigra import Vector2
+
 def isContourEdge(edge, maxNodeLabel = None):
     "helper function for delaunayMap()"
 
@@ -412,3 +417,45 @@ def pruneByMorphologicalSignificance(skel, ratio = 0.1):
                     break
 
     return _pruneBarbsInternal(skel)
+
+def calculateTriangleCircumcircle(delaunayMap):
+    import Numeric, LinearAlgebra
+
+    it = delaunayMap.faceIter(); it.next() # skip infinite face
+    for triangle in it:
+        if hasattr(triangle, "isOutside"):
+            continue
+
+        contours = triangle.contours()
+        assert len(contours) == 1, "delaunay triangles should not have holes (face %d)" % triangle.label()
+        points = [dart.startNode().position()
+                  for dart in contours[0].phiOrbit()]
+        assert len(points) == 3, "triangles should have three points"
+        # calculate radius r (formulas from MathWorld):
+        p1sm = points[0].squaredMagnitude()
+        x1 = points[0][0]
+        y1 = points[0][1]
+        p2sm = points[1].squaredMagnitude()
+        x2 = points[1][0]
+        y2 = points[1][1]
+        p3sm = points[2].squaredMagnitude()
+        x3 = points[2][0]
+        y3 = points[2][1]
+        a = LinearAlgebra.determinant(
+            Numeric.array([[x1, y1, 1],
+                           [x2, y2, 1],
+                           [x3, y3, 1]]))
+        d = LinearAlgebra.determinant(
+            -Numeric.array([[p1sm, y1, 1],
+                            [p2sm, y2, 1],
+                            [p3sm, y3, 1]]))
+        e = LinearAlgebra.determinant(
+            Numeric.array([[p1sm, x1, 1],
+                           [p2sm, x2, 1],
+                           [p3sm, x3, 1]]))
+        f = LinearAlgebra.determinant(
+            -Numeric.array([[p1sm, x1, y1],
+                            [p2sm, x2, y2],
+                            [p3sm, x3, y3]]))
+        triangle.circleCenter = Vector2(-d/(2*a), -e/(2*a))
+        triangle.radius = math.sqrt((math.sq(d)+math.sq(e))/(4*math.sq(a))-f/a)
