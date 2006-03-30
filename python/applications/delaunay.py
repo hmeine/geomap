@@ -418,7 +418,7 @@ def pruneByMorphologicalSignificance(skel, ratio = 0.1):
 
     return _pruneBarbsInternal(skel)
 
-def calculateTriangleCircumcircle(delaunayMap):
+def calculateTriangleCircumcircles(delaunayMap):
     import Numeric, LinearAlgebra
 
     it = delaunayMap.faceIter(); it.next() # skip infinite face
