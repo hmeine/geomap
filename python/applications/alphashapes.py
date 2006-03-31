@@ -75,32 +75,6 @@ def markAlphaShapes(delaunayMap, alpha, beta):
                 edge.mark = False
                 continue
 
-    # print "unmarking edges whose circles contain points..."
-    # c = time.clock()
-    # allPoints.sort(lambda p1, p2: cmp(p1[0], p2[0]))
-    # radius2 = math.sq(radius)
-    # for edge in delaunayMap.edgeIter():
-    #     if not edge.mark:
-    #         continue
-    #     if time.clock() > c + 0.2:
-    #         sys.stdout.write("\r  edge %d (length %.2f)... [%.1f%%]" % (edge.label(), edge.length(), 100.*edge.label()/delaunayMap.maxEdgeLabel())); sys.stdout.flush()
-    #         c = time.clock()
-    #     i = 0
-    #     minX = midPoint[0]-radius
-    #     while allPoints[i][0] <= minX:
-    #         i += 1
-    #     maxX = midPoint[0]+radius
-    #     while allPoints[i][0] < maxX:
-    #         diff = allPoints[i] - midPoint
-    #         if abs(diff[1]) >= radius or diff.squaredMagnitude() >= radius2 or \
-    #                allPoints[i] in [p1, p2]:
-    #             i += 1
-    #             continue
-    #         print "  edge %d's circumcircle contains a point, unmarking.." % (
-    #             edge.label(), )
-    #         edge.mark = False
-    #         break
-
     print "  %d/%d edges and %d/%d faces marked." % (
         sum([edge.mark and 1 or 0 for edge in delaunayMap.edgeIter()]), delaunayMap.edgeCount,
         sum([face.mark and 1 or 0 for face in delaunayMap.faceIter()]), delaunayMap.faceCount)
@@ -172,24 +146,6 @@ def markAlphaShapes(delaunayMap, alpha, beta):
 # --------------------------------------------------------------------
 #                               fig output
 # --------------------------------------------------------------------
-
-def ccContour(startFace, condition, close = True):
-    startFace.output = True
-    contour = list(startFace.contours()[0].phiOrbit())
-    i = 0
-    while i < len(contour):
-        neighbor = contour[i].rightFace()
-        if condition(neighbor) and not neighbor.output:
-            oldPoint = contour[i][0]
-            _ = contour[i].nextAlpha().nextPhi()
-            assert oldPoint == contour[i][0]
-            contour.insert(i+1, contour[i].clone().nextPhi())
-            neighbor.output = True
-        else:
-            i += 1
-    result = Polygon([dart[0] for dart in contour])
-    result.append(result[0]) # close poly (for filling)
-    return result
 
 def outputMarkedShapes(delaunayMap, fe,
                        regionDepth = 50, edgeDepth = 49):
