@@ -13,13 +13,6 @@ def maxSegmentLength(map):
                 [(edge[i+1]-edge[i]).magnitude() for i in range(len(edge)-1)]))
     return result
 
-if not globals().has_key("dm"):
-    dm = delaunayMap(allPoints, imageSize, markContour = False)
-    print "  %d Delaunay edges, %d triangles" % (dm.edgeCount, dm.faceCount)
-
-    print "- reconstructing triangle circumcircles..."
-    calculateTriangleCircumcircles(dm)
-
 # --------------------------------------------------------------------
 #                         alpha shape extraction
 # --------------------------------------------------------------------
