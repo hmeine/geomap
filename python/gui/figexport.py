@@ -309,4 +309,10 @@ class FigExporter:
     def save(self, filename):
         """Save the resulting XFig file to 'filename' (cf. fig.File.save)."""
 
-        self.f.save(filename)
+        return self.f.save(filename)
+
+    def saveEPS(self, basename):
+        """Save the resulting XFig file to [basename].{fig,eps} (cf. fig.File.save)."""
+
+        return self.f.saveEPS(basename)
+
