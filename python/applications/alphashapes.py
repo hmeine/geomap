@@ -1,9 +1,20 @@
+import delaunay
+
+def delaunayMap(points, imageSize):
+    result = delaunay.delaunayMap(points, imageSize, markContour = False)
+    print "  %d Delaunay edges, %d triangles" % (result.edgeCount, result.faceCount)
+
+    print "- reconstructing triangle circumcircles..."
+    calculateTriangleCircumcircles(result)
+
+    return result
+
 def extractMapPoints(map):
-    allPoints = [node.position() for node in map.nodeIter()]
+    result = [node.position() for node in map.nodeIter()]
     for edge in map.edgeIter():
         if edge.leftFaceLabel() and edge.rightFaceLabel():
-            allPoints.extend(list(edge)[1:-1])
-    return allPoints
+            result.extend(list(edge)[1:-1])
+    return result
 
 def maxSegmentLength(map):
     result = 0.0
@@ -18,6 +29,9 @@ def maxSegmentLength(map):
 # --------------------------------------------------------------------
 
 def markAlphaShapes(delaunayMap, alpha, beta):
+    if beta == None:
+        beta = 3*alpha
+
     if not hasattr(delaunayMap.faceIter(True).next(), "radius"):
         print "- reconstructing triangle circumcircles..."
         calculateTriangleCircumcircles(dm)
@@ -112,7 +126,8 @@ def markAlphaShapes(delaunayMap, alpha, beta):
     for face in delaunayMap.faceIter():
         if face.mark or face.componentLabel:
             continue
-        
+        componentCount += 1
+        face.componentLabel = componentCount
 
     print "  %s unlabelled components found." % (componentCount, )
 
@@ -129,6 +144,7 @@ def markAlphaShapes(delaunayMap, alpha, beta):
         if badComponent[label]:
             print "  marking connected component %d." % (
                 label, )
+            componentCount -= 1
     for edge in delaunayMap.edgeIter():
         if not edge.mark:
             edge.mark = badComponent[edge.componentLabel]
@@ -136,12 +152,16 @@ def markAlphaShapes(delaunayMap, alpha, beta):
         if not face.mark:
             face.mark = badComponent[face.componentLabel]
 
+    print "  %s unlabelled components left." % (componentCount, )
+
+    return componentCount
+
 # --------------------------------------------------------------------
 #                               fig output
 # --------------------------------------------------------------------
 
 def outputMarkedShapes(delaunayMap, fe,
-                       regionDepth = 50, edgeDepth = 49):
+                       regionDepth = 50, edgeDepth = 49, **kwargs):
     # output all cells only once; add flag first
     for edge in delaunayMap.edgeIter():
         edge.output = False
@@ -177,8 +197,9 @@ def outputMarkedShapes(delaunayMap, fe,
             else:
                 i += 1
         #print "%d points (area %s)" % (len(contour), contour.partialArea())
-        pp = fe.addClippedPoly(contour,
-                               fillStyle = fig.fillStyleSolid, depth = regionDepth)
+        pp = fe.addClippedPoly(contour, depth = regionDepth,
+                               fillStyle = fig.fillStyleSolid,
+                               **kwargs)
         assert len(pp) == 1
 
     if edgeDepth != None:
@@ -186,27 +207,98 @@ def outputMarkedShapes(delaunayMap, fe,
         for edge in delaunayMap.edgeIter():
             if not edge.mark or edge.output:
                 continue
-            edge.output = True
+
             dart = edge.dart()
             poly = Polygon(list(dart))
+            edge.output = True
+
             drawing = True
             while drawing:
                 drawing = False
-                _ = dart.nextAlpha()
+                dart.nextAlpha()
                 next = dart.clone()
                 while next.nextSigma() != dart:
-                    edge = next.edge()
-                    if not edge.mark or edge.output:
+                    outputEdge = next.edge()
+                    if not outputEdge.mark or outputEdge.output:
                         continue
-                    edge.output = True
+
                     drawing = True
+                    assert poly[-1] == next[0]
                     poly.append(next[1])
+                    outputEdge.output = True
+
                     dart = next
                     break
-            edge.output = True
-            fe.addEdge(poly, depth = edgeDepth)
+
+            # continue in the other direction:
+            poly.reverse()
+            dart = edge.dart().nextAlpha()
+            
+            drawing = True
+            while drawing:
+                drawing = False
+                dart.nextAlpha()
+                next = dart.clone()
+                while next.nextSigma() != dart:
+                    outputEdge = next.edge()
+                    if not outputEdge.mark or outputEdge.output:
+                        continue
+
+                    drawing = True
+                    assert poly[-1] == next[0]
+                    poly.append(next[1])
+                    outputEdge.output = True
+
+                    dart = next
+                    break
+
+            fe.addEdge(poly, depth = edgeDepth, **kwargs)
 
     for edge in dm.edgeIter():
         del edge.output
     for face in dm.faceIter():
         del face.output
+
+# --------------------------------------------------------------------
+
+def alphaShapeThinning(dm):
+    changed = 0
+
+    for edge in dm.edgeIter():
+        if edge.mark == True:
+            # (at least one adjacent triangle is marked)
+            dart = edge.dart()
+            # ensure that we have an unmarked face on the left:
+            if dart.leftFace().mark:
+                dart.nextAlpha()
+            if dart.leftFace().mark or not dart.rightFace().mark:
+                continue # no thinning here
+
+            d1 = dart.clone()
+            while not d1.nextSigma().edge().mark:
+                pass
+            if d1.leftFace().mark:
+                continue # no thinnable config
+            
+            d2 = dart.clone().nextAlpha()
+            while not d2.prevSigma().edge().mark:
+                pass
+            if d2.rightFace().mark:
+                continue # no thinnable config
+            
+            edge.mark = False
+            assert dart.rightFace().mark
+            dart.rightFace().mark = False
+            changed += 1
+    
+    if changed:
+        changed += alphaShapeThinning(dm)
+    
+    return changed
+
+# --------------------------------------------------------------------
+
+def view(epsFilename):
+    if not os.path.exists(epsFilename) and os.path.exists(epsFilename+".eps"):
+        epsFilename = epsFilename+".eps"
+    os.system("gv '%s' &" % (epsFilename, ))
