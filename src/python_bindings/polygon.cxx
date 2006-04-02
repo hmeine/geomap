@@ -791,14 +791,14 @@ struct ParabolaFit
         fitDirty = true;
     }
 
-    void addTangentList(const list &xyList)
+    void addTangentList(const list &arcLengthList)
     {
-        int size = len(xyList);
+        int size = len(arcLengthList);
 
         for(int i = 0; i < size; ++i)
         {
-            double al = extract<double>(xyList[i][0])();
-            double theta = extract<double>(xyList[i][1])();
+            double al = extract<double>(arcLengthList[i][0])();
+            double theta = extract<double>(arcLengthList[i][1])();
             theta = makeContinuous(theta);
 
             sumAl     += al;
@@ -836,6 +836,85 @@ struct ParabolaFit
         return error;
     }
 
+    double meanSquaredError(const list &xyList) const
+    {
+        return sumOfSquaredErrors(xyList) / count;
+    }
+
+        // temporary function, to be removed again:
+    double oldCovarianceOfResiduals() const
+    {
+        if(!count)
+            return 0.0;
+
+        vigra::Matrix<double> matrix(3, 3);
+        matrix(0, 0) = sumAl4; matrix(0, 1) = sumAl3; matrix(0, 2) = sumAl2;
+        matrix(1, 0) = sumAl3; matrix(1, 1) = sumAl2; matrix(1, 2) = sumAl;
+        matrix(2, 0) = sumAl2; matrix(2, 1) = sumAl;  matrix(2, 2) = count;
+
+        vigra::Matrix<double> covMatrix(3, 3);
+        try
+        {
+            inverse(matrix, covMatrix);
+        }
+        catch(vigra::PreconditionViolation)
+        {
+            return 0.0; // not invertible?!
+        }
+
+        double result =
+            sumAl4*covMatrix(0,0) +
+            sumAl2*covMatrix(1,1) +
+            count*covMatrix(2,2);
+
+        return result;
+    }
+
+    double totalCovarianceOfResiduals() const
+    {
+        if(!count)
+            return 0.0;
+
+        vigra::Matrix<double> matrix(3, 3);
+        matrix(0, 0) = sumAl4; matrix(0, 1) = sumAl3; matrix(0, 2) = sumAl2;
+        matrix(1, 0) = sumAl3; matrix(1, 1) = sumAl2; matrix(1, 2) = sumAl;
+        matrix(2, 0) = sumAl2; matrix(2, 1) = sumAl;  matrix(2, 2) = count;
+
+        vigra::Matrix<double> covMatrix(3, 3);
+        try
+        {
+            inverse(matrix, covMatrix);
+        }
+        catch(vigra::PreconditionViolation)
+        {
+            return 0.0; // not invertible?!
+        }
+
+        double result =
+            sumAl4*covMatrix(0,0) +
+            sumAl3*2*covMatrix(0,1) +
+            sumAl2*(2*covMatrix(0,2) + covMatrix(1,1)) +
+            sumAl*2*covMatrix(1,2) +
+            count*covMatrix(2,2);
+
+        return result;
+    }
+
+    double meanCovarianceOfResiduals() const
+    {
+        if(!count)
+            return 0.0;
+
+        return totalCovarianceOfResiduals() / count;
+    }
+
+    double testMeanCovarianceOfResiduals(const list &xyList)
+    {
+        ParabolaFit tmp(*this);
+        tmp.addTangentList(xyList);
+        return tmp.meanCovarianceOfResiduals();
+    }
+
     tuple parabolaParams() const
     {
         ensureFit();
@@ -867,61 +946,6 @@ struct ParabolaFit
         }
     }
 };
-
-double fitParabola(const list &xyList)
-{
-    double sumAl4 = 0.0, sumAl3 = 0.0, sumAl2 = 0.0, sumAl = 0.0;
-    double sumAl2Theta = 0.0, sumAlTheta = 0.0, sumTheta = 0.0;
-    int count = len(xyList);
-
-    if(!count)
-        return 0.0; // don't give NaN for empty lists!
-
-    for(int i = 0; i < count; ++i)
-    {
-        double al = extract<double>(xyList[i][0])();
-        double theta = extract<double>(xyList[i][1])();
-
-        sumAl     += al;
-        double al2 = al*al;
-        sumAl2    += al2;
-        double al3 = al2*al;
-        sumAl3    += al3;
-        double al4 = al3*al;
-        sumAl4    += al4;
-
-        sumAl2Theta += theta*al*al;
-        sumAlTheta  += theta*al;
-        sumTheta    += theta;
-    }
-
-    vigra::Matrix<double> matrix(3, 3);
-    matrix(0, 0) = sumAl4; matrix(0, 1) = sumAl3; matrix(0, 2) = sumAl2;
-    matrix(1, 0) = sumAl3; matrix(1, 1) = sumAl2; matrix(1, 2) = sumAl;
-    matrix(2, 0) = sumAl2; matrix(2, 1) = sumAl;  matrix(2, 2) = count;
-
-    vigra::Matrix<double> ergs(3, 1);
-    ergs(0, 0) = sumAl2Theta;
-    ergs(1, 0) = sumAlTheta;
-    ergs(2, 0) = sumTheta;
-
-    vigra::Matrix<double> result(3, 1);
-    linearSolve(matrix, ergs, result);
-    double p0 = result(0, 0);
-    double p1 = result(1, 0);
-    double p2 = result(2, 0);
-
-    double error = 0.0;
-    for(int i = 0; i < count; ++i)
-    {
-        double al = extract<double>(xyList[i][0])();
-        double theta = extract<double>(xyList[i][1])();
-        error += squaredNorm((p0*al + p1)*al + p2 - theta);
-    }
-    error = sqrt(error / count);
-
-    return error;
-}
 
 /********************************************************************/
 
@@ -1239,6 +1263,7 @@ void defPolygon()
         "with indices (i-dx, i, i+dx), ignoring skipPoints points from both ends.\n"
         "returns a list of (arcLength, curvature) pairs,\n"
         "whose length is len(pointArray) - 2*dx - 2*skipPoints.");
+
     def("tangentList", &tangentList<Vector2Array>,
         (arg("pointArray"), arg("dx") = 5, arg("skipPoints") = 1),
         "tangentList(pointArray, dx = 5, skipPoints = 1)\n"
@@ -1306,14 +1331,23 @@ void defPolygon()
 
     class_<ParabolaFit>("ParabolaFit")
         .def(init<ParabolaFit>())
-        .def("addTangentList", &ParabolaFit::addTangentList)
-        .def("sumOfSquaredErrors", &ParabolaFit::sumOfSquaredErrors)
+        .def("addTangentList", &ParabolaFit::addTangentList, arg("arcLengthList"),
+             "addTangentList(arcLengthList)\n"
+             "Adds list of (arcLength/theta) pairs to the fitted data.\n"
+
+             "The theta values (orientation angles) are made a continuation of\n"
+             "the last values (by shifting by multiples of PI).")
+        .def("sumOfSquaredErrors", &ParabolaFit::sumOfSquaredErrors,
+             "FIXME: The angles within this list are NOT shifted/made continuous!")
+        .def("meanSquaredError", &ParabolaFit::meanSquaredError,
+             "meanSquaredError(xyList)\n"
+             "Returns the same as sumOfSquaredErrors() / count.")
+        .def("oldCovarianceOfResiduals", &ParabolaFit::oldCovarianceOfResiduals)
+        .def("totalCovarianceOfResiduals", &ParabolaFit::totalCovarianceOfResiduals)
+        .def("meanCovarianceOfResiduals", &ParabolaFit::meanCovarianceOfResiduals)
+        .def("testMeanCovarianceOfResiduals", &ParabolaFit::testMeanCovarianceOfResiduals)
         .def("parabolaParams", &ParabolaFit::parabolaParams)
         .def_readonly("count", &ParabolaFit::count)
     ;
-    def("fitParabola", &fitParabola, args("xyList"),
-        "fitParabola(xyList)\n"
-        "fits a parabola to the (x,y) pairs in xyList and returns the\n"
-        "mean squared error.");
     def("delaunay", &delaunay);
 }
