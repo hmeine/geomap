@@ -776,7 +776,7 @@ struct ParabolaFit
 {
     ContinuousDirection makeContinuous;
     double sumAl4, sumAl3, sumAl2, sumAl;
-    double sumAl2Theta, sumAlTheta, sumTheta;
+    double sumAl2Theta, sumAlTheta, sumTheta, sumTheta2;
     int count;
 
     mutable bool fitDirty;
@@ -785,7 +785,7 @@ struct ParabolaFit
     ParabolaFit()
     {
         sumAl4 = 0.0, sumAl3 = 0.0, sumAl2 = 0.0, sumAl = 0.0;
-        sumAl2Theta = 0.0, sumAlTheta = 0.0, sumTheta = 0.0;
+        sumAl2Theta = 0.0, sumAlTheta = 0.0, sumTheta = 0.0, sumTheta2 = 0.0;
         count = 0;
 
         fitDirty = true;
@@ -812,10 +812,25 @@ struct ParabolaFit
             sumAl2Theta += theta*al*al;
             sumAlTheta  += theta*al;
             sumTheta    += theta;
+            sumTheta2   += theta*theta;
         }
 
         count += size;
         fitDirty = true;
+    }
+
+    double sumOfSquaredErrors0() const
+    {
+        if(!count)
+            return 0.0;
+
+        ensureFit();
+
+        // sum[(theta^2 - (p0*al^2 + p1*al + p2))^2]:
+        return sumTheta2 +
+            p0*p0*sumAl4 +   p1*p1*sumAl      + p2*p2*count      +
+          2*p0*p1*sumAl3 + 2*p0*p2*sumAl2     - 2*p0*sumAl2Theta +
+          2*p1*p2*sumAl  -    2*p1*sumAlTheta - 2*p2*sumTheta;
     }
 
     double sumOfSquaredErrors(const list &xyList) const
@@ -1337,6 +1352,7 @@ void defPolygon()
 
              "The theta values (orientation angles) are made a continuation of\n"
              "the last values (by shifting by multiples of PI).")
+        .def("sumOfSquaredErrors", &ParabolaFit::sumOfSquaredErrors0)
         .def("sumOfSquaredErrors", &ParabolaFit::sumOfSquaredErrors,
              "FIXME: The angles within this list are NOT shifted/made continuous!")
         .def("meanSquaredError", &ParabolaFit::meanSquaredError,
