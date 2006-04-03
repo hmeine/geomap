@@ -828,7 +828,7 @@ struct ParabolaFit
 
         // sum[(theta^2 - (p0*al^2 + p1*al + p2))^2]:
         return sumTheta2 +
-            p0*p0*sumAl4 +   p1*p1*sumAl      + p2*p2*count      +
+            p0*p0*sumAl4 +   p1*p1*sumAl2     + p2*p2*count      +
           2*p0*p1*sumAl3 + 2*p0*p2*sumAl2     - 2*p0*sumAl2Theta +
           2*p1*p2*sumAl  -    2*p1*sumAlTheta - 2*p2*sumTheta;
     }
