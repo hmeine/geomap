@@ -267,9 +267,9 @@ struct ContinuousDirection
     {
         angle += offset;
         double diff = angle - prevAngle;
-        if(fabs(diff) > M_PI/2)
+        if(fabs(diff) > M_PI)
         {
-            double delta = -floor((diff + M_PI/2)/M_PI)*M_PI;
+            double delta = -floor((diff + M_PI)/(M_PI*2.0))*M_PI*2.0;
             offset += delta;
             angle  += delta;
         }
@@ -734,7 +734,7 @@ double appendTangentList(
         for(int j = size - 1; j >= 0; --j)
         {
             double arcLength((extract<double>(tangents2[j][0])()));
-            double angle((extract<double>(tangents2[j][1])()));
+            double angle((extract<double>(tangents2[j][1])())+M_PI);
             tangents1.append(make_tuple(arcLengthOffset - arcLength,
                                         makeContinuous(angle)));
         }
