@@ -936,6 +936,12 @@ struct ParabolaFit
         return make_tuple(p0, p1, p2);
     }
 
+    double parabola(double x) const
+    {
+        ensureFit();
+        return (p0*x + p1)*x + p2;
+    }
+
   protected:
     void ensureFit() const
     {
@@ -1362,8 +1368,13 @@ void defPolygon()
         .def("totalCovarianceOfResiduals", &ParabolaFit::totalCovarianceOfResiduals)
         .def("meanCovarianceOfResiduals", &ParabolaFit::meanCovarianceOfResiduals)
         .def("testMeanCovarianceOfResiduals", &ParabolaFit::testMeanCovarianceOfResiduals)
-        .def("parabolaParams", &ParabolaFit::parabolaParams)
-        .def_readonly("count", &ParabolaFit::count)
+        .def("parabolaParams", &ParabolaFit::parabolaParams,
+             "parabolaParams() returns the parameter tuple (a, b, c) of the\n"
+             "fitted parabola function a*x^2 + b*x + c.")
+        .def("parabola", &ParabolaFit::parabolaParams, args("x"),
+             "parabola(x) returns the value of the parabola function at x")
+        .def_readonly("count", &ParabolaFit::count,
+                      "the number of values included in the fit")
     ;
     def("delaunay", &delaunay);
 }
