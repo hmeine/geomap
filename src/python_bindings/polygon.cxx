@@ -1371,7 +1371,7 @@ void defPolygon()
         .def("parabolaParams", &ParabolaFit::parabolaParams,
              "parabolaParams() returns the parameter tuple (a, b, c) of the\n"
              "fitted parabola function a*x^2 + b*x + c.")
-        .def("parabola", &ParabolaFit::parabolaParams, args("x"),
+        .def("parabola", &ParabolaFit::parabola, args("x"),
              "parabola(x) returns the value of the parabola function at x")
         .def_readonly("count", &ParabolaFit::count,
                       "the number of values included in the fit")
