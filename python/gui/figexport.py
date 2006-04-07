@@ -144,6 +144,9 @@ class FigExporter:
             params["roi"] = BoundingBox(
                 Vector2(0, 0), Vector2(size[0], size[1]))
 
+        if not params.has_key("depth"):
+            params["depth"] = 900
+        
         bgRect = self.addROIRect(**params)
 
         bgImage = fig.PictureBBox(0, 0, 1, 1, bgImageFilename)
