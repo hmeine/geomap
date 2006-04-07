@@ -9,8 +9,11 @@ def delaunayMap(points, imageSize):
 
     return result
 
-def extractMapPoints(map):
-    result = [node.position() for node in map.nodeIter()]
+def extractMapPoints(map, includeNodes = True):
+    if not includeNodes:
+        result = []
+    else:
+        result = [node.position() for node in map.nodeIter()]
     for edge in map.edgeIter():
         if edge.leftFaceLabel() and edge.rightFaceLabel():
             result.extend(list(edge)[1:-1])
@@ -261,7 +264,9 @@ def outputMarkedShapes(delaunayMap, fe,
 
 # --------------------------------------------------------------------
 
-def alphaShapeThinning(dm):
+def alphaShapeThinning1(dm):
+    """Old thinning procedure, looking for particular configurations only."""
+    
     changed = 0
 
     for edge in dm.edgeIter():
@@ -293,6 +298,44 @@ def alphaShapeThinning(dm):
     
     if changed:
         changed += alphaShapeThinning(dm)
+    
+    return changed
+
+from heapq import * # requires Python 2.3+
+
+def alphaShapeThinning(dm):
+    """Region-growing based thinning."""
+
+    def isContourEdge(edge):
+        return edge.leftFace().mark != edge.rightFace().mark
+
+    changed = 0
+    border = []
+
+    for edge in dm.edgeIter():
+        if isContourEdge(edge):
+            heappush(border, (-edge.length(), edge))
+
+    while border:
+        _, edge = heappop(border)
+        if not isContourEdge(edge):
+            continue
+
+        dart = edge.dart()
+        if not dart.leftFace().mark:
+            dart.nextAlpha()
+
+        dart.leftFace().mark = False
+        edge.mark = False
+        changed += 1
+
+        dart.nextPhi()
+        if isContourEdge(dart.edge()):
+            heappush(border, (-dart.edge().length(), dart.edge()))
+
+        dart.nextPhi()
+        if isContourEdge(dart.edge()):
+            heappush(border, (-dart.edge().length(), dart.edge()))
     
     return changed
 
