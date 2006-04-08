@@ -52,8 +52,8 @@ def samplePoly(poly, shift = None, size = None):
 
     if size == None:
         size = poly.boundingBox().size()
-        size = Size2D(int(math.ceil(size[0]))+1,
-                      int(math.ceil(size[1]))+1)
+        size = Size2D(int(math.ceil(size[0]))+2,
+                      int(math.ceil(size[1]))+2)
         if not shift:
             shift = Vector2(0, 0)
         shift = shift + Vector2(1, 1) - poly.boundingBox().begin()
@@ -66,13 +66,14 @@ def samplePoly(poly, shift = None, size = None):
 
 from cellimage import GeoMap, CellType
 
-def polyCrackMap(poly, shift = None):
+def polyCrackMap(poly, shift = None, midCracks = True):
     img = samplePoly(poly, shift)
     ce = regionImageToCrackEdgeImage(transformImage(img, "\l x:x+1"), 0)
     geomap = GeoMap(ce, 0, CellType.Line)
     spmap = pixelMap2subPixelMap(
         geomap, 0.5, labelImageSize = (geomap.cellImage.size()-Size2D(3,3))/2)
-    crackEdges2MidCracks(spmap, True)
+    if midCracks:
+        crackEdges2MidCracks(spmap, True)
     return spmap
 
 # poly = Polygon((rotatedPoly(kochCurve(5), math.pi/4)+Vector2(0.5, 0.5))*100)
