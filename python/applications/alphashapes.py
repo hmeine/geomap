@@ -163,7 +163,7 @@ def markAlphaShapes(delaunayMap, alpha, beta):
 #                               fig output
 # --------------------------------------------------------------------
 
-def outputMarkedShapes(delaunayMap, fe,
+def outputMarkedShapes(delaunayMap, fe, skipInnerEdges = True,
                        regionDepth = 50, edgeDepth = 49, **kwargs):
     # output all cells only once; add flag first
     for edge in delaunayMap.edgeIter():
@@ -180,7 +180,7 @@ def outputMarkedShapes(delaunayMap, fe,
         contour = list(triangle.contours()[0].phiOrbit())
         i = 0
         while i < len(contour):
-            contour[i].edge().output = True
+            contour[i].edge().output = skipInnerEdges
             neighbor = contour[i].rightFace()
             if neighbor.mark and not neighbor.output:
                 _ = contour[i].nextAlpha().nextPhi()
