@@ -98,7 +98,6 @@ def markAlphaShapes(delaunayMap, alpha, beta):
         if not face.mark:
             face.componentLabel = None
 
-    maxSize = 0
     componentCount = 0
     for edge in delaunayMap.edgeIter():
         if edge.mark or edge.componentLabel:
@@ -124,7 +123,6 @@ def markAlphaShapes(delaunayMap, alpha, beta):
                 size += 1
                 for dart in face.contours()[0].phiOrbit():
                     boundary.append(dart.edge())
-        maxSize = max(maxSize, size)
 
     for face in delaunayMap.faceIter():
         if face.mark or face.componentLabel:
@@ -295,9 +293,9 @@ def alphaShapeThinning1(dm):
             assert dart.rightFace().mark
             dart.rightFace().mark = False
             changed += 1
-    
+
     if changed:
-        changed += alphaShapeThinning(dm)
+        changed += alphaShapeThinning1(dm)
     
     return changed
 
