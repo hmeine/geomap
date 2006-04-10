@@ -1,6 +1,6 @@
-import math
-from hourglass import Polygon, delaunay
-from map import Map
+import math, sys
+from hourglass import Polygon, delaunay, simplifyPolygon
+from map import Map, contourPoly, mergeFaces
 from vigra import Vector2
 
 def isContourEdge(edge, maxNodeLabel = None):
