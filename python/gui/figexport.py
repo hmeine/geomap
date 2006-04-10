@@ -1,6 +1,7 @@
 import qt, fig
 from vigra import Vector2
 from hourglass import BoundingBox, Polygon, simplifyPolygon, intPos
+from dartpath import Path
 
 def _intersectLine(inside, outside, clipRect):
     if outside[1] > clipRect.end()[1]:
@@ -30,6 +31,9 @@ def clipPoly(polygon, clipRect):
 #     print "clipPoly(%s..%s)" % (clipRect.begin(), clipRect.end())
 #     print list(polygon)
 
+    def closed(polygon):
+        return polygon[0] == polygon[-1]
+
     i = 0
     while i < len(polygon):
         while i < len(polygon) and not clipRect.contains(polygon[i]):
@@ -50,6 +54,11 @@ def clipPoly(polygon, clipRect):
             p.append(_intersectLine(polygon[i-1], polygon[i], clipRect))
 
         result.append(p)
+
+    if closed(polygon):
+        if len(result) > 1 and (result[0][0] == result[-1][-1]):
+            result[-1].extend(result[0])
+            del result[0]
 
     return result
 
@@ -137,7 +146,9 @@ class FigExporter:
         rectangle.  See addROIRect().  If no roi is given (via a
         keyword parameter), the image file is opened (using readImage)
         and its size is used to initialize a BoundingBox positioned at
-        the origin."""
+        the origin.
+
+        Returns the pair (bgImage, bgRect) of both added fig objects."""
         
         if not params.has_key("roi"):
             size = readImage(bgImageFilename).size()
@@ -145,14 +156,16 @@ class FigExporter:
                 Vector2(0, 0), Vector2(size[0], size[1]))
 
         if not params.has_key("depth"):
-            params["depth"] = 900
+            params["depth"] = 1
         
         bgRect = self.addROIRect(**params)
 
         bgImage = fig.PictureBBox(0, 0, 1, 1, bgImageFilename)
         bgImage.points = list(bgRect.points)
-        bgImage.depth = bgRect.depth - 1
+        bgImage.depth = 999
         self.f.append(bgImage)
+
+        return bgImage, bgRect
 
     def addEdge(self, points, simplifyEpsilon = 0.5, **attr):
         """fe.addEdge(points, simplifyEpsilon, ...)
@@ -248,6 +261,13 @@ class FigExporter:
         
         points = pointOverlay.originalPointlist
         radius = pointOverlay.origRadius
+        if not attr.has_key("fillColor"):
+            fillColor = pointOverlay.color
+            if type(fillColor) == qt.QColor:
+                fillColor = qtColor2figColor(fillColor)
+            attr["fillColor"] = fillColor
+        attr["lineWidth"] = attr.get("lineWidth", 0)
+        
         return self.addPointCircles(points, radius, **attr)
 
     def addEdgeOverlay(self, edgeOverlay, **attr):
@@ -289,10 +309,10 @@ class FigExporter:
             result = [(nodes[i], circle) for i, circle in result]
         return result
 
-    def addMapEdges(self, map, **attr):
+    def addMapEdges(self, map, returnEdges = False, **attr):
         """fe.addMapEdges(map, ...)
 
-        Adds and returns fig.Polygon for all map edges (or -parts, see
+        Adds and returns fig.Polygons for all map edges (or -parts, see
         addClippedPoly)."""
         
         result = []
@@ -306,6 +326,41 @@ class FigExporter:
                 parts = self.addClippedPoly(edge, **thisattr)
             else:
                 parts = self.addClippedPoly(edge, **attr)
+            if returnEdges:
+                result.extend([(edge, part) for part in parts])
+            else:
+                result.extend(parts)
+        return result
+
+    # FIXME: unfinished!:
+    def addMapFaces(self, map, **attr):
+        """fe.addMapEdges(map, ...)
+
+        Adds and returns fig.Polygons for all map faces (or -parts,
+        see addClippedPoly).  Clipping is experimental, since clipping
+        arbitrary closed polygons is much harder than just open ones."""
+
+        assert attr.has_key("fillColor"), \
+               "TODO: addMapFaces() does not yet automatically find face colors!"
+        
+        facePolys = []
+        for face in map.faceIter(skipInfinite = True):
+            facePolys.append((
+                Polygon(list(Path(face.contours()[0].phiOrbit()).points())), face))
+
+        def AreaCompare(c1, c2):
+            return -cmp(c1[0].partialArea(), c2[0].partialArea())
+        facePolys.sort(AreaCompare)
+
+        result = []
+        for poly, face in facePolys:
+            if hasattr(face, "color"):
+                #fillColor = ...
+                thisattr = dict(attr)
+                #thisattr["fillColor"] = fillColor
+                parts = self.addClippedPoly(poly, **thisattr)
+            else:
+                parts = self.addClippedPoly(poly, **attr)
             result.extend(parts)
         return result
 
