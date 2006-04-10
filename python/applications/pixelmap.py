@@ -15,14 +15,14 @@ def pixelMapData(geomap, scale = 1.0, offset = Vector2(0, 0)):
     All positions are shifted by the optional offset and then scaled
     with the given factor."""
 
-    nodes = [None] * geomap.maxNodeLabel()
+    nodes = [None] * (geomap.maxNodeLabel() + 1)
     for node in geomap.nodes:
         ul = node.bounds.upperLeft()
         center = Vector2(*ul) + Vector2(node.bounds.width() - 1,
                                         node.bounds.height() - 1) / 2
         nodes[node.label] = (center+offset) * scale
 
-    edges = [None] * geomap.maxEdgeLabel()
+    edges = [None] * (geomap.maxEdgeLabel() + 1)
     for edge in geomap.edges:
         points = [(Vector2(*p)+offset) * scale for p in iter(edge.start)]
         startNodeLabel = edge.start.startNodeLabel()
@@ -110,8 +110,27 @@ def cannyEdgeMap(image, scale, thresh):
         geomap, offset = Vector2(1,1), labelImageSize = image.size())
     return spmap
 
+def crackEdgeMap(labelImage, midCracks = True):
+    """crackEdgeMap(labelImage, midCracks = True)
+
+    Returns a subpixel-Map containing crack-edge contours extracted
+    from the given labelImage.  If the optional parameter 'midCracks'
+    is True(default), the resulting edges consist of the connected
+    midpoints of the cracks, not of the crack segments themselves."""
+
+    print "- creating pixel-based GeoMap..."
+    ce = regionImageToCrackEdgeImage(transformImage(labelImage, "\l x:x+1"), 0)
+    geomap = GeoMap(ce, 0, CellType.Line)
+
+    print "- converting pixel-based GeoMap..."
+    result = pixelMap2subPixelMap(
+        geomap, 0.5, labelImageSize = (geomap.cellImage.size()-Size2D(3,3))/2)
+    if midCracks:
+        crackEdges2MidCracks(result, True)
+    return result
+
 def pixelWatershedMap(biImage, crackEdges = 4, midCracks = True):
-    """pixelWatershedMap(biImage, crackEdges = 0, midCracks = True)
+    """pixelWatershedMap(biImage, crackEdges = 4, midCracks = True)
 
     Performs a watershed segmentation on biImage and returns a
     subpixel-Map containing the resulting contours.  The type of
@@ -120,7 +139,7 @@ def pixelWatershedMap(biImage, crackEdges = 4, midCracks = True):
     0: 8-connected edges on 4-connected background
     4: crack edges between 4-connected watershed regions
     8: crack edges between 8-connected watershed regions
-       (still leads to disconnected regions in the map ATM)
+       (8-connected regions will be separated in the result ATM)
 
     If midCracks is True(default), the resulting edges consist of the
     connected midpoints of the cracks, not of the crack segments
@@ -129,25 +148,14 @@ def pixelWatershedMap(biImage, crackEdges = 4, midCracks = True):
     if crackEdges:
         print "- Union-Find watershed segmentation..."
         lab, count = eval('watershedUnionFind' + str(crackEdges))(biImage)
-        ce = regionImageToCrackEdgeImage(lab, 0)
-    else:
-        print "- watershed segmentation..."
-        lab, count = watershedSegmentation(biImage, KeepContours)
+        return crackEdgeMap(lab, midCracks)
+
+    print "- watershed segmentation..."
+    lab, count = watershedSegmentation(biImage, KeepContours)
 
     print "- creating pixel-based GeoMap..."
-    if crackEdges:
-        geomap = GeoMap(ce, 0, CellType.Line)
-    else:
-        geomap = GeoMap(lab, 0, CellType.Vertex)
+    geomap = GeoMap(lab, 0, CellType.Vertex)
 
     print "- converting pixel-based GeoMap..."
-    if crackEdges:
-        spmap = pixelMap2subPixelMap(
-            geomap, 0.5, labelImageSize = (geomap.cellImage.size()-Size2D(3,3))/2)
-        if midCracks:
-            crackEdges2MidCracks(spmap, True)
-    else:
-        spmap = pixelMap2subPixelMap(geomap,
-                    labelImageSize = (geomap.cellImage.size()-Size2D(4,4)))
-
-    return spmap
+    return pixelMap2subPixelMap(
+        geomap, labelImageSize = (geomap.cellImage.size()-Size2D(4,4)))
