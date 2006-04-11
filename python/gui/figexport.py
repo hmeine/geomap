@@ -1,4 +1,4 @@
-import qt, fig
+import qt, fig, sys
 from vigra import Vector2
 from hourglass import BoundingBox, Polygon, simplifyPolygon, intPos
 from dartpath import Path
@@ -234,14 +234,14 @@ class FigExporter:
         points."""
         
         radius *= self.scale
-        if not attr.has_key("fillStyle"):
-            attr["fillStyle"] = fig.fillStyleSolid
+        attr["fillStyle"] = attr.get("fillStyle", fig.fillStyleSolid)
+        attr["lineWidth"] = attr.get("lineWidth", 0)
         result = []
         o = self.offset
         if self.roi:
             o = o - self.roi.begin() # don't modify in-place!
         for i, point in enumerate(points):
-            if not self.roi.contains(point+self.offset):
+            if self.roi and not self.roi.contains(point+self.offset):
                 continue
             p = intPos((point + o) * self.scale)
             dc = fig.Circle(p, radius)
@@ -332,7 +332,6 @@ class FigExporter:
                 result.extend(parts)
         return result
 
-    # FIXME: unfinished!:
     def addMapFaces(self, map, **attr):
         """fe.addMapEdges(map, ...)
 
