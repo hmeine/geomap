@@ -219,4 +219,4 @@ def levelEdgesMap(edges, imageSize):
 ### USAGE EXAMPLE: ###
 # ze = ZeroEdges(transformImage(phi, '\l x: x + %s' % level), "direct")
 # ee = ze.edges(False)
-# levelMap = levelEdgesMap(ee)
+# levelMap = levelEdgesMap(ee, phi.size())
