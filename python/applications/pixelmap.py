@@ -4,7 +4,7 @@ addPathFromHere('../cellimage')
 from cellimage import GeoMap, CellType
 from map import Map
 
-__all__ = ["pixelMapData", "pixelMap2subPixelMap",
+__all__ = ["pixelMapData", "pixelMap2subPixelMap", "crackEdgeMap",
            "crackEdges2MidCracks", "cannyEdgeMap", "pixelWatershedMap"]
 
 def pixelMapData(geomap, scale = 1.0, offset = Vector2(0, 0)):
