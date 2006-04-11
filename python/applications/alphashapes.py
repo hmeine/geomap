@@ -5,7 +5,7 @@ def delaunayMap(points, imageSize):
     print "  %d Delaunay edges, %d triangles" % (result.edgeCount, result.faceCount)
 
     print "- reconstructing triangle circumcircles..."
-    calculateTriangleCircumcircles(result)
+    delaunay.calculateTriangleCircumcircles(result)
 
     return result
 
@@ -19,6 +19,14 @@ def extractMapPoints(map, includeNodes = True):
             result.extend(list(edge)[1:-1])
     return result
 
+def midCrackPoints(img):
+    spmap = pixelmap.crackEdgeMap(img)
+    return extractMapPoints(spmap, False)
+
+def samplingPoints(img, threshold = 128):
+    return [Vector2(pos[0], pos[1]) for pos in img.size()
+            if img[pos] < threshold]
+
 def maxSegmentLength(map):
     result = 0.0
     for edge in map.edgeIter():
@@ -31,10 +39,7 @@ def maxSegmentLength(map):
 #                         alpha shape extraction
 # --------------------------------------------------------------------
 
-def markAlphaShapes(delaunayMap, alpha, beta):
-    if beta == None:
-        beta = 3*alpha
-
+def markAlphaShapes(delaunayMap, alpha, beta = 0.0):
     if not hasattr(delaunayMap.faceIter(True).next(), "radius"):
         print "- reconstructing triangle circumcircles..."
         calculateTriangleCircumcircles(dm)
@@ -132,6 +137,9 @@ def markAlphaShapes(delaunayMap, alpha, beta):
 
     print "  %s unlabelled components found." % (componentCount, )
 
+    if not beta:
+        return componentCount
+
     print "- looking for unmarked triangles with radii >= beta (%s)..." % (beta, )
 
     badComponent = [True] * (componentCount+1)
@@ -162,7 +170,8 @@ def markAlphaShapes(delaunayMap, alpha, beta):
 # --------------------------------------------------------------------
 
 def outputMarkedShapes(delaunayMap, fe, skipInnerEdges = True,
-                       regionDepth = 50, edgeDepth = 49, **kwargs):
+                       regionDepth = 50, edgeDepth = 49,
+                       capStyle = fig.capStyleRound, **kwargs):
     # output all cells only once; add flag first
     for edge in delaunayMap.edgeIter():
         edge.output = False
@@ -199,7 +208,7 @@ def outputMarkedShapes(delaunayMap, fe, skipInnerEdges = True,
                 i += 1
         #print "%d points (area %s)" % (len(contour), contour.partialArea())
         pp = fe.addClippedPoly(contour, depth = regionDepth,
-                               fillStyle = fig.fillStyleSolid,
+                               fillStyle = fig.fillStyleSolid, capStyle = capStyle,
                                **kwargs)
         assert len(pp) == 1
 
@@ -253,12 +262,40 @@ def outputMarkedShapes(delaunayMap, fe, skipInnerEdges = True,
                     dart = next
                     break
 
-            fe.addEdge(poly, depth = edgeDepth, **kwargs)
+            fe.addEdge(poly, depth = edgeDepth, capStyle = capStyle, **kwargs)
 
     for edge in dm.edgeIter():
         del edge.output
     for face in dm.faceIter():
         del face.output
+
+# --------------------------------------------------------------------
+
+def findChangeByBisection(func, goodParam, badParam, desired = None):
+    if not desired:
+        desired = func(goodParam)
+    param = (goodParam + badParam)/2
+    if abs(goodParam - badParam) < 1e-4:
+        return goodParam
+    current = func(param)
+    print "findChangeByBisection: param = %s -> %d." % (
+        param, current)
+    if current == desired:
+        return findChangeByBisection(func, param, badParam, desired)
+    else:
+        return findChangeByBisection(func, goodParam, param, desired)
+
+def findMinAlpha(dm, goodAlpha, badAlpha, beta = 0.0):
+    def countComponents(alpha, dm = dm, beta = beta):
+        return markAlphaShapes(dm, alpha, beta)
+
+    return findChangeByBisection(countComponents, goodAlpha, alpha)
+
+def findMaxBeta(dm, alpha, badBeta):
+    def countComponents(beta, dm = dm, alpha = alpha):
+        return markAlphaShapes(dm, alpha, beta)
+
+    return findChangeByBisection(countComponents, 0.0, badBeta)
 
 # --------------------------------------------------------------------
 
