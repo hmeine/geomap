@@ -80,7 +80,7 @@ Array__getitem__byref(Array const & a, int i)
 // (allowing "for .. in .." or "enumerate(..)")
 // TODO: a better fix would be an extra __iter__:
 const Scanlines::value_type &
-Scanlines__getitem__(Scanlines const & s, unsigned int i)
+Scanlines__getitem__(Scanlines const & s, int i)
 {
 //     if(i < 0 || i >= s.size())
     if(i < s.startIndex() || i >= s.endIndex())
