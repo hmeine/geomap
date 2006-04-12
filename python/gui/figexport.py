@@ -1,5 +1,9 @@
+from vigra import addPathFromHere
+
+addPathFromHere('.')
 import qt, fig, sys
-from vigra import Vector2
+
+from vigra import Vector2, readImage
 from hourglass import BoundingBox, Polygon, simplifyPolygon, intPos
 from dartpath import Path
 
