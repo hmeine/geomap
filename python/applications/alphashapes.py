@@ -1,4 +1,6 @@
-import delaunay
+import fig, delaunay
+from delaunay import calculateTriangleCircumcircles
+from math import *
 
 def delaunayMap(points, imageSize):
     result = delaunay.delaunayMap(points, imageSize, markContour = False)
@@ -164,6 +166,37 @@ def markAlphaShapes(delaunayMap, alpha, beta = 0.0):
     print "  %s unlabelled components left." % (componentCount, )
 
     return componentCount
+
+def alphaBetaMap(points, imageSize, alpha, beta, removeInteriorEdges=False):
+    dm = delaunayMap(points, imageSize)
+    markAlphaShapes(dm, alpha, beta)
+    if removeInteriorEdges:
+        erm = [e for e in dm.edgeIter() if \
+                not e.protection and (not e.mark or (e.leftFace().mark and e.rightFace().mark))]
+    else:
+        erm = [e for e in dm.edgeIter() if not e.protection and not e.mark]
+    for e in erm:
+        removeEdge(e.dart())
+    dm.alpha = alpha
+    dm.beta = beta
+    return dm
+
+def findCandidatesForPointCorrection(abm):
+    mayMove, dontMove = [], []
+    for n in abm.nodeIter():
+        if n.degree() != 2 or n.isAtBorder():
+            dontMove.append(n.position())
+        else:
+            p = n.position()
+            d = n.anchor()
+            p0 = d.endNode().position()
+            d.nextSigma()
+            p1 = d.endNode().position()
+            dx, dy = p1 - p0
+            orientation = atan2(dy, dx)
+            mayMove.append(Edgel(p[0], p[1], 1, orientation))
+    return mayMove, dontMove
+
 
 # --------------------------------------------------------------------
 #                               fig output
