@@ -4,16 +4,20 @@ addPathFromHere('../cellimage')
 from cellimage import GeoMap, CellType
 from map import Map
 
-__all__ = ["pixelMapData", "pixelMap2subPixelMap", "crackEdgeMap",
+__all__ = ["pixelMap2subPixelMap", "crackEdgeMap",
            "crackEdges2MidCracks", "cannyEdgeMap", "pixelWatershedMap"]
 
-def pixelMapData(geomap, scale = 1.0, offset = Vector2(0, 0)):
-    """pixelMapData(geomap, scale = 1.0, offset = Vector2(0, 0))
+def pixelMapData(geomap, scale = 1.0, offset = Vector2(0, 0),
+                 skipEverySecond = False):
+    """pixelMapData(geomap, scale = 1.0, offset = Vector2(0, 0),
+                 skipEverySecond = False)
 
     Extracts node positions and edge geometry from a GeoMap object.
     For nodes, this function simply calculates their center of mass.
     All positions are shifted by the optional offset and then scaled
-    with the given factor."""
+    with the given factor. Set skipEverySecond to True if the geomap
+    contains a crack edge map (otherwise, each real edge segment has
+    an additional mid crack point)."""
 
     nodes = [None] * (geomap.maxNodeLabel() + 1)
     for node in geomap.nodes:
@@ -29,12 +33,14 @@ def pixelMapData(geomap, scale = 1.0, offset = Vector2(0, 0)):
         endNodeLabel = edge.end.startNodeLabel()
         points.insert(0, nodes[startNodeLabel])
         points.append(nodes[endNodeLabel])
+        if skipEverySecond:
+            points = [points[i] for i in range(0, len(points), 2)]
         edges[edge.label] = (
             startNodeLabel, endNodeLabel, Polygon(points))
     return nodes, edges
 
 def pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0),
-                         labelImageSize = None):
+                         labelImageSize = None, skipEverySecond = False):
     """pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0), labelImageSize = None)
 
     Uses pixelMapData() to extract the pixel-geomap's geometry and
@@ -42,25 +48,24 @@ def pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0),
     labelImageSize defaults to the (scaled) pixel-based geomap's
     cellImage.size().  See also the documentation of pixelMapData()."""
     
-    nodes, edges = pixelMapData(geomap, scale, offset)
+    nodes, edges = pixelMapData(geomap, scale, offset, skipEverySecond)
     if labelImageSize == None:
         labelImageSize = geomap.cellImage.size() * scale
     return Map(nodes, edges, labelImageSize,
                performBorderClosing = False, performEdgeSplits = False)
 
-def crackEdges2MidCracks(subpixelMap, skipEverySecond = False):
-    """crackEdges2MidCracks(subpixelMap, skipEverySecond = False)
+def crackEdges2MidCracks(subpixelMap):
+    """crackEdges2MidCracks(subpixelMap)
 
     Changes all edge geometry in-place, setting one point on the
-    middle of each segment. Set skipEverySecond to True if each pixel
-    crack is represented with two segments."""
+    middle of each edge segment (and removes each segment's end
+    points, except for the edge ends)."""
     
     for edge in subpixelMap.edgeIter():
         p = Polygon()
-        step = skipEverySecond and 2 or 1
         p.append(edge[0])
-        for i in range(0, len(edge)-1, step):
-            p.append((edge[i]+edge[i+step])/2)
+        for i in range(0, len(edge)-1):
+            p.append((edge[i]+edge[i+1])/2)
         p.append(edge[-1])
         edge.swap(p) # FIXME: use edge.setGeometry as soon as that's finished
 
@@ -124,9 +129,10 @@ def crackEdgeMap(labelImage, midCracks = True):
 
     print "- converting pixel-based GeoMap..."
     result = pixelMap2subPixelMap(
-        geomap, 0.5, labelImageSize = (geomap.cellImage.size()-Size2D(3,3))/2)
+        geomap, 0.5, labelImageSize = (geomap.cellImage.size()-Size2D(3,3))/2,
+        skipEverySecond = True) # source image had explicit cracks
     if midCracks:
-        crackEdges2MidCracks(result, True)
+        crackEdges2MidCracks(result)
     return result
 
 def pixelWatershedMap(biImage, crackEdges = 4, midCracks = True):
