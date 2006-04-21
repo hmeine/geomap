@@ -1,5 +1,4 @@
 import fig, delaunay
-from delaunay import calculateTriangleCircumcircles
 from math import *
 
 def delaunayMap(points, imageSize):
@@ -17,7 +16,7 @@ def extractMapPoints(map, includeNodes = True):
     else:
         result = [node.position() for node in map.nodeIter()]
     for edge in map.edgeIter():
-        if edge.leftFaceLabel() and edge.rightFaceLabel():
+        if not edge.protection & BORDER_PROTECTION:
             result.extend(list(edge)[1:-1])
     return result
 
@@ -32,7 +31,7 @@ def samplingPoints(img, threshold = 128):
 def maxSegmentLength(map):
     result = 0.0
     for edge in map.edgeIter():
-        if edge.leftFaceLabel() and edge.rightFaceLabel():
+        if not edge.protection & BORDER_PROTECTION:
             result = max(result, max(
                 [(edge[i+1]-edge[i]).magnitude() for i in range(len(edge)-1)]))
     return result
@@ -46,6 +45,10 @@ def markAlphaShapes(delaunayMap, alpha, beta = 0.0):
         print "- reconstructing triangle circumcircles..."
         calculateTriangleCircumcircles(dm)
 
+    # store parameters for convenience:
+    delaunayMap.alpha = alpha
+    delaunayMap.beta = beta
+
     print "- marking triangles with radii < alpha(%s)..." % (alpha, )
     it = delaunayMap.faceIter()
     it.next().mark = False # infinite face
@@ -54,6 +57,7 @@ def markAlphaShapes(delaunayMap, alpha, beta = 0.0):
 
     print "- marking edges with empty circle radii < alpha(%s)..." % (alpha, )
     for edge in delaunayMap.edgeIter():
+        assert len(edge) == 2, "markAlphaShapes() expects a delaunay map!"
         edge.mark = edge.leftFace().mark or edge.rightFace().mark
         if edge.mark:
             continue
@@ -75,18 +79,23 @@ def markAlphaShapes(delaunayMap, alpha, beta = 0.0):
                 if (dart.endNode().position()-midPoint).squaredMagnitude() < radius2:
                     empty = False
                     break
-            v0 = p2 - p1
-            if edge.leftFaceLabel():
-                v1 = edge.leftFace().circleCenter - p1
-            else:
-                v1 = Vector(v0[1], -v0[0])
-            if edge.rightFaceLabel():
-                v2 = edge.rightFace().circleCenter - p1
-            else:
-                v2 = Vector(-v0[1], v0[0])
-            empty2 = (v2[1]*v0[0]-v2[0]*v0[1] < 0) != (v1[1]*v0[0]-v1[0]*v0[1] < 0)
-            assert empty == empty2, "%s is %s/%s" % (edge, empty, empty2)
-            if not empty:
+            
+#             v0 = p2 - p1
+#             if edge.leftFaceLabel():
+#                 v1 = edge.leftFace().circleCenter - p1
+#             else:
+#                 v1 = Vector(v0[1], -v0[0])
+#             if edge.rightFaceLabel():
+#                 v2 = edge.rightFace().circleCenter - p1
+#             else:
+#                 v2 = Vector(-v0[1], v0[0])
+#             empty2 = (v2[1]*v0[0]-v2[0]*v0[1] < 0) != (v1[1]*v0[0]-v1[0]*v0[1] < 0)
+
+            empty2 = (edge.dart().nextSigma().endNode().position()-midPoint).squaredMagnitude() >= radius2 and (edge.dart().nextAlpha().nextSigma().endNode().position()-midPoint).squaredMagnitude() >= radius2
+            
+            if empty != empty2:
+                sys.stderr.write("WARNING: %s is %s/%s!\n" % (edge, empty, empty2))
+            if not empty2:
     #             print "  edge %d's circumcircle contains a point, unmarking.." % (
     #                 edge.label(), )
                 edge.mark = False
@@ -167,18 +176,19 @@ def markAlphaShapes(delaunayMap, alpha, beta = 0.0):
 
     return componentCount
 
-def alphaBetaMap(points, imageSize, alpha, beta, removeInteriorEdges=False):
+def removeUnmarkedEdges(map, removeInterior = False):
+    for edge in map.edgeIter():
+        if edge.protection:
+            continue
+        if not edge.mark:
+            removeEdge(edge.dart())
+        elif removeInterior and (edge.leftFace().mark and edge.rightFace().mark):
+            removeEdge(edge.dart())
+
+def alphaBetaMap(points, imageSize, alpha, beta, removeInteriorEdges = False):
     dm = delaunayMap(points, imageSize)
     markAlphaShapes(dm, alpha, beta)
-    if removeInteriorEdges:
-        erm = [e for e in dm.edgeIter() if \
-                not e.protection and (not e.mark or (e.leftFace().mark and e.rightFace().mark))]
-    else:
-        erm = [e for e in dm.edgeIter() if not e.protection and not e.mark]
-    for e in erm:
-        removeEdge(e.dart())
-    dm.alpha = alpha
-    dm.beta = beta
+    removeUnmarkedEdges(dm, removeInteriorEdges)
     return dm
 
 def findCandidatesForPointCorrection(abm):
@@ -243,7 +253,9 @@ def outputMarkedShapes(delaunayMap, fe, skipInnerEdges = True,
         pp = fe.addClippedPoly(contour, depth = regionDepth,
                                fillStyle = fig.fillStyleSolid, capStyle = capStyle,
                                **kwargs)
-        assert len(pp) == 1
+        if len(pp) > 1:
+            sys.stderr.write(
+                "############## POLYGON CLIPPING FAILED! ##############\n")
 
     if edgeDepth != None:
         print "- exporting remaining marked edges..."
@@ -259,15 +271,17 @@ def outputMarkedShapes(delaunayMap, fe, skipInnerEdges = True,
             while drawing:
                 drawing = False
                 dart.nextAlpha()
-                next = dart.clone()
-                while next.nextSigma() != dart:
+                for next in dart.sigmaOrbit():
                     outputEdge = next.edge()
                     if not outputEdge.mark or outputEdge.output:
                         continue
 
                     drawing = True
                     assert poly[-1] == next[0]
-                    poly.append(next[1])
+                    if len(outputEdge) == 2:
+                        poly.append(next[1])
+                    else:
+                        poly.extend(Polygon(list(next)[1:]))
                     outputEdge.output = True
 
                     dart = next
@@ -295,11 +309,12 @@ def outputMarkedShapes(delaunayMap, fe, skipInnerEdges = True,
                     dart = next
                     break
 
-            fe.addEdge(poly, depth = edgeDepth, capStyle = capStyle, **kwargs)
+            fe.addClippedPoly(
+                poly, depth = edgeDepth, capStyle = capStyle, **kwargs)
 
-    for edge in dm.edgeIter():
+    for edge in delaunayMap.edgeIter():
         del edge.output
-    for face in dm.faceIter():
+    for face in delaunayMap.faceIter():
         del face.output
 
 # --------------------------------------------------------------------
@@ -374,19 +389,21 @@ from heapq import * # requires Python 2.3+
 def alphaShapeThinning(dm):
     """Region-growing based thinning."""
 
-    def isContourEdge(edge):
+    def isSimple(edge):
+        """returns True iff the edge is in the contour of a thick
+        alpha shape region"""
         return edge.leftFace().mark != edge.rightFace().mark
 
     changed = 0
     border = []
 
     for edge in dm.edgeIter():
-        if isContourEdge(edge):
+        if isSimple(edge):
             heappush(border, (-edge.length(), edge))
 
     while border:
         _, edge = heappop(border)
-        if not isContourEdge(edge):
+        if not isSimple(edge):
             continue
 
         dart = edge.dart()
@@ -398,11 +415,11 @@ def alphaShapeThinning(dm):
         changed += 1
 
         dart.nextPhi()
-        if isContourEdge(dart.edge()):
+        if isSimple(dart.edge()):
             heappush(border, (-dart.edge().length(), dart.edge()))
 
         dart.nextPhi()
-        if isContourEdge(dart.edge()):
+        if isSimple(dart.edge()):
             heappush(border, (-dart.edge().length(), dart.edge()))
     
     return changed
