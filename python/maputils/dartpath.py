@@ -1,5 +1,8 @@
+_cvsVersion = "$Id$" \
+              .split(" ")[2:-2]
+
 from hourglass import composeTangentLists
-from maptest import dartTangents
+from statistics import dartTangents
 
 class Path(list):
     def reverse(self):
@@ -31,3 +34,45 @@ class Path(list):
             pit = iter(dart); pit.next() # skip first point
             for point in pit:
                 yield point
+
+    def length(self):
+        """Returns length of this path (sum over edge.length())."""
+        result = 0.0
+        for dart in self:
+            result += dart.edge().length()
+        return result
+
+class Contour(Path):
+    def __init__(self, startDart):
+        Path.__init__(self, startDart.phiOrbit())
+
+def _pathString(path):
+    """encodes a dart sequence as unicode string (see _pathDecode)"""
+    result = []
+    for d in path:
+        if type(d) != int:
+            d = d.label()
+        if d < 0:
+            d += 0x100000
+        result.append(unichr(d))
+    return u"".join(result)
+
+def _pathDecode(pathString):
+    """decodes a unicode string to a dart sequence (see _pathString)"""
+    result = []
+    for d in pathString:
+        d = ord(d)
+        if d > 0x080000:
+            d -= 0x100000
+        result.append(d)
+    return result
+
+import difflib
+def pathCompare(p1, p2):
+    """Uses difflib.SequenceMatcher to return the differences between two paths"""
+    sm = difflib.SequenceMatcher(None, _pathString(p1), _pathString(p2))
+    return sm.get_opcodes()
+#     result = []
+#     for tag, i1, i2, j1, j2 in sm.get_opcodes():
+#         result.append((tag, p1[i1:i2], p2[j1:j2]))
+#     return result
