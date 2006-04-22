@@ -1,7 +1,7 @@
 _cvsVersion = "$Id$" \
               .split(" ")[2:-2]
 
-import string
+import math, string
 
 # --------------------------------------------------------------------
 #              Region-based Statistics & Cost Measures
@@ -366,17 +366,35 @@ class EdgeGradientStatistics(BoundaryIndicatorStatistics):
 class EdgeGradDirDotStatistics(BoundaryIndicatorStatistics):
     def __init__(self, map, bi):
         BoundaryIndicatorStatistics.__init__(self, map, "dirdot_" + bi.name)
+
+        assert hasattr(map.edgeIter().next(), "tangents"), \
+               """Edge does not have 'tangents' attribute!
+               Use calculateTangentLists(myMap[, ...]) to initialize tangent lists!"""
+        
         for edge in map.edgeIter():
             stats = EdgeStatistics()
-            s_edge = simplifyPolygon(edge, 0.1, 0.5)
 
-            for i in range(len(s_edge)-1):
-                segment = s_edge[i+1] - s_edge[i]
-                p = s_edge[i] + 0.5 * segment
-                gradDir = bi.grad.siv[p]
+            ali = arcLengthIter(edge)
+            prevPoint = ali.next()
+            curPoint = ali.next()
+            for al, theta in edge.tangents:
+                # seek to the right edge segment:
+                while al > curPoint[0]:
+                    prevPoint = curPoint
+                    curPoint = ali.next()
+                    
+                # linearly interpolate to the desired arclength (al):
+                pos = prevPoint[1] + \
+                      (al - prevPoint[0])/(curPoint[0] - prevPoint[0]) * \
+                      (curPoint[1] - prevPoint[1])
+
+                gradDir = bi.grad.siv[pos]
                 gradDir /= gradDir.magnitude()
-                stats(1.0 - abs(dot(gradDir, segment / segment.magnitude())),
-                      segment.magnitude())
+
+                # FIXME: QuantileStatistics expects segment length,
+                # we give always 1.0:
+                segment = Vector2(math.cos(theta), math.sin(theta))
+                stats(1.0 - abs(dot(gradDir, segment)), 1.0)
 
             setattr(edge, self.attrName, stats)
 
@@ -715,27 +733,29 @@ def otherCommonDarts(dart):
         if it.rightFaceLabel() == rightFaceLabel:
             yield it
 
-def totalBoundaryStatistics(dart):
+def totalBoundaryStatistics(dart, attrName):
     result = EdgeStatistics()
-    result.merge(dart.edge()._meanGradient)
+    result.merge(getattr(dart.edge(), attrName))
     for d in otherCommonDarts(dart):
-        result.merge(d.edge()._meanGradient)
+        result.merge(getattr(d.edge(), attrName))
     return result
 
 def meanEdgeGradCost(dart):
-    return totalBoundaryStatistics(dart).average()
+    return totalBoundaryStatistics(dart, "_meanGradient").average()
 
 def medianEdgeGradCost(dart):
-    return totalBoundaryStatistics(dart).median()
-
-def polyMedianEdgeGradCost(dart):
-    return totalBoundaryStatistics(dart).polyMedian()
+    return totalBoundaryStatistics(dart, "_meanGradient").quantile(0.5)
 
 def minEdgeGradCost(dart):
     result = dart.edge()._passValue
     for d in otherCommonDarts(dart):
         result = min(result, d.edge()._passValue)
     return result
+
+def edgeQuantileCost(attrName, quantile):
+    def boundaryStatisticsQuantile(dart, attrName = attrName, quantile = quantile):
+        return totalBoundaryStatistics(dart, attrName).quantile(quantile)
+    return boundaryStatisticsQuantile
 
 # --------------------------------------------------------------------
 
