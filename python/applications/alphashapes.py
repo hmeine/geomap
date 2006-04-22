@@ -1,3 +1,6 @@
+_cvsVersion = "$Id$" \
+              .split(" ")[2:-2]
+
 import fig, delaunay
 from math import *
 

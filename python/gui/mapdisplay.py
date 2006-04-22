@@ -1,3 +1,6 @@
+_cvsVersion = "$Id$" \
+              .split(" ")[2:-2]
+
 def findZoomFactor(srcSize, destSize):
     result = 1.0
     potentialDiff = 0
