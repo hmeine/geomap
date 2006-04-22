@@ -643,3 +643,43 @@ class DartNavigator(DartNavigatorBase):
         self.setCaption("DartNavigator(%d)" % (self.dart.label(), ))
         self.emit(qt.PYSIGNAL('updateDart'),(self.dart,))
 
+# --------------------------------------------------------------------
+
+class ROISelector(qt.QObject):
+    def __init__(self, parent = None, name = None):
+        qt.QObject.__init__(self, parent, name)
+        self.painting = False
+
+        viewer = parent.viewer
+        self.connect(viewer, qt.PYSIGNAL("mousePressed"),
+                     self.mousePressed)
+        self.connect(viewer, qt.PYSIGNAL("mousePosition"),
+                     self.mouseMoved)
+        self.connect(viewer, qt.PYSIGNAL("mouseReleased"),
+                     self.mouseReleased)
+
+    def mousePressed(self, x, y, button):
+        if button != qt.Qt.LeftButton:
+            return
+        self.startPos = Point2D(x, y)
+        self.painting = True
+        self.mouseMoved(x, y)
+        # TODO: add overlay
+
+    def mouseMoved(self, x, y):
+        if not self.painting: return
+        # TODO: update overlay
+
+    def mouseReleased(self, x, y):
+        self.painting = False
+        # TODO: remove overlay
+        self.roi = Rect2D(self.startPos, Point2D(x, y))
+
+    def disconnectViewer(self):
+        viewer = self.parent().viewer
+        self.disconnect(viewer, qt.PYSIGNAL("mousePressed"),
+                        self.mousePressed)
+        self.disconnect(viewer, qt.PYSIGNAL("mousePosition"),
+                        self.mouseMoved)
+        self.disconnect(viewer, qt.PYSIGNAL("mouseReleased"),
+                        self.mouseReleased)
