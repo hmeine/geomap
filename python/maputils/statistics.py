@@ -1,7 +1,7 @@
 _cvsVersion = "$Id$" \
               .split(" ")[2:-2]
 
-import math, string
+import math, string, dartpath
 
 # --------------------------------------------------------------------
 #              Region-based Statistics & Cost Measures
@@ -333,12 +333,14 @@ class WatershedStatistics(DynamicEdgeStatistics):
         survivor._passValue = self.mergedPV
         survivor._saddles = self.mergedSaddles
 
-class BoundaryIndicatorStatistics(DynamicEdgeStatistics):
+def _makeAttrName(someStr):
     attrTrans = string.maketrans(".+-", "__n")
+    return someStr.translate(attrTrans)
 
+class BoundaryIndicatorStatistics(DynamicEdgeStatistics):
     def __init__(self, map, attrName):
         DynamicEdgeStatistics.__init__(self, map)
-        self.attrName = attrName.translate(self.attrTrans)
+        self.attrName = _makeAttrName(attrName)
 
     def preMergeEdges(self, dart):
         self.mergedStats = copy.copy(getattr(dart.edge(), self.attrName))
@@ -425,8 +427,7 @@ class EdgeGradAngDispStatistics(BoundaryIndicatorStatistics):
 class EdgeMinimumDistance(DynamicEdgeStatistics):
     def __init__(self, map, bi):
         DynamicEdgeStatistics.__init__(self, map)
-        self.attrName="minDist_"+bi.name
-        self.attrName=self.attrName.translate(string.maketrans(".+-", "__n"))
+        self.attrName = _makeAttrName("minDist_"+bi.name)
         minimaMap = PositionedMap()
         minima=localMinmax(bi.gm,True,False,False)
         for y in range(minima.height()):
@@ -534,8 +535,7 @@ class EdgePhase(DynamicEdgeStatistics):
         self.scaleList=scaleList
         self.attrNames=[]
         for s in scaleList:
-          attrName="phase_%s" % (s)
-          attrName=attrName.translate(string.maketrans(".+-", "__n"))
+          attrName = _makeAttrName("phase_%s" % (s))
           self.attrNames.append(attrName)
         phaseImages=[calcBTPhaseImage(image,scaleList[i]) for i in range(len(scaleList))]
         phaseDiffImages=[transformImage(phaseImages[i],phaseImages[i+1],"\l x1,x2: 3.1416-abs(abs(x1-x2)-3.1416)") for i in range(len(scaleList)-1)]
@@ -593,8 +593,7 @@ class EdgeContAngle(object):
     def __init__(self, map, length):
         self.map = ref(map) # for detachHooks()
         self.length=length
-        self.attrName="contAngle_%s" % (self.length)
-        self.attrName=self.attrName.translate(string.maketrans(".+-", "__n"))
+        self.attrName = _makeAttrName("contAngle_%s" % (self.length))
         for edge in map.edgeIter():
             self.calcContAngle(edge)
         map.postMergeEdgesHooks.append(self.postMergeEdges)
@@ -628,60 +627,38 @@ class EdgeContAngle(object):
     def postMergeEdges(self, survivor):
         self.calcContAngle(survivor)
 
+from hourglass import fitLine
+
 class EdgeCurvChange(object):
-    def __init__(self, map, dx, skip):
-        self.dx=dx
-        self.skip=skip
-        self.attrName="curvChange_%s_%s" % (self.dx,self.skip)
-        self.attrName=self.attrName.translate(string.maketrans(".+-", "__n"))
+    def __init__(self, map):
         for edge in map.edgeIter():
             self.calcCurvChange(edge)
         map.postMergeEdgesHooks.append(self.postMergeEdges)
         self.map = ref(map) # for detachHooks()
 
-    def calcCurvChange(self,edge):
-        stats = EdgeStatistics()
-        try:
-            l=curvatureList(edge,self.dx,self.skip)
-        except:
-            l=[]
-        if len(l)>1:
-            for i in range(len(l)-1):
-                segment = l[i+1][0] - l[i][0]
-                stats(-math.log((abs(l[i+1][1]-l[i][1])/segment)+1),segment)
-        else:
-            stats(0,1)
-        setattr(edge, self.attrName, stats)
+    def calcCurvChange(self, edge):
+        # use residuum of line fit on tangents as curvature change definition:
+        # (FIXME: well-defined residuum? cf. Svens comments... ;*) )
+        edge.curvChange = fitLine(edge.tangents)[2]
 
     def postMergeEdges(self, survivor):
         self.calcCurvChange(survivor)
 
+from hourglass import ParabolaFit
+
 class EdgeCurvChangeLin(object):
-    def __init__(self, map, dx, skip):
-        self.dx=dx
-        self.skip=skip
-        self.attrName="curvChangeLin_%s_%s" % (self.dx,self.skip)
-        self.attrName=self.attrName.translate(string.maketrans(".+-", "__n"))
+    def __init__(self, map):
         for edge in map.edgeIter():
             self.calcCurvChangeLin(edge)
         map.postMergeEdgesHooks.append(self.postMergeEdges)
         self.map = ref(map) # for detachHooks()
 
-    def calcCurvChangeLin(self,edge):
-        stats = EdgeStatistics()
-        try:
-            l=curvatureList(edge,self.dx,self.skip)
-        except:
-            l=[]
-        l2=[]
-        for i in range(len(l)-1):
-            l2.append((l[i+1][0]-l[i][0],l[i+1][1]-l[i][1]))
-        if len(l2)>1:
-            for i in range(len(l2)-1):
-                stats(-math.log(abs(l2[i+1][1]/l2[i+1][0]-l2[i][1]/l2[i][0])+1),l2[i][0]+l2[i+1][0])
-        else:
-            stats(0,1)
-        setattr(edge, self.attrName, stats)
+    def calcCurvChangeLin(self, edge):
+        # use residuum of parabola fit on tangents:
+        # (FIXME: well-defined residuum? cf. Svens comments... ;*) )
+        fit = ParabolaFit()
+        fit.addTangentList(edge.tangents)
+        edge.curvChangeLin = fit.sumOfSquaredErrors() / len(edge.tangents)
 
     def postMergeEdges(self, survivor):
         self.calcCurvChangeLin(survivor)
@@ -689,8 +666,7 @@ class EdgeCurvChangeLin(object):
 class EdgeRegularity(object):
     def __init__(self, map, seglength):
         self.seglength=seglength
-        self.attrName="regularity_%s" % (self.seglength)
-        self.attrName=self.attrName.translate(string.maketrans(".+-", "__n"))
+        self.attrName = _makeAttrName("regularity_%s" % (self.seglength))
         for edge in map.edgeIter():
             self.calcRegularity(edge)
 
@@ -816,3 +792,19 @@ def dartTangents(dart):
         return (e.tangents,  e.length())
     else:
         return (e.tangents, -e.length())
+
+class EdgeTangents(DynamicEdgeStatistics):
+    def __init__(self, map, *args):
+        DynamicEdgeStatistics.__init__(self, map)
+        if args:
+            calculateTangentLists(map, *args)
+
+    def preMergeEdges(self, dart):
+        path = dartpath.Path(
+            [dart.clone().nextAlpha(), dart.clone().nextSigma()])
+        if path[0].label() < 0:
+            path.reverse()
+        self.newTangents = path.tangents()
+
+    def postMergeEdges(self, survivor):
+        survivor.tangents = self.newTangents
