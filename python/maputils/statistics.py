@@ -1,3 +1,6 @@
+_cvsVersion = "$Id$" \
+              .split(" ")[2:-2]
+
 # --------------------------------------------------------------------
 #              Region-based Statistics & Cost Measures
 # --------------------------------------------------------------------
@@ -731,3 +734,63 @@ def minEdgeGradCost(dart):
     for d in otherCommonDarts(dart):
         result = min(result, d.edge()._passValue)
     return result
+
+# --------------------------------------------------------------------
+
+def calculateTangentLists(map, dx = 5, skipPoints = 1):
+    """calculateTangentLists(map, dx = 5, skipPoints = 1)
+    Add 'tangents' property to all edges, containing the result of
+    running tangentList() on it with the given parameters.  Special
+    care is taken to ensure that the list will never be empty (by
+    reducing the dx or finally set skipPoints to zero to get at least
+    one tangent)."""
+    
+    assert not skipPoints > 1, "why that??"
+    result = 0
+    for edge in map.edgeIter():
+        size = len(edge)
+        if size >= 2*dx + 2*skipPoints + 1:
+            edge.tangents = tangentList(edge, dx, skipPoints)
+        else:
+            #print "too short:", edge
+            result += 1
+            if size < 3:
+                edx, edy = edge[1] - edge[0]
+                edge.tangents = [(edge.length()/2, math.atan2(edy, edx))]
+            elif size < 3 + 2*skipPoints:
+                # we cannot afford skipping points
+                edge.tangents = tangentList(edge, 1, 0)
+            else:
+                # we can skip the end points (if desired), but we have
+                # to reduce dx:
+                maxDx = (size-2*skipPoints-1)/2
+                edge.tangents = tangentList(edge, maxDx, skipPoints)
+        assert len(edge.tangents), "all edges should have tangents now"
+    print "calculateTangentLists: %d/%d edges were done with " \
+          "different parameters (too short)" % (result, map.edgeCount)
+    return result
+
+def calculateTangentListsGaussianReflective(map, sigma, diff=0.0):
+    """calculateTangentListsGaussianReflective(map, sigma, diff=0.0)
+    Add 'tangents' property to all edges, containing the result of
+    running tangentListGaussianReflective on it with the given
+    parameters.  Note that all edges which are too small will have an
+    empty 'tangents' list."""
+    
+    for edge in map.edgeIter():
+        try:
+            edge.tangents = tangentListGaussianReflective(edge, sigma, diff)
+        except RuntimeError:
+            edge.tangents = []
+            print "too short:", edge
+
+def dartTangents(dart):
+    """dartTangents(dart)
+    Returns (tangents, dirLength) pair, where dirLength is
+    negative if dart.label > 0 (the darts are supposed to be
+    reversed for composeTangentLists)"""
+    e = dart.edge()
+    if dart.label() > 0:
+        return (e.tangents,  e.length())
+    else:
+        return (e.tangents, -e.length())
