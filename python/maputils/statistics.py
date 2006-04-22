@@ -794,7 +794,13 @@ def dartTangents(dart):
         return (e.tangents, -e.length())
 
 class EdgeTangents(DynamicEdgeStatistics):
+    """Calls calculateTangentLists with the constructor parameters (if
+    given) and merges tangent lists when merging edges."""
+    
     def __init__(self, map, *args):
+        """Either make sure to call calculateTangentLists() or one of
+        its friends on the map by hand, or pass parameters like this:
+        et = EdgeTangents(someMap, 4)"""
         DynamicEdgeStatistics.__init__(self, map)
         if args:
             calculateTangentLists(map, *args)
