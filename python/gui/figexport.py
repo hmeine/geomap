@@ -336,6 +336,7 @@ class FigExporter:
                 result.extend(parts)
         return result
 
+    # FIXME: unfinished!:
     def addMapFaces(self, map, **attr):
         """fe.addMapEdges(map, ...)
 
