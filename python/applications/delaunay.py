@@ -458,4 +458,13 @@ def calculateTriangleCircumcircles(delaunayMap):
                             [p2sm, x2, y2],
                             [p3sm, x3, y3]]))
         triangle.circleCenter = Vector2(-d/(2*a), -e/(2*a))
-        triangle.radius = math.sqrt((math.sq(d)+math.sq(e))/(4*math.sq(a))-f/a)
+        try: # FIXME: HACK (DAGM deadline approaching)!!!
+            triangle.radius = math.sqrt((math.sq(d)+math.sq(e))/(4*math.sq(a))-f/a)
+        except ValueError:
+            sys.stderr.write("WARNING: Could not calculate triangle circumcircle!\n")
+            lengths = [dart.edge().length()
+                       for dart in contours[0].phiOrbit()]
+            lengths.sort()
+            triangle.radius = (lengths[1] + lengths[2]) / 4.0
+            sys.stderr.write("  Side lengths are %s -> improvised radius = %s\n"
+                             % (lengths, triangle.radius))
