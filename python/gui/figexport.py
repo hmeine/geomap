@@ -1,7 +1,4 @@
-from vigra import addPathFromHere
-
-addPathFromHere('.')
-import qt, fig, sys
+import qt, fig
 
 from vigra import Vector2, readImage
 from hourglass import BoundingBox, Polygon, simplifyPolygon, intPos
