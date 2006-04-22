@@ -51,8 +51,14 @@ def pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0),
     nodes, edges = pixelMapData(geomap, scale, offset, skipEverySecond)
     if labelImageSize == None:
         labelImageSize = geomap.cellImage.size() * scale
-    return Map(nodes, edges, labelImageSize,
-               performBorderClosing = False, performEdgeSplits = False)
+    result = Map(nodes, edges, labelImageSize,
+                 performBorderClosing = False, performEdgeSplits = False)
+    # the border closing was done in C++, so we have to mark the
+    # border edges manually:
+    for edge in result.edgeIter():
+        if not edge.leftFaceLabel() or not edge.rightFaceLabel():
+            edge.protection |= BORDER_PROTECTION
+    return result
 
 def crackEdges2MidCracks(subpixelMap):
     """crackEdges2MidCracks(subpixelMap)
