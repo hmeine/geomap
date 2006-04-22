@@ -1,6 +1,10 @@
 _cvsVersion = "$Id$" \
               .split(" ")[2:-2]
 
+# import ui-generated base classes:
+from displaysettings import DisplaySettings
+from dartnavigator import DartNavigatorBase
+
 def findZoomFactor(srcSize, destSize):
     result = 1.0
     potentialDiff = 0
@@ -155,11 +159,11 @@ class MapNodes(object):
             self.radius = int(self._zoom * self.origRadius + 0.5)
         d0 = Vector2(0.5 * self._zoom - self.radius, 0.5 * self._zoom - self.radius)
         w = 2 * self.radius + 1
-        self.s = QSize(w, w)
+        self.s = qt.QSize(w, w)
         self._qpointlist = [None] * len(self._map().nodes)
         for node in self._map().nodeIter():
             ip = intPos(node.position() * self._zoom + d0)
-            self._qpointlist[node._label] = QPoint(ip[0], ip[1])
+            self._qpointlist[node._label] = qt.QPoint(ip[0], ip[1])
         sys.stdout.write("MapNodes._calculatePoints(zoom = %s) took %ss.\n" % (
             self._zoom, time.clock() - c))
 
@@ -169,7 +173,7 @@ class MapNodes(object):
                 sys.stderr.write("WARNING: MapNodes.removeNode(): Node already None!\n")
                 return
             if self.visible:
-                ur = QRect(self._qpointlist[node._label], self.s)
+                ur = qt.QRect(self._qpointlist[node._label], self.s)
                 ur.moveBy(self.viewer.x, self.viewer.y)
                 self.viewer.update(ur)
             self._qpointlist[node._label] = None
@@ -202,7 +206,7 @@ class MapNodes(object):
             p.setBrush(qt.QBrush(self.color))
             for point in self._qpointlist:
                 if point: # TODO: boundingRect
-                    p.drawEllipse(QRect(point, self.s))
+                    p.drawEllipse(qt.QRect(point, self.s))
 
 # --------------------------------------------------------------------
 # 						   DartHighlighter
@@ -430,7 +434,7 @@ class MapDisplay(DisplaySettings):
             self.tool = IntelligentScissors(self.map, self)
             for edge in self.map.edgeIter():
                 if not hasattr(edge, "color"):
-                    edge.color = Qt.black
+                    edge.color = qt.Qt.black
             self.edgeOverlay.useIndividualColors = True
             self.nodeOverlay.visible = False
         elif type(tool) != int:
