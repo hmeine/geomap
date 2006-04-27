@@ -3,6 +3,7 @@
 
 #include <vigra/diff2d.hxx>
 #include <vector>
+#include <cmath>
 #include <algorithm>
 #include "box.hxx"
 
@@ -650,25 +651,30 @@ template<bool useMaxStep, class PointIterator, class TargetArray>
 void simplifyPolygonHelper(
     const PointIterator &polyBegin, const PointIterator &polyEnd,
     TargetArray &simple, double epsilon,
-    double maxStep = vigra::NumericTraits<double>::max())
+    double maxStep2 = vigra::NumericTraits<double>::max())
 {
     if(polyEnd - polyBegin <= 2)
         return; // no splitpoint necessary / possible
 
     PointIterator splitPos(polyEnd), lastPoint(polyEnd);
     --lastPoint;
-    double maxDist = useMaxStep ? 0.0 : epsilon;
+
+    double maxDist = epsilon;
 
     // calculate normal of straight end point connection
     typename TargetArray::value_type
-        straight(*lastPoint - *polyBegin),
-        normal(straight[1], -straight[0]);
+        straight(*lastPoint - *polyBegin);
+    double straightLength2 = straight.squaredMagnitude();
 
     // search splitpoint
-    if(normal.magnitude() > 1e-6)
+    if(straightLength2 > 1e-16)
     {
-        normal /= normal.magnitude();
+        typename TargetArray::value_type
+            normal(straight[1], -straight[0]);
 
+        normal /= std::sqrt(straightLength2);
+
+        // iterate over points *between* first and last point:
         PointIterator it(polyBegin);
         for(++it; it != lastPoint; ++it)
         {
@@ -695,19 +701,32 @@ void simplifyPolygonHelper(
         }
     }
 
-    if(useMaxStep)
+    if(useMaxStep && (straightLength2 > maxStep2) && (splitPos == polyEnd))
     {
-        if((maxDist <= epsilon) && (straight.magnitude() <= maxStep))
-            return;
+        PointIterator it(polyBegin);
+        ++it;
+        double bestD2D = std::fabs((*it - *polyBegin).squaredMagnitude()
+                                   - (*it - *lastPoint).squaredMagnitude());
+        splitPos = it;
+        for(++it; it != lastPoint; ++it)
+        {
+            double dist2Diff = std::fabs((*it - *polyBegin).squaredMagnitude()
+                                         - (*it - *lastPoint).squaredMagnitude());
+            if(dist2Diff < bestD2D)
+            {
+                bestD2D = dist2Diff;
+                splitPos = it;
+            }
+        }
     }
 
     if(splitPos != polyEnd)
     {
         simplifyPolygonHelper<useMaxStep>(
-            polyBegin, splitPos + 1, simple, epsilon, maxStep);
+            polyBegin, splitPos + 1, simple, epsilon, maxStep2);
         simple.push_back(*splitPos);
         simplifyPolygonHelper<useMaxStep>(
-            splitPos, polyEnd, simple, epsilon, maxStep);
+            splitPos, polyEnd, simple, epsilon, maxStep2);
     }
 }
 
@@ -725,7 +744,8 @@ void simplifyPolygon(
     const PointArray &poly, PointArray &simple, double epsilon, double maxStep)
 {
     simple.push_back(poly[0]);
-    simplifyPolygonHelper<true>(poly.begin(), poly.end(), simple, epsilon, maxStep);
+    simplifyPolygonHelper<true>(poly.begin(), poly.end(),
+                                simple, epsilon, maxStep*maxStep);
     simple.push_back(poly[poly.size()-1]);
 }
 
