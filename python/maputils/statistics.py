@@ -3,6 +3,10 @@ _cvsVersion = "$Id$" \
 
 import math, string, dartpath, copy
 from weakref import ref
+from vigra import *
+from hourglass import PositionedMap, EdgeStatistics, \
+     spatialStabilityImage, tangentList
+from map import arcLengthIter
 
 # --------------------------------------------------------------------
 #              Region-based Statistics & Cost Measures
@@ -402,18 +406,18 @@ class EdgeGradDirDotStatistics(BoundaryIndicatorStatistics):
             setattr(edge, self.attrName, stats)
 
 def calcGradAngDisp(grad,n):
-    ki=GrayImage(2*n+1,2*n+1)
+    ki = GrayImage(2*n+1,2*n+1)
     for x in range(0,ki.width()):
         for y in range(0,ki.height()):
-            ki[x,y]=1.0
-    kernel=customKernel(ki,(n,n))
-    mi=convolveImage(transformImage(grad, '\l x: sqrt(sq(x[0])+sq(x[1]))'),kernel)
-    gi=convolveImage(grad,kernel)
-    gad=GrayImage(grad.size())
+            ki[x,y] = 1.0
+    kernel = customKernel(ki,(n,n))
+    mi = convolveImage(transformImage(grad, '\l x: sqrt(sq(x[0])+sq(x[1]))'),kernel)
+    gi = convolveImage(grad,kernel)
+    gad = GrayImage(grad.size())
     for x in range(0,gad.width()):
         for y in range(0,gad.height()):
             if (mi[x,y]>0):
-                gad[x,y]=math.hypot(gi[x,y][0],gi[x,y][1])/mi[x,y]
+                gad[x,y] = math.hypot(gi[x,y][0],gi[x,y][1])/mi[x,y]
 
     return gad
 
@@ -426,22 +430,19 @@ class EdgeGradAngDispStatistics(BoundaryIndicatorStatistics):
             setattr(edge, self.attrName, EdgeStatistics(edge, gad.siv))
 
 class EdgeMinimumDistance(DynamicEdgeStatistics):
-    def __init__(self, map, bi):
+    def __init__(self, map, minima):
         DynamicEdgeStatistics.__init__(self, map)
-        self.attrName = _makeAttrName("minDist_"+bi.name)
+        self.attrName = "minDist"
         minimaMap = PositionedMap()
-        minima=localMinmax(bi.gm,True,False,False)
-        for y in range(minima.height()):
-            for x in range(minima.width()):
-                if minima[x,y]<0:
-                    minimaMap.insert(Vector2(x,y), Vector2(x,y))
+        for min in minima:
+            minimaMap.insert(min, min)
         for edge in map.edgeIter():
-            mindist = 1e8
+            mindist2 = 1e16
             for p in edge:
-                d = (minimaMap(p)-p).magnitude()
-                if (d < mindist):
-                    mindist = d
-            setattr(edge, self.attrName, mindist)
+                near = minimaMap(p, mindist2)
+                if near:
+                    mindist2 = (near-p).squaredMagnitude()
+            setattr(edge, self.attrName, math.sqrt(mindist2))
 
     def preMergeEdges(self, dart):
         self.mergedStats = min(getattr(dart.edge(), self.attrName),
@@ -461,7 +462,7 @@ def calcGradScaleSum(image, steps):
         gm = transformImage(tensorTrace(ti),'\l x:sqrt(x)')
         mm = MinMax()
         inspectImage(gm,mm)
-        gm=linearRangeMapping(gm,oldRange=(0,mm.max()),newRange=(0,1.0))
+        gm = linearRangeMapping(gm,oldRange=(0,mm.max()),newRange=(0,1.0))
         gss += gm
         scale *= 1.41421
     return gss
