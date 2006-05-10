@@ -2,6 +2,7 @@ _cvsVersion = "$Id$" \
               .split(" ")[2:-2]
 
 import math, string, dartpath, copy
+from weakref import ref
 
 # --------------------------------------------------------------------
 #              Region-based Statistics & Cost Measures

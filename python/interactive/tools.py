@@ -2,6 +2,7 @@ _cvsVersion = "$Id$" \
               .split(" ")[2:-2]
 
 import sys, qt, math
+from map import mergeFacesByLabel, CancelOperation
 
 # --------------------------------------------------------------------
 #                     interaction with image viewer

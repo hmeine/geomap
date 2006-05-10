@@ -1,10 +1,16 @@
 _cvsVersion = "$Id$" \
               .split(" ")[2:-2]
 
-# import ui-generated base classes:
+import figexport, qt, sys, os, time, tools
+from vigra import BYTE, NBYTE, Point2D, Rect2D, Vector2
+from vigrapyqt import ImageWindow, EdgeOverlay, PointOverlay
+from hourglass import simplifyPolygon, intPos
+from map import removeCruft, mergeZeroPixelFaces
+from weakref import ref
+
+# ui-generated base classes:
 from displaysettings import DisplaySettings
 from dartnavigator import DartNavigatorBase
-import figexport, qt, sys, os, time
 
 def findZoomFactor(srcSize, destSize):
     result = 1.0
@@ -428,11 +434,11 @@ class MapDisplay(DisplaySettings):
             self.tool = None
 
         if tool == 1:
-            self.tool = MapSearcher(self.map, self)
+            self.tool = tools.MapSearcher(self.map, self)
         elif tool == 2:
-            self.tool = ActivePaintbrush(self.map, self)
+            self.tool = tools.ActivePaintbrush(self.map, self)
         elif tool == 3:
-            self.tool = IntelligentScissors(self.map, self)
+            self.tool = tools.IntelligentScissors(self.map, self)
             for edge in self.map.edgeIter():
                 if not hasattr(edge, "color"):
                     edge.color = qt.Qt.black
