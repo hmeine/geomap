@@ -60,7 +60,7 @@ def checkPolygons(map):
 
 # --------------------------------------------------------------------
 
-import random, time
+import random, time, sys
 if len(sys.argv) > 1:
     seed = long(sys.argv[1])
 else:

@@ -4,6 +4,7 @@ _cvsVersion = "$Id$" \
 # import ui-generated base classes:
 from displaysettings import DisplaySettings
 from dartnavigator import DartNavigatorBase
+import figexport, qt, sys, os, time
 
 def findZoomFactor(srcSize, destSize):
     result = 1.0
@@ -209,7 +210,7 @@ class MapNodes(object):
                     p.drawEllipse(qt.QRect(point, self.s))
 
 # --------------------------------------------------------------------
-# 						   DartHighlighter
+#                          DartHighlighter
 # --------------------------------------------------------------------
 
 class DartHighlighter(object):
@@ -257,7 +258,7 @@ class DartHighlighter(object):
         self._viewer.addOverlay(self.no)
 
 # --------------------------------------------------------------------
-# 							  MapDisplay
+#                             MapDisplay
 # --------------------------------------------------------------------
 
 class MapDisplay(DisplaySettings):
@@ -478,6 +479,7 @@ class MapDisplay(DisplaySettings):
     def plotROI(self, roi,
                 lineType = 1, pointType = 0,
                 g = None):
+        import Gnuplot
         if g == None:
             g = Gnuplot.Gnuplot()
 
@@ -543,11 +545,11 @@ class MapDisplay(DisplaySettings):
                 radius = overlay.origRadius
                 if not overlay.relativeRadius:
                     radius /= float(overlay._zoom)
-                color = qtColor2figColor(overlay.color)
+                color = qtColor2figColor(overlay.color, fe.f)
                 fe.addMapNodes(self.map, radius,
                                fillColor = color, lineWidth = 0, depth = depth)
             elif type(overlay) == MapEdges:
-                fe.addMapEdges(self.map, penColor = qtColor2figColor(overlay.color),
+                fe.addMapEdges(self.map, penColor = qtColor2figColor(overlay.color, fe.f),
                                depth = depth)
             elif type(overlay) == PointOverlay:
                 fe.addPointOverlay(overlay, depth = depth)

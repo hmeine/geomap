@@ -1,7 +1,7 @@
 _cvsVersion = "$Id$" \
               .split(" ")[2:-2]
 
-import fig, delaunay
+import fig, delaunay, sys, math
 from math import *
 
 def delaunayMap(points, imageSize):
@@ -428,6 +428,8 @@ def alphaShapeThinning(dm):
     return changed
 
 # --------------------------------------------------------------------
+
+import os
 
 def view(epsFilename):
     if not os.path.exists(epsFilename) and os.path.exists(epsFilename+".eps"):

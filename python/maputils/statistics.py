@@ -1,7 +1,7 @@
 _cvsVersion = "$Id$" \
               .split(" ")[2:-2]
 
-import math, string, dartpath
+import math, string, dartpath, copy
 
 # --------------------------------------------------------------------
 #              Region-based Statistics & Cost Measures

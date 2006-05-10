@@ -75,8 +75,11 @@ _qtColor2figColorMapping = {
     qt.Qt.white : fig.colorWhite,
     }
 
-def qtColor2figColor(color):
-    return _qtColor2figColorMapping[color]
+def qtColor2figColor(color, figFile):
+    try:
+        return _qtColor2figColorMapping[color]
+    except KeyError:
+        return figFile.getColor((color.red(), color.green(), color.blue()))
 
 class FigExporter:
     """FigExporter objects represent an image range at a given scale,
@@ -265,7 +268,7 @@ class FigExporter:
         if not attr.has_key("fillColor"):
             fillColor = pointOverlay.color
             if type(fillColor) == qt.QColor:
-                fillColor = qtColor2figColor(fillColor)
+                fillColor = qtColor2figColor(fillColor, self.f)
             attr["fillColor"] = fillColor
         attr["lineWidth"] = attr.get("lineWidth", 0)
         
@@ -280,7 +283,7 @@ class FigExporter:
         if not attr.has_key("penColor"):
             penColor = edgeOverlay.color
             if type(penColor) == qt.QColor:
-                penColor = qtColor2figColor(penColor)
+                penColor = qtColor2figColor(penColor, self.f)
             attr["penColor"] = penColor
             
         result = []
@@ -321,7 +324,7 @@ class FigExporter:
             if hasattr(edge, "color"):
                 penColor = edge.color
                 if type(penColor) == qt.QColor:
-                    penColor = qtColor2figColor(penColor)
+                    penColor = qtColor2figColor(penColor, self.f)
                 thisattr = dict(attr)
                 thisattr["penColor"] = penColor
                 parts = self.addClippedPoly(edge, **thisattr)
@@ -375,3 +378,18 @@ class FigExporter:
 
         return self.f.saveEPS(basename)
 
+# --------------------------------------------------------------------
+#                               USAGE
+# --------------------------------------------------------------------
+
+if False:
+    # default scale, no ROI:
+    fe = figexport.FigExporter()
+    # use given scale and ROI:
+    fe = figexport.FigExporter(scale = 15, roi = BoundingBox(Rect2D(dm.imageSize())))
+    # add background image:
+    fe.addBackgroundWithFrame("background.png")
+    fe.addMapEdges(someMap) # give optional properties like lineWidth = 4
+    someRadius = 0.1 # pixels
+    fe.addMapNodes(someMap, someRadius)
+    fe.saveEPS("example_basename")
