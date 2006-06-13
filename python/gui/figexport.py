@@ -1,6 +1,6 @@
 import qt, fig
 
-from vigra import Vector2, readImage
+from vigra import Vector2, readImage, Rect2D
 from hourglass import BoundingBox, Polygon, simplifyPolygon, intPos
 from dartpath import Path
 
@@ -119,6 +119,9 @@ class FigExporter:
         self.f = fig.File()
         self.scale = scale
         self.roi = roi
+        if type(roi) == Rect2D:
+            self.roi = BoundingBox(Vector2(*roi.upperLeft()),
+                                   Vector2(*roi.lowerRight()))
         self.offset = offset
 
     def addROIRect(self, roi = None, **attr):
