@@ -3,6 +3,11 @@ _cvsVersion = "$Id$" \
 
 import sys, qt, math
 from map import mergeFacesByLabel, CancelOperation
+from vigrapyqt import EdgeOverlay, PointOverlay
+from vigra import *
+
+__all__ = ["MapSearcher", "ActivePaintbrush", "IntelligentScissors",
+           "LiveWire", "SimplePathCostMeasure", "ESPathCostMeasure"]
 
 # --------------------------------------------------------------------
 #                     interaction with image viewer
@@ -194,46 +199,6 @@ class LiveWire(object):
             endNodeLabel = self.endNodeLabel
         return self.nodePaths[endNodeLabel][0]
 
-class SimplePathCostMeasure(object):
-    """SimplePathCostMeasure: Cost measure for a (e.g. livewire) path;
-    this one does not actually evaluate any path continuity
-    properties, but adds up the inverse of all darts' removal costs
-    given a single dart cost measure.
-
-    E.g. initialize with: SimplePathCostMeasure(minEdgeGradCost)"""
-
-    def __init__(self, singleDartMeasure):
-        """initialize with the given edge cost measure"""
-        self.measure = singleDartMeasure
-
-    def __call__(self, liveWire, newDart):
-        return liveWire.totalCost(newDart.startNodeLabel()) \
-               + 1.0 / (1e-4 + self.measure(newDart))
-
-class ESPathCostMeasure(object):
-    def __call__(self, liveWire, newDart):
-        previousEndNodeLabel = newDart.startNodeLabel()
-        
-        allTangents = [dartTangents(newDart.clone().nextAlpha())]
-        for dart in liveWire.pathDarts(previousEndNodeLabel):
-            allTangents.append(dartTangents(dart))
-        allTangents = composeTangentLists(allTangents)
-
-        # this is really slow (at least with many support points).. :-(
-        #allTangents = gaussianConvolveByArcLength(allTangents, 0.25)
-        
-        error = fitParabola(allTangents)
-
-        # Don't know what exact formula to use here (tried some
-        # without luck); the value should increase with every dart
-        # added to the path (the accumulated previous costs are
-        # available as liveWire.totalCost()), the livewire takes the
-        # path with the *lowest* total cost.
-
-        return max(liveWire.totalCost(previousEndNodeLabel), error)
-        #return liveWire.totalCost(previousEndNodeLabel) + error
-        # ... + math.exp(-error)
-
 class IntelligentScissors(qt.QObject):
     def __init__(self, map, parent = None, name = None):
         qt.QObject.__init__(self, parent, name)
@@ -354,3 +319,71 @@ class IntelligentScissors(qt.QObject):
             self.startNodeLabel = self.liveWire.endNodeLabel
             self.liveWire = None
 
+# --------------------------------------------------------------------
+
+from hourglass import composeTangentLists
+from statistics import dartTangents, minEdgeGradCost
+from saliency import fitParabola
+
+class SimplePathCostMeasure(object):
+    """SimplePathCostMeasure: Cost measure for a (e.g. livewire) path;
+    this one does not actually evaluate any path continuity
+    properties, but adds up the inverse of all darts' removal costs
+    given a single dart cost measure.
+
+    E.g. initialize with: SimplePathCostMeasure(minEdgeGradCost)"""
+
+    def __init__(self, singleDartMeasure):
+        """initialize with the given edge cost measure"""
+        self.measure = singleDartMeasure
+
+    def __call__(self, liveWire, newDart):
+        return liveWire.totalCost(newDart.startNodeLabel()) \
+               + 1.0 / (1e-4 + self.measure(newDart))
+
+class ESPathCostMeasure(object):
+    def __call__(self, liveWire, newDart):
+        previousEndNodeLabel = newDart.startNodeLabel()
+        
+        allTangents = [dartTangents(newDart.clone().nextAlpha())]
+        for dart in liveWire.pathDarts(previousEndNodeLabel):
+            allTangents.append(dartTangents(dart))
+        allTangents = composeTangentLists(allTangents)
+
+        # this is really slow (at least with many support points).. :-(
+        #allTangents = gaussianConvolveByArcLength(allTangents, 0.25)
+        
+        error = fitParabola(allTangents)
+
+        # Don't know what exact formula to use here (tried some
+        # without luck); the value should increase with every dart
+        # added to the path (the accumulated previous costs are
+        # available as liveWire.totalCost()), the livewire takes the
+        # path with the *lowest* total cost.
+
+        return max(liveWire.totalCost(previousEndNodeLabel), error)
+        #return liveWire.totalCost(previousEndNodeLabel) + error
+        # ... + math.exp(-error)
+
+activePathMeasure = SimplePathCostMeasure(minEdgeGradCost)
+activePathMeasure.__doc__ = \
+"""activePathMeasure is used to steer the IntelligentScissors tool.
+It can be assigned any object which returns a path cost when called
+with two arguments:
+
+* The first argument will be a LiveWire object
+  containing the beginning of a path, and
+
+* the second argument will be a Dart object (whose startNode is the
+  liveWire's end node) which could potentially be added to the path.
+
+``activePathMeasure(liveWire, newDart)`` should return the cost of
+combined path (old path plus ``newDart``), and this must be larger
+than the old cost ``liveWire.totalCost()``.
+
+Cf. the (documented) class SimplePathCostMeasure which looks at the
+path darts independently with a given measure, e.g. use::
+
+  activePathMeasure = SimplePathCostMeasure(faceMeanDiff)
+
+to (locally, dart-wise) depend on the faceMeanDiff measure."""
