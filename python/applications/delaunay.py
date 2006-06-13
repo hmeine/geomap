@@ -1,5 +1,5 @@
 import math, sys
-from hourglass import Polygon, delaunay, simplifyPolygon
+from hourglass import Polygon, simplifyPolygon, delaunay
 from map import Map, contourPoly, mergeFaces
 from vigra import Vector2
 
@@ -71,7 +71,7 @@ def delaunayMap(face, size, simplifyEpsilon = None,
             jumpPoints.append(len(points))
 
     print "- performing Delaunay Triangulation (%d points)..." % len(points)
-    nodePositions, edges, nodes = delaunay(points)
+    nodePositions, edges, sigma = delaunay(points)
     #nodePositions = [None] + [node for node in nodePositions if node]
 
     print "- storing result in a Map..."
@@ -82,7 +82,7 @@ def delaunayMap(face, size, simplifyEpsilon = None,
 
     result = Map(nodePositions, edges, size,
                  performBorderClosing= False,
-                 sigmaOrbits = nodes,
+                 sigmaOrbits = sigma,
                  skipLabelImage = True)
 
     if not markContour:
