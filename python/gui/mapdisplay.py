@@ -6,6 +6,7 @@ from vigra import BYTE, NBYTE, Point2D, Rect2D, Vector2
 from vigrapyqt import ImageWindow, EdgeOverlay, PointOverlay
 from hourglass import simplifyPolygon, intPos
 from map import removeCruft, mergeZeroPixelFaces
+from statistics import faceImage
 from weakref import ref
 
 # ui-generated base classes:
@@ -427,6 +428,14 @@ class MapDisplay(DisplaySettings):
         self.viewer.update()
 
     def setTool(self, tool):
+        """MapDisplay.setTool(tool)
+
+        Deactivates old tool, activates new one if tool != None.
+        `tool` can be either a tool object or
+        1 for the MapSearcher tool
+        2 for the ActivatePaintbrush
+        3 for the IntelligentScissors"""
+
         if self._togglingGUI:
             return # no recursion please
         if self.tool:
@@ -661,40 +670,83 @@ class DartNavigator(DartNavigatorBase):
 # --------------------------------------------------------------------
 
 class ROISelector(qt.QObject):
-    def __init__(self, parent = None, name = None):
+    def __init__(self, parent = None, name = None,
+                 roi = None, color = qt.Qt.yellow, width = 0):
         qt.QObject.__init__(self, parent, name)
-        self.painting = False
+        self._painting = False
+        self._alwaysVisible = False
+        self.roi = roi
 
-        viewer = parent.viewer
-        self.connect(viewer, qt.PYSIGNAL("mousePressed"),
+        self.color = color
+        self.width = width
+
+        self._viewer = parent.viewer
+        self.connect(self._viewer, qt.PYSIGNAL("mousePressed"),
                      self.mousePressed)
-        self.connect(viewer, qt.PYSIGNAL("mousePosition"),
+        self.connect(self._viewer, qt.PYSIGNAL("mousePosition"),
                      self.mouseMoved)
-        self.connect(viewer, qt.PYSIGNAL("mouseReleased"),
+        self.connect(self._viewer, qt.PYSIGNAL("mouseReleased"),
                      self.mouseReleased)
+
+        self.setVisible(roi != None)
+
+    def setVisible(self, onoff):
+        if self._alwaysVisible != onoff:
+            self._alwaysVisible = onoff
+            if onoff:
+                self._viewer.addOverlay(self)
+            else:
+                self._viewer.removeOverlay(self)
 
     def mousePressed(self, x, y, button):
         if button != qt.Qt.LeftButton:
             return
         self.startPos = Point2D(x, y)
-        self.painting = True
+        self._painting = True
         self.mouseMoved(x, y)
-        # TODO: add overlay
+        if not self._alwaysVisible:
+            self._viewer.addOverlay(self)
 
     def mouseMoved(self, x, y):
-        if not self.painting: return
+        if not self._painting: return
         # TODO: update overlay
+        x1, y1 = self.startPos
+        roi = Rect2D(min(x1, x), min(y1, y), max(x1, x)+1, max(y1, y)+1)
+        if roi != self.roi:
+            updateRect = self.windowRect()
+            self.roi = roi
+            updateRect |= self.windowRect()
+            self._viewer.update(updateRect)
+
+    def windowRect(self):
+        if not self.roi:
+            return qt.QRect()
+        wx1, wy1 = self._viewer.toWindowCoordinates(*self.roi.upperLeft())
+        wx2, wy2 = self._viewer.toWindowCoordinates(*self.roi.lowerRight())
+        return qt.QRect(qt.QPoint(wx1, wy1), qt.QPoint(wx2-1, wy2-1))
 
     def mouseReleased(self, x, y):
-        self.painting = False
-        # TODO: remove overlay
-        self.roi = Rect2D(self.startPos, Point2D(x, y))
+        self._painting = False
+        if not self._alwaysVisible:
+            self._viewer.removeOverlay(self)
 
     def disconnectViewer(self):
-        viewer = self.parent().viewer
-        self.disconnect(viewer, qt.PYSIGNAL("mousePressed"),
+        self.disconnect(self._viewer, qt.PYSIGNAL("mousePressed"),
                         self.mousePressed)
-        self.disconnect(viewer, qt.PYSIGNAL("mousePosition"),
+        self.disconnect(self._viewer, qt.PYSIGNAL("mousePosition"),
                         self.mouseMoved)
-        self.disconnect(viewer, qt.PYSIGNAL("mouseReleased"),
+        self.disconnect(self._viewer, qt.PYSIGNAL("mouseReleased"),
                         self.mouseReleased)
+        if self._alwaysVisible:
+            self._viewer.removeOverlay(self)
+
+    def setZoom(self, zoom):
+        self.zoom = zoom
+
+    def draw(self, p):
+        p.setPen(qt.QPen(self.color, self.width))
+        p.setBrush(qt.Qt.NoBrush)
+        drawRect = self.windowRect()
+        # painter is already set up with a shift:
+        drawRect.moveBy(-self._viewer.x, -self._viewer.y)
+        p.drawRect(drawRect)
