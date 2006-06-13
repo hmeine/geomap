@@ -2,6 +2,7 @@ _cvsVersion = "$Id$" \
               .split(" ")[2:-2]
 
 import fig, delaunay, sys, math
+import map as spmap
 from math import *
 
 def delaunayMap(points, imageSize):
@@ -19,7 +20,7 @@ def extractMapPoints(map, includeNodes = True):
     else:
         result = [node.position() for node in map.nodeIter()]
     for edge in map.edgeIter():
-        if not edge.protection & BORDER_PROTECTION:
+        if not edge.protection & spmap.BORDER_PROTECTION:
             result.extend(list(edge)[1:-1])
     return result
 
@@ -34,7 +35,7 @@ def samplingPoints(img, threshold = 128):
 def maxSegmentLength(map):
     result = 0.0
     for edge in map.edgeIter():
-        if not edge.protection & BORDER_PROTECTION:
+        if not edge.protection & spmap.BORDER_PROTECTION:
             result = max(result, max(
                 [(edge[i+1]-edge[i]).magnitude() for i in range(len(edge)-1)]))
     return result
