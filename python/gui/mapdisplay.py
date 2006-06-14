@@ -4,7 +4,7 @@ _cvsVersion = "$Id$" \
 import figexport, qt, sys, os, time, tools
 from vigra import BYTE, NBYTE, Point2D, Rect2D, Vector2
 from vigrapyqt import ImageWindow, EdgeOverlay, PointOverlay
-from hourglass import simplifyPolygon, intPos
+from hourglass import simplifyPolygon, intPos, BoundingBox
 from map import removeCruft, mergeZeroPixelFaces
 from statistics import faceImage
 from weakref import ref
@@ -526,6 +526,21 @@ class MapDisplay(DisplaySettings):
             filename, self.normalizeStates[self._backgroundMode] and NBYTE or BYTE)
 
     def saveFig(self, basepath, geometry = None, scale = None):
+        """display.saveFig(basepath, geometry=None, scale=None)
+
+        Saves an XFig file as <basepath>.fig, the pixel background as
+        <basepath>_bg.png and calls fig2dev to create an additional
+        <basepath>.eps.
+
+        If geometry is not None, it determines the ROI to be saved.
+        geometry can be a BoundingBox or Rect2D object, a string like
+        "10,10-40,30" (see fig.parseGeometry) or a tuple usable as
+        Rect2D constructor arguments.
+
+        scale is the size of a pixel in fig units (450 = 1cm) and
+        defaults to a size resulting in approx. 20cm width of the
+        output file."""
+        
         figFilename = basepath + ".fig"
         pngFilename = basepath + "_bg.png"
         epsFilename = basepath + ".eps"
@@ -570,6 +585,9 @@ class MapDisplay(DisplaySettings):
                 fe.addPointOverlay(overlay, depth = depth)
             elif type(overlay) == EdgeOverlay:
                 fe.addEdgeOverlay(overlay, depth = depth)
+            elif type(overlay) == ROISelector:
+                color = qtColor2figColor(overlay.color, fe.f)
+                fe.addROIRect(overlay.roi, penColor = color, depth = depth)
             else:
                 sys.stderr.write(
                     "MapDisplay.saveFig: overlay type %s not handled!\n" % (
