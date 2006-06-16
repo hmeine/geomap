@@ -243,20 +243,20 @@ class CrackEdgeIterator : public CrackContourCirculator<IMAGEITERATOR>
     EdgelIterator &operator++()
     {
         unsigned char edgeCount = 1;
-        typename NeighborhoodCirculator::value_type label(label_);
-        if(*neighborCirc_ != label)
+        typename NeighborhoodCirculator::value_type label(this->label_);
+        if(*this->neighborCirc_ != label)
         {
-            label = *neighborCirc_;
+            label = *this->neighborCirc_;
             ++edgeCount;
         }
-        if(neighborCirc_[1] != label)
+        if(this->neighborCirc_[1] != label)
         {
-            label = neighborCirc_[1];
+            label = this->neighborCirc_[1];
             ++edgeCount;
         }
-        if(neighborCirc_[2] != label)
+        if(this->neighborCirc_[2] != label)
         {
-            label = neighborCirc_[2];
+            label = this->neighborCirc_[2];
             ++edgeCount;
         }
         atEnd_ = (edgeCount > 2);
@@ -266,9 +266,9 @@ class CrackEdgeIterator : public CrackContourCirculator<IMAGEITERATOR>
         else
         {
             // turn around:
-            neighborCirc_.turnRight();
-            neighborCirc_.moveCenterToNeighbor();
-            neighborCirc_.turnRight();
+            this->neighborCirc_.turnRight();
+            this->neighborCirc_.moveCenterToNeighbor();
+            this->neighborCirc_.turnRight();
         }
 
         return *this;
@@ -279,7 +279,7 @@ class CrackEdgeIterator : public CrackContourCirculator<IMAGEITERATOR>
         atEnd_ = false;
         while(!atEnd())
             operator++();
-        neighborCirc_.swapCenterNeighbor();
+        this->neighborCirc_.swapCenterNeighbor();
         return *this;
     }
 };
@@ -339,7 +339,7 @@ public:
             // the "careful" sigma operations guarantee that at least
             // one step is made (they work even if isSingular()), and
             // do not loop infinitely in case no edge is attached
-            // (i.e. if the dart is indeed singular)        
+            // (i.e. if the dart is indeed singular)
         DartTraverser &carefulNextSigma() throw ()
         {
             CellImageEightCirculator nend = neighborCirc_;
@@ -559,7 +559,7 @@ public:
                 neighborCirc_.direction());
             segmentation_ = segmentation;
         }
-        
+
         Diff2D centerCoordinate() const
         {
             return (neighborCirc_.center() - segmentation_->cellImage.upperLeft()) - Diff2D(2,2);
@@ -593,7 +593,7 @@ public:
         void tryNextSigma() throw ()
         {
             ++neighborCirc_;
-            
+
             if(badDiagonalConfig())
                 ++neighborCirc_;
         }
