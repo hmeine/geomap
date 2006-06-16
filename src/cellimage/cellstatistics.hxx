@@ -128,7 +128,7 @@ struct CellStatistics
         edgeStatistics_;
     std::vector<vigra::cellimage::CellLabel>
         mergedEdges_;
-    std::vector<unsigned int>
+    std::vector<unsigned short>
         edgels_; // number of Canny edgels on an edges' pixels
     std::vector<vigra::TinyVector<float, 2> >
         nodeCenters_;
@@ -457,7 +457,7 @@ inline void CellStatistics::postMergeEdges(Segmentation::EdgeInfo &edge)
             edgeRethinning(*edge.start.segmentation(),
                            segmentationData->gradientMagnitude_, edge.label,
                            rethinRange);
-            
+
             /* This loop checks all pixels that belonged to a node
              * previously and relocates them if their neighbor pixel
              * has a higher gradient.
@@ -510,7 +510,7 @@ inline void CellStatistics::postMergeEdges(Segmentation::EdgeInfo &edge)
                         {
                             // one of the two first configurations found:
                             ++cellImageCirc;
-                            
+
                             // check the three new neighbor pixels
                             vigra::cellimage::CellImageEightCirculator
                                 newNeighborCirc(cellImageCirc);
@@ -553,7 +553,7 @@ inline void CellStatistics::postMergeEdges(Segmentation::EdgeInfo &edge)
                             // reflected configuration found, further
                             // comments see above (only offsets changed)
                             --cellImageCirc;
-                                
+
                             vigra::cellimage::CellImageEightCirculator
                                 newNeighborCirc(cellImageCirc);
                             newNeighborCirc.moveCenterToNeighbor();
