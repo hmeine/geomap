@@ -16,9 +16,9 @@ namespace vigra {
 
 namespace cellimage {
 
+#ifndef NDEBUG
 inline void validateDart(const GeoMap::DartTraverser &dart)
 {
-#ifndef NDEBUG
     vigra_precondition(dart.neighborCirculator().center()->type() == CellTypeVertex,
                        "dart is not attached to a node");
     vigra_precondition(dart.startNode().initialized(),
@@ -26,8 +26,12 @@ inline void validateDart(const GeoMap::DartTraverser &dart)
     if(!dart.isSingular())
         vigra_precondition(dart.edge().initialized(),
                            "dart's edge is not valid (initialized())");
-#endif
 }
+#else
+// extra def. to prevent compiler warning due to unused param:
+inline void validateDart(const GeoMap::DartTraverser &)
+{}
+#endif
 
 struct FindMaxLabel
 {
@@ -619,11 +623,11 @@ struct ChooseCellConfiguration
 {
     CellType * cornerTypeLut_;
     static CellType preferVertex[6], preferEdge[6];
-    
+
     ChooseCellConfiguration(CellType cornerType)
     : cornerTypeLut_(cornerType == CellTypeVertex ? preferVertex : preferEdge)
     {}
-    
+
     CellType operator()(CellType c) const
     {
         return cornerTypeLut_[c];
@@ -631,14 +635,14 @@ struct ChooseCellConfiguration
 };
 
 CellType ChooseCellConfiguration::preferVertex[6] = {
-    CellTypeRegion, CellTypeLine, CellTypeVertex, CellTypeError, CellTypeVertex, CellTypeError};
+    CellTypeRegion, CellTypeLine, CellTypeVertex, CellTypeError, CellTypeVertex, CellTypeError };
 CellType ChooseCellConfiguration::preferEdge[6] = {
-    CellTypeRegion, CellTypeLine, CellTypeVertex, CellTypeError, CellTypeLine, CellTypeLine};
+    CellTypeRegion, CellTypeLine, CellTypeVertex, CellTypeError, CellTypeLine, CellTypeLine };
 
 void GeoMap::initCellImage(BImage & contourImage, CellType cornerType)
 {
     CellType cellConf[256];
-    std::transform(cellConfigurations, cellConfigurations+256, cellConf, 
+    std::transform(cellConfigurations, cellConfigurations+256, cellConf,
                    ChooseCellConfiguration(cornerType));
 
     CellPixel regionPixel(CellTypeRegion, 0);
@@ -1286,6 +1290,3 @@ void debugDart(const GeoMap::DartTraverser &dart)
 } // namespace cellimage
 
 } // namespace vigra
-
-using namespace vigra::cellimage;
-
