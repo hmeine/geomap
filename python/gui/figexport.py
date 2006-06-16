@@ -229,11 +229,11 @@ class FigExporter:
         """fe.addPointCircles(points, radius, returnIndices = False,...)
 
         Marks each point in points with a circle of the given radius
-        if it is within the clipping rect.  The list of fig.Circle
-        objects is returned.  Again, note the possibility of setting
-        properties (depth, penColor, lineStyle, lineWidth, ...) on all
-        resulting objects via keyword arguments (cf. documentation of
-        the FigExporter class).
+        (in pixels) if it is within the clipping rect.  The list of
+        fig.Circle objects is returned.  Again, note the possibility
+        of setting properties (depth, penColor, lineStyle, lineWidth,
+        ...) on all resulting objects via keyword arguments
+        (cf. documentation of the FigExporter class).
 
         If returnIndices is set to True (default: False), a list of
         (i, c) pairs is returned instead, where c is the fig.Circle
@@ -302,7 +302,7 @@ class FigExporter:
 
         See addPointCircles(), this function simply takes the
         positions of all nodes in the given map and marks them with a
-        circle of the given radius.
+        circle of the given radius (in pixels).
 
         If the optional parameter returnNodes is set to True, a list
         of (node, circleObject) pairs is returned, similar to the
@@ -324,7 +324,7 @@ class FigExporter:
         
         result = []
         for edge in map.edgeIter():
-            if hasattr(edge, "color"):
+            if not attr.has_key("penColor") and hasattr(edge, "color"):
                 penColor = edge.color
                 if type(penColor) == qt.QColor:
                     penColor = qtColor2figColor(penColor, self.f)
