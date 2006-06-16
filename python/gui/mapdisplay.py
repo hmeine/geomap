@@ -1,8 +1,8 @@
 _cvsVersion = "$Id$" \
               .split(" ")[2:-2]
 
-import figexport, qt, sys, os, time, tools
-from vigra import BYTE, NBYTE, Point2D, Rect2D, Vector2
+import fig, figexport, qt, sys, os, time, tools
+from vigra import BYTE, NBYTE, Point2D, Rect2D, Vector2, GrayImage
 from vigrapyqt import ImageWindow, EdgeOverlay, PointOverlay
 from hourglass import simplifyPolygon, intPos, BoundingBox
 from map import removeCruft, mergeZeroPixelFaces
@@ -196,6 +196,13 @@ class MapNodes(object):
             self._qpointlist = None
 
     def setRadius(self, radius, relativeRadius = False):
+        """nodeOverlay.setRadius(radius, relativeRadius = False)
+
+        radius is given in
+        * display pixels if relativeRadius == False
+        * image pixels   if relativeRadius == True
+        """
+        
         self.origRadius = radius
         self.radius = radius
         self.relativeRadius = relativeRadius
@@ -276,6 +283,8 @@ class MapDisplay(DisplaySettings):
             map, preparedImage = preparedImage, map
         elif preparedImage == None:
             preparedImage = map.labelImage
+            if preparedImage == None:
+                preparedImage = GrayImage(map.imageSize())
         
         self.preparedImage = preparedImage
         self.map = map
@@ -522,8 +531,8 @@ class MapDisplay(DisplaySettings):
         return g, pi
 
     def savePNG(self, filename, roi):
-        self.image.subImage(roi).write(
-            filename, self.normalizeStates[self._backgroundMode] and NBYTE or BYTE)
+        image, normalize = self.imageWindow.getDisplay()
+        image.subImage(roi).write(filename, normalize)
 
     def saveFig(self, basepath, geometry = None, scale = None):
         """display.saveFig(basepath, geometry=None, scale=None)
@@ -579,8 +588,12 @@ class MapDisplay(DisplaySettings):
                 fe.addMapNodes(self.map, radius,
                                fillColor = color, lineWidth = 0, depth = depth)
             elif type(overlay) == MapEdges:
-                fe.addMapEdges(self.map, penColor = qtColor2figColor(overlay.color, fe.f),
-                               depth = depth)
+                attr = {"depth" : depth}
+                if not overlay.useIndividualColors:
+                    attr["penColor"] = qtColor2figColor(overlay.color, fe.f)
+                if overlay.width:
+                    attr["lineWidth"] = overlay.width
+                fe.addMapEdges(self.map, **attr)
             elif type(overlay) == PointOverlay:
                 fe.addPointOverlay(overlay, depth = depth)
             elif type(overlay) == EdgeOverlay:
