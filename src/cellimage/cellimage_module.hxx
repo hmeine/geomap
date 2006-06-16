@@ -16,7 +16,7 @@ typename Iterator::reference nextIterPos(Iterator &v)
     if(!v.inRange())
     {
         PyErr_SetString(PyExc_StopIteration, "cells iterator exhausted");
-        throw_error_already_set();
+        boost::python::throw_error_already_set();
     }
     return *v++;
 }
