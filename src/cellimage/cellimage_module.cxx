@@ -1,6 +1,7 @@
 #include "cellimage_module.hxx"
 #include <vigra/pythonimage.hxx>
 #include <boost/python/make_constructor.hpp>
+#include <sstream>
 
 using vigra::cellimage::CellImage;
 using vigra::cellimage::CellPixel;
@@ -37,6 +38,17 @@ void setPixel(CellImage & image, vigra::Diff2D const & i, CellPixel const & valu
     image[i] = value;
 }
 
+vigra::cellimage::CellImage *
+convertCellImage(
+    vigra::PythonImage &image)
+{
+    vigra::cellimage::CellImage *result = new CellImage(image.size());
+    vigra::PythonSingleBandImage simage(image.subImage(0));
+    transformImage(srcImageRange(simage), destImage(*result),
+                   vigra::cellimage::CellPixelSerializer());
+    return result;
+}   
+
 vigra::cellimage::GeoMap *
 createGeoMap(
     vigra::PythonImage &image,
@@ -58,6 +70,34 @@ void validateDart(const vigra::cellimage::GeoMap::DartTraverser &dart)
     if(!dart.isSingular())
         vigra_precondition(dart.edge().initialized(),
                            "dart's edge is not valid (initialized())");
+}
+
+std::string CellPixel__repr__(const vigra::cellimage::CellPixel p)
+{
+    std::stringstream s;
+    s << "CellPixel(CellType.";
+    switch(p.type())
+    {
+      case vigra::cellimage::CellTypeRegion:
+          s << "Region";
+          break;
+      case vigra::cellimage::CellTypeLine:
+          s << "Line";
+          break;
+      case vigra::cellimage::CellTypeVertex:
+          s << "Vertex";
+          break;
+      case vigra::cellimage::CellTypeVertexOrLine:
+          s << "VertexOrLine";
+          break;
+      case vigra::cellimage::CellTypeErrorOrLine:
+          s << "ErrorOrLine";
+          break;
+      default:
+          s << "Error";
+    }
+    s << ", " << p.label() << ")";
+    return s.str();
 }
 
 #ifdef _MSC_VER
@@ -87,15 +127,19 @@ BOOST_PYTHON_MODULE_INIT(cellimage)
         .value("Line", CellTypeLine)
         .value("Vertex", CellTypeVertex);
 
-    class_<CellPixel>("CellPixel")
+    class_<CellPixel>("CellPixel", no_init)
         .def(init<CellType, CellLabel>())
         .add_property("type", &CellPixel::type,
                       (void(CellPixel::*)(CellType))&CellPixel::setType)
         .add_property("label", &CellPixel::label,
                       (void(CellPixel::*)(CellLabel))&CellPixel::setLabel)
+        .def("__repr__", &CellPixel__repr__)
         .def(self == self);
 
-    class_<CellImage>("CellImage")
+    class_<CellImage>("CellImage", no_init)
+        .def("__init__", make_constructor(
+                 &convertCellImage, default_call_policies(),
+                 args("image")))
         .def("width", &CellImage::width)
         .def("height", &CellImage::height)
         .def("size", &CellImage::size)
@@ -112,7 +156,7 @@ BOOST_PYTHON_MODULE_INIT(cellimage)
     def("debugDart", &debugDart);
 
     scope geoMap(
-        class_<GeoMap>("GeoMap", no_init)
+        class_<GeoMap>("GeoMap", init<const CellImage &>(args("importImage")))
         .def("__init__", make_constructor(
                  &createGeoMap, default_call_policies(),
                  (arg("image"), arg("edgeLabel"),
