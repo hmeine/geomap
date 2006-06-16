@@ -84,7 +84,9 @@ class CellPyramid
     {
       public:
         typedef CellPyramid<Segmentation, CellStatistics> Pyramid;
-        friend class Pyramid;
+        // using this typedef for the friend decl. results in:
+        // error: using typedef-name `vigra::CellPyramid<SEGMENTATION, CELLSTATISTICS>::Level::Pyramid' after `class'
+        friend class CellPyramid<Segmentation, CellStatistics>;
 
         const unsigned int index() const
             { return index_; }
