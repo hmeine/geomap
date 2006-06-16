@@ -164,7 +164,7 @@ struct CellMask : public std::unary_function<vigra::cellimage::CellPixel, bool>
 };
 
 // -------------------------------------------------------------------
-//                             RelabelFunctor
+//                        RelabelFunctor (unused!)
 // -------------------------------------------------------------------
 template<class VALUETYPE>
 struct RelabelFunctor
@@ -180,7 +180,7 @@ struct RelabelFunctor
 
     VALUETYPE operator()(VALUETYPE value) const
     {
-        return (value == oldValue) ? newValue : value;
+        return (value == oldValue_) ? newValue_ : value;
     }
 
     VALUETYPE oldValue_, newValue_;
@@ -217,7 +217,7 @@ void transformCell(SrcEndIterator srcEndIterator, SrcAccessor sa,
                    DestEndIterator destEndIterator, DestAccessor da,
                    Functor const & f)
 {
-    for(; endIterator.inRange(); ++srcEndIterator, ++destEndIterator)
+    for(; srcEndIterator.inRange(); ++srcEndIterator, ++destEndIterator)
         da.set(f(sa(srcEndIterator)), destEndIterator);
 }
 
@@ -226,7 +226,7 @@ void transformCell(SrcEndIterator srcEndIterator,
                    DestEndIterator destEndIterator,
                    Functor const & f)
 {
-    for(; endIterator.inRange(); ++srcEndIterator, ++destEndIterator)
+    for(; srcEndIterator.inRange(); ++srcEndIterator, ++destEndIterator)
         *destEndIterator = f(*srcEndIterator);
 }
 
