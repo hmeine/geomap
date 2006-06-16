@@ -2,7 +2,7 @@ from vigra import *
 from hourglass import Polygon
 addPathFromHere('../cellimage')
 from cellimage import GeoMap, CellType
-from map import Map
+from map import Map, BORDER_PROTECTION
 
 __all__ = ["pixelMap2subPixelMap", "crackEdgeMap",
            "crackEdges2MidCracks", "cannyEdgeMap", "pixelWatershedMap"]
