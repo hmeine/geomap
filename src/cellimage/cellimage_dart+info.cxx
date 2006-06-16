@@ -54,12 +54,12 @@ RET pyTraverserConstFct(GeoMap::DartTraverser const & self)
 void defineDartTraverser()
 {
     typedef GeoMap::DartTraverser DT;
-    
+
     class_<DT> scope(
         "DartTraverser", init<const DT &>());
 #ifndef _MSC_VER
     scope
-        .def("nextAlpha", &DT::nextAlpha, return_internal_reference<>());
+        .def("nextAlpha", &DT::nextAlpha, return_internal_reference<>())
         .def("prevAlpha", &DT::prevAlpha, return_internal_reference<>())
         .def("nextPhi", &DT::nextPhi, return_internal_reference<>())
         .def("prevPhi", &DT::prevPhi, return_internal_reference<>())
