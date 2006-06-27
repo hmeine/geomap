@@ -702,7 +702,7 @@ class DartNavigator(DartNavigatorBase):
 
 class ROISelector(qt.QObject):
     def __init__(self, parent = None, name = None,
-                 roi = None, color = qt.Qt.yellow, width = 0):
+                 roi = None, viewer = None, color = qt.Qt.yellow, width = 0):
         qt.QObject.__init__(self, parent, name)
         self._painting = False
         self._alwaysVisible = False
@@ -711,7 +711,11 @@ class ROISelector(qt.QObject):
         self.color = color
         self.width = width
 
-        self._viewer = parent.viewer
+        if viewer:
+            self._viewer = viewer
+        else:
+            self._viewer = parent.viewer
+
         self.connect(self._viewer, qt.PYSIGNAL("mousePressed"),
                      self.mousePressed)
         self.connect(self._viewer, qt.PYSIGNAL("mousePosition"),
@@ -719,7 +723,7 @@ class ROISelector(qt.QObject):
         self.connect(self._viewer, qt.PYSIGNAL("mouseReleased"),
                      self.mouseReleased)
 
-        self.setVisible(roi != None)
+        self.setVisible(True) # roi != None)
 
     def setVisible(self, onoff):
         if self._alwaysVisible != onoff:
@@ -728,6 +732,14 @@ class ROISelector(qt.QObject):
                 self._viewer.addOverlay(self)
             else:
                 self._viewer.removeOverlay(self)
+
+    def setROI(self, roi):
+        if roi != self.roi:
+            updateRect = self.windowRect()
+            self.roi = roi
+            updateRect |= self.windowRect()
+            self._viewer.update(updateRect)
+            self.emit(qt.PYSIGNAL("roiChanged"), (roi, ))
 
     def mousePressed(self, x, y, button):
         if button != qt.Qt.LeftButton:
@@ -742,12 +754,8 @@ class ROISelector(qt.QObject):
         if not self._painting: return
         # TODO: update overlay
         x1, y1 = self.startPos
-        roi = Rect2D(min(x1, x), min(y1, y), max(x1, x)+1, max(y1, y)+1)
-        if roi != self.roi:
-            updateRect = self.windowRect()
-            self.roi = roi
-            updateRect |= self.windowRect()
-            self._viewer.update(updateRect)
+        self.setROI(
+            Rect2D(min(x1, x), min(y1, y), max(x1, x)+1, max(y1, y)+1))
 
     def windowRect(self):
         if not self.roi:
