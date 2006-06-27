@@ -267,7 +267,9 @@ class FigExporter:
         convenience."""
         
         points = pointOverlay.originalPointlist
-        radius = pointOverlay.origRadius
+        radius = float(pointOverlay.origRadius)
+        if not pointOverlay.relativeRadius:
+            radius /= pointOverlay.zoom
         if not attr.has_key("fillColor"):
             fillColor = pointOverlay.color
             if type(fillColor) == qt.QColor:
