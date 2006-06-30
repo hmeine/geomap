@@ -141,7 +141,7 @@ def markAlphaShapes(delaunayMap, alpha, beta = 0.0):
                     continue
                 face.componentLabel = componentCount
                 size += 1
-                for dart in face.contours()[0].phiOrbit():
+                for dart in face.contour().phiOrbit():
                     boundary.append(dart.edge())
 
     for face in delaunayMap.faceIter():
@@ -231,7 +231,7 @@ def outputMarkedShapes(delaunayMap, fe, skipInnerEdges = True,
         if not triangle.mark or triangle.output:
             continue
         triangle.output = True
-        contour = list(triangle.contours()[0].phiOrbit())
+        contour = list(triangle.contour().phiOrbit())
         i = 0
         while i < len(contour):
             contour[i].edge().output = skipInnerEdges
