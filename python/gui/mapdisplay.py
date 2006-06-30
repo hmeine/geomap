@@ -38,6 +38,31 @@ class MapEdges(object):
         self._map = ref(map)
         self._dirty = True
 
+    def attachHooks(self):
+        map = self._map()
+        map.preRemoveBridgeHooks.append(self.preRemoveEdgeHook)
+        map.preMergeFacesHooks.append(self.preRemoveEdgeHook)
+        map.preMergeEdgesHooks.append(self.preMergeEdgesHook)
+        map.postMergeEdgesHooks.append(self.postMergeEdgesHook)
+
+    def detachHooks(self):
+        """Detaches / removes callbacks from the map's hooks.
+        Returns True if successful, False if already detached."""
+        map = self._map()
+        if not map:
+            return # Map already destroyed
+
+        try:
+            map.preRemoveBridgeHooks.remove(self.preRemoveEdgeHook)
+        except ValueError:
+            return False # already detached
+
+        map.preMergeFacesHooks.remove(self.preRemoveEdgeHook)
+        map.preMergeEdgesHooks.remove(self.preMergeEdgesHook)
+        map.postMergeEdgesHooks.remove(self.postMergeEdgesHook)
+
+        return True
+
     def _calculatePoints(self):
         if not self._map():
             return
@@ -157,6 +182,24 @@ class MapNodes(object):
     def setMap(self, map):
         self._map = ref(map)
         self._qpointlist = None
+
+    def attachHooks(self):
+        map = self._map()
+        map.removeNodeHooks.append(self.removeNode)
+
+    def detachHooks(self):
+        """Detaches / removes callbacks from the map's hooks.
+        Returns True if successful, False if already detached."""
+        map = self._map()
+        if not map:
+            return # Map already destroyed (when using weakrefs)
+
+        try:
+            map.removeNodeHooks.remove(self.removeNode)
+        except ValueError:
+            return False # already detached
+
+        return True
 
     def _calculatePoints(self):
         if not self._map():
@@ -401,27 +444,13 @@ class MapDisplay(DisplaySettings):
         self.setImage(self.image, normalize and NBYTE or BYTE)
 
     def attachHooks(self):
-        map = self.map
-        map.removeNodeHooks.append(self.nodeOverlay.removeNode)
-        map.preRemoveBridgeHooks.append(self.edgeOverlay.preRemoveEdgeHook)
-        map.preMergeFacesHooks.append(self.edgeOverlay.preRemoveEdgeHook)
-        map.preMergeEdgesHooks.append(self.edgeOverlay.preMergeEdgesHook)
-        map.postMergeEdgesHooks.append(self.edgeOverlay.postMergeEdgesHook)
+        self.nodeOverlay.attachHooks()
+        self.edgeOverlay.attachHooks()
 
     def detachHooks(self):
         """Detaches / removes callbacks from the map's hooks.
         Returns True if successful, False if already detached."""
-        map = self.map
-        #if not map: return # Map already destroyed (when using weakrefs)
-        try:
-            map.removeNodeHooks.remove(self.nodeOverlay.removeNode)
-        except ValueError:
-            return False # already detached
-        map.preRemoveBridgeHooks.remove(self.edgeOverlay.preRemoveEdgeHook)
-        map.preMergeFacesHooks.remove(self.edgeOverlay.preRemoveEdgeHook)
-        map.preMergeEdgesHooks.remove(self.edgeOverlay.preMergeEdgesHook)
-        map.postMergeEdgesHooks.remove(self.edgeOverlay.postMergeEdgesHook)
-        return True
+        return self.nodeOverlay.detachHooks() and self.edgeOverlay.detachHooks()
 
     def showEvent(self, e):
         self.attachHooks()
@@ -534,12 +563,14 @@ class MapDisplay(DisplaySettings):
         image, normalize = self.imageWindow.getDisplay()
         image.subImage(roi).write(filename, normalize)
 
-    def saveFig(self, basepath, geometry = None, scale = None):
-        """display.saveFig(basepath, geometry=None, scale=None)
+    def saveFig(self, basepath, geometry = None, scale = None,
+                bgFilename = None):
+        """display.saveFig(basepath,
+                        geometry=None, scale=None, bgFilename = None)
 
-        Saves an XFig file as <basepath>.fig, the pixel background as
-        <basepath>_bg.png and calls fig2dev to create an additional
-        <basepath>.eps.
+        Saves an XFig file as <basepath>.fig (and the pixel background
+        as <basepath>_bg.png if bgFilename is not given) and returns
+        the FigExporter object.
 
         If geometry is not None, it determines the ROI to be saved.
         geometry can be a BoundingBox or Rect2D object, a string like
@@ -548,15 +579,14 @@ class MapDisplay(DisplaySettings):
 
         scale is the size of a pixel in fig units (450 = 1cm) and
         defaults to a size resulting in approx. 20cm width of the
-        output file."""
+        output file.
+
+        If bgFilename is given, it is supposed to be a background
+        filename for the picture box in the XFig file, or False if no
+        background is desired."""
         
         figFilename = basepath + ".fig"
         pngFilename = basepath + "_bg.png"
-        epsFilename = basepath + ".eps"
-
-        path, figBasename = os.path.split(figFilename)
-        path, pngBasename = os.path.split(pngFilename)
-        path, epsBasename = os.path.split(epsFilename)
 
         if geometry == None:
             geometry = Rect2D(self.image.size())
@@ -565,16 +595,22 @@ class MapDisplay(DisplaySettings):
         elif type(geometry) == str:
             geometry = Rect2D(*fig.parseGeometry(geometry))
 
-        # create .png background
-        self.savePNG(pngFilename, geometry)
+        if bgFilename == None:
+            # create .png background
+            self.savePNG(pngFilename, geometry)
+            _, bgFilename = os.path.split(pngFilename)
 
         # create .fig file
         if scale == None:
             scale = 20*450 / geometry.width() # default: 20cm width
+            print "auto-adjusted scale to %s." % (scale, )
         roi = BoundingBox(geometry)
         fe = figexport.FigExporter(scale, roi)
         qtColor2figColor = figexport.qtColor2figColor
-        fe.addBackgroundWithFrame(pngFilename, depth = 100, roi = roi)
+        if bgFilename:
+            fe.addBackgroundWithFrame(bgFilename, depth = 100, roi = roi)
+        else:
+            fe.addROIRect(depth = 100, roi = roi)
         depth = 50
         for overlay in self.viewer.overlays:
             if not overlay.visible:
@@ -608,11 +644,23 @@ class MapDisplay(DisplaySettings):
             depth -= 1
         fe.save(figFilename)
 
+        return fe
+
+    def saveEPS(self, basepath, *args, **kwargs):
+        """display.saveEPS(basepath, geometry=None, scale=None)
+
+        Saves an XFig file as <basepath>.fig (see saveFig()
+        documentation for details) and calls fig2dev to create an
+        additional <basepath>.eps."""
+
+        self.saveFig(basepath, *args, **kwargs)
+
+        path, basename = os.path.split(basepath)
+
         # create .eps output
-        cin, cout = os.popen4("%sfig2dev -L eps '%s' '%s'" % (
-            path and ("cd '%s' && " % path) or "", figBasename, epsBasename))
+        cin, cout = os.popen4("%sfig2dev -L eps '%s.fig' '%s.eps'" % (
+            path and ("cd '%s' && " % path), basename, basename))
         cin.close(); print cout.read(),
-        del cin, cout
 
 # --------------------------------------------------------------------
 #                         dart navigation dialog
