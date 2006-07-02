@@ -3,6 +3,11 @@ from hourglass import Polygon, simplifyPolygon, delaunay
 from map import Map, contourPoly, mergeFaces
 from vigra import Vector2
 
+try:
+    import triangle
+except ImportError, e:
+    triangle = None
+
 def isContourEdge(edge, maxNodeLabel = None):
     "helper function for delaunayMap()"
 
@@ -16,7 +21,81 @@ def isContourEdge(edge, maxNodeLabel = None):
             maxNodeLabel -= 1
     return (dist == maxNodeLabel - 1)
 
-def delaunayMap(face, size, simplifyEpsilon = None,
+def constrainedDelaunayMap(points, jumpPoints, imageSize,
+                           markContour = True, performCleaning = True,
+                           boundaryProtection = None):
+    segments = [(i-1, i) for i in range(len(points)+1)]
+    for i, jp in enumerate(jumpPoints[:-1]):
+        segments[jp] = (jumpPoints[i+1]-1, jumpPoints[i])
+    del segments[-1]
+
+    print "- performing Constrained Delaunay Triangulation (%d points)..." % len(points)
+    nodePositions, edgeData = triangle.constrainedDelaunay(
+        points, segments, performCleaning)
+
+    #assert nodePositions == points
+
+    edges = [startEnd and
+             (startEnd[0], startEnd[1],
+              [nodePositions[startEnd[0]], nodePositions[startEnd[1]]])
+             for startEnd in edgeData]
+
+    result = Map(nodePositions, edges, imageSize,
+                 performBorderClosing = False,
+                 ssMinDist = None,
+                 skipLabelImage = True)
+
+    for edge in result.edgeIter():
+        edge.isContourEdge = edgeData[edge.label()][2]
+
+    if boundaryProtection:
+        for edge in result.edgeIter():
+            edge.protection |= edge.isContourEdge and boundaryProtection
+
+    return result
+
+def fakeConstrainedDelaunayMap(points, jumpPoints, imageSize,
+                               markContour = True, performCleaning = True):
+    print "- performing Delaunay Triangulation (%d points)..." % len(points)
+    nodePositions, edges, sigma = delaunay(points)
+    
+    print "- storing result in a Map..."
+    result = Map(nodePositions, edges, imageSize,
+                 performBorderClosing= False,
+                 sigmaOrbits = sigma,
+                 skipLabelImage = True)
+
+    print "- ex-post marking of contour edges for faked CDT..."
+    print "  (keep your fingers crossed that no segment is missing!)"
+    for edge in result.edgeIter():
+        edge.isContourEdge = False
+
+    i = 0
+    while i < len(jumpPoints) - 1:
+        contourStartLabel = jumpPoints[i] + 1 # +1 for conversion of
+        contourEndLabel = jumpPoints[i+1] + 1 #    point indices -> node labels
+        dart = result.node(contourStartLabel).anchor()
+        for nodeLabel in range(contourStartLabel+1, contourEndLabel):
+            j = dart.startNode().degree() + 2
+            while dart.endNodeLabel() != nodeLabel and j > 0:
+                dart.nextSigma()
+                j -= 1
+            assert j > 0, "Original contour fragment missing in Delauny map!"
+            dart.edge().isContourEdge = dart.label()
+            dart.nextAlpha()
+        j = dart.startNode().degree() + 1
+        while dart.endNodeLabel() != contourStartLabel and j > 0:
+            dart.nextSigma()
+            j -= 1
+        assert j > 0, "Original contour fragment missing in Delauny map!"
+        dart.edge().isContourEdge = dart.label()
+        i += 1
+
+    if performCleaning:
+        cleanOuter(result)
+    return result
+
+def delaunayMap(face, imageSize, simplifyEpsilon = None,
                 markContour = True, performCleaning = True):
     """USAGE: dlm = delaunayMap(face, mapSize)
 
@@ -70,51 +149,12 @@ def delaunayMap(face, size, simplifyEpsilon = None,
             del points[-1]
             jumpPoints.append(len(points))
 
-    print "- performing Delaunay Triangulation (%d points)..." % len(points)
-    nodePositions, edges, sigma = delaunay(points)
-    #nodePositions = [None] + [node for node in nodePositions if node]
-
-    print "- storing result in a Map..."
-    edges = [startEnd and
-             (startEnd[0], startEnd[1],
-              [nodePositions[startEnd[0]], nodePositions[startEnd[1]]])
-             for startEnd in edges]
-
-    result = Map(nodePositions, edges, size,
-                 performBorderClosing= False,
-                 sigmaOrbits = sigma,
-                 skipLabelImage = True)
-
-    if not markContour:
-        return result
-
-    for edge in result.edgeIter():
-        edge.isContourEdge = False
-
-    i = 0
-    while i < len(jumpPoints) - 1:
-        contourStartLabel = jumpPoints[i] + 1 # +1 for conversion of
-        contourEndLabel = jumpPoints[i+1] + 1 #    point indices -> node labels
-        dart = result.node(contourStartLabel).anchor()
-        for nodeLabel in range(contourStartLabel+1, contourEndLabel):
-            j = dart.startNode().degree() + 2
-            while dart.endNodeLabel() != nodeLabel and j > 0:
-                dart.nextSigma()
-                j -= 1
-            assert j > 0, "Original contour fragment missing in Delauny map!"
-            dart.edge().isContourEdge = dart.label()
-            dart.nextAlpha()
-        j = dart.startNode().degree() + 1
-        while dart.endNodeLabel() != contourStartLabel and j > 0:
-            dart.nextSigma()
-            j -= 1
-        assert j > 0, "Original contour fragment missing in Delauny map!"
-        dart.edge().isContourEdge = dart.label()
-        i += 1
-
-    if performCleaning:
-        cleanOuter(result)
-    return result
+    if triangle:
+        return constrainedDelaunayMap(
+            points, jumpPoints, imageSize, markContour, performCleaning)
+    else:
+        return fakeConstrainedDelaunayMap(
+            points, jumpPoints, imageSize, markContour, performCleaning)
 
 def cleanOuter(map):
     sys.stdout.write("- reducing delaunay triangulation to inner part")
@@ -155,7 +195,7 @@ def catMap(delaunayMap,
         assert len(c) == 1
         assert len(list(c[0].phiOrbit())) == 3
 
-        dart1 = triangle.contours()[0].clone()
+        dart1 = triangle.contour().clone()
         dart2 = dart1.clone().nextPhi()
         dart3 = dart2.clone().nextPhi()
         edge1 = dart1.edge()
