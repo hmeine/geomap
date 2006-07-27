@@ -65,15 +65,16 @@ def samplePoly(poly, shift = None, size = None):
     return result
 
 from cellimage import GeoMap, CellType
+import pixelmap
 
 def polyCrackMap(poly, shift = None, midCracks = True):
     img = samplePoly(poly, shift)
     ce = regionImageToCrackEdgeImage(transformImage(img, "\l x:x+1"), 0)
     geomap = GeoMap(ce, 0, CellType.Line)
-    spmap = pixelMap2subPixelMap(
+    spmap = pixelmap.pixelMap2subPixelMap(
         geomap, 0.5, labelImageSize = (geomap.cellImage.size()-Size2D(3,3))/2)
     if midCracks:
-        crackEdges2MidCracks(spmap, True)
+        pixelmap.crackEdges2MidCracks(spmap)
     return spmap
 
 # poly = Polygon((rotatedPoly(kochCurve(5), math.pi/4)+Vector2(0.5, 0.5))*100)
