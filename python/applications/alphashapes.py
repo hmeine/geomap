@@ -3,7 +3,22 @@ _cvsVersion = "$Id$" \
 
 import fig, delaunay, sys, math
 import map as spmap
+from hourglass import Polygon
 from math import *
+
+__all__ = ["delaunayMap", "extractMapPoints", "midCrackPoints", "samplingPoints",
+           "maxSegmentLength",
+           
+           "markAlphaShapes", "removeUnmarkedEdges", "alphaBetaMap",
+           "findCandidatesForPointCorrection",
+
+           "outputMarkedShapes", "view",
+
+           "findChangeByBisection", "findMinAlpha", "findMaxBeta",
+
+           "alphaShapeThinning1", "alphaShapeThinning"]
+
+# --------------------------------------------------------------------
 
 def delaunayMap(points, imageSize):
     result = delaunay.delaunayMap(points, imageSize, markContour = False)
@@ -210,7 +225,6 @@ def findCandidatesForPointCorrection(abm):
             orientation = atan2(dy, dx)
             mayMove.append(Edgel(p[0], p[1], 1, orientation))
     return mayMove, dontMove
-
 
 # --------------------------------------------------------------------
 #                               fig output
