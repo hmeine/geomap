@@ -1,3 +1,7 @@
+# -*- coding: iso-8859-1 -*-
+_cvsVersion = "$Id$" \
+              .split(" ")[2:-2]
+
 import math, sys
 from hourglass import Polygon, simplifyPolygon, delaunay
 from map import Map, contourPoly, mergeFaces
