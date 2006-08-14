@@ -3,7 +3,6 @@
 
 #include <vigra/diff2d.hxx>
 #include <vigra/gaussians.hxx>
-#include <vigra/polynomial.hxx>
 #include <vigra/splines.hxx>
 #include <vigra/linear_solve.hxx>
 #include <vector>
@@ -795,6 +794,243 @@ void simplifyPolygon(
 
 /********************************************************************/
 
+namespace detail {
+
+template <class Point>
+Point digitalLineIntersection(TinyVector<double, 3> const & l1, TinyVector<double, 3> const & l2)
+{
+    double d = l1[0]*l2[1] - l1[1]*l2[0];
+    return Point((l1[1]*l2[2] - l1[2]*l2[1]) / d, (l1[2]*l2[0] - l1[0]*l2[2]) / d);
+}
+
+} // namespace detail
+
+template<class PointArray>
+void simplifyPolygonDigitalLine(
+    const PointArray &poly, PointArray &simple, int connectivity)
+{
+    typedef typename PointArray::value_type Point;
+
+    int size = poly.size();
+    if(size <= 2)
+    {
+        simple = poly;
+        return;
+    }
+    
+    vigra_precondition(connectivity == 4 || connectivity == 8,
+       "simplifyPolygonDigitalLine(): connectivity must be 4 or 8.");
+    
+    bool isOpenPolygon = (poly[0] - poly[size-1]).magnitude() > 1e-6;
+    
+    ArrayVector<TinyVector<double, 3> > lines;
+    Point l1 = poly[0], 
+          r1 = l1,
+          l2 = poly[1],
+          r2 = l2;
+    double a = l2[1] - l1[1],
+           b = l1[0] - l2[0],
+           c = -a*l2[0] - b*l2[1];
+    for(int k=2; k < size; ++k)
+    {
+        double ab = (connectivity == 4)
+                        ? std::fabs(a) + std::fabs(b)
+                        : std::max(std::fabs(a), std::fabs(b));
+        double d = a*poly[k][0] + b*poly[k][1] + c;
+        if(d < -1.0 || d > ab)
+        {
+            // finish current segment
+            c = (c - a*r2[0] - b*r2[1]) / 2.0;
+            lines.push_back(TinyVector<double, 3>(a, b, c));
+            // initialize new segment
+            l1 = poly[k-1];
+            r1 = l1;
+            l2 = poly[k];
+            r2 = l2;
+            a = l2[1] - l1[1];
+            b = l1[0] - l2[0];
+            c = -a*l2[0] - b*l2[1];
+        }
+        else if(d <= 0.0)
+        {
+            l2 = poly[k];
+            if(d < 0.0)
+            {
+                r1 = r2;
+                a = l2[1] - l1[1];
+                b = l1[0] - l2[0];
+                c = -a*l2[0] - b*l2[1];
+            }
+        }
+        else if(d >= ab - 1.0)
+        {
+            r2 = poly[k];
+            if(d > ab - 1.0)
+            {
+                l1 = l2;
+                a = r2[1] - r1[1];
+                b = r1[0] - r2[0];
+                c = -a*l2[0] - b*l2[1];
+            }
+        }
+    }
+    
+    c = (c - a*r2[0] - b*r2[1]) / 2.0;
+    lines.push_back(TinyVector<double, 3>(a, b, c));
+    int segments = lines.size();
+    
+    if(isOpenPolygon)
+        simple.push_back(poly[0]);
+    else
+        simple.push_back(detail::digitalLineIntersection<Point>(lines[0], lines[segments-1]));
+    
+    for(int k=1; k<segments; ++k)
+        simple.push_back(detail::digitalLineIntersection<Point>(lines[k-1], lines[k]));
+
+    if(isOpenPolygon)
+        simple.push_back(poly[size-1]);
+    else
+        simple.push_back(detail::digitalLineIntersection<Point>(lines[0], lines[segments-1]));
+}
+
+/********************************************************************/
+
+template<class PointArray>
+void resamplePolygon(
+    const PointArray &poly, PointArray &simple, double desiredPointDistance)
+{
+    typedef typename PointArray::value_type Point;
+
+    int size = poly.size();
+    if(size <= 2)
+    {
+        simple = poly;
+        return;
+    }
+    
+    bool isOpenPolygon = (poly[0] - poly[size-1]).magnitude() > 1e-6;
+    
+    ArrayVector<double> arcLength;
+    poly.arcLengthList(arcLength);
+    int segmentCount = int(std::ceil(arcLength[size-1] / desiredPointDistance));
+    if(segmentCount < 2)
+    {
+        simple.push_back(poly[0]);
+        if(!isOpenPolygon)
+        {
+            Point p = poly[1];
+            double dist = (p - poly[0]).magnitude();
+            for(int k=2; k < size-1; ++k)
+            {
+                double d = (poly[k] - poly[0]).magnitude();
+                if(d > dist)
+                {
+                    dist = d;
+                    p = poly[k];
+                }
+            }
+            simple.push_back(p);
+        }
+        simple.push_back(poly[size-1]);
+        return;
+    }
+    
+    for(int k=0; k<size; ++k)
+        arcLength[k] *= segmentCount / arcLength[size-1];
+    
+    ArrayVector<Point> integrals(segmentCount+1, Point(0.0, 0.0));    
+    Point p1 = poly[0];
+    double t1 = 0.0;
+    int l = 1;
+    for(int k=1; k<size; ++k)
+    {
+        double d = arcLength[k];
+        while(d >= l)
+        {
+            double t2 = 1.0;
+            double dt = t2 - t1;
+            Point p2 = poly.interpolate(k-1, (l - arcLength[k-1]) / (d - arcLength[k-1]));
+            Point sum1 = 0.5 * dt * (p1 + p2);
+            Point sumt = dt / 6.0 * (p1*(2.0*t1+t2) + p2*(t1+2.0*t2));
+            integrals[l-1] += sum1 - sumt;
+            integrals[l] += sumt;
+            if(isOpenPolygon && l==1)
+            {
+                integrals[0] +=  poly[0] - integrals[1];
+            }
+            p1 = p2;
+            t1 = 0.0;
+            ++l;
+            if(isOpenPolygon && l==segmentCount)
+            {
+                integrals[segmentCount] += integrals[segmentCount-1];
+            }
+        }
+        if(d < l)
+        {
+            double t2 = std::fmod(d, 1.0);
+            double dt = t2 - t1;
+            Point p2 = poly[k];
+            Point sum1 = 0.5 * dt * (p1 + p2);
+            Point sumt = dt / 6.0 * (p1*(2.0*t1+t2) + p2*(t1+2.0*t2));
+            integrals[l-1] += sum1 - sumt;
+            integrals[l] += sumt;
+            p1 = p2;
+            t1 = t2;
+        }
+    }
+    
+    if(isOpenPolygon)
+    {
+        integrals[segmentCount] += poly[size-1] - integrals[segmentCount-1];
+        integrals[1] -= integrals[0] / 6.0;
+        integrals[segmentCount-1] -= integrals[segmentCount] / 6.0;
+        
+        ArrayVector<double> g(segmentCount);
+        double b = 2.0 / 3.0;
+        simple.push_back(poly[0]);
+        simple.push_back(integrals[1] / b);
+        for(int k=2; k<segmentCount; ++k)
+        {
+            g[k] = 1.0 / 6.0 / b;
+            b = 2.0 / 3.0 - g[k] / 6.0;
+            simple.push_back((integrals[k] - simple[k-1] / 6.0) / b);
+        }
+        for(int k = segmentCount-2; k >= 1; --k)
+        {
+            simple[k] -= g[k+1] * simple[k+1];
+        }
+
+        simple.push_back(poly[size-1]);
+    }
+    else
+    {
+        integrals[0] += integrals[segmentCount];
+        
+        int initializationSteps = std::min(segmentCount, 5);
+        ArrayVector<Point> p(segmentCount+2*initializationSteps);
+        double b = 0.6220084679281461,
+               g = 0.26794919243112275;
+        p[0] = integrals[0] / b;
+ 
+        for(int k=1; k<segmentCount+2*initializationSteps; ++k)
+        {
+            p[k] = (integrals[k % segmentCount] - p[k-1] / 6.0) / b;
+        }
+        for(int k = segmentCount+2*initializationSteps-2; k >= initializationSteps; --k)
+        {
+            p[k] -= g * p[k+1];
+        }
+        
+        for(int k=segmentCount; k<segmentCount+initializationSteps; ++k)
+            simple.push_back(p[k]);
+        for(int k=initializationSteps; k<=segmentCount; ++k)
+            simple.push_back(p[k]);
+    }    
+}
+
+/********************************************************************/
+
 template<class PointArray>
 void resamplePolygonLinearInterpolation(
     const PointArray &poly, PointArray &simple, double desiredPointDistance)
@@ -1102,35 +1338,22 @@ void resamplePolygonGaussianFilter(
 namespace detail {
 
 template<class Point>
-Point spline3Integral(Point const & p0, Point const & dp, double t1, double t2)
+Point spline3Integral(Point const & p1, Point const & p2, double t1, double t2)
 {
     StaticPolynomial<5, double> p[2];
     p[0][0] = p[1][0] = 0.0;
     if(t1 >= 1.0)
     {
-        for(int l=0; l<2; ++l)
-        {
-            p[l].setOrder(5);
-            p[l][1] = 4.0/3.0*p0[l];
-            p[l][2] = 2.0/3.0*dp[l] - p0[l];
-            p[l][3] = (p0[l] - 2.0*dp[l]) / 3.0;
-            p[l][4] = (6.0*dp[l] - p0[l]) / 24.0;
-            p[l][5] = dp[l] / -30.0;
-        }
+        return (t1 - t2) / 120.0 *
+               (p1 * (-80.0 + t1*(80.0 + 2.0*t2*(t2 - 10.0) + t1*(3.0*t2 - 30.0 + 4.0*t1)) + t2*(40.0 + t2*(t2 - 10.0))) +
+                p2 * (-80.0 + t1*(40.0 + t2*(3.0*t2 - 20.0) + t1*(2.0*t2 - 10.0 + t1)) + t2*(80.0 + t2*(4.0*t2 - 30.0))));
     }
     else
     {
-        for(int l=0; l<2; ++l)
-        {
-            p[l].setOrder(5);
-            p[l][1] = 2.0/3.0*p0[l];
-            p[l][2] = dp[l] / 3.0;
-            p[l][3] = p0[l] / -3.0;
-            p[l][4] = (p0[l] - 2.0*dp[l]) / 8.0;
-            p[l][5] = dp[l] / 10.0;
-        }
+        return (t2 - t1) / 120.0 * 
+               (p1 * (40.0 + t1*(2.0*t2*(3.0*t2 - 10.0) + t1*(9.0*t2 - 30.0 + 12.0*t1)) + t2*t2*(3.0*t2 - 10.0)) +
+                p2 * (40.0 + t1*(t2*(9.0*t2 - 20.0) + t1*(6.0*t2 - 10.0 + 3.0*t1)) + t2*t2*(12.0*t2 - 30.0)));
     }
-    return Point(p[0](t2) - p[0](t1), p[1](t2) - p[1](t1));
 }
 
 template<class ArcLengthList, class PointList>
@@ -1147,26 +1370,14 @@ singleSpline3ConvolvePolygon(
     for(int j = center + 1; j <= right; ++j)
     {
         double t1 = arcLengthList[j-1] - arcLengthPos,
-               t2 = arcLengthList[j] - arcLengthPos,
-               dt = t2 - t1;
-        if(dt < 1e-14)
-            continue;
-        ValueType p1 = pointList[j-1],
-                  p2 = pointList[j],
-                  dp = (p2 - p1) / dt;
-        sum += spline3Integral(p1 - t1*dp, dp, t1, t2);
+               t2 = arcLengthList[j] - arcLengthPos;
+        sum += spline3Integral(pointList[j-1], pointList[j], t1, t2);
     }
     for(int j = center - 1; j >= left; --j)
     {
         double t1 = arcLengthPos - arcLengthList[j+1],
-               t2 = arcLengthPos - arcLengthList[j],
-               dt = t2 - t1;
-        if(dt < 1e-14)
-            continue;
-        ValueType p1 = -pointList[j+1],
-                  p2 = -pointList[j],
-                  dp = (p2 - p1) / dt;
-        sum -= spline3Integral(p1 - t1*dp, dp, t1, t2);
+               t2 = arcLengthPos - arcLengthList[j];
+        sum -= spline3Integral(-pointList[j+1], -pointList[j], t1, t2);
     }
 
     return sum;
