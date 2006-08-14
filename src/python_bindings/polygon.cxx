@@ -11,6 +11,22 @@
 using namespace vigra;
 using namespace boost::python;
 
+class PythonListBackInserter
+{
+    list & list_;
+  public:
+    
+    PythonListBackInserter(list & l)
+    : list_(l)
+    {}
+    
+    template <class T>
+    void push_back(T const & t)
+    {
+        list_.append(t);
+    }
+};
+
 Point2D intPos(const Vector2 &p)
 {
     return Point2D((int)floor(p[0]+0.5), (int)floor(p[1]+0.5));
@@ -162,6 +178,14 @@ __reviter__(const Array &a)
 }
 
 template<class Array>
+list arcLengthList(const Array &a)
+{
+    list result;
+    a.arcLengthList(PythonListBackInserter(result));
+    return result;
+}
+
+template<class Array>
 Array simplifyPolygon(const Array &a, double epsilon)
 {
     Array result;
@@ -174,6 +198,54 @@ Array simplifyPolygon(const Array &a, double epsilon, double maxStep)
 {
     Array result;
     simplifyPolygon(a, result, epsilon, maxStep);
+    return result;
+}
+
+template<class Array>
+Array simplifyPolygonDigitalLine(const Array &a, int connectivity)
+{
+    Array result;
+    simplifyPolygonDigitalLine(a, result, connectivity);
+    return result;
+}
+
+template<class Array>
+Array resamplePolygon(const Array &a, double desiredPointDistance)
+{
+    Array result;
+    resamplePolygon(a, result, desiredPointDistance);
+    return result;
+}
+
+template<class Array>
+Array resamplePolygonLinearInterpolation(const Array &a, double desiredPointDistance)
+{
+    Array result;
+    resamplePolygonLinearInterpolation(a, result, desiredPointDistance);
+    return result;
+}
+
+template<class Array>
+Array resamplePolygonExponentialFilter(const Array &a, double scale, double desiredPointDistance)
+{
+    Array result;
+    resamplePolygonExponentialFilter(a, result, scale, desiredPointDistance);
+    return result;
+}
+
+template<class Array>
+Array resamplePolygonGaussianFilter(const Array &a, double scale, double desiredPointDistance)
+{
+    Array result;
+    resamplePolygonGaussianFilter(a, result, scale, desiredPointDistance);
+    return result;
+}
+
+template<class Array>
+Array polygonSplineControlPoints(const Array &a, int segmentCount)
+{
+    Array result;
+    polygonSplineControlPoints(a, result, segmentCount);
     return result;
 }
 
@@ -584,7 +656,443 @@ list gaussianConvolveByArcLengthCyclic(const list &arcLengthList,
     return list(); // never reached
 }
 
+template <class Point>
+struct AugmentedPolygonPoint
+{
+    Point point;
+    double arcLength, confidence;
+    
+    AugmentedPolygonPoint()
+    {}
+    
+    AugmentedPolygonPoint(Point const & p, double a, double c)
+    : point(p), arcLength(a), confidence(c)
+    {}
+};
 
+template <class Array1, class Array2, class Array3>
+void copyPointsReflectiveBoundaryConditions(Array1 const & points, Array2 const & conf, Array3 & res)
+{
+    typedef typename Array1::value_type Point;
+    typedef AugmentedPolygonPoint<Point> APoint;
+
+    unsigned int size = points.size();
+    res[size] = APoint(points[0], 0.0, conf[0]);
+    double arcLength = 0.0;
+    for(unsigned int k=1; k<size; ++k)
+    {
+        arcLength += norm(points[k] - points[k-1]);
+        res[size+k] = APoint(points[k], arcLength, conf[k]);
+    }
+    Point lastPoint2 = 2.0*points[size-1];
+    for(unsigned int k=0; k<size-1; ++k)
+    {
+        Point reflected = lastPoint2 - points[size-2-k];
+        arcLength += norm(res[2*size+k-1].point - reflected);
+        res[2*size+k] = APoint(reflected, arcLength, conf[size-2-k]);
+    }
+    Point firstPoint2 = 2.0*points[0];
+    arcLength = 0.0;
+    for(unsigned int k=0; k<size-1; ++k)
+    {
+        Point reflected = firstPoint2 - points[k+1];
+        arcLength -= norm(res[size-k].point - reflected);
+        res[size-1-k] = APoint(reflected, arcLength, conf[k+1]);
+    }
+}
+
+template <class Array1, class Array2, class Array3>
+void copyPointsCyclicBoundaryConditions(Array1 const & points, Array2 const & conf, Array3 & res)
+{
+    typedef typename Array1::value_type Point;
+    typedef AugmentedPolygonPoint<Point> APoint;
+
+    unsigned int size = points.size();
+    res[size] = APoint(points[0], 0.0, conf[0]);
+    double arcLength = 0.0;
+    for(unsigned int k=1; k<size; ++k)
+    {
+        arcLength += norm(points[k] - points[k-1]);
+        res[size+k] = APoint(points[k], arcLength, conf[k]);
+    }
+    for(unsigned int k=0; k<size-1; ++k)
+    {
+        arcLength += norm(res[2*size+k-1].point - points[k+1]);
+        res[2*size+k] = APoint(points[k+1], arcLength, conf[k+1]);
+    }
+    arcLength = 0.0;
+    for(unsigned int k=0; k<size-1; ++k)
+    {
+        arcLength -= norm(res[size-k].point - points[size-2-k]);
+        res[size-1-k] = APoint(points[size-2-k], arcLength, conf[size-2-k]);
+    }
+}
+
+template<class Array1, class Array2>
+list tangentListChord(const Array1 &points, const Array2 &confidences, double scale)
+{
+    typedef typename Array1::value_type Point;
+    typedef AugmentedPolygonPoint<Point> APoint;
+
+    unsigned int size = points.size();
+
+    ArrayVector<APoint> aPoints(3*size);
+    
+    if(points[0] == points[size-1])
+        copyPointsCyclicBoundaryConditions(points, confidences, aPoints);
+    else
+        copyPointsReflectiveBoundaryConditions(points, confidences, aPoints);
+    
+    ArrayVector<APoint>::iterator p = aPoints.begin() + size;
+    double totalArcLength = p[size-1].arcLength;
+    double averageArcLength = totalArcLength / size;
+    double s2 = scale*scale;
+
+    list result;
+    ContinuousDirection makeContinuous;
+    for(unsigned int i = 0; i < size; ++i)
+    {
+        Point r = estimateFirstDerivative<Point>(p, p+size, i, scale);
+
+        result.append(make_tuple(p[i].arcLength, makeContinuous(VIGRA_CSTD::atan2(r[1], r[0]))));
+    }
+
+    return result;
+}
+
+template<class Array1, class Array2>
+list tangentListNormalizedGaussian(const Array1 &points, const Array2 &confidences, double scale)
+{
+    typedef typename Array1::value_type Point;
+    typedef AugmentedPolygonPoint<Point> APoint;
+
+    unsigned int size = points.size();
+
+    ArrayVector<APoint> aPoints(3*size);
+    
+    if(points[0] == points[size-1])
+        copyPointsCyclicBoundaryConditions(points, confidences, aPoints);
+    else
+        copyPointsReflectiveBoundaryConditions(points, confidences, aPoints);
+    
+    ArrayVector<APoint>::iterator p = aPoints.begin() + size;
+    double totalArcLength = p[size-1].arcLength;
+    double averageArcLength = totalArcLength / size;
+    double s2 = scale*scale;
+
+    list result;
+    ContinuousDirection makeContinuous;
+    for(unsigned int i = 0; i < size; ++i)
+    {
+        Point  sp = p[i].confidence*p[i].point, spp = Point(0.0, 0.0);
+        double sw = p[i].confidence, swp = 0.0;
+        for(int k = 1; k < (int)size; ++k)
+        {
+            double diff = p[i+k].arcLength - p[i].arcLength;
+            if(diff > 3.0*scale)
+                break;
+            double w = p[i+k].confidence*VIGRA_CSTD::exp(-diff*diff/2.0/s2);
+            sp  += w*p[i+k].point;
+            spp += diff/s2*w*p[i+k].point;
+            sw  += w;
+            swp += diff/s2*w;
+        }
+        for(int k = -1; k > -(int)size; --k)
+        {
+            double diff = p[i].arcLength - p[i+k].arcLength;
+            if(diff > 3.0*scale)
+                break;
+            double w = p[i+k].confidence*VIGRA_CSTD::exp(-diff*diff/2.0/s2);
+            sp  += w*p[i+k].point;
+            spp -= diff/s2*w*p[i+k].point;
+            sw  += w;
+            swp -= diff/s2*w;
+        }
+        
+        Point r = (sw*spp - swp*sp) / (sw*sw);
+
+        result.append(make_tuple(p[i].arcLength, makeContinuous(VIGRA_CSTD::atan2(r[1], r[0]))));
+    }
+
+    return result;
+}
+
+template<class Point, class Iterator>
+Point estimateFirstDerivative(Iterator points, Iterator end, int index, double dist)
+{
+    double a0 = points[index].arcLength, d, o;
+    int k, size = end  - points;
+    for(k = index+1; k<2*size; ++k)
+    {
+        d = points[k].arcLength - a0;
+        if(d > dist)
+            break;
+    }
+    vigra_invariant(k < 2*size,
+        "estimateThirdDerivative(): Polygon shorter than requested distance.");
+    o = (d - dist) / (points[k].arcLength - points[k-1].arcLength);
+    Point p1(o * points[k-1].point + (1.0 - o) * points[k].point);
+    
+    for(k = index-1; k>-size; --k)
+    {
+        d = points[k].arcLength - a0;
+        if(d < -dist)
+            break;
+    }
+    vigra_invariant(k>-size,
+        "estimateThirdDerivative(): Polygon shorter than requested distance.");
+    o = (d + dist) / (points[k].arcLength - points[k+1].arcLength);
+    Point pm1(o * points[k+1].point + (1.0 - o) * points[k].point);
+
+    return (p1 - pm1) / (2.0 * dist);
+}
+
+template<class Point, class Iterator>
+Point estimateThirdDerivative(Iterator points, Iterator end, int index, double dist)
+{
+    double a0 = points[index].arcLength, d, o;
+    int k, size = end  - points;
+    for(k = index+1; k<2*size; ++k)
+    {
+        d = points[k].arcLength - a0;
+        if(d > dist)
+            break;
+    }
+    vigra_invariant(k < 2*size,
+        "estimateThirdDerivative(): Polygon shorter than requested distance.");
+    o = (d - dist) / (points[k].arcLength - points[k-1].arcLength);
+    Point p1(o * points[k-1].point + (1.0 - o) * points[k].point);
+    
+    for(; k<2*size; ++k)
+    {
+        d = points[k].arcLength - a0;
+        if(d > 2.0*dist)
+            break;
+    }
+    vigra_invariant(k < 2*size,
+        "estimateThirdDerivative(): Polygon shorter than requested distance.");
+    o = (d - 2.0*dist) / (points[k].arcLength - points[k-1].arcLength);
+    Point p2(o * points[k-1].point + (1.0 - o) * points[k].point);
+    
+    for(k = index-1; k>-size; --k)
+    {
+        d = points[k].arcLength - a0;
+        if(d < -dist)
+            break;
+    }
+    vigra_invariant(k>-size,
+        "estimateThirdDerivative(): Polygon shorter than requested distance.");
+    o = (d + dist) / (points[k].arcLength - points[k+1].arcLength);
+    Point pm1(o * points[k+1].point + (1.0 - o) * points[k].point);
+    
+    for(; k>-size; --k)
+    {
+        d = points[k].arcLength - a0;
+        if(d < -dist)
+            break;
+    }
+    vigra_invariant(k>-size,
+        "estimateThirdDerivative(): Polygon shorter than requested distance.");
+    o = (d + 2.0*dist) / (points[k].arcLength - points[k+1].arcLength);
+    Point pm2(o * points[k+1].point + (1.0 - o) * points[k].point);
+    return (p2 - 2.0*p1 + 2.0*pm1 - pm2) / (2.0 * dist * dist * dist);
+}
+
+template<class Point, class Array>
+Point estimateThirdDerivativeQuick(const Array & points, int index, double dist, double averageDist)
+{
+    int diff = (int)std::floor(dist/averageDist);
+    int size = points.size();
+    vigra_invariant(index + 2*diff < size && index - 2*diff >= 0,
+        "estimateThirdDerivativeQuick(): Polygon shorter than requested distance.");
+    return (points[index-2*diff].point - 2.0*points[index-diff].point + 
+                2.0*points[index+diff].point - points[index+2*diff].point) / (2.0 * dist * dist * dist);
+}
+
+template<class Array1, class Array2>
+list tangentListNormalizedGaussianOptimal(const Array1 &points, const Array2 &confidences, double maxScale)
+{
+    typedef typename Array1::value_type Point;
+    typedef AugmentedPolygonPoint<Point> APoint;
+
+    unsigned int size = points.size();
+
+    ArrayVector<APoint> aPoints(3*size);
+    
+    if(points[0] == points[size-1])
+        copyPointsCyclicBoundaryConditions(points, confidences, aPoints);
+    else
+        copyPointsReflectiveBoundaryConditions(points, confidences, aPoints);
+    
+    ArrayVector<APoint>::iterator p = aPoints.begin() + size;
+    double totalArcLength = p[size-1].arcLength;
+    double averageArcLength = totalArcLength / size;
+    double dist = std::min(maxScale, totalArcLength / 16.0);
+
+    list result;
+    ContinuousDirection makeContinuous;
+    for(unsigned int i = 0; i < size; ++i)
+    {
+        double q3 = norm(estimateThirdDerivative<Point>(p, p + size, i, dist));
+        double scale = std::pow(0.75/sqrt(M_PI)/sq(p[i].confidence*q3), 1.0/7.0);
+        double s2 = scale*scale;
+        Point  sp = p[i].confidence*p[i].point, spp = Point(0.0, 0.0);
+        double sw = p[i].confidence, swp = 0.0;
+        for(int k = 1; k < (int)size; ++k)
+        {
+            double diff = p[i+k].arcLength - p[i].arcLength;
+            if(diff > 2.5*scale)
+                break;
+            double w = p[i+k].confidence*VIGRA_CSTD::exp(-diff*diff/2.0/s2);
+            sp  += w*p[i+k].point;
+            spp += diff/s2*w*p[i+k].point;
+            sw  += w;
+            swp += diff/s2*w;
+        }
+        for(int k = -1; k > -(int)size; --k)
+        {
+            double diff = p[i].arcLength - p[i+k].arcLength;
+            if(diff > 2.5*scale)
+                break;
+            double w = p[i+k].confidence*VIGRA_CSTD::exp(-diff*diff/2.0/s2);
+            sp  += w*p[i+k].point;
+            spp -= diff/s2*w*p[i+k].point;
+            sw  += w;
+            swp -= diff/s2*w;
+        }
+        
+        Point r = (sw*spp - swp*sp) / (sw*sw);
+
+        result.append(make_tuple(p[i].arcLength, makeContinuous(VIGRA_CSTD::atan2(r[1], r[0]))));
+    }
+
+    return result;
+}
+
+template<class Array1, class Array2>
+list tangentListChordOptimal(const Array1 &points, const Array2 &confidences, double maxScale)
+{
+    typedef typename Array1::value_type Point;
+    typedef AugmentedPolygonPoint<Point> APoint;
+
+    unsigned int size = points.size();
+
+    ArrayVector<APoint> aPoints(3*size);
+    
+    if(points[0] == points[size-1])
+        copyPointsCyclicBoundaryConditions(points, confidences, aPoints);
+    else
+        copyPointsReflectiveBoundaryConditions(points, confidences, aPoints);
+    
+    ArrayVector<APoint>::iterator p = aPoints.begin() + size;
+    double totalArcLength = p[size-1].arcLength;
+    double averageArcLength = totalArcLength / size;
+    double dist = std::min(maxScale, totalArcLength / 16.0);
+
+    list result;
+    ContinuousDirection makeContinuous;
+    for(unsigned int i = 0; i < size; ++i)
+    {
+        double q3 = norm(estimateThirdDerivative<Point>(p, p + size, i, dist));
+        double scale = std::pow(3.0/p[i].confidence/q3, 1.0/3.0);
+        Point  r = estimateFirstDerivative<Point>(p, p + size, i, scale);
+        result.append(make_tuple(p[i].arcLength, makeContinuous(VIGRA_CSTD::atan2(r[1], r[0]))));
+    }
+
+    return result;
+}
+
+list pytangentListChord(list const & pyPoints, list const & pyConf, double scale)
+{
+    int size = len(pyPoints);
+    vigra_precondition(size == len(pyConf),
+        "tangentListChord(): lists must have the same size.");
+    ArrayVector<Vector2> points(size);
+    ArrayVector<double>  conf(size);
+    for(int k=0; k<size; ++k)
+    {
+        points[k] = extract<Vector2>(pyPoints[k])();
+        conf[k] = extract<double>(pyConf[k])();
+    }
+    return tangentListChord(points, conf, scale);
+}
+
+list pytangentListNormalizedGaussian(list const & pyPoints, list const & pyConf, double scale)
+{
+    int size = len(pyPoints);
+    vigra_precondition(size == len(pyConf),
+        "tangentListNormalizedGaussian(): lists must have the same size.");
+    ArrayVector<Vector2> points(size);
+    ArrayVector<double>  conf(size);
+    for(int k=0; k<size; ++k)
+    {
+        points[k] = extract<Vector2>(pyPoints[k])();
+        conf[k] = extract<double>(pyConf[k])();
+    }
+    return tangentListNormalizedGaussian(points, conf, scale);
+}
+
+list pytangentListNormalizedGaussianOptimal(list const & pyPoints, list const & pyConf, double maxScale)
+{
+    int size = len(pyPoints);
+    vigra_precondition(size == len(pyConf),
+        "tangentListNormalizedGaussianOptimal(): lists must have the same size.");
+    ArrayVector<Vector2> points(size);
+    ArrayVector<double>  conf(size);
+    for(int k=0; k<size; ++k)
+    {
+        points[k] = extract<Vector2>(pyPoints[k])();
+        conf[k] = extract<double>(pyConf[k])();
+    }
+    return tangentListNormalizedGaussianOptimal(points, conf, maxScale);
+}
+
+list pyThirdDerivativeOfPolygon(list const & pyPoints, double dist)
+{
+    typedef AugmentedPolygonPoint<Vector2> APoint;
+    int size = len(pyPoints);
+
+    ArrayVector<Vector2> points(size);
+    ArrayVector<double>  conf(size);
+    for(int k=0; k<size; ++k)
+    {
+        points[k] = extract<Vector2>(pyPoints[k])();
+        conf[k] = 1.0;
+    }
+
+    ArrayVector<APoint> aPoints(3*size);
+    
+    if(points[0] == points[size-1])
+        copyPointsCyclicBoundaryConditions(points, conf, aPoints);
+    else
+        copyPointsReflectiveBoundaryConditions(points, conf, aPoints);
+    
+    ArrayVector<APoint>::iterator p = aPoints.begin() + size;
+
+    list result;
+    for(int i = 0; i < size; ++i)
+    {
+        double q3 = norm(estimateThirdDerivative<Vector2>(p, p + size, i, dist));
+        result.append(make_tuple(p[i].arcLength, q3));
+    }
+
+    return result;
+}
+
+list pytangentListChordOptimal(list const & pyPoints, list const & pyConf, double maxScale)
+{
+    int size = len(pyPoints);
+    vigra_precondition(size == len(pyConf),
+        "tangentListChordOptimal(): lists must have the same size.");
+    ArrayVector<Vector2> points(size);
+    ArrayVector<double>  conf(size);
+    for(int k=0; k<size; ++k)
+    {
+        points[k] = extract<Vector2>(pyPoints[k])();
+        conf[k] = extract<double>(pyConf[k])();
+    }
+    return tangentListChordOptimal(points, conf, maxScale);
+}
 
 template<class Array>
 list tangentListGaussianReflective(const Array &points, double sigma, double diff = 0.0)
@@ -1156,6 +1664,8 @@ void defPolygon()
         .def(init<Vector2Array>())
         .def(init<list>())
         .def("reverse", &Vector2Array::reverse)
+        .def("interpolate", &Vector2Array::interpolate)
+        .def("arcLengthList", &arcLengthList<Vector2Array>)
         .def("__len__", &Vector2Array::size)
         .def("__getitem__", &Array__getitem__<Vector2Array>)
         .def("__setitem__", &Array__setitem__<Vector2Array>)
@@ -1276,6 +1786,45 @@ void defPolygon()
     def("simplifyPolygon",
         (PythonPolygon (*)(const PythonPolygon &,double,double))&simplifyPolygon),
         args("points", "perpendicularDistEpsilon", "maxStep");
+    def("simplifyPolygonDigitalLine",
+        (Vector2Array (*)(const Vector2Array &,int))&simplifyPolygonDigitalLine),
+        args("points", "connectivity");
+    def("simplifyPolygonDigitalLine",
+        (PythonPolygon (*)(const PythonPolygon &,int))&simplifyPolygonDigitalLine),
+        args("points", "connectivity");
+
+    def("resamplePolygon",
+        (Vector2Array (*)(const Vector2Array &,double))&resamplePolygon,
+        args("points", "desiredPointDistance"));
+    def("resamplePolygon",
+        (PythonPolygon (*)(const PythonPolygon &,double))&resamplePolygon,
+        args("polygon", "desiredPointDistance"));
+    def("resamplePolygonLinearInterpolation",
+        (Vector2Array (*)(const Vector2Array &,double))&resamplePolygonLinearInterpolation,
+        args("points", "desiredPointDistance"));
+    def("resamplePolygonLinearInterpolation",
+        (PythonPolygon (*)(const PythonPolygon &,double))&resamplePolygonLinearInterpolation,
+        args("polygon", "desiredPointDistance"));
+    def("resamplePolygonExponentialFilter",
+        (Vector2Array (*)(const Vector2Array &,double,double))&resamplePolygonExponentialFilter,
+        args("points", "scale", "desiredPointDistance"));
+    def("resamplePolygonExponentialFilter",
+        (PythonPolygon (*)(const PythonPolygon &,double,double))&resamplePolygonExponentialFilter,
+        args("polygon", "scale", "desiredPointDistance"));
+    def("resamplePolygonGaussianFilter",
+        (Vector2Array (*)(const Vector2Array &,double,double))&resamplePolygonGaussianFilter,
+        args("points", "scale", "desiredPointDistance"));
+    def("resamplePolygonGaussianFilter",
+        (PythonPolygon (*)(const PythonPolygon &,double,double))&resamplePolygonGaussianFilter,
+        args("polygon", "scale", "desiredPointDistance"));
+    def("polygonSplineControlPoints",
+        (Vector2Array (*)(const Vector2Array &,int))&polygonSplineControlPoints,
+        args("points", "segmentCount"));
+    def("polygonSplineControlPoints",
+        (PythonPolygon (*)(const PythonPolygon &,int))&polygonSplineControlPoints,
+        args("polygon", "segmentCount"));
+        
+    def("spline3Integral", vigra::detail::spline3Integral<Vector2>);
 
     def("curvatureList", &curvatureList<Vector2Array>,
         (arg("pointArray"), arg("dx") = 5, arg("skipPoints") = 1),
@@ -1285,6 +1834,12 @@ void defPolygon()
         "returns a list of (arcLength, curvature) pairs,\n"
         "whose length is len(pointArray) - 2*dx - 2*skipPoints.");
 
+    def("thirdDerivativeOfPolygon", &pyThirdDerivativeOfPolygon,
+        (arg("pointArray"), arg("sigma")),
+        "thirdDerivativeOfPolygon(pointArray, sigma): "
+        "calculates the magnitude of the third derivative at each point using a symmetric difference at distance 'sigma'.\n"
+        "Cyclic boundary conditions will be used when the first and last point "
+        "of 'pointArray' are equal, reflective boundary conditions otherwise.");
     def("tangentList", &tangentList<Vector2Array>,
         (arg("pointArray"), arg("dx") = 5, arg("skipPoints") = 1),
         "tangentList(pointArray, dx = 5, skipPoints = 1)\n"
@@ -1304,6 +1859,32 @@ void defPolygon()
         "It first approximates the curve at +-diff of each point by means of\n"
         "a Gaussian filter with standard deviation sigma and cyclic boundary conditions\n"
         "and then approximates the tangent by the chord between these two points.");
+    def("tangentListChord", &pytangentListChord,
+        (arg("pointArray"), arg("confidenceArray"), arg("sigma")),
+        "tangentListChord(pointArray, confidenceArray, sigma): "
+        "calculates tangent angles at each point using a symmetric difference at distance 'sigma'.\n"
+        "Cyclic boundary conditions will be used when the first and last point "
+        "of 'pointArray' are equal, reflective boundary conditions otherwise.");
+    def("tangentListNormalizedGaussian", &pytangentListNormalizedGaussian,
+        (arg("pointArray"), arg("confidenceArray"), arg("sigma")),
+        "tangentListNormalizedGaussian(pointArray, confidenceArray, sigma): "
+        "calculates tangent angles at each point using a normalized Gaussian derivative at scale 'sigma'.\n"
+        "Cyclic boundary conditions will be used when the first and last point "
+        "of 'pointArray' are equal, reflective boundary conditions otherwise.");
+    def("tangentListChordOptimal", &pytangentListChordOptimal,
+        (arg("pointArray"), arg("confidenceArray"), arg("maxScale")),
+        "tangentListChordOptimal(pointArray, confidenceArray, maxScale): "
+        "calculates tangent angles at each point using a symmetric difference filter.\n"
+        "Its optimal scale is determined from the local confidence and third derivative.\n"
+        "Cyclic boundary conditions will be used when the first and last point "
+        "of 'pointArray' are equal, reflective boundary conditions otherwise.");
+    def("tangentListNormalizedGaussianOptimal", &pytangentListNormalizedGaussianOptimal,
+        (arg("pointArray"), arg("confidenceArray"), arg("maxScale")),
+        "tangentListNormalizedGaussianOptimal(pointArray, confidenceArray, maxScale): "
+        "calculates tangent angles at each point using a normalized Gaussian derivative.\n"
+        "Its optimal scale is determined from the local confidence and third derivative.\n"
+        "Cyclic boundary conditions will be used when the first and last point "
+        "of 'pointArray' are equal, reflective boundary conditions otherwise.");
     def("gaussianConvolveByArcLength", &gaussianConvolveByArcLength,
         (arg("arcLengthList"), arg("sigma"), arg("derivativeOrder") = 0),
         "gaussianConvolveByArcLength(arcLengthList, sigma, derivativeOrder = 0)\n"
