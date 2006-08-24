@@ -293,8 +293,8 @@ class Polygon : public PointArray<POINT>
         if(!lengthValid_)
         {
             length_ = 0.0;
-            for(unsigned int i = 1; i < points_.size(); ++i)
-                length_ += (points_[i] - points_[i-1]).magnitude();
+            for(unsigned int i = 1; i < this->points_.size(); ++i)
+                length_ += (this->points_[i] - this->points_[i-1]).magnitude();
             lengthValid_ = true;
         }
         return length_;
@@ -305,9 +305,9 @@ class Polygon : public PointArray<POINT>
         if(!partialAreaValid_)
         {
             partialArea_ = 0.0;
-            for(unsigned int i = 1; i < points_.size(); ++i)
-                partialArea_ += (points_[i][0]*points_[i-1][1] -
-                                 points_[i][1]*points_[i-1][0]);
+            for(unsigned int i = 1; i < this->points_.size(); ++i)
+                partialArea_ += (this->points_[i][0]*this->points_[i-1][1] -
+                                 this->points_[i][1]*this->points_[i-1][0]);
             partialAreaValid_ = true;
         }
         return partialArea_;
@@ -325,20 +325,20 @@ class Polygon : public PointArray<POINT>
          */
     bool contains(const_reference point) const
     {
-        vigra_precondition(points_[size()-1] == points_[0],
+        vigra_precondition(this->points_[this->size()-1] == this->points_[0],
                            "Polygon::contains() requires polygon to be closed!");
         int result = 0;
-        bool above = points_[0][1] < point[1];
-        for(unsigned int i = 1; i < size(); ++i)
+        bool above = this->points_[0][1] < point[1];
+        for(unsigned int i = 1; i < this->size(); ++i)
         {
-            bool now = points_[i][1] < point[1];
+            bool now = this->points_[i][1] < point[1];
             if(now != above)
             {
                 typename Point::value_type intersectX =
-                    points_[i-1][0] +
-                    (points_[i][0] - points_[i-1][0]) *
-                    (point[1]      - points_[i-1][1]) /
-                    (points_[i][1] - points_[i-1][1]);
+                    this->points_[i-1][0] +
+                    (this->points_[i][0] - this->points_[i-1][0]) *
+                    (point[1]      - this->points_[i-1][1]) /
+                    (this->points_[i][1] - this->points_[i-1][1]);
                 if(intersectX < point[0])
                     ++result;
 
@@ -350,13 +350,13 @@ class Polygon : public PointArray<POINT>
 
     void push_back(const_reference v)
     {
-        if(size())
+        if(this->size())
         {
             if(lengthValid_)
-                length_ += (v - points_.back()).magnitude();
+                length_ += (v - this->points_.back()).magnitude();
             if(partialAreaValid_)
-                partialArea_ += (v[0]*points_.back()[1] -
-                                      v[1]*points_.back()[0]);
+                partialArea_ += (v[0]*this->points_.back()[1] -
+                                      v[1]*this->points_.back()[0]);
         }
         Base::push_back(v);
     }
@@ -366,10 +366,10 @@ class Polygon : public PointArray<POINT>
         if(!other.size())
             return;
 
-        Polygon::const_iterator otherBegin(other.begin());
-        if(size())
+        const_iterator otherBegin(other.begin());
+        if(this->size())
         {
-            if(*otherBegin == points_.back())
+            if(*otherBegin == this->points_.back())
             {
                 // don't copy first pixel
                 ++otherBegin;
@@ -378,18 +378,18 @@ class Polygon : public PointArray<POINT>
             {
                 if(lengthValid_)
                     length_ +=
-                        (other.points_.front() - points_.back()).magnitude();
+                        (other.points_.front() - this->points_.back()).magnitude();
                 if(partialAreaValid_)
                     partialArea_ +=
-                        (other.points_.front()[0]*points_.back()[1] -
-                         other.points_.front()[1]*points_.back()[0]);
+                        (other.points_.front()[0]*this->points_.back()[1] -
+                         other.points_.front()[1]*this->points_.back()[0]);
             }
         }
         if(lengthValid_)
             length_ += other.length();
         if(partialAreaValid_)
             partialArea_ += other.partialArea();
-        points_.insert(points_.end(), otherBegin, other.end());
+        this->points_.insert(this->points_.end(), otherBegin, other.end());
     }
 
     void setPoint(unsigned int pos, const_reference x)
@@ -398,17 +398,17 @@ class Polygon : public PointArray<POINT>
         {
             if(pos > 0)
             {
-                length_ += (x - points_[pos-1]).magnitude() -
-                           (points_[pos] - points_[pos-1]).magnitude();
+                length_ += (x - this->points_[pos-1]).magnitude() -
+                           (this->points_[pos] - this->points_[pos-1]).magnitude();
             }
-            if(pos < size() - 1)
+            if(pos < this->size() - 1)
             {
-                length_ += (x - points_[pos+1]).magnitude() -
-                           (points_[pos] - points_[pos+1]).magnitude();
+                length_ += (x - this->points_[pos+1]).magnitude() -
+                           (this->points_[pos] - this->points_[pos+1]).magnitude();
             }
         }
         partialAreaValid_ = false;
-        points_[pos] = x;
+        this->points_[pos] = x;
     }
 
     void erase(iterator pos)
@@ -421,12 +421,12 @@ class Polygon : public PointArray<POINT>
     {
         if(lengthValid_)
         {
-            if(pos > begin())
+            if(pos > this->begin())
                 length_ += (x - pos[-1]).magnitude();
-            if(end() - pos >= 1)
+            if(this->end() - pos >= 1)
             {
                 length_ += (x - *pos).magnitude();
-                if(pos > begin())
+                if(pos > this->begin())
                     length_ -= (*pos - pos[-1]).magnitude();
             }
         }
@@ -447,13 +447,13 @@ class Polygon : public PointArray<POINT>
         if(pos == 0)
         {
             Polygon result(1);
-            result[0] = points_[0];
+            result[0] = this->points_[0];
             swap(result);
             return result;
         }
 
-        Polygon result(begin() + pos, end());
-        if(pos > size() / 3)
+        Polygon result(this->begin() + pos, this->end());
+        if(pos > this->size() / 3)
         {
              // heuristic: when splitting off only a "small part",
              // re-use existing information
@@ -464,7 +464,7 @@ class Polygon : public PointArray<POINT>
         }
         else
             invalidateProperties();
-        points_.erase(begin() + pos + 1, end());
+        this->points_.erase(this->begin() + pos + 1, this->end());
         return result;
     }
 
@@ -604,8 +604,8 @@ class BBoxPolygon : public Polygon<POINT>
         if(!boundingBoxValid_)
         {
             boundingBox_ = BoundingBox();
-            for(unsigned int i = 1; i < points_.size(); ++i)
-                boundingBox_ |= points_[i];
+            for(unsigned int i = 1; i < this->points_.size(); ++i)
+                boundingBox_ |= this->points_[i];
             boundingBoxValid_ = true;
         }
         return boundingBox_;
@@ -629,14 +629,14 @@ class BBoxPolygon : public Polygon<POINT>
     {
         if(boundingBoxValid_)
         {
-            if((x[0] < points_[pos][0]) &&
-               (points_[pos][0] == boundingBox_.end()[0]) ||
-               (x[0] > points_[pos][0]) &&
-               (points_[pos][0] == boundingBox_.begin()[0]) ||
-               (x[1] < points_[pos][1]) &&
-               (points_[pos][1] == boundingBox_.end()[1]) ||
-               (x[1] > points_[pos][1]) &&
-               (points_[pos][1] == boundingBox_.begin()[1]))
+            if((x[0] < this->points_[pos][0]) &&
+               (this->points_[pos][0] == boundingBox_.end()[0]) ||
+               (x[0] > this->points_[pos][0]) &&
+               (this->points_[pos][0] == boundingBox_.begin()[0]) ||
+               (x[1] < this->points_[pos][1]) &&
+               (this->points_[pos][1] == boundingBox_.end()[1]) ||
+               (x[1] > this->points_[pos][1]) &&
+               (this->points_[pos][1] == boundingBox_.begin()[1]))
                 boundingBoxValid_ = false;
         }
         Base::setPoint(pos, x);
