@@ -100,6 +100,7 @@ class QuantileStatistics : public PolylineStatistics
 
     double quantile(double quantile) const
     {
+        vigra_precondition(segments_.size() > 0, "empty polygon?");
         ensureOrdering();
         double partialLength = 0;
         for(unsigned int i = 0; i < segments_.size(); ++i)
