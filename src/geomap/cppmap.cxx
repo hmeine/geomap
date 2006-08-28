@@ -1,5 +1,6 @@
 #include <boost/python.hpp>
 #include <boost/python/detail/api_placeholder.hpp>
+#include <boost/shared_ptr.hpp>
 #include <vigra/tinyvector.hxx>
 #include <vigra/pythonimage.hxx>
 #include "vigra/polygon.hxx"
@@ -11,6 +12,25 @@ namespace bp = boost::python;
 typedef vigra::TinyVector<double, 2> Vector2;
 typedef vigra::PointArray<Vector2>   Vector2Array;
 
+#define USE_INSECURE_CELL_PTRS
+
+#ifdef USE_INSECURE_CELL_PTRS
+#define CELL_PTR(Type) Type *
+#define NULL_PTR(Type) (Type *)NULL
+#define RESET_PTR(ptr) ptr = NULL;
+// This is quite dangerous, *but*: The real lifetime of
+// the referenced objects / cells are unknown, since any Euler
+// operation might invalidate them.  A possible, but expensive
+// solution would be to add reference counts / use
+// boost::shared_ptr at the C++ level.
+#define CELL_RETURN_POLICY return_value_policy<reference_existing_object>
+#else
+#define CELL_PTR(Type) boost::shared_ptr<Type>
+#define NULL_PTR(Type) boost::shared_ptr<Type>()
+#define RESET_PTR(ptr) ptr.reset();
+#define CELL_RETURN_POLICY default_call_policies
+#endif
+
 class GeoMap
 {
   public:
@@ -19,9 +39,9 @@ class GeoMap
     class Face;
     class Dart;
 
-    typedef std::vector<Node*> Nodes;
-    typedef std::vector<Edge*> Edges;
-    typedef std::vector<Face*> Faces;
+    typedef std::vector< CELL_PTR(Node) > Nodes;
+    typedef std::vector< CELL_PTR(Edge) > Edges;
+    typedef std::vector< CELL_PTR(Face) > Faces;
 
   protected:
     Nodes nodes_;
@@ -38,17 +58,17 @@ class GeoMap
     GeoMap(bp::list nodePositions,
            bp::list edgeTuples, vigra::Size2D imageSize);
 
-    Node *node(unsigned int label)
+    CELL_PTR(Node) node(unsigned int label)
     {
         return nodes_[label];
     }
 
-    Edge *edge(unsigned int label)
+    CELL_PTR(Edge) edge(unsigned int label)
     {
         return edges_[label];
     }
 
-    Face *face(unsigned int label)
+    CELL_PTR(Face) face(unsigned int label)
     {
         return faces_[label];
     }
@@ -87,14 +107,14 @@ class GeoMap::Node
       label_(map->nodes_.size()),
       position_(position)
     {
-        map_->nodes_.push_back(this);
+        map_->nodes_.push_back(GeoMap::Nodes::value_type(this));
         ++map_->nodeCount_;
         map_->nodeMap_.insert(position_, bp::object(label_));
     }
 
     ~Node()
     {
-        map_->nodes_[label_] = NULL;
+        RESET_PTR(map_->nodes_[label_]);
         --map_->nodeCount_;
         map_->nodeMap_.remove(position_);
     }
@@ -147,13 +167,13 @@ class GeoMap::Edge
       rightFaceLabel_(0),
       protection_(0)
     {
-        map_->edges_.push_back(this);
+        map_->edges_.push_back(GeoMap::Edges::value_type(this));
         ++map_->edgeCount_;
     }
 
     ~Edge()
     {
-        map_->edges_[label_] = NULL;
+        RESET_PTR(map_->edges_[label_]);
         --map_->edgeCount_;
     }
 
@@ -169,7 +189,7 @@ class GeoMap::Edge
         return startNodeLabel_;
     }
 
-    Node *startNode() const
+    GeoMap::Nodes::value_type startNode() const
     {
         return map_->node(startNodeLabel_);
     }
@@ -179,7 +199,7 @@ class GeoMap::Edge
         return endNodeLabel_;
     }
 
-    Node *endNode() const
+    GeoMap::Nodes::value_type endNode() const
     {
         return map_->node(endNodeLabel_);
     }
@@ -189,7 +209,7 @@ class GeoMap::Edge
         return leftFaceLabel_;
     }
 
-    Face *leftFace() const
+    GeoMap::Faces::value_type leftFace() const
     {
         return map_->face(leftFaceLabel_);
     }
@@ -199,7 +219,7 @@ class GeoMap::Edge
         return rightFaceLabel_;
     }
 
-    Face *rightFace() const
+    GeoMap::Faces::value_type rightFace() const
     {
         return map_->face(rightFaceLabel_);
     }
@@ -303,35 +323,35 @@ class GeoMap::Dart
 //             result = self._map().edge(self.edgeLabel())
 //             return result
 
-    Edge *edge() const
+    GeoMap::Edges::value_type edge() const
     {
         return map_->edge(edgeLabel());
     }
 
-    Edge *guaranteedEdge() const
+    GeoMap::Edges::value_type guaranteedEdge() const
     {
-        Edge *result(edge());
+        GeoMap::Edges::value_type result(edge());
         vigra_precondition(result,
             "Cannot operate on invalid dart belonging to removed edge!");
         return result;
     }
 
-    Node *startNode() const
+    GeoMap::Nodes::value_type startNode() const
     {
         return map_->node(startNodeLabel());
     }
 
-    Node *endNode() const
+    GeoMap::Nodes::value_type endNode() const
     {
         return map_->node(endNodeLabel());
     }
 
-    Face *leftFace() const
+    GeoMap::Faces::value_type leftFace() const
     {
         return map_->face(leftFaceLabel());
     }
 
-    Face *rightFace() const
+    GeoMap::Faces::value_type rightFace() const
     {
         return map_->face(rightFaceLabel());
     }
@@ -462,7 +482,7 @@ class GeoMap::Face
       areaValid_(false),
       pixelArea_(0)
     {
-        map_->faces_.push_back(this);
+        map_->faces_.push_back(GeoMap::Faces::value_type(this));
         ++map_->faceCount_;
 
         // FIXME: infinite face had "None"-anchor in python!
@@ -481,7 +501,7 @@ class GeoMap::Face
 
     ~Face()
     {
-        map_->faces_[label_] = NULL;
+        RESET_PTR(map_->faces_[label_]);
         --map_->faceCount_;
     }
 
@@ -554,7 +574,7 @@ GeoMap::GeoMap(bp::list nodePositions,
         if(ve.check())
             new Node(this, ve());
         else
-            nodes_.push_back(NULL);
+            nodes_.push_back(NULL_PTR(Node));
     }
 }
 
@@ -563,19 +583,14 @@ using namespace boost::python;
 void defMap()
 {
     {
-        // FIXME: This is quite dangerous, *but*: The real lifetime of
-        // the referenced objects / cells are unknown, since any Euler
-        // operation might invalidate them.  A possible, but expensive
-        // solution would be to add reference counts / use
-        // boost::shared_ptr at the C++ level.
-        return_value_policy<reference_existing_object> reo;
+        CELL_RETURN_POLICY crp;
 
         scope geoMap(
             class_<GeoMap>("GeoMap", init<
                            bp::list, bp::list, vigra::Size2D>())
-            .def("node", &GeoMap::node, reo)
-            .def("edge", &GeoMap::edge, reo)
-            .def("face", &GeoMap::face, reo)
+            .def("node", &GeoMap::node, crp)
+            .def("edge", &GeoMap::edge, crp)
+            .def("face", &GeoMap::face, crp)
             .add_property("nodeCount", &GeoMap::nodeCount)
             .add_property("edgeCount", &GeoMap::edgeCount)
             .add_property("faceCount", &GeoMap::faceCount)
@@ -593,13 +608,13 @@ void defMap()
             .def(init<GeoMap *, unsigned int, unsigned int, GeoMap::Edge::Base>())
             .def("label", &GeoMap::Edge::label)
             .def("startNodeLabel", &GeoMap::Edge::startNodeLabel)
-            .def("startNode", &GeoMap::Edge::startNode, reo)
+            .def("startNode", &GeoMap::Edge::startNode, crp)
             .def("endNodeLabel", &GeoMap::Edge::endNodeLabel)
-            .def("endNode", &GeoMap::Edge::endNode, reo)
+            .def("endNode", &GeoMap::Edge::endNode, crp)
             .def("leftFaceLabel", &GeoMap::Edge::leftFaceLabel)
-            .def("leftFace", &GeoMap::Edge::leftFace, reo)
+            .def("leftFace", &GeoMap::Edge::leftFace, crp)
             .def("rightFaceLabel", &GeoMap::Edge::rightFaceLabel)
-            .def("rightFace", &GeoMap::Edge::rightFace, reo)
+            .def("rightFace", &GeoMap::Edge::rightFace, crp)
             .def("isBridge", &GeoMap::Edge::isBridge)
             .def("isLoop", &GeoMap::Edge::isLoop)
         ;
@@ -617,15 +632,15 @@ void defMap()
             .def(init<GeoMap *, int>())
             .def("label", &GeoMap::Dart::label)
             .def("edgeLabel", &GeoMap::Dart::edgeLabel)
-            .def("edge", &GeoMap::Dart::edge, reo)
+            .def("edge", &GeoMap::Dart::edge, crp)
             .def("startNodeLabel", &GeoMap::Dart::startNodeLabel)
-            .def("startNode", &GeoMap::Dart::startNode, reo)
+            .def("startNode", &GeoMap::Dart::startNode, crp)
             .def("endNodeLabel", &GeoMap::Dart::endNodeLabel)
-            .def("endNode", &GeoMap::Dart::endNode, reo)
+            .def("endNode", &GeoMap::Dart::endNode, crp)
             .def("leftFaceLabel", &GeoMap::Dart::leftFaceLabel)
-            .def("leftFace", &GeoMap::Dart::leftFace, reo)
+            .def("leftFace", &GeoMap::Dart::leftFace, crp)
             .def("rightFaceLabel", &GeoMap::Dart::rightFaceLabel)
-            .def("rightFace", &GeoMap::Dart::rightFace, reo)
+            .def("rightFace", &GeoMap::Dart::rightFace, crp)
             .def("nextAlpha", &GeoMap::Dart::nextAlpha, rif)
             .def("nextSigma", &GeoMap::Dart::nextSigma, (arg("times") = 1), rif)
             .def("prevSigma", &GeoMap::Dart::prevSigma, (arg("times") = 1), rif)
