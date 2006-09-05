@@ -910,6 +910,41 @@ Point estimateThirdDerivativeQuick(const Array & points, int index, double dist,
 }
 
 template<class Array1, class Array2>
+list gaussianOptimalScales(const Array1 &points, const Array2 &confidences, 
+                double sigmaFilter, double thirdDerivScale, double minScale)
+{
+    typedef typename Array1::value_type Point;
+    typedef AugmentedPolygonPoint<Point> APoint;
+
+    unsigned int size = points.size();
+
+    ArrayVector<APoint> aPoints(3*size);
+    
+    if(points[0] == points[size-1])
+        copyPointsCyclicBoundaryConditions(points, confidences, aPoints);
+    else
+        copyPointsReflectiveBoundaryConditions(points, confidences, aPoints);
+    
+    ArrayVector<APoint>::iterator p = aPoints.begin() + size;
+    double totalArcLength = p[size-1].arcLength;
+    double averageArcLength = totalArcLength / size;
+    double dist = std::min(thirdDerivScale, totalArcLength / 16.0);
+
+    list result;
+    for(unsigned int i = 0; i < size; ++i)
+    {
+        double q3 = norm(estimateThirdDerivative<Point>(p, p + size, i, dist));
+        double s = std::pow(9.0/4.0*sq(sigmaFilter / sq(p[i].confidence*q3)), 1.0/7.0);
+        if(s < sq(minScale) + sq(sigmaFilter))
+            result.append(minScale);
+        else
+            result.append(std::sqrt(s - sq(sigmaFilter)));
+    }
+
+    return result;
+}
+
+template<class Array1, class Array2>
 list tangentListNormalizedGaussianOptimal(const Array1 &points, const Array2 &confidences, double maxScale)
 {
     typedef typename Array1::value_type Point;
@@ -935,6 +970,65 @@ list tangentListNormalizedGaussianOptimal(const Array1 &points, const Array2 &co
     {
         double q3 = norm(estimateThirdDerivative<Point>(p, p + size, i, dist));
         double scale = std::pow(0.75/sqrt(M_PI)/sq(p[i].confidence*q3), 1.0/7.0);
+        double s2 = scale*scale;
+        Point  sp = p[i].confidence*p[i].point, spp = Point(0.0, 0.0);
+        double sw = p[i].confidence, swp = 0.0;
+        for(int k = 1; k < (int)size; ++k)
+        {
+            double diff = p[i+k].arcLength - p[i].arcLength;
+            if(diff > 2.5*scale)
+                break;
+            double w = p[i+k].confidence*VIGRA_CSTD::exp(-diff*diff/2.0/s2);
+            sp  += w*p[i+k].point;
+            spp += diff/s2*w*p[i+k].point;
+            sw  += w;
+            swp += diff/s2*w;
+        }
+        for(int k = -1; k > -(int)size; --k)
+        {
+            double diff = p[i].arcLength - p[i+k].arcLength;
+            if(diff > 2.5*scale)
+                break;
+            double w = p[i+k].confidence*VIGRA_CSTD::exp(-diff*diff/2.0/s2);
+            sp  += w*p[i+k].point;
+            spp -= diff/s2*w*p[i+k].point;
+            sw  += w;
+            swp -= diff/s2*w;
+        }
+        
+        Point r = (sw*spp - swp*sp) / (sw*sw);
+
+        result.append(make_tuple(p[i].arcLength, makeContinuous(VIGRA_CSTD::atan2(r[1], r[0]))));
+    }
+
+    return result;
+}
+
+template<class Array1, class Array2, class Array3>
+list tangentListNormalizedGaussianVariableScale(
+        const Array1 &points, const Array2 &confidences, const Array3 & scales)
+{
+    typedef typename Array1::value_type Point;
+    typedef AugmentedPolygonPoint<Point> APoint;
+
+    unsigned int size = points.size();
+
+    ArrayVector<APoint> aPoints(3*size);
+    
+    if(points[0] == points[size-1])
+        copyPointsCyclicBoundaryConditions(points, confidences, aPoints);
+    else
+        copyPointsReflectiveBoundaryConditions(points, confidences, aPoints);
+    
+    ArrayVector<APoint>::iterator p = aPoints.begin() + size;
+    double totalArcLength = p[size-1].arcLength;
+    double averageArcLength = totalArcLength / size;
+
+    list result;
+    ContinuousDirection makeContinuous;
+    for(unsigned int i = 0; i < size; ++i)
+    {
+        double scale = scales[i];
         double s2 = scale*scale;
         Point  sp = p[i].confidence*p[i].point, spp = Point(0.0, 0.0);
         double sw = p[i].confidence, swp = 0.0;
@@ -1032,6 +1126,22 @@ list pytangentListNormalizedGaussian(list const & pyPoints, list const & pyConf,
     return tangentListNormalizedGaussian(points, conf, scale);
 }
 
+list pygaussianOptimalScales(list const & pyPoints, list const & pyConf, 
+        double filterScale, double thirdDerivScale, double minScale)
+{
+    int size = len(pyPoints);
+    vigra_precondition(size == len(pyConf),
+        "gaussianOptimalScales(): lists must have the same size.");
+    ArrayVector<Vector2> points(size);
+    ArrayVector<double>  conf(size);
+    for(int k=0; k<size; ++k)
+    {
+        points[k] = extract<Vector2>(pyPoints[k])();
+        conf[k] = extract<double>(pyConf[k])();
+    }
+    return gaussianOptimalScales(points, conf, filterScale, thirdDerivScale, minScale);
+}
+
 list pytangentListNormalizedGaussianOptimal(list const & pyPoints, list const & pyConf, double maxScale)
 {
     int size = len(pyPoints);
@@ -1045,6 +1155,23 @@ list pytangentListNormalizedGaussianOptimal(list const & pyPoints, list const & 
         conf[k] = extract<double>(pyConf[k])();
     }
     return tangentListNormalizedGaussianOptimal(points, conf, maxScale);
+}
+
+list pytangentListNormalizedGaussianVariableScale(list const & pyPoints, list const & pyConf, list const & pyScales)
+{
+    int size = len(pyPoints);
+    vigra_precondition(size == len(pyConf) && size == len(pyScales),
+        "tangentListNormalizedGaussianVariableScale(): lists must have the same size.");
+    ArrayVector<Vector2> points(size);
+    ArrayVector<double>  conf(size);
+    ArrayVector<double>  scales(size);
+    for(int k=0; k<size; ++k)
+    {
+        points[k] = extract<Vector2>(pyPoints[k])();
+        conf[k] = extract<double>(pyConf[k])();
+        scales[k] = extract<double>(pyScales[k])();
+    }
+    return tangentListNormalizedGaussianVariableScale(points, conf, scales);
 }
 
 list pyThirdDerivativeOfPolygon(list const & pyPoints, double dist)
@@ -1878,11 +2005,26 @@ void defPolygon()
         "Its optimal scale is determined from the local confidence and third derivative.\n"
         "Cyclic boundary conditions will be used when the first and last point "
         "of 'pointArray' are equal, reflective boundary conditions otherwise.");
+    def("gaussianOptimalScales", &pygaussianOptimalScales,
+        (arg("pointArray"), arg("confidenceArray"), arg("filterScale"), arg("thirdDerivScale"), arg("minScale")),
+        "gaussianOptimalScales(pointArray, confidenceArray, filterScale, thirdDerivScale, minScale): "
+        "calculates the optimal scale for a Gaussian tangent filter at each point\n"
+        "using a third derivative at 'thirdDerivScale' and assuming the the polygon comes from.\n"
+        "an edge detector at 'filterScale'. The scales returned are boundaed below by 'minScale'.\n"
+        "Cyclic boundary conditions will be used when the first and last point "
+        "of 'pointArray' are equal, reflective boundary conditions otherwise.");
     def("tangentListNormalizedGaussianOptimal", &pytangentListNormalizedGaussianOptimal,
         (arg("pointArray"), arg("confidenceArray"), arg("maxScale")),
         "tangentListNormalizedGaussianOptimal(pointArray, confidenceArray, maxScale): "
         "calculates tangent angles at each point using a normalized Gaussian derivative.\n"
         "Its optimal scale is determined from the local confidence and third derivative.\n"
+        "Cyclic boundary conditions will be used when the first and last point "
+        "of 'pointArray' are equal, reflective boundary conditions otherwise.");
+    def("tangentListNormalizedGaussianVariableScale", &pytangentListNormalizedGaussianVariableScale,
+        (arg("pointArray"), arg("confidenceArray"), arg("scales")),
+        "tangentListNormalizedGaussianOptimal(pointArray, confidenceArray, scalesArray): "
+        "calculates tangent angles at each point using a normalized Gaussian derivative.\n"
+        "The local scale is taken from the scalesArray.\n"
         "Cyclic boundary conditions will be used when the first and last point "
         "of 'pointArray' are equal, reflective boundary conditions otherwise.");
     def("gaussianConvolveByArcLength", &gaussianConvolveByArcLength,
