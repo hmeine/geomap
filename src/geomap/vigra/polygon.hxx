@@ -945,7 +945,7 @@ void resamplePolygon(
     for(int k=1; k<size; ++k)
     {
         double d = arcLength[k];
-        while(d >= l)
+        while(d >= l && l <= segmentCount)
         {
             double t2 = 1.0;
             double dt = t2 - t1;
@@ -966,7 +966,7 @@ void resamplePolygon(
                 integrals[segmentCount] += integrals[segmentCount-1];
             }
         }
-        if(d < l)
+        if(d < l && l <= segmentCount)
         {
             double t2 = std::fmod(d, 1.0);
             double dt = t2 - t1;
