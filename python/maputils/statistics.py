@@ -1,7 +1,7 @@
 _cvsVersion = "$Id$" \
               .split(" ")[2:-2]
 
-import math, string, dartpath, copy
+import math, string, copy
 from weakref import ref
 from vigra import *
 from hourglass import PositionedMap, EdgeStatistics, \
@@ -808,6 +808,7 @@ class EdgeTangents(DynamicEdgeStatistics):
             calculateTangentLists(map, *args)
 
     def preMergeEdges(self, dart):
+        import dartpath # prevent cyclic import
         path = dartpath.Path(
             [dart.clone().nextAlpha(), dart.clone().nextSigma()])
         if path[0].label() < 0:
