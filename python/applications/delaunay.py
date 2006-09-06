@@ -28,13 +28,13 @@ def isContourEdge(edge, maxNodeLabel = None):
 def constrainedDelaunayMap(points, jumpPoints, imageSize,
                            markContour = True, performCleaning = True,
                            boundaryProtection = None):
-    segments = [(i-1, i) for i in range(len(points)+1)]
-    for i, jp in enumerate(jumpPoints[:-1]):
-        segments[jp] = (jumpPoints[i+1]-1, jumpPoints[i])
-    del segments[-1]
-
     print "- performing Constrained Delaunay Triangulation (%d points)..." % len(points)
     if markContour:
+        segments = [(i-1, i) for i in range(len(points)+1)]
+        for i, jp in enumerate(jumpPoints[:-1]):
+            segments[jp] = (jumpPoints[i+1]-1, jumpPoints[i])
+        del segments[-1]
+
         nodePositions, edgeData = triangle.constrainedDelaunay(
             points, segments, performCleaning)
     else:
