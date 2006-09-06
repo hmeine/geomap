@@ -34,8 +34,11 @@ def constrainedDelaunayMap(points, jumpPoints, imageSize,
     del segments[-1]
 
     print "- performing Constrained Delaunay Triangulation (%d points)..." % len(points)
-    nodePositions, edgeData = triangle.constrainedDelaunay(
-        points, segments, performCleaning)
+    if markContour:
+        nodePositions, edgeData = triangle.constrainedDelaunay(
+            points, segments, performCleaning)
+    else:
+        nodePositions, edgeData = triangle.delaunay(points)
 
     #assert nodePositions == points
 
@@ -48,6 +51,9 @@ def constrainedDelaunayMap(points, jumpPoints, imageSize,
                  performBorderClosing = False,
                  ssMinDist = None,
                  skipLabelImage = True)
+
+    if not markContour:
+        return result
 
     for edge in result.edgeIter():
         edge.isContourEdge = edgeData[edge.label()][2]
@@ -68,6 +74,9 @@ def fakeConstrainedDelaunayMap(points, jumpPoints, imageSize,
                  performBorderClosing= False,
                  sigmaOrbits = sigma,
                  skipLabelImage = True)
+
+    if not markContour:
+        return result
 
     print "- ex-post marking of contour edges for faked CDT..."
     print "  (keep your fingers crossed that no segment is missing!)"
