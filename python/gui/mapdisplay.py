@@ -465,6 +465,19 @@ class MapDisplay(DisplaySettings):
         self.nodeOverlay._calculatePoints()
         self.viewer.update()
 
+    def showMarkedEdges(self, colorMarked = qt.Qt.green, colorUnmarked = None, markAttr = "mark"):
+        self.edgeOverlay.useIndividualColors = True
+        for edge in self.map.edgeIter():
+            if getattr(edge, markAttr, False):
+                edge.color = colorMarked
+            else:
+                edge.color = colorUnmarked
+        self.viewer.update()
+
+    def showAllEdges(self):
+        self.edgeOverlay.useIndividualColors = False
+        self.viewer.update()
+
     def setTool(self, tool):
         """MapDisplay.setTool(tool)
 
