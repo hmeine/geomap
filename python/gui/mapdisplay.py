@@ -68,14 +68,25 @@ class MapEdges(object):
             return
         c = time.clock()
         self._resizeCount = 0
-        edges = self._map().edges
-        if not self._zoomedEdges or len(self._zoomedEdges) != len(edges):
-            self._zoomedEdges = [None] * len(edges)
-        for label, edge in enumerate(edges):
-            if edge:
-                self._calculateEdgePoints(edge._label, edge)
-            else:
-                self._zoomedEdges[label] = None
+        if not self._zoomedEdges or len(self._zoomedEdges) != self._map().maxEdgeLabel():
+            self._zoomedEdges = [None] * self._map().maxEdgeLabel()
+        if hasattr(self._map(), "edges"):
+            # "secret", internal API available? (not for C++ variant ATM)
+            edges = self._map().edges
+            for label, edge in enumerate(edges):
+                if edge:
+                    self._calculateEdgePoints(edge.label(), edge)
+                else:
+                    self._zoomedEdges[label] = None
+        else:
+            expected = 0
+            for edge in self._map().edgeIter():
+                label = edge.label()
+                while expected < label:
+                    self._zoomedEdges[expected] = None
+                    expected += 1
+                self._calculateEdgePoints(label, edge)
+                expected = label + 1
         sys.stdout.write("MapEdges._calculatePoints(zoom = %s) took %ss "
                          "(%d undesirable resizes).\n" % (
             self._zoom, time.clock() - c, self._resizeCount))
@@ -140,7 +151,7 @@ class MapEdges(object):
             dart.clone().nextSigma().edgeLabel(), None)
 
     def postMergeEdgesHook(self, edge):
-        self.setEdgePoints(edge._label, edge)
+        self.setEdgePoints(edge.label(), edge)
 
     def setZoom(self, zoom):
         if self._map():
@@ -158,8 +169,8 @@ class MapEdges(object):
             self._calculatePoints()
         r = p.clipRegion()
         r.translate(-self.viewer.x, -self.viewer.y)
-        edges = self._map().edges
         if self.useIndividualColors:
+            edges = self._map().edges
             for edge, zoomedEdge in map(None, edges, self._zoomedEdges):
                 if edge and hasattr(edge, "color") and edge.color:
                     p.setPen(qt.QPen(edge.color, self.width))
@@ -211,23 +222,24 @@ class MapNodes(object):
         d0 = Vector2(0.5 * self._zoom - self.radius, 0.5 * self._zoom - self.radius)
         w = 2 * self.radius + 1
         self.s = qt.QSize(w, w)
-        self._qpointlist = [None] * len(self._map().nodes)
+        self._qpointlist = [None] * self._map().maxNodeLabel()
         for node in self._map().nodeIter():
             ip = intPos(node.position() * self._zoom + d0)
-            self._qpointlist[node._label] = qt.QPoint(ip[0], ip[1])
+            self._qpointlist[node.label()] = qt.QPoint(ip[0], ip[1])
         sys.stdout.write("MapNodes._calculatePoints(zoom = %s) took %ss.\n" % (
             self._zoom, time.clock() - c))
 
     def removeNode(self, node):
         if self._qpointlist:
-            if not self._qpointlist[node._label]:
+            nodeLabel = node.label()
+            if not self._qpointlist[nodeLabel]:
                 sys.stderr.write("WARNING: MapNodes.removeNode(): Node already None!\n")
                 return
             if self.visible:
-                ur = qt.QRect(self._qpointlist[node._label], self.s)
+                ur = qt.QRect(self._qpointlist[nodeLabel], self.s)
                 ur.moveBy(self.viewer.x, self.viewer.y)
                 self.viewer.update(ur)
-            self._qpointlist[node._label] = None
+            self._qpointlist[nodeLabel] = None
 
     def setZoom(self, zoom):
         if self._map():
@@ -325,8 +337,9 @@ class MapDisplay(DisplaySettings):
         if hasattr(preparedImage, "imageSize") and hasattr(map, "width"):
             map, preparedImage = preparedImage, map
         elif preparedImage == None:
-            preparedImage = map.labelImage
-            if preparedImage == None:
+            if hasattr(map, "labelImage"):
+                preparedImage = map.labelImage
+            if not preparedImage:
                 preparedImage = GrayImage(map.imageSize())
         
         self.preparedImage = preparedImage
@@ -666,14 +679,8 @@ class MapDisplay(DisplaySettings):
         documentation for details) and calls fig2dev to create an
         additional <basepath>.eps."""
 
-        self.saveFig(basepath, *args, **kwargs)
-
-        path, basename = os.path.split(basepath)
-
-        # create .eps output
-        cin, cout = os.popen4("%sfig2dev -L eps '%s.fig' '%s.eps'" % (
-            path and ("cd '%s' && " % path), basename, basename))
-        cin.close(); print cout.read(),
+        fe = self.saveFig(basepath, *args, **kwargs)
+        fe.f.fig2dev(lang = eps)
 
 # --------------------------------------------------------------------
 #                         dart navigation dialog
