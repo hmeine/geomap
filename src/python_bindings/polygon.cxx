@@ -748,9 +748,6 @@ list tangentListChord(const Array1 &points, const Array2 &confidences, double sc
         copyPointsReflectiveBoundaryConditions(points, confidences, aPoints);
 
     typename ArrayVector<APoint>::iterator p = aPoints.begin() + size;
-    double totalArcLength = p[size-1].arcLength;
-    double averageArcLength = totalArcLength / size;
-    double s2 = scale*scale;
 
     list result;
     ContinuousDirection makeContinuous;
@@ -780,8 +777,6 @@ list tangentListNormalizedGaussian(const Array1 &points, const Array2 &confidenc
         copyPointsReflectiveBoundaryConditions(points, confidences, aPoints);
 
     typename ArrayVector<APoint>::iterator p = aPoints.begin() + size;
-    double totalArcLength = p[size-1].arcLength;
-    double averageArcLength = totalArcLength / size;
     double s2 = scale*scale;
 
     list result;
@@ -824,7 +819,7 @@ list tangentListNormalizedGaussian(const Array1 &points, const Array2 &confidenc
 template<class Point, class Iterator>
 Point estimateFirstDerivative(Iterator points, Iterator end, int index, double dist)
 {
-    double a0 = points[index].arcLength, d, o;
+    double a0 = points[index].arcLength, d = 0, o;
     int k, size = end  - points;
     for(k = index+1; k<2*size; ++k)
     {
@@ -854,7 +849,7 @@ Point estimateFirstDerivative(Iterator points, Iterator end, int index, double d
 template<class Point, class Iterator>
 Point estimateThirdDerivative(Iterator points, Iterator end, int index, double dist)
 {
-    double a0 = points[index].arcLength, d, o;
+    double a0 = points[index].arcLength, d = 0, o;
     int k, size = end  - points;
     for(k = index+1; k<2*size; ++k)
     {
@@ -914,7 +909,7 @@ Point estimateThirdDerivativeQuick(const Array & points, int index, double dist,
 }
 
 template<class Array1, class Array2>
-list gaussianOptimalScales(const Array1 &points, const Array2 &confidences, 
+list gaussianOptimalScales(const Array1 &points, const Array2 &confidences,
                 double sigmaFilter, double thirdDerivScale, double minScale)
 {
     typedef typename Array1::value_type Point;
@@ -923,15 +918,14 @@ list gaussianOptimalScales(const Array1 &points, const Array2 &confidences,
     unsigned int size = points.size();
 
     ArrayVector<APoint> aPoints(3*size);
-    
+
     if(points[0] == points[size-1])
         copyPointsCyclicBoundaryConditions(points, confidences, aPoints);
     else
         copyPointsReflectiveBoundaryConditions(points, confidences, aPoints);
-    
-    ArrayVector<APoint>::iterator p = aPoints.begin() + size;
+
+    typename ArrayVector<APoint>::iterator p = aPoints.begin() + size;
     double totalArcLength = p[size-1].arcLength;
-    double averageArcLength = totalArcLength / size;
     double dist = std::min(thirdDerivScale, totalArcLength / 16.0);
 
     list result;
@@ -965,7 +959,6 @@ list tangentListNormalizedGaussianOptimal(const Array1 &points, const Array2 &co
 
     typename ArrayVector<APoint>::iterator p = aPoints.begin() + size;
     double totalArcLength = p[size-1].arcLength;
-    double averageArcLength = totalArcLength / size;
     double dist = std::min(maxScale, totalArcLength / 16.0);
 
     list result;
@@ -1018,15 +1011,13 @@ list tangentListNormalizedGaussianVariableScale(
     unsigned int size = points.size();
 
     ArrayVector<APoint> aPoints(3*size);
-    
+
     if(points[0] == points[size-1])
         copyPointsCyclicBoundaryConditions(points, confidences, aPoints);
     else
         copyPointsReflectiveBoundaryConditions(points, confidences, aPoints);
-    
-    ArrayVector<APoint>::iterator p = aPoints.begin() + size;
-    double totalArcLength = p[size-1].arcLength;
-    double averageArcLength = totalArcLength / size;
+
+    typename ArrayVector<APoint>::iterator p = aPoints.begin() + size;
 
     list result;
     ContinuousDirection makeContinuous;
@@ -1058,7 +1049,7 @@ list tangentListNormalizedGaussianVariableScale(
             sw  += w;
             swp -= diff/s2*w;
         }
-        
+
         Point r = (sw*spp - swp*sp) / (sw*sw);
 
         result.append(make_tuple(p[i].arcLength, makeContinuous(VIGRA_CSTD::atan2(r[1], r[0]))));
@@ -1084,7 +1075,6 @@ list tangentListChordOptimal(const Array1 &points, const Array2 &confidences, do
 
     typename ArrayVector<APoint>::iterator p = aPoints.begin() + size;
     double totalArcLength = p[size-1].arcLength;
-    double averageArcLength = totalArcLength / size;
     double dist = std::min(maxScale, totalArcLength / 16.0);
 
     list result;
@@ -1130,7 +1120,7 @@ list pytangentListNormalizedGaussian(list const & pyPoints, list const & pyConf,
     return tangentListNormalizedGaussian(points, conf, scale);
 }
 
-list pygaussianOptimalScales(list const & pyPoints, list const & pyConf, 
+list pygaussianOptimalScales(list const & pyPoints, list const & pyConf,
         double filterScale, double thirdDerivScale, double minScale)
 {
     int size = len(pyPoints);
