@@ -15,11 +15,11 @@ class PythonListBackInserter
 {
     list & list_;
   public:
-    
+
     PythonListBackInserter(list & l)
     : list_(l)
     {}
-    
+
     template <class T>
     void push_back(T const & t)
     {
@@ -181,7 +181,8 @@ template<class Array>
 list arcLengthList(const Array &a)
 {
     list result;
-    a.arcLengthList(PythonListBackInserter(result));
+    PythonListBackInserter ins(result);
+    a.arcLengthList(ins);
     return result;
 }
 
@@ -661,10 +662,10 @@ struct AugmentedPolygonPoint
 {
     Point point;
     double arcLength, confidence;
-    
+
     AugmentedPolygonPoint()
     {}
-    
+
     AugmentedPolygonPoint(Point const & p, double a, double c)
     : point(p), arcLength(a), confidence(c)
     {}
@@ -728,6 +729,9 @@ void copyPointsCyclicBoundaryConditions(Array1 const & points, Array2 const & co
     }
 }
 
+template<class Point, class Iterator>
+Point estimateFirstDerivative(Iterator points, Iterator end, int index, double dist);
+
 template<class Array1, class Array2>
 list tangentListChord(const Array1 &points, const Array2 &confidences, double scale)
 {
@@ -737,13 +741,13 @@ list tangentListChord(const Array1 &points, const Array2 &confidences, double sc
     unsigned int size = points.size();
 
     ArrayVector<APoint> aPoints(3*size);
-    
+
     if(points[0] == points[size-1])
         copyPointsCyclicBoundaryConditions(points, confidences, aPoints);
     else
         copyPointsReflectiveBoundaryConditions(points, confidences, aPoints);
-    
-    ArrayVector<APoint>::iterator p = aPoints.begin() + size;
+
+    typename ArrayVector<APoint>::iterator p = aPoints.begin() + size;
     double totalArcLength = p[size-1].arcLength;
     double averageArcLength = totalArcLength / size;
     double s2 = scale*scale;
@@ -769,13 +773,13 @@ list tangentListNormalizedGaussian(const Array1 &points, const Array2 &confidenc
     unsigned int size = points.size();
 
     ArrayVector<APoint> aPoints(3*size);
-    
+
     if(points[0] == points[size-1])
         copyPointsCyclicBoundaryConditions(points, confidences, aPoints);
     else
         copyPointsReflectiveBoundaryConditions(points, confidences, aPoints);
-    
-    ArrayVector<APoint>::iterator p = aPoints.begin() + size;
+
+    typename ArrayVector<APoint>::iterator p = aPoints.begin() + size;
     double totalArcLength = p[size-1].arcLength;
     double averageArcLength = totalArcLength / size;
     double s2 = scale*scale;
@@ -808,7 +812,7 @@ list tangentListNormalizedGaussian(const Array1 &points, const Array2 &confidenc
             sw  += w;
             swp -= diff/s2*w;
         }
-        
+
         Point r = (sw*spp - swp*sp) / (sw*sw);
 
         result.append(make_tuple(p[i].arcLength, makeContinuous(VIGRA_CSTD::atan2(r[1], r[0]))));
@@ -832,7 +836,7 @@ Point estimateFirstDerivative(Iterator points, Iterator end, int index, double d
         "estimateThirdDerivative(): Polygon shorter than requested distance.");
     o = (d - dist) / (points[k].arcLength - points[k-1].arcLength);
     Point p1(o * points[k-1].point + (1.0 - o) * points[k].point);
-    
+
     for(k = index-1; k>-size; --k)
     {
         d = points[k].arcLength - a0;
@@ -862,7 +866,7 @@ Point estimateThirdDerivative(Iterator points, Iterator end, int index, double d
         "estimateThirdDerivative(): Polygon shorter than requested distance.");
     o = (d - dist) / (points[k].arcLength - points[k-1].arcLength);
     Point p1(o * points[k-1].point + (1.0 - o) * points[k].point);
-    
+
     for(; k<2*size; ++k)
     {
         d = points[k].arcLength - a0;
@@ -873,7 +877,7 @@ Point estimateThirdDerivative(Iterator points, Iterator end, int index, double d
         "estimateThirdDerivative(): Polygon shorter than requested distance.");
     o = (d - 2.0*dist) / (points[k].arcLength - points[k-1].arcLength);
     Point p2(o * points[k-1].point + (1.0 - o) * points[k].point);
-    
+
     for(k = index-1; k>-size; --k)
     {
         d = points[k].arcLength - a0;
@@ -884,7 +888,7 @@ Point estimateThirdDerivative(Iterator points, Iterator end, int index, double d
         "estimateThirdDerivative(): Polygon shorter than requested distance.");
     o = (d + dist) / (points[k].arcLength - points[k+1].arcLength);
     Point pm1(o * points[k+1].point + (1.0 - o) * points[k].point);
-    
+
     for(; k>-size; --k)
     {
         d = points[k].arcLength - a0;
@@ -905,7 +909,7 @@ Point estimateThirdDerivativeQuick(const Array & points, int index, double dist,
     int size = points.size();
     vigra_invariant(index + 2*diff < size && index - 2*diff >= 0,
         "estimateThirdDerivativeQuick(): Polygon shorter than requested distance.");
-    return (points[index-2*diff].point - 2.0*points[index-diff].point + 
+    return (points[index-2*diff].point - 2.0*points[index-diff].point +
                 2.0*points[index+diff].point - points[index+2*diff].point) / (2.0 * dist * dist * dist);
 }
 
@@ -953,13 +957,13 @@ list tangentListNormalizedGaussianOptimal(const Array1 &points, const Array2 &co
     unsigned int size = points.size();
 
     ArrayVector<APoint> aPoints(3*size);
-    
+
     if(points[0] == points[size-1])
         copyPointsCyclicBoundaryConditions(points, confidences, aPoints);
     else
         copyPointsReflectiveBoundaryConditions(points, confidences, aPoints);
-    
-    ArrayVector<APoint>::iterator p = aPoints.begin() + size;
+
+    typename ArrayVector<APoint>::iterator p = aPoints.begin() + size;
     double totalArcLength = p[size-1].arcLength;
     double averageArcLength = totalArcLength / size;
     double dist = std::min(maxScale, totalArcLength / 16.0);
@@ -995,7 +999,7 @@ list tangentListNormalizedGaussianOptimal(const Array1 &points, const Array2 &co
             sw  += w;
             swp -= diff/s2*w;
         }
-        
+
         Point r = (sw*spp - swp*sp) / (sw*sw);
 
         result.append(make_tuple(p[i].arcLength, makeContinuous(VIGRA_CSTD::atan2(r[1], r[0]))));
@@ -1072,13 +1076,13 @@ list tangentListChordOptimal(const Array1 &points, const Array2 &confidences, do
     unsigned int size = points.size();
 
     ArrayVector<APoint> aPoints(3*size);
-    
+
     if(points[0] == points[size-1])
         copyPointsCyclicBoundaryConditions(points, confidences, aPoints);
     else
         copyPointsReflectiveBoundaryConditions(points, confidences, aPoints);
-    
-    ArrayVector<APoint>::iterator p = aPoints.begin() + size;
+
+    typename ArrayVector<APoint>::iterator p = aPoints.begin() + size;
     double totalArcLength = p[size-1].arcLength;
     double averageArcLength = totalArcLength / size;
     double dist = std::min(maxScale, totalArcLength / 16.0);
@@ -1188,12 +1192,12 @@ list pyThirdDerivativeOfPolygon(list const & pyPoints, double dist)
     }
 
     ArrayVector<APoint> aPoints(3*size);
-    
+
     if(points[0] == points[size-1])
         copyPointsCyclicBoundaryConditions(points, conf, aPoints);
     else
         copyPointsReflectiveBoundaryConditions(points, conf, aPoints);
-    
+
     ArrayVector<APoint>::iterator p = aPoints.begin() + size;
 
     list result;
@@ -1950,7 +1954,7 @@ void defPolygon()
     def("polygonSplineControlPoints",
         (PythonPolygon (*)(const PythonPolygon &,int))&polygonSplineControlPoints,
         args("polygon", "segmentCount"));
-        
+
     def("spline3Integral", vigra::detail::spline3Integral<Vector2>);
 
     def("curvatureList", &curvatureList<Vector2Array>,
