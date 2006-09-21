@@ -6,30 +6,42 @@
 #include "vigra/polygon.hxx"
 #include "vigra/positionedmap.hxx"
 #include <vector>
+#include <iostream>
+#include "filteriterator.hxx"
 
 namespace bp = boost::python;
 
 typedef vigra::TinyVector<double, 2> Vector2;
 typedef vigra::PointArray<Vector2>   Vector2Array;
+typedef vigra::BBoxPolygon<vigra::Vector2> Polygon;
 
-#define USE_INSECURE_CELL_PTRS
+//#define USE_INSECURE_CELL_PTRS
 
 #ifdef USE_INSECURE_CELL_PTRS
 #define CELL_PTR(Type) Type *
 #define NULL_PTR(Type) (Type *)NULL
-#define RESET_PTR(ptr) ptr = NULL;
+#define RESET_PTR(ptr) ptr = NULL
 // This is quite dangerous, *but*: The real lifetime of
 // the referenced objects / cells are unknown, since any Euler
-// operation might invalidate them.  A possible, but expensive
-// solution would be to add reference counts / use
-// boost::shared_ptr at the C++ level.
+// operation might invalidate them.
 #define CELL_RETURN_POLICY return_value_policy<reference_existing_object>
 #else
 #define CELL_PTR(Type) boost::shared_ptr<Type>
 #define NULL_PTR(Type) boost::shared_ptr<Type>()
-#define RESET_PTR(ptr) ptr.reset();
+#define RESET_PTR(ptr) ptr.reset()
 #define CELL_RETURN_POLICY default_call_policies
 #endif
+
+typedef unsigned int CellLabel;
+
+template<class POINTER>
+struct NotNull
+{
+    bool operator()(const POINTER &p) const
+    {
+        return p.get();
+    }
+};
 
 class GeoMap
 {
@@ -43,6 +55,13 @@ class GeoMap
     typedef std::vector< CELL_PTR(Edge) > Edges;
     typedef std::vector< CELL_PTR(Face) > Faces;
 
+    typedef vigra::FilterIterator<Nodes::iterator, NotNull<Nodes::value_type> >
+        NodeIterator;
+    typedef vigra::FilterIterator<Edges::iterator, NotNull<Edges::value_type> >
+        EdgeIterator;
+    typedef vigra::FilterIterator<Faces::iterator, NotNull<Faces::value_type> >
+        FaceIterator;
+
   protected:
     Nodes nodes_;
     Edges edges_;
@@ -54,38 +73,51 @@ class GeoMap
 
     PositionedMap nodeMap_;
 
+    vigra::Size2D imageSize_;
+
   public:
     GeoMap(bp::list nodePositions,
            bp::list edgeTuples, vigra::Size2D imageSize);
 
-    CELL_PTR(Node) node(unsigned int label)
+    ~GeoMap();
+
+    NodeIterator nodesBegin()
+        { return NodeIterator(nodes_.begin(), nodes_.end()); }
+    NodeIterator nodesEnd()
+        { return NodeIterator(nodes_.end(), nodes_.end()); }
+    CELL_PTR(Node) node(CellLabel label)
     {
         return nodes_[label];
     }
 
-    CELL_PTR(Edge) edge(unsigned int label)
+    EdgeIterator edgesBegin()
+        { return EdgeIterator(edges_.begin(), edges_.end()); }
+    EdgeIterator edgesEnd()
+        { return EdgeIterator(edges_.end(), edges_.end()); }
+    CELL_PTR(Edge) edge(CellLabel label)
     {
         return edges_[label];
     }
 
-    CELL_PTR(Face) face(unsigned int label)
+    FaceIterator facesBegin()
+        { return FaceIterator(faces_.begin(), faces_.end()); }
+    FaceIterator facesEnd()
+        { return FaceIterator(faces_.end(), faces_.end()); }
+    CELL_PTR(Face) face(CellLabel label)
     {
         return faces_[label];
     }
 
-    unsigned int nodeCount() const
-    {
-        return nodeCount_;
-    }
+    CellLabel nodeCount() const { return nodeCount_; }
+    CellLabel maxNodeLabel() const { return nodes_.size(); }
+    CellLabel edgeCount() const { return edgeCount_; }
+    CellLabel maxEdgeLabel() const { return edges_.size(); }
+    CellLabel faceCount() const { return faceCount_; }
+    CellLabel maxFaceLabel() const { return faces_.size(); }
 
-    unsigned int edgeCount() const
+    const vigra::Size2D &imageSize() const
     {
-        return edgeCount_;
-    }
-
-    unsigned int faceCount() const
-    {
-        return faceCount_;
+        return imageSize_;
     }
 };
 
@@ -95,7 +127,7 @@ class GeoMap::Node
     typedef std::vector<int> DartLabels;
 
     GeoMap        *map_;
-    unsigned int   label_;
+    CellLabel      label_;
     vigra::Vector2 position_;
     DartLabels     darts_;
 
@@ -119,7 +151,7 @@ class GeoMap::Node
         map_->nodeMap_.remove(position_);
     }
 
-    unsigned int label() const
+    CellLabel label() const
     {
         return label_;
     }
@@ -133,7 +165,7 @@ class GeoMap::Node
 
     inline Dart anchor() const;
 
-    unsigned int degree() const
+    CellLabel degree() const
     {
         return darts_.size();
     }
@@ -146,17 +178,17 @@ class GeoMap::Edge
     typedef vigra::BBoxPolygon<vigra::Vector2> Base;
 
   protected:
-    GeoMap      *map_;
-    unsigned int label_;
-    unsigned int startNodeLabel_, endNodeLabel_;
-    unsigned int leftFaceLabel_, rightFaceLabel_;
-    int protection_;
+    GeoMap   *map_;
+    CellLabel label_;
+    CellLabel startNodeLabel_, endNodeLabel_;
+    CellLabel leftFaceLabel_, rightFaceLabel_;
+    int       protection_;
 
     friend class Dart; // allow setLeftFaceLabel
 
   public:
     template<class POINTS>
-    Edge(GeoMap *map, unsigned int startNodeLabel, unsigned int endNodeLabel,
+    Edge(GeoMap *map, CellLabel startNodeLabel, CellLabel endNodeLabel,
          const POINTS &p)
     : Base(p),
       map_(map),
@@ -177,14 +209,14 @@ class GeoMap::Edge
         --map_->edgeCount_;
     }
 
-    unsigned int label() const
+    CellLabel label() const
     {
         return label_;
     }
 
     inline Dart dart() const;
 
-    unsigned int startNodeLabel() const
+    CellLabel startNodeLabel() const
     {
         return startNodeLabel_;
     }
@@ -194,7 +226,7 @@ class GeoMap::Edge
         return map_->node(startNodeLabel_);
     }
 
-    unsigned int endNodeLabel() const
+    CellLabel endNodeLabel() const
     {
         return endNodeLabel_;
     }
@@ -204,7 +236,7 @@ class GeoMap::Edge
         return map_->node(endNodeLabel_);
     }
 
-    unsigned int leftFaceLabel() const
+    CellLabel leftFaceLabel() const
     {
         return leftFaceLabel_;
     }
@@ -214,7 +246,7 @@ class GeoMap::Edge
         return map_->face(leftFaceLabel_);
     }
 
-    unsigned int rightFaceLabel() const
+    CellLabel rightFaceLabel() const
     {
         return rightFaceLabel_;
     }
@@ -241,7 +273,7 @@ class GeoMap::Dart
     GeoMap *map_;
     int     label_;
 
-    void setLeftFaceLabel(unsigned int label)
+    void setLeftFaceLabel(CellLabel label)
     {
         if(label_ > 0)
             guaranteedEdge()->leftFaceLabel_ = label;
@@ -262,12 +294,12 @@ class GeoMap::Dart
         return label_;
     }
 
-    unsigned int edgeLabel() const
+    CellLabel edgeLabel() const
     {
         return abs(label_);
     }
 
-    unsigned int startNodeLabel() const
+    CellLabel startNodeLabel() const
     {
         if(label_ > 0)
             return guaranteedEdge()->startNodeLabel();
@@ -275,7 +307,7 @@ class GeoMap::Dart
             return guaranteedEdge()->endNodeLabel();
     }
 
-    unsigned int endNodeLabel() const
+    CellLabel endNodeLabel() const
     {
         if(label_ > 0)
             return guaranteedEdge()->endNodeLabel();
@@ -295,7 +327,7 @@ class GeoMap::Dart
 //                 self.edge()[-1] = node.position()
 //                 #self.edge().invalidateProperties()
 
-    unsigned int leftFaceLabel() const
+    CellLabel leftFaceLabel() const
     {
         if(label_ > 0)
             return guaranteedEdge()->leftFaceLabel();
@@ -303,7 +335,7 @@ class GeoMap::Dart
             return guaranteedEdge()->rightFaceLabel();
     }
 
-    unsigned int rightFaceLabel() const
+    CellLabel rightFaceLabel() const
     {
         if(label_ > 0)
             return guaranteedEdge()->rightFaceLabel();
@@ -388,7 +420,7 @@ class GeoMap::Dart
     Dart &nextSigma(int times = 1)
     {
         Node::DartLabels &darts(startNode()->darts_);
-        int i = 0;
+        Node::DartLabels::size_type i = 0;
         for(; i < darts.size(); ++i)
             if(darts[i] == label_)
                 break;
@@ -466,7 +498,7 @@ class GeoMap::Face
 
   protected:
     GeoMap           *map_;
-    unsigned int      label_;
+    CellLabel         label_;
     std::vector<Dart> anchors_;
     BoundingBox       boundingBox_;
     bool              boundingBoxValid_;
@@ -505,7 +537,7 @@ class GeoMap::Face
         --map_->faceCount_;
     }
 
-    unsigned int label() const
+    CellLabel label() const
     {
         return label_;
     }
@@ -566,9 +598,10 @@ GeoMap::GeoMap(bp::list nodePositions,
                bp::list edgeTuples, vigra::Size2D imageSize)
 : nodeCount_(0),
   edgeCount_(0),
-  faceCount_(0)
+  faceCount_(0),
+  imageSize_(imageSize)
 {
-    for(unsigned int i = 0; i < len(nodePositions); ++i)
+    for(int i = 0; i < len(nodePositions); ++i)
     {
         bp::extract<Vector2> ve(nodePositions[i]);
         if(ve.check())
@@ -576,6 +609,55 @@ GeoMap::GeoMap(bp::list nodePositions,
         else
             nodes_.push_back(NULL_PTR(Node));
     }
+
+    for(int i = 0; i < len(edgeTuples); ++i)
+    {
+        bp::extract<bp::tuple> ete(edgeTuples[i]);
+        if(ete.check())
+        {
+            bp::tuple edgeTuple(ete());
+            bp::extract<Vector2Array> pe(edgeTuple[2]);
+            if(!pe.check())
+            {
+                std::cerr << "why, oh why, do I have to die??\n";
+                PyErr_SetString(PyExc_TypeError,
+                    "GeoMap.__init__: edge geometry not convertable to Vector2Array");
+                bp::throw_error_already_set();
+            }
+            new Edge(this,
+                     bp::extract<CellLabel>(edgeTuple[0])(),
+                     bp::extract<CellLabel>(edgeTuple[1])(),
+                     pe());
+        }
+        else
+            edges_.push_back(NULL_PTR(Edge));
+    }
+}
+
+GeoMap::~GeoMap()
+{
+    // make sure these objects are deleted first
+    // (their destructors access this map!)
+    nodes_.clear();
+    edges_.clear();
+    faces_.clear();
+}
+
+template<class T>
+T &returnSelf(T &v)
+{
+    return v;
+}
+
+template<class Iterator>
+typename Iterator::value_type nextIterPos(Iterator &v)
+{
+    if(!v.inRange())
+    {
+        PyErr_SetString(PyExc_StopIteration, "cells iterator exhausted");
+        bp::throw_error_already_set();
+    }
+    return *v++;
 }
 
 using namespace boost::python;
@@ -589,12 +671,47 @@ void defMap()
             class_<GeoMap>("GeoMap", init<
                            bp::list, bp::list, vigra::Size2D>())
             .def("node", &GeoMap::node, crp)
+            .def("nodeIter", &GeoMap::nodesBegin)
             .def("edge", &GeoMap::edge, crp)
+            .def("edgeIter", &GeoMap::edgesBegin)
             .def("face", &GeoMap::face, crp)
+            .def("faceIter", &GeoMap::facesBegin)
             .add_property("nodeCount", &GeoMap::nodeCount)
             .add_property("edgeCount", &GeoMap::edgeCount)
             .add_property("faceCount", &GeoMap::faceCount)
+            .def("maxNodeLabel", &GeoMap::maxNodeLabel,
+                 "Returns an upper bound on the node labels.\n"
+                 "Actually, this is the max. node label + 1, so that you can use it as LUT size.")
+            .def("maxEdgeLabel", &GeoMap::maxEdgeLabel,
+                 "Returns an upper bound on the edge labels.\n"
+                 "Actually, this is the max. edge label + 1, so that you can use it as LUT size.")
+            .def("maxFaceLabel", &GeoMap::maxFaceLabel,
+                 "Returns an upper bound on the face labels.\n"
+                 "Actually, this is the max. face label + 1, so that you can use it as LUT size.")
+            .def("imageSize", &GeoMap::imageSize,
+                 return_value_policy<copy_const_reference>())
             );
+
+        // return_internal_reference is a simplification, since the
+        // true owner would be the GeoMap object (however, the
+        // iterator's lifetime is expected to be long enough):
+        class_<GeoMap::NodeIterator>("NodeIterator")
+            .def("__iter__", (GeoMap::NodeIterator &
+                              (*)(GeoMap::NodeIterator &))&returnSelf,
+                 return_internal_reference<>())
+            .def("next", &nextIterPos<GeoMap::NodeIterator>, crp);
+
+        class_<GeoMap::EdgeIterator>("EdgeIterator")
+            .def("__iter__", (GeoMap::EdgeIterator &
+                              (*)(GeoMap::EdgeIterator &))&returnSelf,
+                 return_internal_reference<>())
+            .def("next", &nextIterPos<GeoMap::EdgeIterator>, crp);
+
+        class_<GeoMap::FaceIterator>("FaceIterator")
+            .def("__iter__", (GeoMap::FaceIterator &
+                              (*)(GeoMap::FaceIterator &))&returnSelf,
+                 return_internal_reference<>())
+            .def("next", &nextIterPos<GeoMap::FaceIterator>, crp);
 
         class_<GeoMap::Node>("Node", init<GeoMap *, const vigra::Vector2 &>())
             .def("label", &GeoMap::Node::label)
@@ -604,8 +721,8 @@ void defMap()
             .def("degree", &GeoMap::Node::degree)
         ;
 
-        class_<GeoMap::Edge>("Edge", no_init)
-            .def(init<GeoMap *, unsigned int, unsigned int, GeoMap::Edge::Base>())
+        class_<GeoMap::Edge, bases<Polygon> >("Edge", no_init)
+            .def(init<GeoMap *, CellLabel, CellLabel, GeoMap::Edge::Base>())
             .def("label", &GeoMap::Edge::label)
             .def("startNodeLabel", &GeoMap::Edge::startNodeLabel)
             .def("startNode", &GeoMap::Edge::startNode, crp)
@@ -647,6 +764,12 @@ void defMap()
             .def("nextPhi", &GeoMap::Dart::nextPhi, rif)
             .def("prevPhi", &GeoMap::Dart::prevPhi, rif)
         ;
+
+#ifndef USE_INSECURE_CELL_PTRS
+        register_ptr_to_python< CELL_PTR(GeoMap::Node) >();
+        register_ptr_to_python< CELL_PTR(GeoMap::Edge) >();
+        register_ptr_to_python< CELL_PTR(GeoMap::Face) >();
+#endif
     }
 
     def("contourArea", &contourArea);
