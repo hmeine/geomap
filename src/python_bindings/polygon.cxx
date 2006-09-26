@@ -7,6 +7,7 @@
 #include <cmath>
 #include "vigra/polygon.hxx"
 #include "delaunay.hxx"
+#include "exporthelpers.hxx"
 
 using namespace vigra;
 using namespace boost::python;
@@ -64,34 +65,6 @@ double angleTheta(double dy, double dx)
     return result;
 }
 
-inline void checkPointIndex(int &i, int size)
-{
-    if(i < 0)
-        i += size;
-    if(i < 0 || i >= size)
-    {
-        PyErr_SetString(PyExc_IndexError,
-            "point index out of bounds.");
-        throw_error_already_set();
-    }
-}
-
-template<class Array>
-typename Array::value_type
-Array__getitem__(Array const & a, int i)
-{
-    checkPointIndex(i, a.size());
-    return a[i];
-}
-
-template<class Array>
-const typename Array::value_type &
-Array__getitem__byref(Array const & a, int i)
-{
-    checkPointIndex(i, a.size());
-    return a[i];
-}
-
 // index started with zero (commented out) for better python iterations
 // (allowing "for .. in .." or "enumerate(..)")
 // TODO: a better fix would be an extra __iter__:
@@ -109,19 +82,11 @@ Scanlines__getitem__(Scanlines const & s, int i)
     return s[i];
 }
 
-template<class Array>
-void
-Array__setitem__(Array & a, int i, typename Array::value_type v)
-{
-    checkPointIndex(i, a.size());
-    a[i] = v;
-}
-
 template<class Polygon>
 void
 Polygon__setitem__(Polygon & p, int i, typename Polygon::value_type v)
 {
-    checkPointIndex(i, p.size());
+    checkPythonIndex(i, p.size());
     p.setPoint(i, v);
 }
 
@@ -133,21 +98,21 @@ void insert(Polygon & p, int pos, typename Polygon::const_reference x)
     // 5-element list)?
 //     if(pos >= p.size())
 //         p.push_back(x);
-    checkPointIndex(pos, p.size() + 1);
+    checkPythonIndex(pos, p.size() + 1);
     p.insert(p.begin() + pos, x);
 }
 
 template<class Polygon>
 void erase(Polygon & p, int pos)
 {
-    checkPointIndex(pos, p.size() + 1);
+    checkPythonIndex(pos, p.size() + 1);
     p.erase(p.begin() + pos);
 }
 
 template<class Polygon>
 Polygon split(Polygon & p, int pos)
 {
-    checkPointIndex(pos, p.size());
+    checkPythonIndex(pos, p.size());
     return p.split(pos);
 }
 
