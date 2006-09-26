@@ -71,7 +71,7 @@ class PointArray
     {
         return points_[index];
     }
-    
+
     Point interpolate(unsigned int index, double offset) const
     {
         return (1.0 - offset) * points_[index] + offset * points_[index+1];
@@ -820,11 +820,11 @@ void simplifyPolygonDigitalLine(
     
     vigra_precondition(connectivity == 4 || connectivity == 8,
        "simplifyPolygonDigitalLine(): connectivity must be 4 or 8.");
-    
+
     bool isOpenPolygon = (poly[0] - poly[size-1]).magnitude() > 1e-6;
     
     ArrayVector<TinyVector<double, 3> > lines;
-    Point l1 = poly[0], 
+    Point l1 = poly[0],
           r1 = l1,
           l2 = poly[1],
           r2 = l2;
@@ -874,16 +874,16 @@ void simplifyPolygonDigitalLine(
             }
         }
     }
-    
+
     c = (c - a*r2[0] - b*r2[1]) / 2.0;
     lines.push_back(TinyVector<double, 3>(a, b, c));
     int segments = lines.size();
-    
+
     if(isOpenPolygon)
         simple.push_back(poly[0]);
     else
         simple.push_back(detail::digitalLineIntersection<Point>(lines[0], lines[segments-1]));
-    
+
     for(int k=1; k<segments; ++k)
         simple.push_back(detail::digitalLineIntersection<Point>(lines[k-1], lines[k]));
 
@@ -1130,12 +1130,12 @@ void resamplePolygonExponentialFilter(
     // measure the arc length of the new polygon (after possible shrinkage)
     p = (pforward[0]+weights[0]*pbackward[1]) / (wforward[0] + weights[0]*wbackward[1]);
     simple.push_back(p);
-    
-    Point pend = isOpenPolygon 
+
+    Point pend = isOpenPolygon
                    ? (weights[size-2]*pforward[size-2]+pbackward[size-1]) / 
                      (weights[size-2]*wforward[size-2] + wbackward[size-1])
                    : p;
-    
+
     ArrayVector<double> arcLength;
     double length = 0.0;
     arcLength.push_back(length);
@@ -1287,7 +1287,7 @@ singleGaussianConvolvePolygonCyclic(
     return sum / norm;
 }
 
-} // namespace detail 
+} // namespace detail
 
 template<class PointArray>
 void resamplePolygonGaussianFilter(
@@ -1304,7 +1304,7 @@ void resamplePolygonGaussianFilter(
     poly.arcLengthList(arcLengths);
 
     Gaussian<double> g(scale);
-    
+
     vigra_precondition(arcLengths[size-1] > g.radius(),
         "resamplePolygonGaussianFilter(): Filter longer than polygon.");
 
@@ -1350,7 +1350,7 @@ Point spline3Integral(Point const & p1, Point const & p2, double t1, double t2)
     }
     else
     {
-        return (t2 - t1) / 120.0 * 
+        return (t2 - t1) / 120.0 *
                (p1 * (40.0 + t1*(2.0*t2*(3.0*t2 - 10.0) + t1*(9.0*t2 - 30.0 + 12.0*t1)) + t2*t2*(3.0*t2 - 10.0)) +
                 p2 * (40.0 + t1*(t2*(9.0*t2 - 20.0) + t1*(6.0*t2 - 10.0 + 3.0*t1)) + t2*t2*(12.0*t2 - 30.0)));
     }
@@ -1364,7 +1364,7 @@ singleSpline3ConvolvePolygon(
     int left, int center, int right)
 {
     typedef typename PointList::value_type ValueType;
-    
+
     ValueType sum(vigra::NumericTraits<ValueType>::zero());
     double arcLengthPos = arcLengthList[center];
     for(int j = center + 1; j <= right; ++j)
@@ -1383,7 +1383,7 @@ singleSpline3ConvolvePolygon(
     return sum;
 }
 
-} // namespace detail 
+} // namespace detail
 
 template<class PointArray>
 void polygonSplineControlPoints(
