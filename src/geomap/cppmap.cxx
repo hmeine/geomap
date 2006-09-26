@@ -4,6 +4,7 @@
 #include <vigra/pythonimage.hxx>
 #include "vigra/polygon.hxx"
 #include <iostream>
+#include "exporthelpers.hxx"
 
 typedef vigra::TinyVector<double, 2> Vector2;
 typedef vigra::PointArray<Vector2>   Vector2Array;
@@ -296,13 +297,9 @@ class GeoMap::Dart
 //             else:
 //                 return self.guaranteedEdge().__reviter__()
 
-//         def __getitem__(self, index):
-//             if self._label > 0:
-//                 return self.guaranteedEdge()[index]
-//             else:
-//                 return self.guaranteedEdge()[-1-index]
-
-    const GeoMap::Edge::value_type &operator[](int index) const
+    typedef GeoMap::Edge::value_type value_type;
+    
+    const value_type &operator[](int index) const
     {
         if(label_ > 0)
             return (*guaranteedEdge())[index];
@@ -382,7 +379,7 @@ class GeoMap::Dart
 
 };
 
-double contourArea(const GeoMap::Dart dart)
+double contourArea(const GeoMap::Dart &dart)
 {
     double result = 0.0;
     GeoMap::Dart d(dart);
@@ -395,20 +392,39 @@ double contourArea(const GeoMap::Dart dart)
     return result;
 }
 
+Polygon contourPoly(const GeoMap::Dart &dart)
+{
+    Polygon result;
+    GeoMap::Dart d(dart);
+    do
+    {
+        if(d.label() < 0)
+        {
+            Polygon rev(*d.edge());
+            rev.reverse();
+            result.extend(rev);
+        }
+        else
+            result.extend(*d.edge());
+    }
+    while(d.nextPhi() != dart);
+    return result;
+}
+
 class GeoMap::Face
 {
   public:
     typedef Edge::BoundingBox BoundingBox;
 
   protected:
-    GeoMap           *map_;
-    CellLabel         label_;
-    std::vector<Dart> anchors_;
-    BoundingBox       boundingBox_;
-    bool              boundingBoxValid_;
-    double            area_;
-    bool              areaValid_;
-    int               pixelArea_;
+    GeoMap             *map_;
+    CellLabel           label_;
+    std::vector<Dart>   anchors_;
+    mutable BoundingBox boundingBox_;
+    mutable bool        boundingBoxValid_;
+    mutable double      area_;
+    mutable bool        areaValid_;
+    int                 pixelArea_;
 
   public:
     Face(GeoMap *map, Dart anchor)
@@ -421,7 +437,6 @@ class GeoMap::Face
         map_->faces_.push_back(GeoMap::Faces::value_type(this));
         ++map_->faceCount_;
 
-        // FIXME: infinite face had "None"-anchor in python!
         if(label_)
         {
             anchors_.push_back(anchor);
@@ -446,7 +461,7 @@ class GeoMap::Face
         return label_;
     }
 
-    const BoundingBox &boundingBox()
+    const BoundingBox &boundingBox() const
     {
         vigra_precondition(label_, "infinite face has no boundingBox()!");
 
@@ -464,7 +479,24 @@ class GeoMap::Face
         return boundingBox_;
     }
 
-    double area()
+    bool contains(const Vector2 &point) const
+    {
+        if(!boundingBox().contains(point))
+            return false;
+        unsigned int i = 0;
+        if(label_)
+        {
+            if(!contourPoly(anchors_[0]).contains(point))
+                return false;
+            ++i;
+        }
+        for(; i < anchors_.size(); ++i)
+            if(contourPoly(anchors_[i]).contains(point))
+                return false;
+        return true;
+    }
+
+    double area() const
     {
         if(!areaValid_)
         {
@@ -476,6 +508,26 @@ class GeoMap::Face
             areaValid_ = true;
         }
         return area_;
+    }
+
+    const Dart &contour(unsigned int index = 0)
+    {
+        return anchors_[index];
+    }
+
+    void embedContour(const Dart &anchor)
+    {
+        anchors_.push_back(anchor);
+
+        Dart dart(anchor); // we need a non-const reference
+        for(; !dart.leftFaceLabel(); dart.nextPhi())
+            dart.setLeftFaceLabel(label_);
+
+        if(areaValid_)
+            area_ += contourArea(dart);
+
+        vigra_postcondition(dart == anchor,
+                            "contour labeled partially?!");
     }
 };
 
@@ -703,6 +755,7 @@ void defMap()
             .def("label", &GeoMap::Dart::label)
             .def("edgeLabel", &GeoMap::Dart::edgeLabel)
             .def("edge", &GeoMap::Dart::edge, crp)
+            .def("guaranteedEdge", &GeoMap::Dart::guaranteedEdge, crp)
             .def("startNodeLabel", &GeoMap::Dart::startNodeLabel)
             .def("startNode", &GeoMap::Dart::startNode, crp)
             .def("endNodeLabel", &GeoMap::Dart::endNodeLabel)
@@ -711,11 +764,16 @@ void defMap()
             .def("leftFace", &GeoMap::Dart::leftFace, crp)
             .def("rightFaceLabel", &GeoMap::Dart::rightFaceLabel)
             .def("rightFace", &GeoMap::Dart::rightFace, crp)
+            .def("partialArea", &GeoMap::Dart::partialArea, crp)
+            .def("__getitem__", &Array__getitem__<GeoMap::Dart>)
+            .def("__len__", &GeoMap::Dart::size)
             .def("nextAlpha", &GeoMap::Dart::nextAlpha, rself)
             .def("nextSigma", &GeoMap::Dart::nextSigma, (arg("times") = 1), rself)
             .def("prevSigma", &GeoMap::Dart::prevSigma, (arg("times") = 1), rself)
             .def("nextPhi", &GeoMap::Dart::nextPhi, rself)
             .def("prevPhi", &GeoMap::Dart::prevPhi, rself)
+            .def(self == self)
+            .def(self != self)
         ;
 
 #ifndef USE_INSECURE_CELL_PTRS
@@ -725,6 +783,13 @@ void defMap()
 #endif
     }
 
-    def("contourArea", &contourArea);
+    def("contourArea", &contourArea,
+        "contourArea(anchor) -> float\n\n"
+        "Returns the area of contourPoly(anchor) (is however much faster than\n"
+        "using that function, since it simply sums up all partialArea()s of the\n"
+        "darts in the phi orbit.");
+    def("contourPoly", &contourPoly,
+        "contourPoly(anchor) -> Polygon\n\n"
+        "Returns a Polygon composed by traversing anchor's phi orbit once.");
 }
 
