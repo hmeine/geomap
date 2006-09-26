@@ -10,6 +10,9 @@ typedef vigra::TinyVector<double, 2> Vector2;
 typedef vigra::PointArray<Vector2>   Vector2Array;
 typedef vigra::BBoxPolygon<vigra::Vector2> Polygon;
 
+const CellLabel UNINITIALIZED_CELL_LABEL =
+    vigra::NumericTraits<CellLabel>::max();
+
 class GeoMap::Node
 {
   protected:
@@ -85,8 +88,8 @@ class GeoMap::Edge
       label_(map->edges_.size()),
       startNodeLabel_(startNodeLabel),
       endNodeLabel_(endNodeLabel),
-      leftFaceLabel_(0),
-      rightFaceLabel_(0),
+      leftFaceLabel_(UNINITIALIZED_CELL_LABEL),
+      rightFaceLabel_(UNINITIALIZED_CELL_LABEL),
       protection_(0)
     {
         map_->edges_.push_back(GeoMap::Edges::value_type(this));
@@ -441,7 +444,8 @@ class GeoMap::Face
         {
             anchors_.push_back(anchor);
 
-            for(; !anchor.leftFaceLabel(); anchor.nextPhi())
+            for(; anchor.leftFaceLabel() == UNINITIALIZED_CELL_LABEL;
+                anchor.nextPhi())
             {
                 // don't calculate area on-the-fly here; we want to
                 // exclude bridges from the area!
@@ -520,7 +524,7 @@ class GeoMap::Face
         anchors_.push_back(anchor);
 
         Dart dart(anchor); // we need a non-const reference
-        for(; !dart.leftFaceLabel(); dart.nextPhi())
+        for(; dart.leftFaceLabel() != label_; dart.nextPhi())
             dart.setLeftFaceLabel(label_);
 
         if(areaValid_)
@@ -596,6 +600,18 @@ GeoMap::GeoMap(bp::list nodePositions,
     }
 
     sortEdgesDirectly();
+
+    // init contours
+
+    new Face(this, Dart(this, 0)); // create infinite face, dart will be ignored
+
+    for(EdgeIterator it = edgesBegin(); it.inRange(); ++it)
+    {
+        if((*it)->leftFaceLabel() == UNINITIALIZED_CELL_LABEL)
+            new Face(this, dart( (*it)->label()));
+        if((*it)->rightFaceLabel() == UNINITIALIZED_CELL_LABEL)
+            new Face(this, dart(-(*it)->label()));
+    }
 }
 
 GeoMap::~GeoMap()
@@ -744,7 +760,10 @@ void defMap()
             .def("label", &GeoMap::Face::label)
             .def("boundingBox", &GeoMap::Face::boundingBox,
                  return_value_policy<copy_const_reference>())
+            .def("contains", &GeoMap::Face::contains)
             .def("area", &GeoMap::Face::area)
+            .def("contour", &GeoMap::Face::contour,
+                 return_internal_reference<>())
         ;
 
         return_internal_reference<> rself; // "return self" policy
