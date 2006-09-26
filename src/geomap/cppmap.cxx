@@ -319,13 +319,13 @@ class GeoMap::Dart
     Dart &nextSigma(int times = 1)
     {
         Node::DartLabels &darts(startNode()->darts_);
-        Node::DartLabels::size_type i = 0;
-        for(; i < darts.size(); ++i)
+        int i = 0;
+        for(; i < (int)darts.size(); ++i)
             if(darts[i] == label_)
                 break;
-        vigra_precondition(i < darts.size(),
+        vigra_precondition(i < (int)darts.size(),
                            "Dart not attached to its startnode??");
-        i = (i + times) % darts.size();
+        i = (i + times) % (int)darts.size();
         if(i < 0)
             i += darts.size();
         label_ = darts[i];
@@ -538,7 +538,6 @@ GeoMap::GeoMap(bp::list nodePositions,
             edges_.push_back(NULL_PTR(Edge));
     }
 
-    std::cerr << "sorting edges...\n";
     sortEdgesDirectly();
 }
 
@@ -556,8 +555,7 @@ inline GeoMap::Dart GeoMap::dart(int label)
     return GeoMap::Dart(this, label);
 }
 
-// implementation in polygon.cxx:
-double angleTheta(double dy, double dx);
+double angleTheta(double dy, double dx); // implemented in polygon.cxx
 
 void GeoMap::sortEdgesDirectly()
 {
@@ -569,9 +567,11 @@ void GeoMap::sortEdgesDirectly()
 
         GeoMap::Node::DartLabels &dartLabels((*it)->darts_);
 
-        for(unsigned int i = 0; i < dartLabels.size(); ++it)
+        for(unsigned int i = 0; i < dartLabels.size(); ++i)
         {
             GeoMap::Dart d(dart(dartLabels[i]));
+            vigra_precondition(
+                d.size() >= 2, "cannot measure angle of darts with < 2 points!");
             dartAngles.push_back(
                 DartAngle(angleTheta(-d[1][1] + d[0][1],
                                       d[1][0] - d[0][0]),
@@ -580,7 +580,7 @@ void GeoMap::sortEdgesDirectly()
 
         std::sort(dartAngles.begin(), dartAngles.end());
 
-        for(unsigned int i = 0; i < dartLabels.size(); ++it)
+        for(unsigned int i = 0; i < dartLabels.size(); ++i)
         {
             dartLabels[i] = dartAngles[i].second;
         }
@@ -635,6 +635,7 @@ void defMap()
                  "Actually, this is the max. face label + 1, so that you can use it as LUT size.")
             .def("imageSize", &GeoMap::imageSize,
                  return_value_policy<copy_const_reference>())
+            .def("sortEdgesDirectly", &GeoMap::sortEdgesDirectly)
             );
 
         // return_internal_reference is a simplification, since the
@@ -664,6 +665,7 @@ void defMap()
                  return_value_policy<copy_const_reference>())
             .def("setPosition", &GeoMap::Node::setPosition)
             .def("degree", &GeoMap::Node::degree)
+            .def("anchor", &GeoMap::Node::anchor)
         ;
 
         class_<GeoMap::Edge, bases<Polygon> >("Edge", no_init)
