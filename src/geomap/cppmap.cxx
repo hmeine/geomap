@@ -178,6 +178,11 @@ class GeoMap::Dart
       label_(label)
     {}
 
+    Dart clone() const
+    {
+        return Dart(map_, label_);
+    }
+
     int label() const
     {
         return label_;
@@ -690,10 +695,11 @@ void defMap()
             .def("area", &GeoMap::Face::area)
         ;
 
-        return_internal_reference<> rif;
+        return_internal_reference<> rself; // "return self" policy
 
         class_<GeoMap::Dart>("Dart", no_init)
             .def(init<GeoMap *, int>())
+            .def("clone", &GeoMap::Dart::clone)
             .def("label", &GeoMap::Dart::label)
             .def("edgeLabel", &GeoMap::Dart::edgeLabel)
             .def("edge", &GeoMap::Dart::edge, crp)
@@ -705,11 +711,11 @@ void defMap()
             .def("leftFace", &GeoMap::Dart::leftFace, crp)
             .def("rightFaceLabel", &GeoMap::Dart::rightFaceLabel)
             .def("rightFace", &GeoMap::Dart::rightFace, crp)
-            .def("nextAlpha", &GeoMap::Dart::nextAlpha, rif)
-            .def("nextSigma", &GeoMap::Dart::nextSigma, (arg("times") = 1), rif)
-            .def("prevSigma", &GeoMap::Dart::prevSigma, (arg("times") = 1), rif)
-            .def("nextPhi", &GeoMap::Dart::nextPhi, rif)
-            .def("prevPhi", &GeoMap::Dart::prevPhi, rif)
+            .def("nextAlpha", &GeoMap::Dart::nextAlpha, rself)
+            .def("nextSigma", &GeoMap::Dart::nextSigma, (arg("times") = 1), rself)
+            .def("prevSigma", &GeoMap::Dart::prevSigma, (arg("times") = 1), rself)
+            .def("nextPhi", &GeoMap::Dart::nextPhi, rself)
+            .def("prevPhi", &GeoMap::Dart::prevPhi, rself)
         ;
 
 #ifndef USE_INSECURE_CELL_PTRS
