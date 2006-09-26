@@ -2,10 +2,13 @@ PLATFORM = $(shell /software/Modules/bin/platform)
 #PLATFORM = gentoo
 curdir = .
 
+# should point to build directory of interactive2 (where configure was called):
 INT2BUILDDIR = ../../interactive2/build-$(PLATFORM)
 include $(INT2BUILDDIR)/config/Makefile.include
 
+CXXFLAGS += -Wall
 CPPFLAGS += -I.
+LIBCPPFLAGS += -I.
 TARGET = hourglassmodule.la
 MODULE = $(patsubst %.la,%.so,$(TARGET))
 
@@ -38,10 +41,11 @@ $(INT2BUILDDIR)/config/Makefile.include:
 	@echo "*** Check if your vigra/interactive2 build directory is $(INT2BUILDDIR)."
 	@echo "*** Otherwise, change the definition of INT2BUILDDIR in the Makefile."
 
+clean:
+	rm -f $(OBJS) $(TARGET) hourglass delaunay *.o *.ld
+
 ifneq "$(MAKECMDGOALS)" "clean"
 include hourglass.d
 include delaunay.ld
-include hourglassmodule.ld
-include polygon.ld
-include statistics.ld
+include $(patsubst %.lo,%.ld,$(OBJS))
 endif
