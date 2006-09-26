@@ -32,6 +32,7 @@
 #include "vigra/eigensystem.hxx"
 #include "vigra/splineimageview.hxx"
 #include "vigra/pixelneighborhood.hxx"
+#include "positionedmap.hxx"
 
 namespace vigra {
 
@@ -488,123 +489,6 @@ struct CriticalPointsCompare
     {
         return closeAtTolerance(l.x, self.x, epsilon) && closeAtTolerance(l.y, self.y, epsilon);
     }
-};
-
-template<class Vector2D>
-class Map2D
-{
-public:
-    typedef typename Vector2D::value_type      CoordType;
-    typedef std::multimap<CoordType, Vector2D> CoordMap;
-    typedef typename CoordMap::iterator        iterator;
-    typedef typename CoordMap::const_iterator  const_iterator;
-
-    void insert(const Vector2D &vector2D)
-    {
-        vectors_.insert(
-            typename CoordMap::value_type((vector2D)[0], vector2D));
-    }
-
-    void erase(const iterator &it)
-    {
-        vectors_.erase(it);
-    }
-
-        // assumes that Vector2D(x, y) is a valid constructor:
-    void insert(CoordType x, CoordType y)
-    {
-        vectors_.insert(
-            typename CoordMap::value_type(x, Vector2D(x, y)));
-    }
-
-    template<class Vector2DIterator>
-    void fillFrom(const Vector2DIterator &begin, const Vector2DIterator &end)
-    {
-        vectors_.clear();
-        for(Vector2DIterator it = begin; it != end; ++it)
-        {
-            vectors_.insert(typename CoordMap::value_type((*it)[0], *it));
-        }
-    }
-
-    const_iterator begin() const
-    {
-        return vectors_.begin();
-    }
-
-    const_iterator end() const
-    {
-        return vectors_.end();
-    }
-
-    iterator begin()
-    {
-        return vectors_.begin();
-    }
-
-    iterator end()
-    {
-        return vectors_.end();
-    }
-
-    const_iterator nearest(
-        const Vector2D &v, double maxSquaredDist = NumericTraits<double>::max()) const
-    {
-        return search(begin(), vectors_.lower_bound(v[0]), end(),
-                      v, maxSquaredDist);
-    }
-
-    iterator nearest(
-        const Vector2D &v, double maxSquaredDist = NumericTraits<double>::max())
-    {
-        return search(begin(), vectors_.lower_bound(v[0]), end(),
-                      v, maxSquaredDist);
-    }
-
-protected:
-    template<class ITERATOR>
-    static ITERATOR search(
-        const ITERATOR &begin, ITERATOR midPos, const ITERATOR &end,
-        const Vector2D &v, double maxSquaredDist)
-    {
-        ITERATOR nearestPos(end);
-
-        for(ITERATOR it = midPos; it != end; ++it)
-        {
-            if(squaredNorm(it->first - v[0]) > maxSquaredDist)
-                break;
-
-            double dist = squaredNorm(it->second - v);
-            if(dist < maxSquaredDist)
-            {
-                nearestPos = it;
-                maxSquaredDist = dist;
-            }
-        }
-
-        if(midPos == begin)
-            return nearestPos;
-
-        for(ITERATOR it = --midPos; true; --it)
-        {
-            if(squaredNorm(v[0] - it->first) > maxSquaredDist)
-                break;
-
-            double dist = squaredNorm(it->second - v);
-            if(dist < maxSquaredDist)
-            {
-                nearestPos = it;
-                maxSquaredDist = dist;
-            }
-
-            if(it == begin)
-                break;
-        }
-
-        return nearestPos;
-    }
-
-    CoordMap vectors_;
 };
 
 template <class IMAGEVIEW, class VECTOR>
@@ -1885,7 +1769,7 @@ SubPixelWatersheds<SplineImageView>::findEdges(double threshold, double epsilon)
         pair<int, int> ind = findEdge(x, y, epsilon, edges_.back());
         edgeIndices_.push_back(triple<int, int, int>(ind.first, i, ind.second));
     }
-    return edges_size();
+    return this->edges_size();
 }
 
 } // namespace vigra
