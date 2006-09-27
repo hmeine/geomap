@@ -32,7 +32,7 @@ class MapSearcher(qt.QObject):
             if minDist == None or minDist > dist:
                 minDist = dist
                 nearestNode = node
-        sys.stdout.write("Node %d is %.2f from %d/%d\n" % (nearestNode._label, minDist, x, y))
+        sys.stdout.write("Node %d is %.2f from %d/%d\n" % (nearestNode.label(), minDist, x, y))
         if nearestNode.degree() > 0:
             self.display.navigate(nearestNode.anchor())
 

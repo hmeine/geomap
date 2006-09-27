@@ -708,7 +708,7 @@ class DartNavigator(DartNavigatorBase):
         self.connect(self.timer, qt.SIGNAL("timeout()"),
                      self.highlightNext)
 
-        self.dh = DartHighlighter(dart._map(), self.parent().viewer)
+        self.dh = DartHighlighter(self.parent().map, self.parent().viewer)
         self.updateLabel()
 
     def closeEvent(self, e):
