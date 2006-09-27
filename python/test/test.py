@@ -1,8 +1,7 @@
 from vigra import Vector2
 from hourglass import Polygon
 
-execfile("map.py")
-# execfile("maptest.py")
+from map import *
 execfile("testSPWS")
 
 # The following data contains edges that run out of the image range,
@@ -18,13 +17,14 @@ mergeFaces(map.dart(213))
 mergeFaces(map.dart(19))
 mergeFaces(map.dart(28))
 mergeFaces(map.dart(33))
-mergeFaces(map.dart(222))
-removeBridge(map.dart(31))
-mergeFaces(map.dart(18))
+mergeFaces(map.dart(225))
+mergeFaces(map.dart(31))
+mergeFaces(map.dart(16))
+face = removeBridge(map.dart(18))
 
-assert len(map.face(2).contours()) > 1 # should have hole
-assert map.face(2).contains(Vector2(5,12)) # in region, but not within hole
-assert not map.face(2).contains(Vector2(12,12)) # in hole
+assert len(face.contours()) > 1 # should have hole
+assert face.contains(Vector2(5,12)) # in region, but not within hole
+assert not face.contains(Vector2(12,12)) # in hole
 
 # --------------------------------------------------------------------
 
