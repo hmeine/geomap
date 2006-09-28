@@ -2,6 +2,7 @@
 #include <boost/python/detail/api_placeholder.hpp>
 #include <vigra/tinyvector.hxx>
 #include <vigra/pythonimage.hxx>
+#include <vigra/pythonutil.hxx>
 #include "vigra/polygon.hxx"
 #include <iostream>
 #include "exporthelpers.hxx"
@@ -585,9 +586,8 @@ GeoMap::GeoMap(bp::list nodePositions,
             if(!pe.check())
             {
                 std::cerr << "why, oh why, do I have to die??\n";
-                PyErr_SetString(PyExc_TypeError,
+                bp::throw_type_error(
                     "GeoMap.__init__: edge geometry not convertable to Vector2Array");
-                bp::throw_error_already_set();
             }
             CellLabel startNodeLabel = bp::extract<CellLabel>(edgeTuple[0])();
             CellLabel endNodeLabel   = bp::extract<CellLabel>(edgeTuple[1])();
