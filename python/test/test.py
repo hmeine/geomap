@@ -11,6 +11,7 @@ execfile("testSPWS")
 map = Map(maxima2, flowlines2, Size2D(39, 39))
 assert checkConsistency(map), "map inconsistent"
 assert checkLabelConsistency(map), "map.labelImage inconsistent"
+assert len(map.history) == 0
 
 # merge faces so that survivor has a hole:
 mergeFaces(map.dart(213))
@@ -25,6 +26,13 @@ face = removeBridge(map.dart(18))
 assert len(face.contours()) > 1 # should have hole
 assert face.contains(Vector2(5,12)) # in region, but not within hole
 assert not face.contains(Vector2(12,12)) # in hole
+
+# --------------------------------------------------------------------
+
+# test copying / init from map data with disconnected contours:
+om = copy.copy(map)
+assert checkConsistency(om), "map inconsistent"
+assert checkLabelConsistency(om), "om.labelImage inconsistent"
 
 # --------------------------------------------------------------------
 
