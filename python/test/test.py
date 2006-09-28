@@ -28,6 +28,13 @@ assert not face.contains(Vector2(12,12)) # in hole
 
 # --------------------------------------------------------------------
 
+import pixelmap
+lab, count = labelImage4(map.labelImage)
+cm = pixelmap.crackEdgeMap(lab)
+assert cm.faceCount == count + 1
+
+# --------------------------------------------------------------------
+
 map = Map(maxima1, flowlines1, Size2D(256, 256))
 assert checkConsistency(map), "map inconsistent"
 assert checkLabelConsistency(map), "map.labelImage inconsistent"
