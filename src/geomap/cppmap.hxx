@@ -3,8 +3,10 @@
 
 #include "filteriterator.hxx"
 #include "vigra/positionedmap.hxx"
+#include "vigra/polygon.hxx"
 #include <vector>
 #include <boost/python.hpp> // FIXME: separate this from plain C++ interface
+#include <vigra/stdimage.hxx>
 namespace bp = boost::python;
 
 //#define USE_INSECURE_CELL_PTRS
@@ -22,13 +24,13 @@ namespace bp = boost::python;
 // This is quite dangerous, *but*: The real lifetime of
 // the referenced objects / cells are unknown, since any Euler
 // operation might invalidate them.
-#  define CELL_RETURN_POLICY return_value_policy<reference_existing_object>
+#  define CELL_RETURN_POLICY bp::return_value_policy<reference_existing_object>
 #else
 #  include <boost/shared_ptr.hpp>
 #  define CELL_PTR(Type) boost::shared_ptr<Type>
 #  define NULL_PTR(Type) boost::shared_ptr<Type>()
 #  define RESET_PTR(ptr) ptr.reset()
-#  define CELL_RETURN_POLICY default_call_policies
+#  define CELL_RETURN_POLICY bp::default_call_policies
 #endif
 
 typedef unsigned int CellLabel;
@@ -42,6 +44,10 @@ struct NotNull
         return p.get();
     }
 };
+
+typedef vigra::TinyVector<double, 2>       Vector2;
+typedef vigra::PointArray<Vector2>         Vector2Array;
+typedef vigra::BBoxPolygon<vigra::Vector2> Polygon;
 
 /********************************************************************/
 /*                                                                  */
@@ -79,7 +85,10 @@ class GeoMap
 
     PositionedMap nodeMap_;
 
-    vigra::Size2D imageSize_;
+    typedef vigra::MultiArray<2, int> LabelImage;
+
+    vigra::Size2D  imageSize_;
+    LabelImage    *labelImage_;
 
   public:
     GeoMap(bp::list nodePositions,
@@ -128,7 +137,12 @@ class GeoMap
         return imageSize_;
     }
 
+    CELL_PTR(Node) addNode(const vigra::Vector2 &position);
+    CELL_PTR(Edge) addEdge(CellLabel startNodeLabel, CellLabel endNodeLabel,
+                           const Vector2Array &points);
     void sortEdgesDirectly();
+    void initContours();
+    void embedFaces();
 };
 
 #endif // CPPMAP_HXX
