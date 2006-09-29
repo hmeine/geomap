@@ -28,7 +28,7 @@ class PythonListBackInserter
     }
 };
 
-Point2D intPos(const Vector2 &p)
+inline Point2D intPos(const Vector2 &p)
 {
     return Point2D((int)floor(p[0]+0.5), (int)floor(p[1]+0.5));
 }
@@ -1853,8 +1853,7 @@ void defPolygon()
     ;
 
     def("scanPoly", &scanPoly<Vector2>,
-        (arg("points"), arg("scanLineCount"), arg("startIndex") = 0),
-        return_value_policy<manage_new_object>());
+        (arg("points"), arg("scanLineCount"), arg("startIndex") = 0));
     def("fillScannedPoly", &pyFillScannedPoly);
     def("drawScannedPoly", &pyDrawScannedPoly);
     def("markEdgeInLabelImage", &markEdgeInLabelImage);

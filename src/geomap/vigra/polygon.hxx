@@ -1564,7 +1564,6 @@ void polygonSplineControlPoints(
     }
 }
 
-
 /********************************************************************/
 
 struct ScanlineSegment
@@ -1677,12 +1676,12 @@ struct Scanlines
 };
 
 template<class Point>
-Scanlines *scanPoly(
+std::auto_ptr<Scanlines> scanPoly(
     const PointArray<Point> &points,
     unsigned int scanLineCount,
     int startIndex = 0)
 {
-    Scanlines *result = new Scanlines(startIndex, scanLineCount);
+    std::auto_ptr<Scanlines> result(new Scanlines(startIndex, scanLineCount));
 
     if(!points.size())
         return result;
