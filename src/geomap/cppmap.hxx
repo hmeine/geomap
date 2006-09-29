@@ -41,7 +41,7 @@ struct NotNull
 {
     bool operator()(const POINTER &p) const
     {
-        return p.get();
+        return p;
     }
 };
 

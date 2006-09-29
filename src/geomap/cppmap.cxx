@@ -36,9 +36,21 @@ class GeoMap::Node
 
     ~Node()
     {
+        if(initialized())
+            uninitialize();
+    }
+
+    bool initialized() const
+    {
+        return map_ != NULL;
+    }
+
+    void uninitialize()
+    {
         RESET_PTR(map_->nodes_[label_]);
         --map_->nodeCount_;
         map_->nodeMap_.remove(position_);
+        map_ = NULL;
     }
 
     CellLabel label() const
@@ -95,8 +107,20 @@ class GeoMap::Edge
 
     ~Edge()
     {
+        if(initialized())
+            uninitialize();
+    }
+
+    bool initialized() const
+    {
+        return map_ != NULL;
+    }
+
+    void uninitialize()
+    {
         RESET_PTR(map_->edges_[label_]);
         --map_->edgeCount_;
+        map_ = NULL;
     }
 
     CellLabel label() const
@@ -113,6 +137,7 @@ class GeoMap::Edge
 
     GeoMap::Nodes::value_type startNode() const
     {
+        vigra_precondition(initialized(), "startNode() of uninitialized edge!");
         return map_->node(startNodeLabel_);
     }
 
@@ -123,6 +148,7 @@ class GeoMap::Edge
 
     GeoMap::Nodes::value_type endNode() const
     {
+        vigra_precondition(initialized(), "endNode() of uninitialized edge!");
         return map_->node(endNodeLabel_);
     }
 
@@ -133,6 +159,7 @@ class GeoMap::Edge
 
     GeoMap::Faces::value_type leftFace() const
     {
+        vigra_precondition(initialized(), "leftFace() of uninitialized edge!");
         return map_->face(leftFaceLabel_);
     }
 
@@ -143,6 +170,7 @@ class GeoMap::Edge
 
     GeoMap::Faces::value_type rightFace() const
     {
+        vigra_precondition(initialized(), "rightFace() of uninitialized edge!");
         return map_->face(rightFaceLabel_);
     }
 
@@ -179,22 +207,7 @@ class DartPointIter
         */
     typedef std::forward_iterator_tag iterator_category;
 
-    DartPointIter(CELL_PTR(GeoMap::Edge) edge, bool forward)
-    : edge_(edge)
-    {
-        if(forward)
-        {
-            index_ = 0;
-            inc_ = 1;
-            end_ = edge->size();
-        }
-        else
-        {
-            index_ = edge->size() - 1;
-            inc_ = -1;
-            end_ = -1;
-        }
-    }
+    DartPointIter(GeoMap::Dart const &dart);
 
     DartPointIter & operator++()
     {
@@ -373,7 +386,7 @@ class GeoMap::Dart
 
     DartPointIter pointIter() const
     {
-        return DartPointIter(guaranteedEdge(), label() > 0);
+        return DartPointIter(*this);
     }
 
     typedef GeoMap::Edge::value_type value_type;
@@ -456,6 +469,97 @@ class GeoMap::Dart
 //                 if dart == self:
 //                     break
 
+};
+
+DartPointIter::DartPointIter(GeoMap::Dart const &dart)
+: edge_(dart.guaranteedEdge())
+{
+    if(dart.label() > 0)
+    {
+        index_ = 0;
+        inc_ = 1;
+        end_ = dart.size();
+    }
+    else
+    {
+        index_ = dart.size() - 1;
+        inc_ = -1;
+        end_ = -1;
+    }
+}
+
+class ContourPointIter
+{
+    DartPointIter dpi_;
+    GeoMap::Dart dart_, end_;
+
+  public:
+        /** the iterator's value type
+        */
+    typedef GeoMap::Edge::value_type value_type;
+
+        /** the iterator's reference type (return type of <tt>*iter</tt>)
+        */
+    typedef value_type & reference;
+
+        /** the iterator's pointer type (return type of <tt>operator-></tt>)
+        */
+    typedef value_type * pointer;
+
+        /** the iterator tag (forward_iterator_tag)
+        */
+    typedef std::forward_iterator_tag iterator_category;
+
+    ContourPointIter(GeoMap::Dart const &dart)
+    : dpi_(dart),
+      dart_(dart),
+      end_(dart)
+    {}
+
+    ContourPointIter & operator++()
+    {
+        ++dpi_;
+        if(dpi_.atEnd())
+        {
+            if(dart_.nextPhi() != end_)
+                dpi_ = DartPointIter(dart_);
+        }
+        return *this;
+    }
+
+    ContourPointIter operator++(int)
+    {
+        ContourPointIter ret(*this);
+        operator++();
+        return ret;
+    }
+
+    /**
+     * the opposite of inRange(); true if this iterator is behind the
+     * range and should not be dereferenced any more
+     */
+    bool atEnd() const
+    {
+        return dpi_.atEnd();
+    }
+
+    /**
+     * the opposite of atEnd(); true if this iterator is dereferencable
+     */
+    bool inRange() const
+    {
+        return dpi_.inRange();
+    }
+
+    reference operator*() const
+    {
+        return *dpi_;
+    }
+
+    pointer operator->() const
+    {
+        return &(operator*());
+    }
 };
 
 double contourArea(const GeoMap::Dart &dart)
@@ -541,8 +645,20 @@ class GeoMap::Face
 
     ~Face()
     {
+        if(initialized())
+            uninitialize();
+    }
+
+    bool initialized() const
+    {
+        return map_ != NULL;
+    }
+
+    void uninitialize()
+    {
         RESET_PTR(map_->faces_[label_]);
         --map_->faceCount_;
+        map_ = NULL;
     }
 
     CellLabel label() const
@@ -570,6 +686,7 @@ class GeoMap::Face
 
     bool contains(const Vector2 &point) const
     {
+        vigra_precondition(initialized(), "contains() of uninitialized face!");
         if(!boundingBox().contains(point))
             return false;
         if(map_->labelImage_ && (*map_->labelImage_)[intVPos(point)] == (int)label_)
@@ -624,6 +741,7 @@ class GeoMap::Face
 
 void GeoMap::Node::setPosition(const vigra::Vector2 &p)
 {
+    vigra_precondition(initialized(), "setPosition() of uninitialized node!");
     map_->nodeMap_.remove(position_);
     position_ = p;
     for(unsigned int i = 0; i < darts_.size(); ++i)
@@ -643,6 +761,7 @@ void GeoMap::Node::setPosition(const vigra::Vector2 &p)
 
 inline GeoMap::Dart GeoMap::Node::anchor() const
 {
+    vigra_precondition(initialized(), "anchor() of uninitialized node!");
     return Dart(map_, darts_[0]);
 }
 
@@ -824,8 +943,34 @@ void GeoMap::embedFaces()
             // contour is a hole, determine parent face
             CELL_PTR(GeoMap::Face) parent = NULL_PTR(GeoMap::Face);
 
-            //if(map_->labelImage_ && (*map_->labelImage_)[intVPos(point)] == (int)label_)
-            
+            ContourPointIter cpi(anchor);
+            while(cpi.inRange())
+            {
+                GeoMap::LabelImage::difference_type p(intVPos(*cpi++));
+                if(labelImage_->isInside(p))
+                {
+                    int parentLabel = (*labelImage_)[p];
+                    if(parentLabel > 0)
+                    {
+                        parent = face(parentLabel);
+                        break;
+                    }
+                }
+            }
+//                 if parent == None:
+//                     for p in contourPointIter(anchor):
+//                         parent = self.faceAt(p)
+//                         if parent:
+//                             break
+
+            vigra_postcondition(
+                parent, "contour could not be embedded (parent not found)");
+
+            if(parent)
+            {
+                parent->embedContour(anchor);
+                contour.uninitialize();
+            }
         }
     }
 }
@@ -902,6 +1047,7 @@ void defMap()
         RangeIterWrapper<GeoMap::FaceIterator>("FaceIterator");
 
         class_<GeoMap::Node>("Node", init<GeoMap *, const vigra::Vector2 &>())
+            .def("initialized", &GeoMap::Node::initialized)
             .def("label", &GeoMap::Node::label)
             .def("position", &GeoMap::Node::position,
                  return_value_policy<copy_const_reference>())
@@ -912,6 +1058,7 @@ void defMap()
 
         class_<GeoMap::Edge, bases<Polygon> >("Edge", no_init)
             .def(init<GeoMap *, CellLabel, CellLabel, GeoMap::Edge::Base>())
+            .def("initialized", &GeoMap::Edge::initialized)
             .def("label", &GeoMap::Edge::label)
             .def("startNodeLabel", &GeoMap::Edge::startNodeLabel)
             .def("startNode", &GeoMap::Edge::startNode, crp)
@@ -926,6 +1073,7 @@ void defMap()
         ;
 
         class_<GeoMap::Face>("Face", init<GeoMap *, GeoMap::Dart>())
+            .def("initialized", &GeoMap::Face::initialized)
             .def("label", &GeoMap::Face::label)
             .def("boundingBox", &GeoMap::Face::boundingBox,
                  return_value_policy<copy_const_reference>())
