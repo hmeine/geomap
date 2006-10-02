@@ -1852,6 +1852,7 @@ void defPolygon()
         .def(self == self)
     ;
 
+    register_ptr_to_python< std::auto_ptr<Scanlines> >();
     def("scanPoly", &scanPoly<Vector2>,
         (arg("points"), arg("scanLineCount"), arg("startIndex") = 0));
     def("fillScannedPoly", &pyFillScannedPoly);
