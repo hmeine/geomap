@@ -6,7 +6,7 @@
 #include "vigra/polygon.hxx"
 #include <vector>
 #include <boost/python.hpp> // FIXME: separate this from plain C++ interface
-#include <vigra/stdimage.hxx>
+#include <vigra/multi_array.hxx>
 namespace bp = boost::python;
 
 //#define USE_INSECURE_CELL_PTRS
