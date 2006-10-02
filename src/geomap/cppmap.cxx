@@ -331,17 +331,6 @@ class GeoMap::Dart
             return guaranteedEdge()->leftFaceLabel();
     }
 
-//         def _setLeftFaceLabel(self, label):
-//             if self.label() > 0:
-//                 self.edge()._leftFaceLabel = label
-//             else:
-//                 self.edge()._rightFaceLabel = label
-
-//         def edge(self):
-//             """Returns corresponding edge or None if that edge has already
-//             been removed."""
-//             result = self._map().edge(self.edgeLabel())
-//             return result
 
     GeoMap::Edges::value_type edge() const
     {
@@ -818,6 +807,7 @@ GeoMap::GeoMap(bp::list nodePositions,
     {
         sortEdgesDirectly();
         initContours();
+        embedFaces();
     }
 }
 
@@ -941,7 +931,7 @@ void GeoMap::embedFaces()
         "embedFaces() called with already-initialized labelImage");
 
     labelImage_ = new LabelImage( // FIXME: make optional
-        LabelImage::size_type(imageSize().width(), imageSize().height()));
+        LabelImage::size_type(imageSize().width(), imageSize().height()), 0);
 
     // skip infinite face:
     GeoMap::Faces contours(faces_.begin() + 1, faces_.end());
@@ -1001,7 +991,7 @@ void GeoMap::embedFaces()
                         if((*it)->contains(*cpi++))
                         {
                             parent = *it;
-                            break;
+                            goto parent_found; // double break
                         }
                     }
                 }
@@ -1015,6 +1005,7 @@ void GeoMap::embedFaces()
 //                     "contour could not be embedded (parent not found)");
             }
 
+        parent_found:
             parent->embedContour(anchor);
             contour.uninitialize();
         }
