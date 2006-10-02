@@ -124,6 +124,7 @@ class GeoMap
     }
 
     inline Dart dart(int label);
+    CELL_PTR(Face) faceAt(const vigra::Vector2 &position);
 
     CellLabel nodeCount() const { return nodeCount_; }
     CellLabel maxNodeLabel() const { return nodes_.size(); }

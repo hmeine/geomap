@@ -488,6 +488,10 @@ DartPointIter::DartPointIter(GeoMap::Dart const &dart)
     }
 }
 
+/*
+ * Note: This code is based on the assumption that a dart must always
+ * have a least two points!
+ */
 class ContourPointIter
 {
     DartPointIter dpi_;
@@ -510,11 +514,14 @@ class ContourPointIter
         */
     typedef std::forward_iterator_tag iterator_category;
 
-    ContourPointIter(GeoMap::Dart const &dart)
+    ContourPointIter(GeoMap::Dart const &dart, bool firstTwice = false)
     : dpi_(dart),
       dart_(dart),
       end_(dart)
-    {}
+    {
+        if(!firstTwice)
+            ++dpi_;
+    }
 
     ContourPointIter & operator++()
     {
@@ -522,7 +529,10 @@ class ContourPointIter
         if(dpi_.atEnd())
         {
             if(dart_.nextPhi() != end_)
+            {
                 dpi_ = DartPointIter(dart_);
+                ++dpi_;
+            }
         }
         return *this;
     }
@@ -782,7 +792,8 @@ GeoMap::GeoMap(bp::list nodePositions,
             nodes_.push_back(NULL_PTR(Node));
     }
 
-    for(int i = 0; i < len(edgeTuples); ++i)
+    edges_.push_back(NULL_PTR(Edge));
+    for(int i = 1; i < len(edgeTuples); ++i)
     {
         bp::extract<bp::tuple> ete(edgeTuples[i]);
         if(ete.check())
@@ -825,6 +836,27 @@ inline GeoMap::Dart GeoMap::dart(int label)
 }
 
 double angleTheta(double dy, double dx); // implemented in polygon.cxx
+
+CELL_PTR(GeoMap::Face) GeoMap::faceAt(const vigra::Vector2 &position)
+{
+    if(labelImage_)
+    {
+        GeoMap::LabelImage::difference_type p(intVPos(position));
+        if(labelImage_->isInside(p))
+        {
+            int faceLabel = (*labelImage_)[p];
+            if(faceLabel > 0)
+                return face(faceLabel);
+        }
+    }
+
+    FaceIterator it = facesBegin();
+    for(++it; it.inRange(); ++it)
+        if((*it)->contains(position))
+            return *it;
+
+    return face(0);
+}
 
 CELL_PTR(GeoMap::Node) GeoMap::addNode(
     const vigra::Vector2 &position)
@@ -957,20 +989,34 @@ void GeoMap::embedFaces()
                     }
                 }
             }
-//                 if parent == None:
-//                     for p in contourPointIter(anchor):
-//                         parent = self.faceAt(p)
-//                         if parent:
-//                             break
 
-            vigra_postcondition(
-                parent, "contour could not be embedded (parent not found)");
-
-            if(parent)
+            if(!parent)
             {
-                parent->embedContour(anchor);
-                contour.uninitialize();
+                ContourPointIter cpi(anchor);
+                while(cpi.inRange())
+                {
+                    FaceIterator it = facesBegin();
+                    for(++it; it.inRange(); ++it)
+                    {
+                        if((*it)->contains(*cpi++))
+                        {
+                            parent = *it;
+                            break;
+                        }
+                    }
+                }
             }
+
+            if(!parent)
+            {
+                parent = face(0);
+//                 vigra_postcondition(
+//                     parent->contains(anchor[0]),
+//                     "contour could not be embedded (parent not found)");
+            }
+
+            parent->embedContour(anchor);
+            contour.uninitialize();
         }
     }
 }
@@ -1121,6 +1167,9 @@ void defMap()
         register_ptr_to_python< CELL_PTR(GeoMap::Face) >();
 #endif
     }
+
+    RangeIterWrapper<ContourPointIter>("ContourPointIter")
+        .def(init<GeoMap::Dart, bool>((arg("dart"), arg("firstTwice") = false)));
 
     def("contourArea", &contourArea,
         "contourArea(anchor) -> float\n\n"
