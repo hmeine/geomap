@@ -71,6 +71,16 @@ class GeoMap::Node
     {
         return darts_.size();
     }
+
+    inline bool operator==(const GeoMap::Node &other)
+    {
+        return label() == other.label() && map_ == other.map_;
+    }
+
+    inline bool operator!=(const GeoMap::Node &other)
+    {
+        return !operator==(other);
+    }
 };
 
 class GeoMap::Edge
@@ -182,6 +192,16 @@ class GeoMap::Edge
     bool isLoop() const
     {
         return startNodeLabel_ == endNodeLabel_;
+    }
+
+    inline bool operator==(const GeoMap::Edge &other)
+    {
+        return label() == other.label() && map_ == other.map_;
+    }
+
+    inline bool operator!=(const GeoMap::Edge &other)
+    {
+        return !operator==(other);
     }
 };
 
@@ -736,6 +756,16 @@ class GeoMap::Face
         vigra_postcondition(dart == anchor,
                             "contour labeled partially?!");
     }
+
+    inline bool operator==(const GeoMap::Face &other)
+    {
+        return label() == other.label() && map_ == other.map_;
+    }
+
+    inline bool operator!=(const GeoMap::Face &other)
+    {
+        return !operator==(other);
+    }
 };
 
 void GeoMap::Node::setPosition(const vigra::Vector2 &p)
@@ -1091,6 +1121,8 @@ void defMap()
             .def("setPosition", &GeoMap::Node::setPosition)
             .def("degree", &GeoMap::Node::degree)
             .def("anchor", &GeoMap::Node::anchor)
+            .def(self == self)
+            .def(self != self)
         ;
 
         class_<GeoMap::Edge, bases<Polygon> >("Edge", no_init)
@@ -1107,6 +1139,8 @@ void defMap()
             .def("rightFace", &GeoMap::Edge::rightFace, crp)
             .def("isBridge", &GeoMap::Edge::isBridge)
             .def("isLoop", &GeoMap::Edge::isLoop)
+            .def(self == self)
+            .def(self != self)
         ;
 
         class_<GeoMap::Face>("Face", init<GeoMap *, GeoMap::Dart>())
@@ -1118,6 +1152,8 @@ void defMap()
             .def("area", &GeoMap::Face::area)
             .def("contour", &GeoMap::Face::contour,
                  return_internal_reference<>())
+            .def(self == self)
+            .def(self != self)
         ;
 
         return_internal_reference<> rself; // "return self" policy
