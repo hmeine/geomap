@@ -110,6 +110,7 @@ class QuantileStatistics : public PolylineStatistics
                 return segments_[i].first;
         }
         vigra_fail("quantile > 1.0 ??");
+        return 42; // never reached
     }
 
     void merge(const QuantileStatistics &otherStats)
