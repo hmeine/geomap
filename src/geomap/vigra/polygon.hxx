@@ -45,23 +45,6 @@ class PointArray
     : points_(b, e)
     {}
 
-/********************************************************************/
-/*                                                                  */
-/*             python stuff (should go into a subclass)             */
-/*                                                                  */
-/********************************************************************/
-
-    PointArray(::boost::python::list l)
-    : points_(::boost::python::len(l))
-    {
-        for(unsigned int i = 0; i < points_.size(); ++i)
-        {
-            points_[i] = ::boost::python::extract<POINT>(l[i]);
-        }
-    }
-
-/********************************************************************/
-
     const_reference operator[](difference_type index) const
     {
         return points_[index];
