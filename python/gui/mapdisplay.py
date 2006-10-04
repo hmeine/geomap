@@ -680,7 +680,7 @@ class MapDisplay(DisplaySettings):
         additional <basepath>.eps."""
 
         fe = self.saveFig(basepath, *args, **kwargs)
-        fe.f.fig2dev(lang = eps)
+        fe.f.fig2dev(lang = "eps")
 
 # --------------------------------------------------------------------
 #                         dart navigation dialog
