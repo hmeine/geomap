@@ -83,6 +83,55 @@ Scanlines__getitem__(Scanlines const & s, int i)
 }
 
 template<class Polygon>
+struct PolygonFromPython
+{
+    typedef Polygon Type;
+
+    PolygonFromPython()
+    {
+        converter::registry::insert(
+            &convertible, &construct, type_id<Type>());
+    }
+
+    static void* convertible(PyObject* obj)
+    {
+        if(!PyList_Check(obj))
+            return NULL;
+        unsigned int ll(PySequence_Fast_GET_SIZE(obj));
+        for(unsigned int i = 0; i < ll; ++i)
+        {
+            if(!extract<Vector2>(
+                PySequence_Fast_GET_ITEM(obj, i)).check())
+                return NULL;
+        }
+        return obj;
+    }
+
+    static void construct(PyObject* obj, converter::rvalue_from_python_stage1_data* data)
+    {
+        Type * const storage = reinterpret_cast<Type *>((
+            reinterpret_cast<converter::rvalue_from_python_storage<Type> *>(
+                data))->storage.bytes);
+        new (storage) Type();
+        unsigned int ll(PySequence_Fast_GET_SIZE(obj));
+        for(unsigned int i = 0; i < ll; ++i)
+        {
+            (*storage).push_back(extract<Vector2>(
+                PySequence_Fast_GET_ITEM(obj, i))());
+        }
+        data->convertible = storage;
+    }
+};
+
+// FIXME: to be usable with make_constructor, this must return a
+// pointer type, but this is ugly:
+template<class Polygon>
+Polygon * createPolygon(boost::python::list l)
+{
+    return new Polygon(extract<Polygon>(l)());
+}
+
+template<class Polygon>
 void
 Polygon__setitem__(Polygon & p, int i, typename Polygon::value_type v)
 {
@@ -1748,7 +1797,7 @@ void defPolygon()
     defIter<VectorRevIter>("Vector2RevIter");
     class_<Vector2Array>("Vector2Array")
         .def(init<Vector2Array>())
-        .def(init<list>())
+        //.def("__init__", make_constructor(&createPolygon<Vector2Array>))
         .def("reverse", &Vector2Array::reverse)
         .def("interpolate", &Vector2Array::interpolate)
         .def("arcLengthList", &arcLengthList<Vector2Array>)
@@ -1762,6 +1811,7 @@ void defPolygon()
         .def(self + Vector2())
         .def("roundToInteger", &Vector2Array::roundToInteger)
     ;
+    PolygonFromPython<Vector2Array>();
 
     typedef PointArray<Point2D> Point2DArray;
     typedef PointIter<Point2DArray::const_iterator>
@@ -1783,7 +1833,7 @@ void defPolygon()
 
     class_<PythonPolygon, bases<Vector2Array> >("Polygon")
         .def(init<Vector2Array>())
-        .def(init<list>()) // FIXME: use implicitly_convertible if possible
+        //.def("__init__", make_constructor(&createPolygon<PythonPolygon>))
         .def("__delitem__", &erase<PythonPolygon>)
         .def("insert", &insert<PythonPolygon>)
         .def("append", &PythonPolygon::push_back)
@@ -1800,6 +1850,7 @@ void defPolygon()
         .def("invalidateProperties", &PythonPolygon::invalidateProperties)
         .def_pickle(ArrayPickleSuite<PythonPolygon>())
     ;
+    PolygonFromPython<PythonPolygon>();
 
     typedef PythonPolygon::BoundingBox BoundingBox;
     class_<BoundingBox>("BoundingBox")
