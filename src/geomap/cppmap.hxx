@@ -143,7 +143,13 @@ class GeoMap
                            const Vector2Array &points);
     void sortEdgesDirectly();
     void initContours();
-    void embedFaces();
+    void embedFaces(bool initLabelImage = true);
+
+    bool checkConsistency();
+
+  private:
+    GeoMap(const GeoMap &) {} // disallow copying
+    GeoMap &operator=(const GeoMap &) { return *this; }
 };
 
 #endif // CPPMAP_HXX

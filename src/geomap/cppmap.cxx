@@ -34,12 +34,6 @@ class GeoMap::Node
         map_->nodeMap_.insert(position_, bp::object(label_));
     }
 
-    ~Node()
-    {
-        if(initialized())
-            uninitialize();
-    }
-
     bool initialized() const
     {
         return map_ != NULL;
@@ -47,10 +41,14 @@ class GeoMap::Node
 
     void uninitialize()
     {
-        RESET_PTR(map_->nodes_[label_]);
-        --map_->nodeCount_;
-        map_->nodeMap_.remove(position_);
+        GeoMap *map = map_; // local copy (prevent 2nd uninitialize() through destructor)
         map_ = NULL;
+        --map->nodeCount_;
+        map->nodeMap_.remove(position_);
+        RESET_PTR(map->nodes_[label_]); // may have effect like "delete this;"
+#ifdef USE_INSECURE_CELL_PTRS
+        delete this;
+#endif
     }
 
     CellLabel label() const
@@ -81,6 +79,15 @@ class GeoMap::Node
     {
         return !operator==(other);
     }
+
+    GeoMap *map() const
+    {
+        return map_;
+    }
+
+  private:
+    Node(const Node &) {} // disallow copying
+    Node &operator=(const Node &) { return *this; }
 };
 
 class GeoMap::Edge
@@ -115,12 +122,6 @@ class GeoMap::Edge
         ++map_->edgeCount_;
     }
 
-    ~Edge()
-    {
-        if(initialized())
-            uninitialize();
-    }
-
     bool initialized() const
     {
         return map_ != NULL;
@@ -128,9 +129,13 @@ class GeoMap::Edge
 
     void uninitialize()
     {
-        RESET_PTR(map_->edges_[label_]);
-        --map_->edgeCount_;
+        GeoMap *map = map_; // local copy (prevent 2nd uninitialize() through destructor)
         map_ = NULL;
+        --map->edgeCount_;
+        RESET_PTR(map->edges_[label_]); // may have effect like "delete this;"
+#ifdef USE_INSECURE_CELL_PTRS
+        delete this;
+#endif
     }
 
     CellLabel label() const
@@ -203,6 +208,15 @@ class GeoMap::Edge
     {
         return !operator==(other);
     }
+
+    GeoMap *map() const
+    {
+        return map_;
+    }
+
+  private:
+    Edge(const Edge &) {} // disallow copying
+    Edge &operator=(const Edge &) { return *this; }
 };
 
 class DartPointIter
@@ -399,7 +413,7 @@ class GeoMap::Dart
     }
 
     typedef GeoMap::Edge::value_type value_type;
-    
+
     const value_type &operator[](int index) const
     {
         if(label_ > 0)
@@ -662,12 +676,6 @@ class GeoMap::Face
         }
     }
 
-    ~Face()
-    {
-        if(initialized())
-            uninitialize();
-    }
-
     bool initialized() const
     {
         return map_ != NULL;
@@ -675,9 +683,13 @@ class GeoMap::Face
 
     void uninitialize()
     {
-        RESET_PTR(map_->faces_[label_]);
-        --map_->faceCount_;
+        GeoMap *map = map_; // local copy (prevent 2nd uninitialize() through destructor)
         map_ = NULL;
+        --map->faceCount_;
+        RESET_PTR(map->faces_[label_]); // may have effect like "delete this;"
+#ifdef USE_INSECURE_CELL_PTRS
+        delete this;
+#endif
     }
 
     CellLabel label() const
@@ -766,6 +778,15 @@ class GeoMap::Face
     {
         return !operator==(other);
     }
+
+    GeoMap *map() const
+    {
+        return map_;
+    }
+
+  private:
+    Face(const Face &) {} // disallow copying
+    Face &operator=(const Face &) { return *this; }
 };
 
 void GeoMap::Node::setPosition(const vigra::Vector2 &p)
@@ -802,15 +823,18 @@ GeoMap::GeoMap(bp::list nodePositions,
   imageSize_(imageSize),
   labelImage_(NULL)
 {
-    for(int i = 0; i < len(nodePositions); ++i)
+    std::cerr << "initalizing nodes...\n";
+    nodes_.push_back(NULL_PTR(Node));
+    for(int i = 1; i < len(nodePositions); ++i)
     {
         bp::extract<Vector2> ve(nodePositions[i]);
         if(ve.check())
-            new Node(this, ve());
+            addNode(ve());
         else
             nodes_.push_back(NULL_PTR(Node));
     }
 
+    std::cerr << "initalizing edges...\n";
     edges_.push_back(NULL_PTR(Edge));
     for(int i = 1; i < len(edgeTuples); ++i)
     {
@@ -835,19 +859,24 @@ GeoMap::GeoMap(bp::list nodePositions,
 
     if(edgeCount_)
     {
+        std::cerr << "initalizing sigma orbits...\n";
         sortEdgesDirectly();
+        std::cerr << "initalizing contours...\n";
         initContours();
+        std::cerr << "initalizing faces (" << faceCount() << " contours)...\n";
         embedFaces();
     }
 }
 
 GeoMap::~GeoMap()
 {
-    // make sure these objects are deleted first
-    // (their destructors access this map!)
-    nodes_.clear();
-    edges_.clear();
-    faces_.clear();
+    // make sure the cells' destructors don't access this map!
+    for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
+        (*it)->uninitialize();
+    for(EdgeIterator it = edgesBegin(); it.inRange(); ++it)
+        (*it)->uninitialize();
+    for(FaceIterator it = facesBegin(); it.inRange(); ++it)
+        (*it)->uninitialize();
 }
 
 inline GeoMap::Dart GeoMap::dart(int label)
@@ -899,7 +928,7 @@ CELL_PTR(GeoMap::Edge) GeoMap::addEdge(
 void GeoMap::sortEdgesDirectly()
 {
     typedef std::pair<double, int> DartAngle;
-    
+
     for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
     {
         std::vector<DartAngle> dartAngles;
@@ -955,57 +984,66 @@ struct AbsAreaCompare
     }
 };
 
-void GeoMap::embedFaces()
+void GeoMap::embedFaces(bool initLabelImage)
 {
     vigra_precondition(!labelImage_,
         "embedFaces() called with already-initialized labelImage");
 
-    labelImage_ = new LabelImage( // FIXME: make optional
-        LabelImage::size_type(imageSize().width(), imageSize().height()), 0);
+    if(initLabelImage)
+        labelImage_ = new LabelImage(
+            LabelImage::size_type(imageSize().width(), imageSize().height()), 0);
 
-    // skip infinite face:
+    // copy and remove all preliminary contours except the infinite one:
     GeoMap::Faces contours(faces_.begin() + 1, faces_.end());
-
     std::sort(contours.begin(), contours.end(), AbsAreaCompare());
+    std::fill(faces_.begin() + 1, faces_.end(), NULL_PTR(Face));
 
     for(unsigned int i = 0; i < contours.size(); ++i)
     {
         GeoMap::Face &contour(*contours[i]); // FIXME: const
-        
+
         GeoMap::Dart anchor(contour.contour(0));
-        
+
         bool isExterior = contour.area() <= 0;
 
         if(!isExterior)
         {
-            std::auto_ptr<vigra::Scanlines> scanlines(
-                scanPoly(contourPoly(anchor), imageSize().height()));
-            contour.pixelArea_ =
-                fillScannedPoly(*scanlines, (int)contour.label(),
+            faces_[contour.label()] = contours[i];
+
+            if(initLabelImage)
+            {
+                std::auto_ptr<vigra::Scanlines> scanlines(
+                    scanPoly(contourPoly(anchor), imageSize().height()));
+                contour.pixelArea_ =
+                    fillScannedPoly(*scanlines, (int)contour.label(),
+                                    labelImage_->traverser_begin(),
+                                    labelImage_->size(),
+                                    vigra::StandardValueAccessor<int>());
+                drawScannedPoly(*scanlines, -1,
                                 labelImage_->traverser_begin(),
                                 labelImage_->size(),
                                 vigra::StandardValueAccessor<int>());
-            drawScannedPoly(*scanlines, -1,
-                            labelImage_->traverser_begin(),
-                            labelImage_->size(),
-                            vigra::StandardValueAccessor<int>());
+            }
         }
         else
         {
             // contour is a hole, determine parent face
             CELL_PTR(GeoMap::Face) parent = NULL_PTR(GeoMap::Face);
 
-            ContourPointIter cpi(anchor);
-            while(cpi.inRange())
+            if(initLabelImage)
             {
-                GeoMap::LabelImage::difference_type p(intVPos(*cpi++));
-                if(labelImage_->isInside(p))
+                ContourPointIter cpi(anchor);
+                while(cpi.inRange())
                 {
-                    int parentLabel = (*labelImage_)[p];
-                    if(parentLabel > 0)
+                    GeoMap::LabelImage::difference_type p(intVPos(*cpi++));
+                    if(labelImage_->isInside(p))
                     {
-                        parent = face(parentLabel);
-                        break;
+                        int parentLabel = (*labelImage_)[p];
+                        if(parentLabel >= 0)
+                        {
+                            parent = face(parentLabel);
+                            break;
+                        }
                     }
                 }
             }
@@ -1015,8 +1053,7 @@ void GeoMap::embedFaces()
                 ContourPointIter cpi(anchor);
                 while(cpi.inRange())
                 {
-                    FaceIterator it = facesBegin();
-                    for(++it; it.inRange(); ++it)
+                    for(FaceIterator it = facesBegin(); it.inRange(); ++it)
                     {
                         if((*it)->contains(*cpi++))
                         {
@@ -1036,18 +1073,56 @@ void GeoMap::embedFaces()
             }
 
         parent_found:
+            std::cerr << "  embedding contour " << contour.label() << " in face "
+                      << parent->label() << "\n";
             parent->embedContour(anchor);
             contour.uninitialize();
         }
     }
 }
 
+bool GeoMap::checkConsistency()
+{
+    bool result = true;
+    std::cerr << "GeoMap[" << this << "].checkConsistency()\n";
+    for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
+    {
+        if((*it)->map() != this)
+        {
+            std::cerr << "  Node " << (*it)->label() << " has wrong map()!\n";
+            result = false;
+            break;
+        }
+    }
+    for(EdgeIterator it = edgesBegin(); it.inRange(); ++it)
+    {
+        if((*it)->map() != this)
+        {
+            std::cerr << "  Edge " << (*it)->label() << " has wrong map()!\n";
+            result = false;
+            break;
+        }
+    }
+    for(FaceIterator it = facesBegin(); it.inRange(); ++it)
+    {
+        if((*it)->map() != this)
+        {
+            std::cerr << "  Face " << (*it)->label() << " has wrong map()!\n";
+            result = false;
+            break;
+        }
+    }
+    return result;
+}
+
+/********************************************************************/
+
 template<class Iterator>
 struct RangeIterWrapper
 : bp::class_<Iterator>
 {
     RangeIterWrapper(const char *name)
-    : bp::class_<Iterator>(name, no_init)
+    : bp::class_<Iterator>(name, bp::no_init)
     {
         def("__iter__", (Iterator &(*)(Iterator &))&returnSelf,
             bp::return_internal_reference<>());
@@ -1079,8 +1154,8 @@ void defMap()
         CELL_RETURN_POLICY crp;
 
         scope geoMap(
-            class_<GeoMap>("GeoMap", init<
-                           bp::list, bp::list, vigra::Size2D>())
+            class_<GeoMap, boost::noncopyable>(
+                "GeoMap", init<bp::list, bp::list, vigra::Size2D>())
             .def("node", &GeoMap::node, crp)
             .def("nodeIter", &GeoMap::nodesBegin)
             .def("edge", &GeoMap::edge, crp)
@@ -1106,14 +1181,15 @@ void defMap()
             .def("addEdge", &GeoMap::addEdge, crp)
             .def("sortEdgesDirectly", &GeoMap::sortEdgesDirectly)
             .def("initContours", &GeoMap::initContours)
-            .def("embedFaces", &GeoMap::embedFaces)
+            .def("embedFaces", &GeoMap::embedFaces, (arg("initLabelImage") = true))
+            .def("checkConsistency", &GeoMap::checkConsistency)
             );
 
         RangeIterWrapper<GeoMap::NodeIterator>("NodeIterator");
         RangeIterWrapper<GeoMap::EdgeIterator>("EdgeIterator");
         RangeIterWrapper<GeoMap::FaceIterator>("FaceIterator");
 
-        class_<GeoMap::Node>("Node", init<GeoMap *, const vigra::Vector2 &>())
+        class_<GeoMap::Node, boost::noncopyable>("Node", init<GeoMap *, const vigra::Vector2 &>())
             .def("initialized", &GeoMap::Node::initialized)
             .def("label", &GeoMap::Node::label)
             .def("position", &GeoMap::Node::position,
@@ -1125,7 +1201,7 @@ void defMap()
             .def(self != self)
         ;
 
-        class_<GeoMap::Edge, bases<Polygon> >("Edge", no_init)
+        class_<GeoMap::Edge, bases<Polygon>, boost::noncopyable>("Edge", no_init)
             .def(init<GeoMap *, CellLabel, CellLabel, GeoMap::Edge::Base>())
             .def("initialized", &GeoMap::Edge::initialized)
             .def("label", &GeoMap::Edge::label)
@@ -1143,7 +1219,7 @@ void defMap()
             .def(self != self)
         ;
 
-        class_<GeoMap::Face>("Face", init<GeoMap *, GeoMap::Dart>())
+        class_<GeoMap::Face, boost::noncopyable>("Face", init<GeoMap *, GeoMap::Dart>())
             .def("initialized", &GeoMap::Face::initialized)
             .def("label", &GeoMap::Face::label)
             .def("boundingBox", &GeoMap::Face::boundingBox,
@@ -1207,4 +1283,3 @@ void defMap()
         "contourPoly(anchor) -> Polygon\n\n"
         "Returns a Polygon composed by traversing anchor's phi orbit once.");
 }
-
