@@ -14,6 +14,7 @@ public:
     typedef std::multimap<CoordType, Vector2D> CoordMap;
     typedef typename CoordMap::iterator        iterator;
     typedef typename CoordMap::const_iterator  const_iterator;
+    typedef typename CoordMap::size_type       size_type;
 
     void insert(const Vector2D &vector2D)
     {
@@ -63,17 +64,22 @@ public:
         return vectors_.end();
     }
 
+    typename CoordMap::size_type size() const
+    {
+        return vectors_.size();
+    }
+
     const_iterator nearest(
         const Vector2D &v, double maxSquaredDist = NumericTraits<double>::max()) const
     {
-        return search(begin(), vectors_.lower_bound(v[0]), end(),
+        return search(vectors_.begin(), vectors_.lower_bound(v[0]), vectors_.end(),
                       v, maxSquaredDist);
     }
 
     iterator nearest(
         const Vector2D &v, double maxSquaredDist = NumericTraits<double>::max())
     {
-        return search(begin(), vectors_.lower_bound(v[0]), end(),
+        return search(vectors_.begin(), vectors_.lower_bound(v[0]), vectors_.end(),
                       v, maxSquaredDist);
     }
 
@@ -90,11 +96,11 @@ protected:
             if(squaredNorm(it->first - v[0]) > maxSquaredDist)
                 break;
 
-            double dist = squaredNorm(it->second - v);
-            if(dist < maxSquaredDist)
+            double dist2 = squaredNorm(it->second - v);
+            if(dist2 < maxSquaredDist)
             {
                 nearestPos = it;
-                maxSquaredDist = dist;
+                maxSquaredDist = dist2;
             }
         }
 
@@ -106,11 +112,11 @@ protected:
             if(squaredNorm(v[0] - it->first) > maxSquaredDist)
                 break;
 
-            double dist = squaredNorm(it->second - v);
-            if(dist < maxSquaredDist)
+            double dist2 = squaredNorm(it->second - v);
+            if(dist2 < maxSquaredDist)
             {
                 nearestPos = it;
-                maxSquaredDist = dist;
+                maxSquaredDist = dist2;
             }
 
             if(it == begin)
@@ -191,6 +197,11 @@ class PositionedMap
         if(nearest == objects_.end())
             return boost::python::object();
         return nearest->second.object;
+    }
+
+    MapType::size_type size() const
+    {
+        return objects_.size();
     }
 
   protected:
