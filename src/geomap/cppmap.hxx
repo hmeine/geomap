@@ -83,7 +83,9 @@ class GeoMap
     unsigned int edgeCount_;
     unsigned int faceCount_;
 
-    PositionedMap nodeMap_;
+    typedef vigra::PositionedObject<vigra::Vector2, CellLabel> PositionedNodeLabel;
+    typedef vigra::Map2D<PositionedNodeLabel> NodeMap;
+    NodeMap nodeMap_;
 
     typedef vigra::MultiArray<2, int> LabelImage;
 
@@ -102,6 +104,7 @@ class GeoMap
         { return NodeIterator(nodes_.end(), nodes_.end()); }
     CELL_PTR(Node) node(CellLabel label)
     {
+        vigra_precondition(label < nodes_.size(), "invalid node label!");
         return nodes_[label];
     }
 
@@ -111,6 +114,7 @@ class GeoMap
         { return EdgeIterator(edges_.end(), edges_.end()); }
     CELL_PTR(Edge) edge(CellLabel label)
     {
+        vigra_precondition(label < edges_.size(), "invalid edge label!");
         return edges_[label];
     }
 
@@ -120,6 +124,7 @@ class GeoMap
         { return FaceIterator(faces_.end(), faces_.end()); }
     CELL_PTR(Face) face(CellLabel label)
     {
+        vigra_precondition(label < faces_.size(), "invalid face label!");
         return faces_[label];
     }
 
@@ -142,8 +147,13 @@ class GeoMap
     CELL_PTR(Edge) addEdge(CellLabel startNodeLabel, CellLabel endNodeLabel,
                            const Vector2Array &points);
     void sortEdgesDirectly();
+    void sortEdgesEventually(double ssStepDist, double ssMinDist);
     void initContours();
     void embedFaces(bool initLabelImage = true);
+
+    CELL_PTR(Node) nearestNode(
+        const vigra::Vector2 &position,
+        double maxSquaredDist = vigra::NumericTraits<double>::max());
 
     bool checkConsistency();
 

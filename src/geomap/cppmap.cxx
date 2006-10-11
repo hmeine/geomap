@@ -5,6 +5,7 @@
 #include <vigra/pythonutil.hxx>
 #include <iostream>
 #include <algorithm>
+#include <cmath>
 #include "exporthelpers.hxx"
 
 const CellLabel UNINITIALIZED_CELL_LABEL =
@@ -31,7 +32,7 @@ class GeoMap::Node
     {
         map_->nodes_.push_back(GeoMap::Nodes::value_type(this));
         ++map_->nodeCount_;
-        map_->nodeMap_.insert(position_, bp::object(label_));
+        map_->nodeMap_.insert(PositionedNodeLabel(position_, label_));
     }
 
     bool initialized() const
@@ -44,7 +45,9 @@ class GeoMap::Node
         GeoMap *map = map_; // local copy (prevent 2nd uninitialize() through destructor)
         map_ = NULL;
         --map->nodeCount_;
-        map->nodeMap_.remove(position_);
+        map->nodeMap_.erase(
+            map->nodeMap_.nearest(PositionedNodeLabel(position_, label_),
+                                  vigra::NumericTraits<double>::epsilon()));
         RESET_PTR(map->nodes_[label_]); // may have effect like "delete this;"
 #ifdef USE_INSECURE_CELL_PTRS
         delete this;
@@ -718,13 +721,13 @@ class GeoMap::Face
     bool contains(const Vector2 &point) const
     {
         vigra_precondition(initialized(), "contains() of uninitialized face!");
-        if(!boundingBox().contains(point))
-            return false;
         if(map_->labelImage_ && (*map_->labelImage_)[intVPos(point)] == (int)label_)
             return true;
         unsigned int i = 0;
         if(label_)
         {
+            if(!boundingBox().contains(point))
+                return false;
             if(!contourPoly(anchors_[0]).contains(point))
                 return false;
             ++i;
@@ -792,7 +795,9 @@ class GeoMap::Face
 void GeoMap::Node::setPosition(const vigra::Vector2 &p)
 {
     vigra_precondition(initialized(), "setPosition() of uninitialized node!");
-    map_->nodeMap_.remove(position_);
+    map_->nodeMap_.erase(
+        map_->nodeMap_.nearest(PositionedNodeLabel(position_, label_),
+                               vigra::NumericTraits<double>::epsilon()));
     position_ = p;
     for(unsigned int i = 0; i < darts_.size(); ++i)
     {
@@ -806,7 +811,7 @@ void GeoMap::Node::setPosition(const vigra::Vector2 &p)
             edge[edge.size()-1] = p;
         }
     }
-    map_->nodeMap_.insert(p, bp::object(label_));
+    map_->nodeMap_.insert(PositionedNodeLabel(p, label_));
 }
 
 inline GeoMap::Dart GeoMap::Node::anchor() const
@@ -918,10 +923,15 @@ CELL_PTR(GeoMap::Edge) GeoMap::addEdge(
     CellLabel startNodeLabel, CellLabel endNodeLabel,
     const Vector2Array &points)
 {
+    CELL_PTR(GeoMap::Node)
+        startNode = node(startNodeLabel),
+        endNode = node(endNodeLabel);
+    vigra_precondition(
+        startNode && endNode, "addEdge(): invalid start- or endNodeLabel!");
     GeoMap::Edge *result = new GeoMap::Edge(
         this, startNodeLabel, endNodeLabel, points);
-    node(startNodeLabel)->darts_.push_back(result->label());
-    node(endNodeLabel)->darts_.push_back(-result->label());
+    startNode->darts_.push_back( (int)result->label());
+    endNode  ->darts_.push_back(-(int)result->label());
     return edge(result->label());
 }
 
@@ -951,6 +961,228 @@ void GeoMap::sortEdgesDirectly()
         for(unsigned int i = 0; i < dartLabels.size(); ++i)
         {
             dartLabels[i] = dartAngles[i].second;
+        }
+    }
+}
+
+class DartPosition
+{
+  public:
+    DartPosition(const GeoMap::Dart &dart)
+    : dart_(dart),
+      hitEnd_(false),
+      pointIter_(DartPointIter(dart)),
+      segmentIndex_(0),
+      arcLength_(0.0),
+      partialLength_(0.0),
+      position_(*pointIter_)
+    {
+        p1_ = *pointIter_;
+        p2_ = *++pointIter_;
+    }
+
+    bool atEnd() const
+    {
+        return hitEnd_;
+    }
+
+    const vigra::Vector2 &operator()() const
+    {
+        return position_;
+    }
+
+    void leaveCircle(const vigra::Vector2 &center, double radius2)
+    {
+        while((p2_ - center).squaredMagnitude() < radius2)
+            if(!nextSegment())
+                break;
+
+        position_ = p2_;
+    }
+
+    void intersectCircle(const vigra::Vector2 &center, double radius2)
+    {
+        while((p2_ - center).squaredMagnitude() < radius2)
+        {
+            if(!nextSegment())
+            {
+                partialLength_ = 0.0;
+                position_ = p2_;
+                return;
+            }
+        }
+
+        vigra::Vector2 diff(p2_ - p1_);
+        double dist2 = diff.squaredMagnitude();
+        double lambda = (
+            (std::sqrt(radius2 * dist2
+                       - vigra::sq(p2_[0]*p1_[1] - p1_[0]*p2_[1]
+                                   + center[0]*diff[1] - diff[0]*center[1]))
+             - dot(diff, p1_ - center))
+            / dist2);
+        diff *= lambda;
+        partialLength_ += diff.magnitude();
+        position_ = p1_ + diff;
+    }
+
+    int dartLabel() const
+    {
+        return dart_.label();
+    }
+
+  protected:
+    bool nextSegment()
+    {
+        arcLength_ += (p2_ - p1_).magnitude();
+        p1_ = p2_;
+        ++pointIter_;
+        if(pointIter_.atEnd())
+        {
+            hitEnd_ = true;
+            return false;
+        }
+        p2_ = *++pointIter_;
+        ++segmentIndex_;
+        return true;
+    }
+
+    GeoMap::Dart dart_;
+    bool hitEnd_;
+    DartPointIter pointIter_;
+    unsigned int segmentIndex_;
+    double arcLength_, partialLength_;
+    vigra::Vector2 p1_, p2_, position_;
+};
+
+struct DartPositionAngle
+{
+    DartPosition dp;
+    double absAngle, angle;
+
+    DartPositionAngle(const GeoMap::Dart &dart)
+    : dp(dart)
+    {}
+
+    bool operator<(const DartPositionAngle &other) const
+    {
+        return angle < other.angle;
+    }
+};
+
+typedef std::vector<DartPositionAngle> DartPositionAngles;
+typedef DartPositionAngles::iterator DPAI;
+
+template<class Iterator>
+void rotateArray(Iterator begin, Iterator newBegin, Iterator end)
+{
+    typedef std::vector<typename Iterator::value_type> TempArray;
+    TempArray temp(begin, end);
+    typename Iterator::difference_type pos(newBegin - begin);
+    std::copy(temp.begin() + pos, temp.end(), begin);
+    std::copy(temp.begin(), temp.begin() + pos, begin + (end - newBegin));
+}
+
+void sortEdgesInternal(const vigra::Vector2 &currentPos,
+                       double referenceAngle,
+                       DPAI dpBegin, DPAI dpEnd,
+                       double ssStepDist2, double ssMinAngle)
+{
+    if(dpEnd - dpBegin < 2)
+        return;
+
+    bool unsortableState = true;
+    for(DPAI dpi = dpBegin; dpi != dpEnd; ++dpi)
+    {
+        if(!dpi->dp.atEnd())
+        {
+            unsortableState = false;
+            dpi->dp.intersectCircle(currentPos, ssStepDist2);
+        }
+
+        dpi->absAngle =
+            std::atan2(-dpi->dp()[1] + currentPos[1],
+                        dpi->dp()[0] - currentPos[0]);
+
+        double angle = dpi->absAngle - referenceAngle;
+        if(angle < -M_PI)
+            angle += 2*M_PI;
+        if(dpi->angle >= M_PI)
+            angle -= 2*M_PI;
+        dpi->angle = angle;
+    }
+
+    if(unsortableState)
+    {
+        vigra_fail("Unsortable group of edges occured and not handled yet!");
+        return;
+    }
+
+    std::sort(dpBegin, dpEnd);
+
+    // handle cyclicity of array first (by rotation if necessary):
+    DPAI firstGroupStart = dpEnd;
+    bool needRotation = false;
+    while((--firstGroupStart)->angle + ssMinAngle < dpBegin->angle)
+    {
+        needRotation = true;
+        if(firstGroupStart == dpBegin)
+        {
+            needRotation = false; // whole array unsortable
+            break;
+        }
+    }
+
+    if(needRotation)
+        rotateArray(dpBegin, firstGroupStart, dpEnd);
+
+    DPAI groupStart = dpBegin,
+          groupLast = groupStart,
+           groupEnd = groupLast;
+    ++groupEnd;
+    for(; groupEnd != dpEnd; ++groupLast, ++groupEnd)
+    {
+        // can we decide here (-> group ending)?
+        if(groupEnd->angle >= groupLast->angle + ssMinAngle)
+        {
+            if(groupLast == groupStart)
+                continue; // no recursion needed, only one dart in group
+
+            // sort subgroup recursively
+            vigra::Vector2 meanPos(groupLast->dp());
+            for(DPAI dpi = groupStart; dpi != groupLast; ++dpi)
+                meanPos += dpi->dp();
+            meanPos /= (groupEnd - groupStart);
+
+            sortEdgesInternal(meanPos,
+                              (groupStart->absAngle + groupLast->absAngle) / 2,
+                              groupStart, groupLast,
+                              ssStepDist2, ssMinAngle);
+        }
+    }
+}
+
+void GeoMap::sortEdgesEventually(double ssStepDist, double ssMinDist)
+{
+    double ssMinAngle = std::atan2(ssMinDist, ssStepDist),
+          ssStepDist2 = vigra::sq(ssStepDist);
+
+    for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
+    {
+        DartPositionAngles dartPositions;
+
+        GeoMap::Node::DartLabels &dartLabels((*it)->darts_);
+
+        for(unsigned int i = 0; i < dartLabels.size(); ++i)
+            dartPositions.push_back(
+                DartPositionAngle(dart(dartLabels[i])));
+
+        sortEdgesInternal((*it)->position(), 0.0,
+                          dartPositions.begin(), dartPositions.end(),
+                          ssStepDist2, ssMinAngle);
+
+        for(unsigned int i = 0; i < dartLabels.size(); ++i)
+        {
+            dartLabels[i] = dartPositions[i].dp.dartLabel();
         }
     }
 }
@@ -1081,6 +1313,17 @@ void GeoMap::embedFaces(bool initLabelImage)
     }
 }
 
+CELL_PTR(GeoMap::Node) GeoMap::nearestNode(
+    const vigra::Vector2 &position,
+    double maxSquaredDist)
+{
+    NodeMap::iterator n(
+        nodeMap_.nearest(PositionedNodeLabel(position, 0), maxSquaredDist));
+    if(n != nodeMap_.end())
+        return node(n->second.payload);
+    return NULL_PTR(GeoMap::Node);
+}
+
 bool GeoMap::checkConsistency()
 {
     bool result = true;
@@ -1177,11 +1420,18 @@ void defMap()
                  "Actually, this is the max. face label + 1, so that you can use it as LUT size.")
             .def("imageSize", &GeoMap::imageSize,
                  return_value_policy<copy_const_reference>())
-            .def("addNode", &GeoMap::addNode, crp)
-            .def("addEdge", &GeoMap::addEdge, crp)
+            .def("addNode", &GeoMap::addNode, crp,
+                 args("position"))
+            .def("addEdge", &GeoMap::addEdge, crp,
+                 args("startNodeLabel", "endNodeLabel", "points"))
             .def("sortEdgesDirectly", &GeoMap::sortEdgesDirectly)
+            .def("sortEdgesEventually", &GeoMap::sortEdgesEventually,
+                 args("ssStepDist", "ssMinDist"))
             .def("initContours", &GeoMap::initContours)
             .def("embedFaces", &GeoMap::embedFaces, (arg("initLabelImage") = true))
+            .def("nearestNode", &GeoMap::nearestNode, crp,
+                 (arg("position"), arg(
+                     "maxSquaredDist") = vigra::NumericTraits<double>::max()))
             .def("checkConsistency", &GeoMap::checkConsistency)
             );
 
