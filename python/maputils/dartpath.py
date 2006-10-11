@@ -1,7 +1,7 @@
 _cvsVersion = "$Id$" \
               .split(" ")[2:-2]
 
-from hourglass import composeTangentLists
+from hourglass import composeTangentLists, Polygon
 from statistics import dartTangents
 
 class Path(list):
@@ -35,12 +35,19 @@ class Path(list):
             for point in pit:
                 yield point
 
+    def polygon(self):
+        """Returns a polygon containing all points of this path."""
+        return Polygon(list(self.points()))
+
     def length(self):
         """Returns length of this path (sum over edge.length())."""
         result = 0.0
         for dart in self:
             result += dart.edge().length()
         return result
+
+    def __getslice__(self, *args):
+        return self.__class__(list.__getslice__(self, *args))
 
 class Contour(Path):
     def __init__(self, startDart):
