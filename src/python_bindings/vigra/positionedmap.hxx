@@ -6,6 +6,31 @@
 
 namespace vigra {
 
+template<class Position, class Payload>
+class PositionedObject
+{
+  public:
+    typedef typename Position::value_type value_type;
+
+    Position position;
+    Payload  payload;
+
+    PositionedObject(const Position &po, const Payload &pl)
+    : position(po),
+      payload(pl)
+    {}
+
+    Position operator-(const PositionedObject &other) const
+    {
+        return position - other.position;
+    }
+
+    value_type operator[](unsigned char index) const
+    {
+        return position[index];
+    }
+};
+
 template<class Vector2D>
 class Map2D
 {
@@ -137,37 +162,12 @@ protected:
 /*                                                                  */
 /********************************************************************/
 
-template<class Position>
-class PositionedObject
-{
-  public:
-    typedef typename Position::value_type value_type;
-
-    Position              position;
-    boost::python::object object;
-
-    PositionedObject(const Position &p, const boost::python::object &o)
-    : position(p),
-      object(o)
-    {}
-
-    Position operator-(const PositionedObject &other) const
-    {
-        return position - other.position;
-    }
-
-    value_type operator[](unsigned char index) const
-    {
-        return position[index];
-    }
-};
-
 #include <vigra/pythonimage.hxx> // for Vector2 typedef
 
 class PositionedMap
 {
     typedef vigra::Vector2 Vector2;
-    typedef PositionedObject<Vector2> ElementType;
+    typedef vigra::PositionedObject<Vector2, boost::python::object> ElementType;
     typedef vigra::Map2D<ElementType> MapType;
 
   public:
@@ -196,7 +196,7 @@ class PositionedMap
                              maxSquaredDist));
         if(nearest == objects_.end())
             return boost::python::object();
-        return nearest->second.object;
+        return nearest->second.payload;
     }
 
     MapType::size_type size() const
