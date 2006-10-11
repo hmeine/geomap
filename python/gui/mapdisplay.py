@@ -655,7 +655,7 @@ class MapDisplay(DisplaySettings):
                     attr["penColor"] = qtColor2figColor(overlay.color, fe.f)
                 if overlay.width:
                     attr["lineWidth"] = overlay.width
-                fe.addMapEdges(self.map, **attr)
+                fe.addMapEdges(overlay._map(), **attr)
             elif type(overlay) == PointOverlay:
                 fe.addPointOverlay(overlay, depth = depth)
             elif type(overlay) == EdgeOverlay:
