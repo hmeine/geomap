@@ -293,6 +293,8 @@ class FigExporter:
             
         result = []
         for edge in edges:
+            if type(edge) == list:
+                edge = Polygon(edge)
             parts = self.addClippedPoly(edge, **attr)
             result.extend(parts)
         return result
