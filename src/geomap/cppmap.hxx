@@ -145,9 +145,9 @@ class GeoMap
 
     CELL_PTR(Node) addNode(const vigra::Vector2 &position);
     CELL_PTR(Edge) addEdge(CellLabel startNodeLabel, CellLabel endNodeLabel,
-                           const Vector2Array &points);
+                           const Vector2Array &points, CellLabel label = 0);
     void sortEdgesDirectly();
-    void sortEdgesEventually(double ssStepDist, double ssMinDist);
+    void sortEdgesEventually(double stepDist, double minDist);
     void initContours();
     void embedFaces(bool initLabelImage = true);
 

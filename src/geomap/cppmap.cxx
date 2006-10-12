@@ -921,8 +921,10 @@ CELL_PTR(GeoMap::Node) GeoMap::addNode(
 
 CELL_PTR(GeoMap::Edge) GeoMap::addEdge(
     CellLabel startNodeLabel, CellLabel endNodeLabel,
-    const Vector2Array &points)
+    const Vector2Array &points, CellLabel label)
 {
+    if(label > edges_.size())
+        edges_.resize(label, NULL_PTR(GeoMap::Edge));
     CELL_PTR(GeoMap::Node)
         startNode = node(startNodeLabel),
         endNode = node(endNodeLabel);
@@ -1085,7 +1087,7 @@ void rotateArray(Iterator begin, Iterator newBegin, Iterator end)
 void sortEdgesInternal(const vigra::Vector2 &currentPos,
                        double referenceAngle,
                        DPAI dpBegin, DPAI dpEnd,
-                       double ssStepDist2, double ssMinAngle)
+                       double stepDist2, double minAngle)
 {
     if(dpEnd - dpBegin < 2)
         return;
@@ -1096,7 +1098,8 @@ void sortEdgesInternal(const vigra::Vector2 &currentPos,
         if(!dpi->dp.atEnd())
         {
             unsortableState = false;
-            dpi->dp.intersectCircle(currentPos, ssStepDist2);
+            //dpi->dp.intersectCircle(currentPos, stepDist2);
+            dpi->dp.leaveCircle(currentPos, stepDist2);
         }
 
         dpi->absAngle =
@@ -1122,7 +1125,7 @@ void sortEdgesInternal(const vigra::Vector2 &currentPos,
     // handle cyclicity of array first (by rotation if necessary):
     DPAI firstGroupStart = dpEnd;
     bool needRotation = false;
-    while((--firstGroupStart)->angle + ssMinAngle < dpBegin->angle)
+    while((--firstGroupStart)->angle + minAngle < dpBegin->angle)
     {
         needRotation = true;
         if(firstGroupStart == dpBegin)
@@ -1135,36 +1138,58 @@ void sortEdgesInternal(const vigra::Vector2 &currentPos,
     if(needRotation)
         rotateArray(dpBegin, firstGroupStart, dpEnd);
 
+    // look for groups of parallel edges
     DPAI groupStart = dpBegin,
-          groupLast = groupStart,
-           groupEnd = groupLast;
-    ++groupEnd;
-    for(; groupEnd != dpEnd; ++groupLast, ++groupEnd)
+          groupLast = groupStart, // for convenience, this is always groupEnd - 1
+           groupEnd = groupLast + 1;
+    for(; true; ++groupLast, ++groupEnd)
     {
-        // can we decide here (-> group ending)?
-        if(groupEnd->angle >= groupLast->angle + ssMinAngle)
+        // group ending?
+        if((groupEnd == dpEnd) || // last group
+           (groupEnd->angle >= groupLast->angle + minAngle)) // decision here
         {
-            if(groupLast == groupStart)
-                continue; // no recursion needed, only one dart in group
+            // recursion needed if > one dart in group:
+            if(groupLast != groupStart)
+            {
+                // determine mean position of dart positions in subgroup:
+                vigra::Vector2 meanPos(groupLast->dp());
+                for(DPAI dpi = groupStart; dpi != groupLast; ++dpi)
+                    meanPos += dpi->dp();
+                meanPos /= (groupEnd - groupStart);
 
-            // sort subgroup recursively
-            vigra::Vector2 meanPos(groupLast->dp());
-            for(DPAI dpi = groupStart; dpi != groupLast; ++dpi)
-                meanPos += dpi->dp();
-            meanPos /= (groupEnd - groupStart);
+                // sort subgroup recursively:
+                sortEdgesInternal(meanPos,
+                                  (groupStart->absAngle + groupLast->absAngle) / 2,
+                                  groupStart, groupEnd,
+                                  stepDist2, minAngle);
+            }
 
-            sortEdgesInternal(meanPos,
-                              (groupStart->absAngle + groupLast->absAngle) / 2,
-                              groupStart, groupLast,
-                              ssStepDist2, ssMinAngle);
+            if(groupEnd == dpEnd)
+                break; // loop end
+
+            groupStart = groupEnd;
         }
     }
 }
 
-void GeoMap::sortEdgesEventually(double ssStepDist, double ssMinDist)
+void sortEdgesRecursively(DPAI dpBegin, DPAI dpEnd,
+                          double stepDist2, double minAngle)
 {
-    double ssMinAngle = std::atan2(ssMinDist, ssStepDist),
-          ssStepDist2 = vigra::sq(ssStepDist);
+    vigra::Vector2 meanPos(0, 0);
+    for(DPAI dpi = dpBegin; dpi != dpEnd; ++dpi)
+        meanPos += dpi->dp();
+    meanPos /= (dpEnd - dpBegin);
+
+    sortEdgesInternal(meanPos,
+                      (dpBegin->absAngle + dpEnd[-1].absAngle) / 2,
+                      dpBegin, dpEnd,
+                      stepDist2, minAngle);
+}
+
+void GeoMap::sortEdgesEventually(double stepDist, double minDist)
+{
+    double minAngle = std::atan2(minDist, stepDist),
+          stepDist2 = vigra::sq(stepDist);
 
     for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
     {
@@ -1178,7 +1203,7 @@ void GeoMap::sortEdgesEventually(double ssStepDist, double ssMinDist)
 
         sortEdgesInternal((*it)->position(), 0.0,
                           dartPositions.begin(), dartPositions.end(),
-                          ssStepDist2, ssMinAngle);
+                          stepDist2, minAngle);
 
         for(unsigned int i = 0; i < dartLabels.size(); ++i)
         {
@@ -1426,7 +1451,7 @@ void defMap()
                  args("startNodeLabel", "endNodeLabel", "points"))
             .def("sortEdgesDirectly", &GeoMap::sortEdgesDirectly)
             .def("sortEdgesEventually", &GeoMap::sortEdgesEventually,
-                 args("ssStepDist", "ssMinDist"))
+                 args("stepDist", "minDist"))
             .def("initContours", &GeoMap::initContours)
             .def("embedFaces", &GeoMap::embedFaces, (arg("initLabelImage") = true))
             .def("nearestNode", &GeoMap::nearestNode, crp,
