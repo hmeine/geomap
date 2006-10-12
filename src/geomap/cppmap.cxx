@@ -1172,20 +1172,6 @@ void sortEdgesInternal(const vigra::Vector2 &currentPos,
     }
 }
 
-void sortEdgesRecursively(DPAI dpBegin, DPAI dpEnd,
-                          double stepDist2, double minAngle)
-{
-    vigra::Vector2 meanPos(0, 0);
-    for(DPAI dpi = dpBegin; dpi != dpEnd; ++dpi)
-        meanPos += dpi->dp();
-    meanPos /= (dpEnd - dpBegin);
-
-    sortEdgesInternal(meanPos,
-                      (dpBegin->absAngle + dpEnd[-1].absAngle) / 2,
-                      dpBegin, dpEnd,
-                      stepDist2, minAngle);
-}
-
 void GeoMap::sortEdgesEventually(double stepDist, double minDist)
 {
     double minAngle = std::atan2(minDist, stepDist),
