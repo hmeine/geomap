@@ -828,7 +828,8 @@ GeoMap::GeoMap(bp::list nodePositions,
   imageSize_(imageSize),
   labelImage_(NULL)
 {
-    std::cerr << "initalizing nodes...\n";
+    if(len(nodePositions))
+        std::cerr << "initalizing nodes...\n";
     nodes_.push_back(NULL_PTR(Node));
     for(int i = 1; i < len(nodePositions); ++i)
     {
@@ -839,7 +840,8 @@ GeoMap::GeoMap(bp::list nodePositions,
             nodes_.push_back(NULL_PTR(Node));
     }
 
-    std::cerr << "initalizing edges...\n";
+    if(len(edgeTuples))
+        std::cerr << "initalizing edges...\n";
     edges_.push_back(NULL_PTR(Edge));
     for(int i = 1; i < len(edgeTuples); ++i)
     {
@@ -1084,6 +1086,15 @@ void rotateArray(Iterator begin, Iterator newBegin, Iterator end)
     std::copy(temp.begin(), temp.begin() + pos, begin + (end - newBegin));
 }
 
+inline double angleDiff(double diff)
+{
+    if(diff < -M_PI)
+        diff += 2*M_PI;
+    if(diff >= M_PI)
+        diff -= 2*M_PI;
+    return diff;
+}
+
 void sortEdgesInternal(const vigra::Vector2 &currentPos,
                        double referenceAngle,
                        DPAI dpBegin, DPAI dpEnd,
@@ -1098,20 +1109,15 @@ void sortEdgesInternal(const vigra::Vector2 &currentPos,
         if(!dpi->dp.atEnd())
         {
             unsortableState = false;
-            //dpi->dp.intersectCircle(currentPos, stepDist2);
-            dpi->dp.leaveCircle(currentPos, stepDist2);
+            dpi->dp.intersectCircle(currentPos, stepDist2);
+            //dpi->dp.leaveCircle(currentPos, stepDist2);
         }
 
         dpi->absAngle =
             std::atan2(-dpi->dp()[1] + currentPos[1],
                         dpi->dp()[0] - currentPos[0]);
 
-        double angle = dpi->absAngle - referenceAngle;
-        if(angle < -M_PI)
-            angle += 2*M_PI;
-        if(dpi->angle >= M_PI)
-            angle -= 2*M_PI;
-        dpi->angle = angle;
+        dpi->angle = angleDiff(dpi->absAngle - referenceAngle);
     }
 
     if(unsortableState)
@@ -1158,8 +1164,9 @@ void sortEdgesInternal(const vigra::Vector2 &currentPos,
                 meanPos /= (groupEnd - groupStart);
 
                 // sort subgroup recursively:
-                sortEdgesInternal(meanPos,
-                                  (groupStart->absAngle + groupLast->absAngle) / 2,
+                sortEdgesInternal(meanPos, groupStart->absAngle +
+                                  angleDiff(groupLast->absAngle -
+                                            groupStart->absAngle) / 2,
                                   groupStart, groupEnd,
                                   stepDist2, minAngle);
             }
@@ -1434,7 +1441,8 @@ void defMap()
             .def("addNode", &GeoMap::addNode, crp,
                  args("position"))
             .def("addEdge", &GeoMap::addEdge, crp,
-                 args("startNodeLabel", "endNodeLabel", "points"))
+                 (arg("startNodeLabel"), arg("endNodeLabel"), arg("points"),
+                  arg("label") = 0))
             .def("sortEdgesDirectly", &GeoMap::sortEdgesDirectly)
             .def("sortEdgesEventually", &GeoMap::sortEdgesEventually,
                  args("stepDist", "minDist"))
