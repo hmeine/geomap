@@ -1037,6 +1037,7 @@ class DartPosition
   protected:
     bool nextSegment()
     {
+        vigra_precondition(!hitEnd_, "DartPosition: trying to proceed from end");
         arcLength_ += (p2_ - p1_).magnitude();
         p1_ = p2_;
         ++pointIter_;
@@ -1045,7 +1046,7 @@ class DartPosition
             hitEnd_ = true;
             return false;
         }
-        p2_ = *++pointIter_;
+        p2_ = *pointIter_;
         ++segmentIndex_;
         return true;
     }
@@ -1086,7 +1087,7 @@ void rotateArray(Iterator begin, Iterator newBegin, Iterator end)
     std::copy(temp.begin(), temp.begin() + pos, begin + (end - newBegin));
 }
 
-inline double angleDiff(double diff)
+inline double normAngle(double diff)
 {
     if(diff < -M_PI)
         diff += 2*M_PI;
@@ -1117,7 +1118,7 @@ void sortEdgesInternal(const vigra::Vector2 &currentPos,
             std::atan2(-dpi->dp()[1] + currentPos[1],
                         dpi->dp()[0] - currentPos[0]);
 
-        dpi->angle = angleDiff(dpi->absAngle - referenceAngle);
+        dpi->angle = normAngle(dpi->absAngle - referenceAngle);
     }
 
     if(unsortableState)
@@ -1164,9 +1165,10 @@ void sortEdgesInternal(const vigra::Vector2 &currentPos,
                 meanPos /= (groupEnd - groupStart);
 
                 // sort subgroup recursively:
-                sortEdgesInternal(meanPos, groupStart->absAngle +
-                                  angleDiff(groupLast->absAngle -
-                                            groupStart->absAngle) / 2,
+                sortEdgesInternal(meanPos, normAngle(
+                                      groupStart->absAngle +
+                                      normAngle(groupLast->absAngle -
+                                                groupStart->absAngle) / 2),
                                   groupStart, groupEnd,
                                   stepDist2, minAngle);
             }
