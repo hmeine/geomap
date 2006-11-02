@@ -1274,15 +1274,13 @@ class SubPixelWatersheds
     double nearestMaximum(double x, double y, double dx, double dy, int & resindex) const;
     int flowLine(double x, double y, bool forward, double epsilon, PointArray & curve);
     pair<int, int> findEdge(double x, double y, double epsilon, PointArray & edge);
-    int findEdges(double threshold, double epsilon = 1e-4);
     RungeKuttaResult rungeKuttaStepSecondOrder(double x0, double y0, double h,
                                                double & x, double & y, double dx, double dy);
     RungeKuttaResult rungeKuttaDoubleStepSecondOrder(double x0, double y0, double & h,
                             double & x, double & y, double epsilon, double dx, double dy);
 
     SplineImageView image_;
-    PointArray minima_, saddles_, maxima_, edges_;
-    ArrayVector<triple<int, int, int> > edgeIndices_;
+    PointArray minima_, saddles_, maxima_;
     IImage maxImage_;
     double initialStep_;
 };
@@ -1751,25 +1749,6 @@ SubPixelWatersheds<SplineImageView>::findEdge(
         edge.push_back(backwardCurve[i]);
 
     return pair<int, int>(findex, bindex);
-}
-
-template <class SplineImageView>
-int
-SubPixelWatersheds<SplineImageView>::findEdges(double threshold, double epsilon)
-{
-    edges_.clear();
-    edgeIndices_.clear();
-    for(int i = 0; i < saddles_.size(); ++i)
-    {
-        double x = saddles_[i][0];
-        double y = saddles_[i][1];
-        if(image_(x, y) < threshold)
-            continue;
-        edges_.push_back(PointArray());
-        pair<int, int> ind = findEdge(x, y, epsilon, edges_.back());
-        edgeIndices_.push_back(triple<int, int, int>(ind.first, i, ind.second));
-    }
-    return this->edges_size();
 }
 
 } // namespace vigra
