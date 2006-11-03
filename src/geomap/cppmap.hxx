@@ -49,6 +49,8 @@ typedef vigra::TinyVector<double, 2>       Vector2;
 typedef vigra::PointArray<Vector2>         Vector2Array;
 typedef vigra::BBoxPolygon<vigra::Vector2> Polygon;
 
+typedef std::vector<vigra::Point2D> PixelList;
+
 /********************************************************************/
 /*                                                                  */
 /*                              GeoMap                              */
@@ -91,8 +93,9 @@ class GeoMap
 
     typedef vigra::MultiArray<2, int> LabelImage;
 
-    vigra::Size2D  imageSize_;
-    LabelImage    *labelImage_;
+    vigra::Size2D          imageSize_;
+    LabelImage            *labelImage_;
+    std::vector<CellLabel> faceLabelLUT_;
 
     typedef std::vector<ModificationCallback *> ModificationCallbacks;
     typedef ModificationCallbacks::iterator MCIterator;
@@ -168,6 +171,10 @@ class GeoMap
 
     bool checkConsistency();
 
+  protected:
+    void associatePixels(Face &face, const PixelList &pixels);
+
+  public:
     void removeIsolatedNode(Node &node);
     Edge &mergeEdges(Dart &dart);
     Face &removeBridge(Dart &dart);

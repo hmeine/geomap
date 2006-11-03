@@ -303,6 +303,7 @@ class GeoMap::Dart
     }
 
     friend class Face; // allow setLeftFaceLabel in Face constructor
+    friend GeoMap::Face &GeoMap::mergeFaces(Dart &);
 
   public:
     Dart(GeoMap *map, int label)
@@ -659,7 +660,9 @@ class GeoMap::Face
     mutable bool        areaValid_;
     int                 pixelArea_;
 
-    friend class GeoMap; // give access to pixelArea_
+    friend class GeoMap; // give access to pixelArea_ and anchors_ (Euler ops...)
+
+    unsigned int findComponentAnchor(const GeoMap::Dart &dart);
 
   public:
     Face(GeoMap *map, Dart anchor)
@@ -728,8 +731,12 @@ class GeoMap::Face
     bool contains(const Vector2 &point) const
     {
         vigra_precondition(initialized(), "contains() of uninitialized face!");
-        if(map_->labelImage_ && (*map_->labelImage_)[intVPos(point)] == (int)label_)
-            return true;
+        if(map_->labelImage_)
+        {
+            int l = (*map_->labelImage_)[intVPos(point)];
+            if(l > 0 && (map_->faceLabelLUT_[l] == label_))
+                return true;
+        }
         unsigned int i = 0;
         if(label_)
         {
@@ -919,7 +926,7 @@ CELL_PTR(GeoMap::Face) GeoMap::faceAt(const vigra::Vector2 &position)
         {
             int faceLabel = (*labelImage_)[p];
             if(faceLabel > 0)
-                return face(faceLabel);
+                return face(faceLabelLUT_[faceLabel]);
         }
     }
 
@@ -1259,8 +1266,11 @@ void GeoMap::embedFaces(bool initLabelImage)
         "embedFaces() called with already-initialized labelImage");
 
     if(initLabelImage)
+    {
         labelImage_ = new LabelImage(
             LabelImage::size_type(imageSize().width(), imageSize().height()), 0);
+        faceLabelLUT_.resize(faces_.size());
+    }
 
     // copy and remove all preliminary contours except the infinite one:
     GeoMap::Faces contours(faces_.begin() + 1, faces_.end());
@@ -1292,6 +1302,7 @@ void GeoMap::embedFaces(bool initLabelImage)
                                 labelImage_->traverser_begin(),
                                 labelImage_->size(),
                                 vigra::StandardValueAccessor<int>());
+                faceLabelLUT_[contour.label()] = contour.label();
             }
         }
         else
@@ -1342,8 +1353,8 @@ void GeoMap::embedFaces(bool initLabelImage)
             }
 
         parent_found:
-            std::cerr << "  embedding contour " << contour.label() << " in face "
-                      << parent->label() << "\n";
+//             std::cerr << "  embedding contour " << contour.label()
+//                       << " in face " << parent->label() << "\n";
             parent->embedContour(anchor);
             contour.uninitialize();
         }
@@ -1364,7 +1375,7 @@ CELL_PTR(GeoMap::Node) GeoMap::nearestNode(
 bool GeoMap::checkConsistency()
 {
     bool result = true;
-    std::cerr << "GeoMap[" << this << "].checkConsistency()\n";
+    //std::cerr << "GeoMap[" << this << "].checkConsistency()\n";
     for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
     {
         if((*it)->map() != this)
@@ -1409,8 +1420,7 @@ class GeoMap::ModificationCallback
     virtual void postRemoveBridge(GeoMap::Face &survivor);
     virtual bool preMergeFaces(shouldbeconst GeoMap::Dart &dart);
     virtual void postMergeFaces(GeoMap::Face &survivor);
-        // FIXME: how to pass a set of pixels efficiently?
-        //virtual void associatePixel(GeoMap::Face &face, const Point2D &pixel);
+    virtual void associatePixels(GeoMap::Face &face, const PixelList &pixels);
 };
 
 bool GeoMap::ModificationCallback::removeNode(GeoMap::Node &node)
@@ -1423,7 +1433,7 @@ bool GeoMap::ModificationCallback::preMergeEdges(GeoMap::Dart &dart)
     return true;
 }
 
-void GeoMap::ModificationCallback::postMergeEdges(GeoMap::Edge &survivor)
+void GeoMap::ModificationCallback::postMergeEdges(GeoMap::Edge &)
 {
 }
 
@@ -1432,7 +1442,7 @@ bool GeoMap::ModificationCallback::preRemoveBridge(GeoMap::Dart &dart)
     return true;
 }
 
-void GeoMap::ModificationCallback::postRemoveBridge(GeoMap::Face &survivor)
+void GeoMap::ModificationCallback::postRemoveBridge(GeoMap::Face &)
 {
 }
 
@@ -1441,9 +1451,16 @@ bool GeoMap::ModificationCallback::preMergeFaces(GeoMap::Dart &dart)
     return true;
 }
 
-void GeoMap::ModificationCallback::postMergeFaces(GeoMap::Face &survivor)
+void GeoMap::ModificationCallback::postMergeFaces(GeoMap::Face &)
 {
 }
+
+void GeoMap::ModificationCallback::associatePixels(GeoMap::Face &,
+                                                   const PixelList &)
+{
+}
+
+/********************************************************************/
 
 void GeoMap::removeIsolatedNode(GeoMap::Node &node)
 {
@@ -1484,6 +1501,46 @@ void rawAddEdgeToLabelImage(
     }
 }
 
+void removeEdgeFromLabelImage(
+    const vigra::Scanlines &scanlines,
+    LabelImage &labelImage,
+    LabelImage::value_type substituteLabel,
+    PixelList &outputPixels)
+{
+    // clip to image range vertically:
+    int y = std::max(0, scanlines.startIndex()),
+     endY = std::min(labelImage.size()[1], scanlines.endIndex());
+
+    for(; y < endY; ++y)
+    {
+        const vigra::Scanlines::Scanline &scanline(scanlines[y]);
+        for(unsigned int j = 0; j < scanline.size(); ++j)
+        {
+            // X range checking
+            int begin = scanline[j].begin,
+                  end = scanline[j].end;
+            if(begin < 0)
+                begin = 0;
+            if(end > labelImage.size()[0])
+                end = labelImage.size()[0];
+
+            for(int x = begin; x < end; ++x)
+            {
+                LabelImage::reference old(labelImage(x, y));
+                if(old != -1)
+                {
+                    old += 1;
+                }
+                else
+                {
+                    old = substituteLabel;
+                    outputPixels.push_back(vigra::Point2D(x, y));
+                }
+            }
+        }
+    }
+}
+
 GeoMap::Edge &GeoMap::mergeEdges(GeoMap::Dart &dart)
 {
     Dart d1(dart);
@@ -1501,14 +1558,20 @@ GeoMap::Edge &GeoMap::mergeEdges(GeoMap::Dart &dart)
     vigra_assert(d2.leftFaceLabel() == d1.rightFaceLabel(),
                  "mergeEdges: broken map");
 
-    GeoMap::Face::Contours::iterator cEnd = dart.rightFace()->anchors_.end();
-    for(GeoMap::Face::Contours::iterator it = dart.leftFace()->anchors_.begin();
-        it != cEnd; ++it)
+    GeoMap::Face *faces[2];
+    faces[0] = dart.leftFace();
+    faces[1] = dart.rightFace();
+    for(GeoMap::Face *faceIt = faces; faceIt != faces+2; ++faceIt)
     {
-        if(it->edgeLabel() == d2.edgeLabel())
+        GeoMap::Face::Contours::iterator cEnd = (*faceIt)->anchors_.end();
+        for(GeoMap::Face::Contours::iterator it = (*faceIt)->anchors_.begin();
+            it != cEnd; ++it)
         {
-            it->nextPhi();
-            break;
+            if(it->edgeLabel() == d2.edgeLabel())
+            {
+                it->nextPhi();
+                break;
+            }
         }
     }
 
@@ -1580,12 +1643,220 @@ GeoMap::Edge &GeoMap::mergeEdges(GeoMap::Dart &dart)
     return survivor;
 }
 
+unsigned int GeoMap::Face::findComponentAnchor(const GeoMap::Dart &dart)
+{
+    for(unsigned int i = 0; i < anchors_.size(); ++i)
+        if(anchors_[i] == dart)
+            return i;
+
+    for(unsigned int i = 0; i < anchors_.size(); ++i)
+    {
+        GeoMap::Dart d(anchors_[i]);
+        while(d.nextPhi() != anchors_[i])
+            if(d == dart)
+                return i;
+    }
+
+    vigra_fail("findComponentAnchor failed: dart not found in face contours!");
+    return 42; // never reached
+}
+
+void GeoMap::associatePixels(GeoMap::Face &face, const PixelList &pixels)
+{
+    face.pixelArea_ += pixels.size();
+//     for(unsigned int i = 0; i < pixels.size(); ++i)
+//         pixelBounds_ |= pixels[i];
+    for(GeoMap::MCIterator it = associatedPixelsHooks_.begin();
+        it != associatedPixelsHooks_.end(); ++it)
+        (*it)->associatePixels(face, pixels);
+}
+
 GeoMap::Face &GeoMap::removeBridge(GeoMap::Dart &dart)
 {
+    GeoMap::Edge &edge(*dart.edge());
+    GeoMap::Face &face(*dart.leftFace());
+    vigra_precondition(face.label() == dart.rightFace()->label(),
+                       "removeBridge needs a bridge dart!");
+    GeoMap::Node &node1(*dart.startNode());
+    GeoMap::Node &node2(*dart.endNode());
+    vigra_precondition(node1.label() != node2.label(),
+                       "Inconsistent map: bridge to be removed is also a self-loop!?");
+
+    for(GeoMap::MCIterator it = removeBridgeHooks_.begin();
+        it != removeBridgeHooks_.end(); ++it)
+        vigra_precondition((*it)->preRemoveBridge(dart),
+                           "removeBridge() cancelled by hook");
+
+    // TODO: history append?
+
+    Dart newAnchor1(dart), newAnchor2(dart);
+    newAnchor1.prevSigma();
+    newAnchor2.nextAlpha().prevSigma();
+    unsigned int contourIndex = face.findComponentAnchor(dart);
+
+    node1.darts_.erase(std::find(node1.darts_.begin(),
+                                 node1.darts_.end(),  dart.label()));
+    node2.darts_.erase(std::find(node2.darts_.begin(),
+                                 node2.darts_.end(), -dart.label()));
+
+    if(contourIndex == 0)
+    {
+        // determine outer anchor, swap if necessary:
+        if(newAnchor1.edgeLabel() == dart.edgeLabel() ||
+           newAnchor2.edgeLabel() != dart.edgeLabel() &&
+           contourArea(newAnchor1) < contourArea(newAnchor2))
+            std::swap(newAnchor1, newAnchor2);
+    }
+
+    face.anchors_[contourIndex] = newAnchor1;
+    face.anchors_.push_back(newAnchor2);
+
+    PixelList associatedPixels;
+    if(labelImage_)
+        removeEdgeFromLabelImage(*scanPoly(edge, labelImage_->size()[1]),
+                                 *labelImage_, face.label(), associatedPixels);
+
+    // remove singular nodes
+    if(newAnchor1.edgeLabel() == dart.edgeLabel())
+    {
+        removeIsolatedNode(*newAnchor1.startNode());
+        face.anchors_.erase(face.anchors_.begin() + contourIndex);
+    }
+    if(newAnchor2.edgeLabel() == dart.edgeLabel())
+    {
+        removeIsolatedNode(*newAnchor2.startNode());
+        face.anchors_.erase(face.anchors_.end() - 1);
+    }
+
+    edge.uninitialize();
+
+    for(GeoMap::MCIterator it = removeBridgeHooks_.begin();
+        it != removeBridgeHooks_.end(); ++it)
+        (*it)->postRemoveBridge(face);
+
+    if(associatedPixels.size())
+        associatePixels(face, associatedPixels);
+
+    return face;
 }
 
 GeoMap::Face &GeoMap::mergeFaces(GeoMap::Dart &dart)
 {
+    GeoMap::Dart removedDart(dart);
+
+    if(dart.leftFace()->area() < dart.rightFace()->area())
+        removedDart.nextAlpha();
+    if(not removedDart.rightFaceLabel()) // face 0 shall stay face 0
+        removedDart.nextAlpha();
+
+    GeoMap::Edge &mergedEdge(*removedDart.edge());
+    GeoMap::Face &survivor(*removedDart.leftFace());
+    GeoMap::Face &mergedFace(*removedDart.rightFace());
+    GeoMap::Node &node1(*removedDart.startNode());
+    GeoMap::Node &node2(*removedDart.endNode());
+
+    vigra_precondition(survivor.label() != mergedFace.label(),
+                       "mergeFaces(): dart belongs to a bridge!");
+
+    unsigned int contour1 = survivor.findComponentAnchor(removedDart);
+    unsigned int contour2 = mergedFace.findComponentAnchor(
+        GeoMap::Dart(removedDart).nextAlpha());
+
+    for(GeoMap::MCIterator it = mergeFacesHooks_.begin();
+        it != mergeFacesHooks_.end(); ++it)
+        vigra_precondition((*it)->preMergeFaces(dart),
+                           "mergeFaces() cancelled by hook");
+
+    // TODO: history append?
+
+    // remember bounding box of merged face for later updating
+    GeoMap::Face::BoundingBox mergedBBox;
+    if(survivor.boundingBoxValid_)
+        mergedBBox = mergedFace.boundingBox();
+
+    // relabel contour's leftFaceLabel
+    for(unsigned int i = 0; i < mergedFace.anchors_.size(); ++i)
+    {
+        GeoMap::Dart d(mergedFace.anchors_[i]);
+        while(d.nextPhi().leftFaceLabel() != survivor.label())
+            d.setLeftFaceLabel(survivor.label());
+    }
+
+    // re-use an old anchor for the merged contour
+    if(survivor.anchors_[contour1].edgeLabel() == mergedEdge.label())
+    {
+        survivor.anchors_[contour1].nextPhi();
+        if(survivor.anchors_[contour1].edgeLabel() == mergedEdge.label())
+        {
+            survivor.anchors_[contour1] = mergedFace.anchors_[contour2];
+            if(survivor.anchors_[contour1].edgeLabel() == mergedEdge.label())
+                survivor.anchors_[contour1].nextPhi();
+        }
+    }
+
+    // check validity of found anchor
+    if(survivor.anchors_[contour1].edgeLabel() == mergedEdge.label())
+    {
+        vigra_precondition(node1.label() == node2.label(),
+                           "special-case: merging a self-loop");
+        // results in an isolated node:
+        survivor.anchors_.erase(survivor.anchors_.begin() + contour1);
+    }
+
+    // copy all remaining anchors into survivor's list:
+    for(unsigned int i = 0; i < mergedFace.anchors_.size(); ++i)
+    {
+        if(i != contour2)
+            survivor.anchors_.push_back(mergedFace.anchors_[i]);
+    }
+
+    // relabel region in image
+    PixelList associatedPixels;
+    if(labelImage_)
+    {
+//         relabelImage(map.labelImage.subImage(mergedFace.pixelBounds_),
+//                      mergedFace.label(), survivor.label())
+        for(unsigned int i = 0; i < faceLabelLUT_.size(); ++i)
+            if(faceLabelLUT_[i] == mergedFace.label())
+                faceLabelLUT_[i] = survivor.label();
+
+        removeEdgeFromLabelImage(
+            *scanPoly(mergedEdge, labelImage_->size()[1]),
+            *labelImage_, survivor.label(), associatedPixels);
+
+//         survivor.pixelBounds_ |= mergedFace.pixelBounds_;
+    }
+
+    node1.darts_.erase(std::find(node1.darts_.begin(),
+                                 node1.darts_.end(),  removedDart.label()));
+    node2.darts_.erase(std::find(node2.darts_.begin(),
+                                 node2.darts_.end(), -removedDart.label()));
+
+    // remove singular nodes
+    bool removeNode1 = !node1.degree();
+    if(!node2.degree() && node2.label() != node1.label())
+        removeIsolatedNode(node2);
+    if(removeNode1)
+        removeIsolatedNode(node1);
+
+    if(survivor.areaValid_)
+        survivor.area_ += mergedFace.area();
+    survivor.pixelArea_ += mergedFace.pixelArea_;
+
+    if(survivor.boundingBoxValid_)
+        survivor.boundingBox_ |= mergedBBox;
+
+    mergedEdge.uninitialize();
+    mergedFace.uninitialize();
+
+    for(GeoMap::MCIterator it = mergeFacesHooks_.begin();
+        it != mergeFacesHooks_.end(); ++it)
+        (*it)->postMergeFaces(survivor);
+
+    if(associatedPixels.size())
+        associatePixels(survivor, associatedPixels);
+
+    return survivor;
 }
 
 /********************************************************************/
@@ -1599,6 +1870,18 @@ CELL_PTR(GeoMap::Edge) mergeEdges(GeoMap::Dart &dart)
 {
     GeoMap::Edge &survivor(dart.map()->mergeEdges(dart));
     return dart.map()->edge(survivor.label());
+}
+
+CELL_PTR(GeoMap::Face) removeBridge(GeoMap::Dart &dart)
+{
+    GeoMap::Face &survivor(dart.map()->removeBridge(dart));
+    return dart.map()->face(survivor.label());
+}
+
+CELL_PTR(GeoMap::Face) mergeFaces(GeoMap::Dart &dart)
+{
+    GeoMap::Face &survivor(dart.map()->mergeFaces(dart));
+    return dart.map()->face(survivor.label());
 }
 
 /********************************************************************/
@@ -1767,6 +2050,8 @@ void defMap()
 
     def("removeIsolatedNode", &removeIsolatedNode);
     def("mergeEdges", &mergeEdges, crp);
+    def("removeBridge", &removeBridge, crp);
+    def("mergeFaces", &mergeFaces, crp);
 
     RangeIterWrapper<ContourPointIter>("ContourPointIter")
         .def(init<GeoMap::Dart, bool>((arg("dart"), arg("firstTwice") = false)));
