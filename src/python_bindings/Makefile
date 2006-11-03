@@ -1,11 +1,11 @@
-PLATFORM = $(shell /software/Modules/bin/platform)
-#PLATFORM = gentoo
+PLATFORM = $(shell PATH=/software/Modules/bin:$(PATH) platform)
 curdir = .
 
 # should point to build directory of interactive2 (where configure was called):
 INT2BUILDDIR = ../../interactive2/build-$(PLATFORM)
 include $(INT2BUILDDIR)/config/Makefile.include
 
+#CXXFLAGS += -Wall -g
 CXXFLAGS += -Wall
 CPPFLAGS += -I.
 LIBCPPFLAGS += -I.
@@ -17,6 +17,7 @@ OBJS = \
 	polygon.lo \
 	statistics.lo \
 	delaunay.lo \
+	cppmap.lo \
 # Ulli added the following to OBJS, uncomment if you need this:
 #    $(INT2BUILDDIR)/src/vigracmodule/.libs/pythonimage.o
 
