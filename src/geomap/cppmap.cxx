@@ -22,7 +22,7 @@ class GeoMap::Node
     DartLabels     darts_;
 
     friend class Dart; // give access to darts_
-    friend class GeoMap; // give access to darts_
+    friend class GeoMap; // give access to darts_ (add edge, sort edges, Euler..)
 
   public:
     Node(GeoMap *map, const vigra::Vector2 &position)
@@ -107,6 +107,7 @@ class GeoMap::Edge
     int       protection_;
 
     friend class Dart; // allow setLeftFaceLabel
+    friend GeoMap::Edge &GeoMap::mergeEdges(Dart &);
 
   public:
     template<class POINTS>
@@ -495,6 +496,10 @@ class GeoMap::Dart
 //                 if dart == self:
 //                     break
 
+    GeoMap *map() const
+    {
+        return map_;
+    }
 };
 
 DartPointIter::DartPointIter(GeoMap::Dart const &dart)
@@ -641,6 +646,8 @@ class GeoMap::Face
 {
   public:
     typedef Edge::BoundingBox BoundingBox;
+    typedef std::vector<Dart> Contours;
+    typedef Contours::const_iterator ContourIterator;
 
   protected:
     GeoMap             *map_;
@@ -755,6 +762,16 @@ class GeoMap::Face
     const Dart &contour(unsigned int index = 0)
     {
         return anchors_[index];
+    }
+
+    ContourIterator contoursBegin() const
+    {
+        return anchors_.begin();
+    }
+
+    ContourIterator contoursEnd() const
+    {
+        return anchors_.end();
     }
 
     void embedContour(const Dart &anchor)
@@ -1037,7 +1054,7 @@ class DartPosition
   protected:
     bool nextSegment()
     {
-        vigra_precondition(!hitEnd_, "DartPosition: trying to proceed from end");
+        //vigra_precondition(!hitEnd_, "DartPosition: trying to proceed from end");
         arcLength_ += (p2_ - p1_).magnitude();
         p1_ = p2_;
         ++pointIter_;
@@ -1380,6 +1397,212 @@ bool GeoMap::checkConsistency()
 
 /********************************************************************/
 
+#define shouldbeconst
+
+class GeoMap::ModificationCallback
+{
+  public:
+    virtual bool removeNode(GeoMap::Node &node);
+    virtual bool preMergeEdges(shouldbeconst GeoMap::Dart &dart);
+    virtual void postMergeEdges(GeoMap::Edge &survivor);
+    virtual bool preRemoveBridge(shouldbeconst GeoMap::Dart &dart);
+    virtual void postRemoveBridge(GeoMap::Face &survivor);
+    virtual bool preMergeFaces(shouldbeconst GeoMap::Dart &dart);
+    virtual void postMergeFaces(GeoMap::Face &survivor);
+        // FIXME: how to pass a set of pixels efficiently?
+        //virtual void associatePixel(GeoMap::Face &face, const Point2D &pixel);
+};
+
+bool GeoMap::ModificationCallback::removeNode(GeoMap::Node &node)
+{
+    return true;
+}
+
+bool GeoMap::ModificationCallback::preMergeEdges(GeoMap::Dart &dart)
+{
+    return true;
+}
+
+void GeoMap::ModificationCallback::postMergeEdges(GeoMap::Edge &survivor)
+{
+}
+
+bool GeoMap::ModificationCallback::preRemoveBridge(GeoMap::Dart &dart)
+{
+    return true;
+}
+
+void GeoMap::ModificationCallback::postRemoveBridge(GeoMap::Face &survivor)
+{
+}
+
+bool GeoMap::ModificationCallback::preMergeFaces(GeoMap::Dart &dart)
+{
+    return true;
+}
+
+void GeoMap::ModificationCallback::postMergeFaces(GeoMap::Face &survivor)
+{
+}
+
+void GeoMap::removeIsolatedNode(GeoMap::Node &node)
+{
+    for(GeoMap::MCIterator it = removeNodeHooks_.begin();
+        it != removeNodeHooks_.end(); ++it)
+    {
+        (*it)->removeNode(node);
+    }
+
+    node.uninitialize();
+}
+
+typedef vigra::MultiArray<2, int> LabelImage;
+
+void rawAddEdgeToLabelImage(
+    const vigra::Scanlines &scanlines, LabelImage &labelImage, int diff)
+{
+    // clip to image range vertically:
+    int y = std::max(0, scanlines.startIndex()),
+     endY = std::min(labelImage.size()[1], scanlines.endIndex());
+
+    for(; y < endY; ++y)
+    {
+        const vigra::Scanlines::Scanline &scanline(scanlines[y]);
+        for(unsigned int j = 0; j < scanline.size(); ++j)
+        {
+            // X range checking
+            int begin = scanline[j].begin,
+                  end = scanline[j].end;
+            if(begin < 0)
+                begin = 0;
+            if(end > labelImage.size()[0])
+                end = labelImage.size()[0];
+
+            for(int x = begin; x < end; ++x)
+                labelImage[LabelImage::difference_type(x, y)] += diff;
+        }
+    }
+}
+
+GeoMap::Edge &GeoMap::mergeEdges(GeoMap::Dart &dart)
+{
+    Dart d1(dart);
+    d1.nextSigma();
+    vigra_precondition(d1.edgeLabel() != dart.edgeLabel(),
+                       "mergeEdges called on self-loop!");
+
+    Dart d2(d1);
+    d2.nextSigma();
+    vigra_precondition(d2 == dart,
+                       "mergeEdges cannot remove node with degree > 2!");
+
+    vigra_assert(d1.leftFaceLabel() == d2.rightFaceLabel(),
+                 "mergeEdges: broken map");
+    vigra_assert(d2.leftFaceLabel() == d1.rightFaceLabel(),
+                 "mergeEdges: broken map");
+
+    GeoMap::Face::Contours::iterator cEnd = dart.rightFace()->anchors_.end();
+    for(GeoMap::Face::Contours::iterator it = dart.leftFace()->anchors_.begin();
+        it != cEnd; ++it)
+    {
+        if(it->edgeLabel() == d2.edgeLabel())
+        {
+            it->nextPhi();
+            break;
+        }
+    }
+
+    GeoMap::Node &mergedNode(*d1.startNode());
+    GeoMap::Edge &survivor(*d1.edge());
+    GeoMap::Edge &mergedEdge(*d2.edge());
+
+    for(GeoMap::MCIterator it = mergeEdgesHooks_.begin();
+        it != mergeEdgesHooks_.end(); ++it)
+        vigra_precondition((*it)->preMergeEdges(d1),
+                           "mergeEdges() cancelled by mergeEdges hook");
+    for(GeoMap::MCIterator it = removeNodeHooks_.begin();
+        it != removeNodeHooks_.end(); ++it)
+        vigra_precondition((*it)->removeNode(mergedNode),
+                           "mergeEdges() cancelled by removeNode hook");
+
+    // TODO: history append?
+
+    GeoMap::Dart d(d2);
+    d.nextAlpha();
+    GeoMap::Node &changedEndNode(*d.startNode());
+    unsigned int cenDartIndex = 0;
+    for(; cenDartIndex < changedEndNode.darts_.size(); ++cenDartIndex)
+        if(changedEndNode.darts_[cenDartIndex] == d.label())
+            break;
+    vigra_postcondition(cenDartIndex < changedEndNode.darts_.size(),
+                        "changing dart not found at node");
+
+    if(labelImage_)
+    {
+        rawAddEdgeToLabelImage(*scanPoly(mergedEdge, labelImage_->size()[1]),
+                               *labelImage_, -1);
+        rawAddEdgeToLabelImage(*scanPoly(survivor, labelImage_->size()[1]),
+                               *labelImage_, -1);
+    }
+
+    if(survivor.startNodeLabel() != mergedNode.label())
+    {
+        if(mergedEdge.startNodeLabel() != mergedNode.label())
+            mergedEdge.reverse();
+        survivor.extend(mergedEdge);
+        survivor.endNodeLabel_ = changedEndNode.label();
+    }
+    else
+    {
+        survivor.reverse();
+        if(mergedEdge.startNodeLabel() != mergedNode.label())
+            mergedEdge.reverse();
+        survivor.extend(mergedEdge);
+        survivor.reverse();
+        survivor.startNodeLabel_ = changedEndNode.label();
+    }
+
+    changedEndNode.darts_[cenDartIndex] = d1.label();
+
+    if(labelImage_)
+    {
+        rawAddEdgeToLabelImage(*scanPoly(survivor, labelImage_->size()[1]),
+                               *labelImage_, 1);
+    }
+
+    mergedNode.uninitialize();
+    mergedEdge.uninitialize();
+
+    for(GeoMap::MCIterator it = mergeEdgesHooks_.begin();
+        it != mergeEdgesHooks_.end(); ++it)
+        (*it)->postMergeEdges(survivor);
+
+    return survivor;
+}
+
+GeoMap::Face &GeoMap::removeBridge(GeoMap::Dart &dart)
+{
+}
+
+GeoMap::Face &GeoMap::mergeFaces(GeoMap::Dart &dart)
+{
+}
+
+/********************************************************************/
+
+void removeIsolatedNode(GeoMap::Node &node)
+{
+    node.map()->removeIsolatedNode(node);
+}
+
+CELL_PTR(GeoMap::Edge) mergeEdges(GeoMap::Dart &dart)
+{
+    GeoMap::Edge &survivor(dart.map()->mergeEdges(dart));
+    return dart.map()->edge(survivor.label());
+}
+
+/********************************************************************/
+
 template<class Iterator>
 struct RangeIterWrapper
 : bp::class_<Iterator>
@@ -1413,9 +1636,9 @@ using namespace boost::python;
 
 void defMap()
 {
-    {
-        CELL_RETURN_POLICY crp;
+    CELL_RETURN_POLICY crp;
 
+    {
         scope geoMap(
             class_<GeoMap, boost::noncopyable>(
                 "GeoMap", init<bp::list, bp::list, vigra::Size2D>())
@@ -1541,6 +1764,9 @@ void defMap()
         register_ptr_to_python< CELL_PTR(GeoMap::Face) >();
 #endif
     }
+
+    def("removeIsolatedNode", &removeIsolatedNode);
+    def("mergeEdges", &mergeEdges, crp);
 
     RangeIterWrapper<ContourPointIter>("ContourPointIter")
         .def(init<GeoMap::Dart, bool>((arg("dart"), arg("firstTwice") = false)));

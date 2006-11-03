@@ -63,6 +63,8 @@ class GeoMap
     class Face;
     class Dart;
 
+    class ModificationCallback;
+
     typedef std::vector< CELL_PTR(Node) > Nodes;
     typedef std::vector< CELL_PTR(Edge) > Edges;
     typedef std::vector< CELL_PTR(Face) > Faces;
@@ -91,6 +93,15 @@ class GeoMap
 
     vigra::Size2D  imageSize_;
     LabelImage    *labelImage_;
+
+    typedef std::vector<ModificationCallback *> ModificationCallbacks;
+    typedef ModificationCallbacks::iterator MCIterator;
+
+    ModificationCallbacks removeNodeHooks_;
+    ModificationCallbacks mergeEdgesHooks_;
+    ModificationCallbacks removeBridgeHooks_;
+    ModificationCallbacks mergeFacesHooks_;
+    ModificationCallbacks associatedPixelsHooks_;
 
   public:
     GeoMap(bp::list nodePositions,
@@ -156,6 +167,11 @@ class GeoMap
         double maxSquaredDist = vigra::NumericTraits<double>::max());
 
     bool checkConsistency();
+
+    void removeIsolatedNode(Node &node);
+    Edge &mergeEdges(Dart &dart);
+    Face &removeBridge(Dart &dart);
+    Face &mergeFaces(Dart &dart);
 
   private:
     GeoMap(const GeoMap &) {} // disallow copying
