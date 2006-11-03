@@ -1559,9 +1559,9 @@ GeoMap::Edge &GeoMap::mergeEdges(GeoMap::Dart &dart)
                  "mergeEdges: broken map");
 
     GeoMap::Face *faces[2];
-    faces[0] = dart.leftFace();
-    faces[1] = dart.rightFace();
-    for(GeoMap::Face *faceIt = faces; faceIt != faces+2; ++faceIt)
+    faces[0] = &(*dart.leftFace());
+    faces[1] = &(*dart.rightFace());
+    for(GeoMap::Face **faceIt = faces; faceIt != faces+2; ++faceIt)
     {
         GeoMap::Face::Contours::iterator cEnd = (*faceIt)->anchors_.end();
         for(GeoMap::Face::Contours::iterator it = (*faceIt)->anchors_.begin();
