@@ -8,20 +8,20 @@ execfile("testSPWS")
 # which ATM leads to overlapping edges after border closing. That
 # violates some assumptions and would lead to errors if we actually
 # worked with that Map.
-map = Map(maxima2, flowlines2, Size2D(39, 39))
+map = Map(maxima2, flowlines2, Size2D(39, 39),
+          ssStepDist = 0.2, ssMinDist = 0.05,
+          performEdgeSplits = True)
 assert checkConsistency(map), "map inconsistent"
 assert checkLabelConsistency(map), "map.labelImage inconsistent"
 assert len(map.history) == 0
 
 # merge faces so that survivor has a hole:
-mergeFaces(map.dart(213))
-mergeFaces(map.dart(19))
-mergeFaces(map.dart(28))
-mergeFaces(map.dart(33))
-mergeFaces(map.dart(225))
-mergeFaces(map.dart(31))
-mergeFaces(map.dart(16))
-face = removeBridge(map.dart(18))
+mergeFaces(map.dart(218))
+mergeFaces(map.dart(-19))
+mergeFaces(map.dart(-28))
+mergeFaces(map.dart(-33))
+mergeFaces(map.dart(-229))
+face = removeBridge(map.dart(-31))
 
 assert len(face.contours()) > 1 # should have hole
 assert face.contains(Vector2(5,12)) # in region, but not within hole
@@ -74,6 +74,8 @@ def checkPolygons(map):
     return clean
 
 # --------------------------------------------------------------------
+
+backup = copy.copy(map)
 
 import random, time, sys
 if len(sys.argv) > 1:
@@ -187,3 +189,12 @@ print "finished successfully, no more candidates for Euler ops:"
 print map.nodeCount, "nodes:", list(map.nodeIter())
 print map.edgeCount, "edges:", list(map.edgeIter())
 print map.faceCount, "faces:", list(map.faceIter())
+
+# --------------------------------------------------------------------
+
+c = time.clock()
+for opName, param in map.history:
+    op = eval(opName)
+    op(backup.dart(param))
+
+print "replaying history took %ss." % (time.clock() - c, )
