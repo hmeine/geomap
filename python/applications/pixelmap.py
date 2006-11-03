@@ -52,7 +52,8 @@ def pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0),
     if labelImageSize == None:
         labelImageSize = geomap.cellImage.size() * scale
     result = Map(nodes, edges, labelImageSize,
-                 performBorderClosing = False, performEdgeSplits = False)
+                 performBorderClosing = False, performEdgeSplits = False,
+                 ssMinDist = None)
     # the border closing was done in C++, so we have to mark the
     # border edges manually:
     for edge in result.edgeIter():
@@ -155,7 +156,7 @@ def pixelWatershedMap(biImage, crackEdges = 4, midCracks = True):
 
     If midCracks is True(default), the resulting edges consist of the
     connected midpoints of the cracks, not of the crack segments
-    themselves."""
+    themselves (this parameter is ignored if crackEdges == 0)."""
     
     if crackEdges:
         print "- Union-Find watershed segmentation..."
