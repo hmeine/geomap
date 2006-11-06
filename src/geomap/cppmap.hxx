@@ -171,6 +171,9 @@ class GeoMap
 
     bool checkConsistency();
 
+    void addCallback(ModificationCallback *cb);
+    void removeCallback(ModificationCallback *cb);
+
   protected:
     void associatePixels(Face &face, const PixelList &pixels);
 

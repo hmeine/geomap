@@ -8,6 +8,32 @@
 #include <cmath>
 #include "exporthelpers.hxx"
 
+template<class Container>
+void removeAll(Container &container,
+               const typename Container::value_type &element)
+{
+    typename Container::iterator it;
+    while((it = std::find(container.begin(), container.end(), cb))
+          != container.end())
+        container.erase(it);
+}
+
+template<class Container>
+bool removeOne(Container &container,
+               const typename Container::value_type &element)
+{
+    typename Container::iterator it;
+    if((it = std::find(container.begin(), container.end(), element))
+       != container.end())
+    {
+        container.erase(it);
+        return true;
+    }
+    return false;
+}
+
+/********************************************************************/
+
 const CellLabel UNINITIALIZED_CELL_LABEL =
     vigra::NumericTraits<CellLabel>::max();
 
@@ -1147,6 +1173,7 @@ void sortEdgesInternal(const vigra::Vector2 &currentPos,
 
     if(unsortableState)
     {
+        // FIXME: implement this, at least for edges with common endpoints
         vigra_fail("Unsortable group of edges occured and not handled yet!");
         return;
     }
@@ -1458,6 +1485,19 @@ void GeoMap::ModificationCallback::postMergeFaces(GeoMap::Face &)
 void GeoMap::ModificationCallback::associatePixels(GeoMap::Face &,
                                                    const PixelList &)
 {
+}
+
+/********************************************************************/
+
+void GeoMap::addCallback(ModificationCallback *cb)
+{
+    //if(&cb->removeNode != &ModificationCallback::removeNode)
+    removeNodeHooks_.push_back(cb);
+}
+
+void GeoMap::removeCallback(ModificationCallback *cb)
+{
+    removeOne(removeNodeHooks_, cb);
 }
 
 /********************************************************************/
