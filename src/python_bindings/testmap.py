@@ -132,7 +132,7 @@ else:
 
 # --------------------------------------------------------------------
 
-print
+print "\n- checking C++ sigma sorting against python one..."
 execfile("maptest.py")
 e = Experiment(filename, "grad")
 gradientScale = 1.4
@@ -154,7 +154,10 @@ def recreateWithCPPMap(pythonMap):
     cppmap.embedFaces()
     return cppmap
 
+print "- creating C++ map from same data...",
+c = time.clock(); sys.stdout.flush()
 cppmap = recreateWithCPPMap(e.map)
+print " (%ss)" % (time.clock() - c, )
 
 # for edge in e.map.edgeIter():
 #     o1 = edge.dart().sigmaOrbit()
@@ -163,6 +166,7 @@ cppmap = recreateWithCPPMap(e.map)
 #         if d1.label() != d2.label():
 #             print edge.startNode()
 
+print "- checking sigma orbits of all %d nodes..." % (e.map.nodeCount, )
 for node in e.map.nodeIter():
     cd = cppmap.dart(node.anchor().label())
     for pd in node.anchor().sigmaOrbit():
