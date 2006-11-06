@@ -32,26 +32,31 @@ def showMapStats(map):
 
 # --------------------------------------------------------------------
 
+print "- creating empty GeoMap..."
 tm = hourglass.GeoMap([], [], Size2D(256, 256))
 
 points = hourglass.Vector2Array([Vector2(232.20846246994, 81.488755298170375), Vector2(228.16750125077627, 81.481533365106415), Vector2(224.94552025882538, 81.580691309124461)])
 
 n1 = tm.addNode(points[0])
 n2 = tm.addNode(points[-1])
-print "Node %d and %d created.\n" % (n1.label(), n2.label())
+print "- endnodes %d and %d created." % (n1.label(), n2.label())
+
+print "- adding edge..."
 edge = tm.addEdge(n1.label(), n2.label(), points)
 
-# test DartPointIter:
+print "- testing DartPointIter..."
 dart = tm.dart(-edge.label())
 for i, p in enumerate(dart):
     assert p == dart[i]
     assert p == edge[-1-i]
 
+print "- testing ContourPointIter..."
 assert len(list(hourglass.ContourPointIter(dart))) == 2*len(list(dart))-2
 closed = list(hourglass.ContourPointIter(dart, True))
 assert len(closed) == 2*len(list(dart))-1
 assert closed[0] == closed[-1]
 
+print "- testing initContours()..."
 tm.initContours()
 try:
     tm.initContours()
@@ -67,7 +72,7 @@ points = [None]
 for i in range(100):
     points.append(Vector2(10*random.random(), 10*random.random()))
 
-print "creating Map from %d random points..." % (len(points)-1, )
+print "\n- creating Map from %d random points..." % (len(points)-1, )
 gm = hourglass.GeoMap(points, [], Size2D(11, 11))
 
 showMapStats(gm)
@@ -84,7 +89,7 @@ edgeTuples = [startEnd and
               hourglass.Vector2Array([points[startEnd[0]], points[startEnd[1]]]))
               for startEnd in edgeData]
 
-print "creating Map from delaunay data (%d edges)..." % (len(edgeTuples)-1, )
+print "\n- creating Map from delaunay data (%d edges)..." % (len(edgeTuples)-1, )
 gm = hourglass.GeoMap(points, edgeTuples, Size2D(11, 11))
 
 showMapStats(gm)
@@ -95,30 +100,39 @@ showMapStats(gm)
 
 # --------------------------------------------------------------------
 
+print "\n- unpickling large.map"
 import hourglass, pickle
 amap = pickle.load(file("large.map"))
 #data = list(amap.__getstate__()[:3])
 #data[1] = [poly and (poly[0], poly[1], hourglass.Vector2Array(poly[2])) for poly in data[1]]
+print "- initializing GeoMap with that data..."
 cppmap = hourglass.GeoMap(*amap.__getstate__()[:3])
 
 # --------------------------------------------------------------------
 #          run the following from within ../subpixelWatersheds
 # --------------------------------------------------------------------
 
+from map import Map, addFlowLinesToMap
+
+print "\n- creating Map from maxima2/flowlines2..."
 execfile("testSPWS")
 pythonMap = Map(maxima2, flowlines2, Size2D(39, 39),
                 performEdgeSplits = False, performBorderClosing = False)
 
-cppmap = hourglass.GeoMap([], [], Size2D(39, 39))
-cppnodes = [node and cppmap.addNode(node) for node in maxima2]
-assert cppnodes[-1].label() == len(maxima2)-1, "Oops, label shift :-("
-addFlowLinesToMap(flowlines2, cppmap)
-cppmap.sortEdgesEventually(0.2, 0.05)
-cppmap.initContours()
-cppmap.embedFaces()
+if pythonMap.unsortable:
+    sys.stderr.write("### UNSORTABLE HANDLING NOT DONE IN C++ YET, SKIPPING...\n")
+else:
+    cppmap = hourglass.GeoMap([], [], Size2D(39, 39))
+    cppnodes = [node and cppmap.addNode(node) for node in maxima2]
+    assert cppnodes[-1].label() == len(maxima2)-1, "Oops, label shift :-("
+    addFlowLinesToMap(flowlines2, cppmap)
+    cppmap.sortEdgesEventually(0.2, 0.05)
+    cppmap.initContours()
+    cppmap.embedFaces()
 
 # --------------------------------------------------------------------
 
+print
 execfile("maptest.py")
 e = Experiment(filename, "grad")
 gradientScale = 1.4
@@ -128,19 +142,19 @@ e.performBorderClosing = False
 e("map")
 checkConsistency(e.map)
 
-def convertToCPP(pythonMap):
+def recreateWithCPPMap(pythonMap):
     cppmap = hourglass.GeoMap([], [], pythonMap.imageSize())
     cppnodes = [node and cppmap.addNode(node.position()) for node in pythonMap.nodes]
-    cppedges = [edge and cppmap.addEdge(cppnodes[edge.startNodeLabel()].label(),
-                                        cppnodes[edge.endNodeLabel()].label(), edge,
-                                        edge.label())
-                for edge in pythonMap.edges]
+    for edge in pythonMap.edgeIter():
+        cppmap.addEdge(cppnodes[edge.startNodeLabel()].label(),
+                       cppnodes[edge.endNodeLabel()].label(), edge,
+                       edge.label())
     cppmap.sortEdgesEventually(0.2, 0.05)
     cppmap.initContours()
     cppmap.embedFaces()
     return cppmap
 
-cppmap = convertToCPP(e.map)
+cppmap = recreateWithCPPMap(e.map)
 
 # for edge in e.map.edgeIter():
 #     o1 = edge.dart().sigmaOrbit()
@@ -160,7 +174,8 @@ for node in e.map.nodeIter():
 e.cleanup()
 testHist = e.map.history
 
+print "\n- replaying history (%d entries) on C++ map..." % (len(testHist), )
 for op, dl in testHist:
-    print op, dl
+    #print op, dl
     eval("hourglass.%s" % op)(cppmap.dart(dl))
     cppmap.checkConsistency()
