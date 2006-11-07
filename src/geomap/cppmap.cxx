@@ -689,7 +689,7 @@ class GeoMap::Face
     mutable bool        boundingBoxValid_;
     mutable double      area_;
     mutable bool        areaValid_;
-    int                 pixelArea_;
+    unsigned int        pixelArea_;
 
     friend class GeoMap; // give access to pixelArea_ and anchors_ (Euler ops...)
 
@@ -795,6 +795,11 @@ class GeoMap::Face
             areaValid_ = true;
         }
         return area_;
+    }
+
+    unsigned int pixelArea() const
+    {
+        return pixelArea_;
     }
 
     const Dart &contour(unsigned int index = 0)
@@ -2171,6 +2176,7 @@ void defMap()
                  return_value_policy<copy_const_reference>())
             .def("contains", &GeoMap::Face::contains)
             .def("area", &GeoMap::Face::area)
+            .def("pixelArea", &GeoMap::Face::pixelArea)
             .def("contour", &GeoMap::Face::contour,
                  return_internal_reference<>())
             .def(self == self)
