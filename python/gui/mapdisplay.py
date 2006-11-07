@@ -42,8 +42,8 @@ class MapEdges(object):
     def attachHooks(self):
         map = self._map()
         self._attachedHooks = (
-            map.addRemoveBridgeCallbacks(self.preRemoveEdgeHook, None) + 
-            map.addMergeFacesCallbacks(self.preRemoveEdgeHook, None) + 
+            map.addRemoveBridgeCallbacks(self.preRemoveEdgeHook, None),
+            map.addMergeFacesCallbacks(self.preRemoveEdgeHook, None),
             map.addMergeEdgesCallbacks(self.preMergeEdgesHook, self.postMergeEdgesHook))
 
     def detachHooks(self):
@@ -53,7 +53,8 @@ class MapEdges(object):
         if not map or not self._attachedHooks:
             return False
 
-        self._attachedHooks.disconnect()
+        for cb in self._attachedHooks:
+            cb.disconnect()
         self._attachedHooks = None
         return True
 

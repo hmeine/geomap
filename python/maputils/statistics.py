@@ -53,8 +53,20 @@ class FaceStatistics(object):
             self.sum = otherStats.sum
             self.sum2 = otherStats.sum2
 
-class FaceIntensityStatistics(object):
+class DetachableStatistics(object):
+    def detachHooks(self):
+        for cb in self._attachedHooks:
+            cb.disconnect()
+
+class DynamicFaceStatistics(DetachableStatistics):
+    def __init__(self, map):
+        self._attachedHooks = (
+            map.addMergeFacesCallbacks(self.preMergeFaces, self.postMergeFaces),
+            map.addAssociatePixelsCallback(self.associatePixels))
+
+class FaceIntensityStatistics(DynamicFaceStatistics):
     def __init__(self, map, originalImage, defaultValue = None):
+        DynamicFaceStatistics.__init__(self, map)
         self.originalImage = originalImage
 
         if defaultValue == None:
@@ -73,13 +85,6 @@ class FaceIntensityStatistics(object):
 
         inspectImage(map.labelImage, originalImage, MeansInitFunctor(map))
 
-        self._attachedHooks = (
-            map.addMergeFacesCallbacks(self.preMergeFaces, self.postMergeFaces) +
-            map.addAssociatePixelsCallback(self.associatePixels))
-
-    def detachHooks(self):
-        self._attachedHooks.disconnect()
-
     def preMergeFaces(self, dart):
         self.mergedStats = copy.copy(dart.leftFace()._faceColor)
         self.mergedStats.merge(dart.rightFace()._faceColor)
@@ -92,9 +97,10 @@ class FaceIntensityStatistics(object):
         for pos in positions:
             face._faceColor(self.originalImage[pos])
 
-class FaceColorStatistics(object):
+class FaceColorStatistics(DynamicFaceStatistics):
     def __init__(self, map, cielabImage):
-        self.cielabImage=cielabImage
+        DynamicFaceStatistics.__init__(self, map)
+        self.cielabImage = cielabImage
         for face in map.faceIter():
             face._faceMeanCIE_L = FaceStatistics(0.0) # FIXME: one property
             face._faceMeanCIE_a = FaceStatistics(0.0)
@@ -111,13 +117,6 @@ class FaceColorStatistics(object):
                     self.map.face(int(label))._faceMeanCIE_b(value[2])
 
         inspectImage(map.labelImage, cielabImage, MeansInitFunctor(map))
-
-        self._attachedHooks = (
-            map.addMergeFacesCallbacks(self.preMergeFaces, self.postMergeFaces) +
-            map.addAssociatePixelsCallback(self.associatePixels))
-
-    def detachHooks(self):
-        self._attachedHooks.disconnect()
 
     def preMergeFaces(self, dart):
         self.mergedStats_L = copy.copy(dart.leftFace()._faceMeanCIE_L)
@@ -139,9 +138,10 @@ class FaceColorStatistics(object):
             face._faceMeanCIE_a(self.cielabImage[pos][1])
             face._faceMeanCIE_b(self.cielabImage[pos][2])
 
-class FaceColorHistogram(object):
+class FaceColorHistogram(DynamicFaceStatistics):
     def __init__(self, map, image):
-        self.image=image
+        DynamicFaceStatistics.__init__(self, map)
+        self.image = image
         for face in map.faceIter():
             face._colorHistogram = MultiHistogram3()
             face._colorHistogram.init(16,[(0,100),(-86.1813,98.2352),(-107.862,94.4758)])
@@ -162,13 +162,6 @@ class FaceColorHistogram(object):
         for face in map.faceIter():
             face._colorHistogram.gaussianSmoothing(2.2)
             face._colorHistogram2.gaussianSmoothing(2.2)
-
-        self._attachedHooks = (
-            map.addMergeFacesCallbacks(self.preMergeFaces, self.postMergeFaces) +
-            map.addAssociatePixelsCallback(self.associatePixels))
-
-    def detachHooks(self):
-        self._attachedHooks.disconnect()
 
     def preMergeFaces(self, dart):
         self.mergedHist = dart.leftFace()._colorHistogram
@@ -288,13 +281,10 @@ def faceHist2Diff(dart):
 #               Edge-based Statistics & Cost Measures
 # --------------------------------------------------------------------
 
-class DynamicEdgeStatistics(object):
+class DynamicEdgeStatistics(DetachableStatistics):
     def __init__(self, map):
-        self._attachedHooks = map.addMergeEdgesCallbacks(
-            self.preMergeEdges, self.postMergeEdges)
-
-    def detachHooks(self):
-        self._attachedHooks.disconnect()
+        self._attachedHooks = (map.addMergeEdgesCallbacks(
+            self.preMergeEdges, self.postMergeEdges), )
 
 class WatershedStatistics(DynamicEdgeStatistics):
     def __init__(self, map, flowlines, gmSiv):
@@ -586,18 +576,15 @@ def contAngle(d1,d2,length):
     v2/=v2.norm()
     return abs(v1[0]*v2[0]+v1[1]*v2[1])
 
-class EdgeContAngle(object):
+class EdgeContAngle(DetachableStatistics):
     def __init__(self, map, length):
         self.length=length
         self.attrName = _makeAttrName("contAngle_%s" % (self.length))
         for edge in map.edgeIter():
             self.calcContAngle(edge)
         
-        self._attachedHooks = map.addMergeFacesCallbacks(
-            None, self.postMergeEdges)
-
-    def detachHooks(self):
-        self._attachedHooks.disconnect()
+        self._attachedHooks = (map.addMergeFacesCallbacks(
+            None, self.postMergeEdges), )
 
     def calcContAngle(self, edge):
         d1 = edge.dart()
@@ -629,15 +616,12 @@ class EdgeContAngle(object):
 
 from hourglass import fitLine
 
-class EdgeCurvChange(object):
+class EdgeCurvChange(DetachableStatistics):
     def __init__(self, map):
         for edge in map.edgeIter():
             self.calcCurvChange(edge)
-        self._attachedHooks = map.addMergeFacesCallbacks(
-            None, self.postMergeEdges)
-
-    def detachHooks(self):
-        self._attachedHooks.disconnect()
+        self._attachedHooks = (map.addMergeFacesCallbacks(
+            None, self.postMergeEdges), )
 
     def calcCurvChange(self, edge):
         # use residuum of line fit on tangents as curvature change definition:
@@ -649,15 +633,12 @@ class EdgeCurvChange(object):
 
 from hourglass import ParabolaFit
 
-class EdgeCurvChangeLin(object):
+class EdgeCurvChangeLin(DetachableStatistics):
     def __init__(self, map):
         for edge in map.edgeIter():
             self.calcCurvChangeLin(edge)
-        self._attachedHooks = map.addMergeFacesCallbacks(
-            None, self.postMergeEdges)
-
-    def detachHooks(self):
-        self._attachedHooks.disconnect()
+        self._attachedHooks = (map.addMergeFacesCallbacks(
+            None, self.postMergeEdges), )
 
     def calcCurvChangeLin(self, edge):
         # use residuum of parabola fit on tangents:
@@ -669,18 +650,15 @@ class EdgeCurvChangeLin(object):
     def postMergeEdges(self, survivor):
         self.calcCurvChangeLin(survivor)
 
-class EdgeRegularity(object):
+class EdgeRegularity(DetachableStatistics):
     def __init__(self, map, seglength):
-        self.seglength=seglength
+        self.seglength = seglength
         self.attrName = _makeAttrName("regularity_%s" % (self.seglength))
         for edge in map.edgeIter():
             self.calcRegularity(edge)
 
-        self._attachedHooks = map.addMergeFacesCallbacks(
-            None, self.postMergeEdges)
-
-    def detachHooks(self):
-        self._attachedHooks.disconnect()
+        self._attachedHooks = (map.addMergeFacesCallbacks(
+            None, self.postMergeEdges), )
 
     def calcRegularity(self,edge):
         segLengths=[(edge[i]-edge[i-1]).magnitude() for i in range(1,len(edge))]
