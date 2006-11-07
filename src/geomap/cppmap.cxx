@@ -1871,25 +1871,35 @@ struct RangeIterWrapper
 
 /********************************************************************/
 
-class RemoveNodeCallback
+class SimpleCallback
 {
   public:
-    RemoveNodeCallback(GeoMap *geomap, boost::python::object callback)
-    : geomap_(geomap),
-      callback_(callback),
-      connection_(geomap->removeNodeHook.connect(
-                      sigc::mem_fun(this, &RemoveNodeCallback::operator())))
-    {}
-
-    ~RemoveNodeCallback()
+    virtual ~SimpleCallback()
     {
         disconnect();
     }
 
     void disconnect()
     {
-        if(connection_.connected())
-            connection_.disconnect();
+        for(unsigned int i = 0; i < connections_.size(); ++i)
+            if(connections_[i].connected())
+                connections_[i].disconnect();
+        connections_.clear();
+    }
+
+  protected:
+    std::vector<sigc::connection> connections_;
+};
+
+class RemoveNodeCallback : public SimpleCallback
+{
+  public:
+    RemoveNodeCallback(GeoMap *geomap, boost::python::object callback)
+    : callback_(callback)
+    {
+        connections_.push_back(
+            geomap->removeNodeHook.connect(
+                sigc::mem_fun(this, &RemoveNodeCallback::operator())));
     }
 
     bool operator()(GeoMap::Node &node)
@@ -1898,16 +1908,171 @@ class RemoveNodeCallback
     }
 
   protected:
-    GeoMap *geomap_;
     boost::python::object callback_;
-    sigc::connection connection_;
 };
 
-std::auto_ptr<RemoveNodeCallback>
+class MergeEdgesCallbacks : public SimpleCallback
+{
+  public:
+    MergeEdgesCallbacks(GeoMap *geomap,
+                        boost::python::object preOpCallback,
+                        boost::python::object postOpCallback)
+    : preOpCallback_(preOpCallback),
+      postOpCallback_(postOpCallback)
+    {
+        if(preOpCallback)
+            connections_.push_back(
+                geomap->preMergeEdgesHook.connect(
+                    sigc::mem_fun(this, &MergeEdgesCallbacks::preMergeEdges)));
+        if(postOpCallback)
+            connections_.push_back(
+                geomap->postMergeEdgesHook.connect(
+                    sigc::mem_fun(this, &MergeEdgesCallbacks::postMergeEdges)));
+    }
+
+    bool preMergeEdges(const GeoMap::Dart &dart)
+    {
+        return boost::python::extract<bool>(
+            preOpCallback_(boost::ref(dart)))();
+    }
+
+    void postMergeEdges(GeoMap::Edge &edge)
+    {
+        postOpCallback_(boost::ref(edge));
+    }
+
+  protected:
+    boost::python::object preOpCallback_, postOpCallback_;
+};
+
+class RemoveBridgeCallbacks : public SimpleCallback
+{
+  public:
+    RemoveBridgeCallbacks(GeoMap *geomap,
+                          boost::python::object preOpCallback,
+                          boost::python::object postOpCallback)
+    : preOpCallback_(preOpCallback),
+      postOpCallback_(postOpCallback)
+    {
+        if(preOpCallback)
+            connections_.push_back(
+                geomap->preRemoveBridgeHook.connect(
+                    sigc::mem_fun(this, &RemoveBridgeCallbacks::preRemoveBridge)));
+        if(postOpCallback)
+            connections_.push_back(
+                geomap->postRemoveBridgeHook.connect(
+                    sigc::mem_fun(this, &RemoveBridgeCallbacks::postRemoveBridge)));
+    }
+
+    bool preRemoveBridge(const GeoMap::Dart &dart)
+    {
+        return boost::python::extract<bool>(
+            preOpCallback_(boost::ref(dart)))();
+    }
+
+    void postRemoveBridge(GeoMap::Face &face)
+    {
+        postOpCallback_(boost::ref(face));
+    }
+
+  protected:
+    boost::python::object preOpCallback_, postOpCallback_;
+};
+
+class MergeFacesCallbacks : public SimpleCallback
+{
+  public:
+    MergeFacesCallbacks(GeoMap *geomap,
+                        boost::python::object preOpCallback,
+                        boost::python::object postOpCallback)
+    : preOpCallback_(preOpCallback),
+      postOpCallback_(postOpCallback)
+    {
+        if(preOpCallback)
+            connections_.push_back(
+                geomap->preMergeFacesHook.connect(
+                    sigc::mem_fun(this, &MergeFacesCallbacks::preMergeFaces)));
+        if(postOpCallback)
+            connections_.push_back(
+                geomap->postMergeFacesHook.connect(
+                    sigc::mem_fun(this, &MergeFacesCallbacks::postMergeFaces)));
+    }
+
+    bool preMergeFaces(const GeoMap::Dart &dart)
+    {
+        return boost::python::extract<bool>(
+            preOpCallback_(boost::ref(dart)))();
+    }
+
+    void postMergeFaces(GeoMap::Face &face)
+    {
+        postOpCallback_(boost::ref(face));
+    }
+
+  protected:
+    boost::python::object preOpCallback_, postOpCallback_;
+};
+
+class AssociatePixelsCallback : public SimpleCallback
+{
+  public:
+    AssociatePixelsCallback(GeoMap *geomap, boost::python::object callback)
+    : callback_(callback)
+    {
+        connections_.push_back(
+            geomap->associatePixelsHook.connect(
+                sigc::mem_fun(this, &AssociatePixelsCallback::operator())));
+    }
+
+    void operator()(GeoMap::Face &face, const PixelList &pixels)
+    {
+        callback_(boost::ref(face), pixels);
+    }
+
+  protected:
+    boost::python::object callback_;
+};
+
+std::auto_ptr<SimpleCallback>
 addRemoveNodeCallback(GeoMap *geomap, boost::python::object callback)
 {
-    return std::auto_ptr<RemoveNodeCallback>(
+    return std::auto_ptr<SimpleCallback>(
         new RemoveNodeCallback(geomap, callback));
+}
+
+std::auto_ptr<SimpleCallback>
+addMergeEdgesCallbacks(GeoMap *geomap,
+                       boost::python::object preOpCallback,
+                       boost::python::object postOpCallback)
+{
+    return std::auto_ptr<SimpleCallback>(
+        new MergeEdgesCallbacks(geomap, preOpCallback, postOpCallback));
+}
+
+std::auto_ptr<SimpleCallback>
+addRemoveBridgeCallbacks(GeoMap *geomap,
+                         boost::python::object preOpCallback,
+                         boost::python::object postOpCallback)
+{
+    return std::auto_ptr<SimpleCallback>(
+        new RemoveBridgeCallbacks(geomap, preOpCallback, postOpCallback));
+}
+
+std::auto_ptr<SimpleCallback>
+addMergeFacesCallbacks(GeoMap *geomap,
+                       boost::python::object preOpCallback,
+                       boost::python::object postOpCallback)
+{
+    return std::auto_ptr<SimpleCallback>(
+        new MergeFacesCallbacks(geomap, preOpCallback, postOpCallback));
+}
+
+std::auto_ptr<SimpleCallback>
+addAssociatePixelsCallback(GeoMap *geomap,
+                           boost::python::object callback)
+{
+    return std::auto_ptr<SimpleCallback>(
+        new AssociatePixelsCallback(geomap, callback));
 }
 
 /********************************************************************/
@@ -2044,12 +2209,16 @@ void defMap()
         register_ptr_to_python< CELL_PTR(GeoMap::Face) >();
 #endif
 
-        class_<RemoveNodeCallback>("RemoveNodeCallback", no_init)
-            .def("disconnect", &RemoveNodeCallback::disconnect)
+        class_<SimpleCallback>("SimpleCallback", no_init)
+            .def("disconnect", &SimpleCallback::disconnect)
         ;
 
         def("addRemoveNodeCallback", &addRemoveNodeCallback);
-        register_ptr_to_python< std::auto_ptr<RemoveNodeCallback> >();
+        def("addMergeEdgesCallbacks", &addMergeEdgesCallbacks);
+        def("addRemoveBridgeCallbacks", &addRemoveBridgeCallbacks);
+        def("addMergeFacesCallbacks", &addMergeFacesCallbacks);
+        def("addAssociatePixelsCallback", &addAssociatePixelsCallback);
+        register_ptr_to_python< std::auto_ptr<SimpleCallback> >();
     }
 
     def("removeIsolatedNode", &removeIsolatedNode);
