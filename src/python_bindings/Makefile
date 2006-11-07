@@ -5,10 +5,13 @@ curdir = .
 INT2BUILDDIR = ../../interactive2/build-$(PLATFORM)
 include $(INT2BUILDDIR)/config/Makefile.include
 
+# at KOGS, try: module add pkgconfig libsigc++
+LOCAL_CPPFLAGS = -I. `pkg-config --cflags sigc++-2.0`
+
 #CXXFLAGS += -Wall -g
 CXXFLAGS += -Wall
-CPPFLAGS += -I.
-LIBCPPFLAGS += -I.
+CPPFLAGS += $(LOCAL_CPPFLAGS)
+LIBCPPFLAGS += $(LOCAL_CPPFLAGS)
 TARGET = hourglassmodule.la
 MODULE = $(patsubst %.la,%.so,$(TARGET))
 
@@ -24,7 +27,7 @@ OBJS = \
 IMPEX_LIB = `vigra-config --impex_lib`
 
 $(TARGET): $(OBJS)
-	$(LINKCXXMODULE) -o $(TARGET) $(OBJS) $(BOOST_PYTHON_LIB) $(dynmoddir)/vigracmodule.la
+	$(LINKCXXMODULE) -o $(TARGET) $(OBJS) $(BOOST_PYTHON_LIB) $(dynmoddir)/vigracmodule.la `pkg-config --libs sigc++-2.0`
 	test -s $(MODULE) || ln -s .libs/$(MODULE) .
 
 install: $(TARGET)
