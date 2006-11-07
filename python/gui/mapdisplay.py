@@ -33,6 +33,7 @@ class MapEdges(object):
         self.useIndividualColors = False
         self._zoomedEdges = None
         self._zoom = None
+        self._attachedHooks = None
 
     def setMap(self, map):
         self._map = ref(map)
@@ -40,27 +41,20 @@ class MapEdges(object):
 
     def attachHooks(self):
         map = self._map()
-        map.preRemoveBridgeHooks.append(self.preRemoveEdgeHook)
-        map.preMergeFacesHooks.append(self.preRemoveEdgeHook)
-        map.preMergeEdgesHooks.append(self.preMergeEdgesHook)
-        map.postMergeEdgesHooks.append(self.postMergeEdgesHook)
+        self._attachedHooks = (
+            map.addRemoveBridgeCallbacks(self.preRemoveEdgeHook, None) + 
+            map.addMergeFacesCallbacks(self.preRemoveEdgeHook, None) + 
+            map.addMergeEdgesCallbacks(self.preMergeEdgesHook, self.postMergeEdgesHook))
 
     def detachHooks(self):
         """Detaches / removes callbacks from the map's hooks.
         Returns True if successful, False if already detached."""
         map = self._map()
-        if not map:
-            return # Map already destroyed
+        if not map or not self._attachedHooks:
+            return False
 
-        try:
-            map.preRemoveBridgeHooks.remove(self.preRemoveEdgeHook)
-        except ValueError:
-            return False # already detached
-
-        map.preMergeFacesHooks.remove(self.preRemoveEdgeHook)
-        map.preMergeEdgesHooks.remove(self.preMergeEdgesHook)
-        map.postMergeEdgesHooks.remove(self.postMergeEdgesHook)
-
+        self._attachedHooks.disconnect()
+        self._attachedHooks = None
         return True
 
     def _calculatePoints(self):
@@ -145,10 +139,12 @@ class MapEdges(object):
 
     def preRemoveEdgeHook(self, dart):
         self.setEdgePoints(dart.edgeLabel(), None)
+        return True
 
     def preMergeEdgesHook(self, dart):
         self.setEdgePoints(
             dart.clone().nextSigma().edgeLabel(), None)
+        return True
 
     def postMergeEdgesHook(self, edge):
         self.setEdgePoints(edge.label(), edge)
@@ -189,6 +185,7 @@ class MapNodes(object):
         #self.useIndividualColors = False
         self.setRadius(radius, relativeRadius)
         self._zoom = None
+        self._attachedHook = None
 
     def setMap(self, map):
         self._map = ref(map)
@@ -196,20 +193,17 @@ class MapNodes(object):
 
     def attachHooks(self):
         map = self._map()
-        map.removeNodeHooks.append(self.removeNode)
+        self._attachedHook = map.addRemoveNodeCallback(self.removeNode)
 
     def detachHooks(self):
         """Detaches / removes callbacks from the map's hooks.
         Returns True if successful, False if already detached."""
         map = self._map()
-        if not map:
-            return # Map already destroyed (when using weakrefs)
+        if not map or not self._attachedHook:
+            return False
 
-        try:
-            map.removeNodeHooks.remove(self.removeNode)
-        except ValueError:
-            return False # already detached
-
+        self._attachedHook.disconnect()
+        self._attachedHook = None
         return True
 
     def _calculatePoints(self):
@@ -240,6 +234,7 @@ class MapNodes(object):
                 ur.moveBy(self.viewer.x, self.viewer.y)
                 self.viewer.update(ur)
             self._qpointlist[nodeLabel] = None
+        return True
 
     def setZoom(self, zoom):
         if self._map():
