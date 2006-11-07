@@ -529,6 +529,11 @@ class GeoMap::Dart
     }
 };
 
+inline GeoMap::Dart GeoMap::Edge::dart() const
+{
+    return map_->dart(label());
+}
+
 DartPointIter::DartPointIter(GeoMap::Dart const &dart)
 : edge_(dart.guaranteedEdge())
 {
@@ -2152,6 +2157,7 @@ void defMap()
             .def("leftFace", &GeoMap::Edge::leftFace, crp)
             .def("rightFaceLabel", &GeoMap::Edge::rightFaceLabel)
             .def("rightFace", &GeoMap::Edge::rightFace, crp)
+            .def("dart", &GeoMap::Edge::dart)
             .def("isBridge", &GeoMap::Edge::isBridge)
             .def("isLoop", &GeoMap::Edge::isLoop)
             .def(self == self)
