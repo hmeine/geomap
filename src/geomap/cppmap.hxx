@@ -7,6 +7,7 @@
 #include <vector>
 #include <boost/python.hpp> // FIXME: separate this from plain C++ interface
 #include <vigra/multi_array.hxx>
+#include <sigc++/sigc++.h>
 namespace bp = boost::python;
 
 //#define USE_INSECURE_CELL_PTRS
@@ -51,6 +52,22 @@ typedef vigra::BBoxPolygon<vigra::Vector2> Polygon;
 
 typedef std::vector<vigra::Point2D> PixelList;
 
+// "accumulator" for libsigc++, which calls pre-operation
+// callbacks in order but cancels whenever a callback returns false
+struct interruptable_accumulator
+{
+    typedef bool result_type;
+
+    template<typename T_iterator>
+    result_type operator()(T_iterator first, T_iterator last) const
+    {
+        for(; first != last; ++first)
+            if(!*first)
+                return false;
+        return true;
+    }
+};
+
 /********************************************************************/
 /*                                                                  */
 /*                              GeoMap                              */
@@ -64,8 +81,6 @@ class GeoMap
     class Edge;
     class Face;
     class Dart;
-
-    class ModificationCallback;
 
     typedef std::vector< CELL_PTR(Node) > Nodes;
     typedef std::vector< CELL_PTR(Edge) > Edges;
@@ -96,15 +111,6 @@ class GeoMap
     vigra::Size2D          imageSize_;
     LabelImage            *labelImage_;
     std::vector<CellLabel> faceLabelLUT_;
-
-    typedef std::vector<ModificationCallback *> ModificationCallbacks;
-    typedef ModificationCallbacks::iterator MCIterator;
-
-    ModificationCallbacks removeNodeHooks_;
-    ModificationCallbacks mergeEdgesHooks_;
-    ModificationCallbacks removeBridgeHooks_;
-    ModificationCallbacks mergeFacesHooks_;
-    ModificationCallbacks associatedPixelsHooks_;
 
   public:
     GeoMap(bp::list nodePositions,
@@ -171,9 +177,6 @@ class GeoMap
 
     bool checkConsistency();
 
-    void addCallback(ModificationCallback *cb);
-    void removeCallback(ModificationCallback *cb);
-
   protected:
     void associatePixels(Face &face, const PixelList &pixels);
 
@@ -182,6 +185,24 @@ class GeoMap
     Edge &mergeEdges(Dart &dart);
     Face &removeBridge(Dart &dart);
     Face &mergeFaces(Dart &dart);
+
+        // callbacks using libsigc++ <http://libsigc.sourceforge.net/>:
+    sigc::signal<bool, Node &>::accumulated<interruptable_accumulator>
+        removeNodeHook;
+    sigc::signal<bool, const Dart &>::accumulated<interruptable_accumulator>
+        preMergeEdgesHook;
+    sigc::signal<void, Edge &>
+        postMergeEdgesHook;
+    sigc::signal<bool, const Dart &>::accumulated<interruptable_accumulator>
+        preRemoveBridgeHook;
+    sigc::signal<void, Face &>
+        postRemoveBridgeHook;
+    sigc::signal<bool, const Dart &>::accumulated<interruptable_accumulator>
+        preMergeFacesHook;
+    sigc::signal<void, Face &>
+        postMergeFacesHook;
+    sigc::signal<void, Face &, const PixelList &>
+        associatePixelsHook;
 
   private:
     GeoMap(const GeoMap &) {} // disallow copying

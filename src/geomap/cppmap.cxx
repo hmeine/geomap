@@ -13,7 +13,7 @@ void removeAll(Container &container,
                const typename Container::value_type &element)
 {
     typename Container::iterator it;
-    while((it = std::find(container.begin(), container.end(), cb))
+    while((it = std::find(container.begin(), container.end(), element))
           != container.end())
         container.erase(it);
 }
@@ -1435,80 +1435,10 @@ bool GeoMap::checkConsistency()
 
 /********************************************************************/
 
-#define shouldbeconst
-
-class GeoMap::ModificationCallback
-{
-  public:
-    virtual bool removeNode(GeoMap::Node &node);
-    virtual bool preMergeEdges(shouldbeconst GeoMap::Dart &dart);
-    virtual void postMergeEdges(GeoMap::Edge &survivor);
-    virtual bool preRemoveBridge(shouldbeconst GeoMap::Dart &dart);
-    virtual void postRemoveBridge(GeoMap::Face &survivor);
-    virtual bool preMergeFaces(shouldbeconst GeoMap::Dart &dart);
-    virtual void postMergeFaces(GeoMap::Face &survivor);
-    virtual void associatePixels(GeoMap::Face &face, const PixelList &pixels);
-};
-
-bool GeoMap::ModificationCallback::removeNode(GeoMap::Node &node)
-{
-    return true;
-}
-
-bool GeoMap::ModificationCallback::preMergeEdges(GeoMap::Dart &dart)
-{
-    return true;
-}
-
-void GeoMap::ModificationCallback::postMergeEdges(GeoMap::Edge &)
-{
-}
-
-bool GeoMap::ModificationCallback::preRemoveBridge(GeoMap::Dart &dart)
-{
-    return true;
-}
-
-void GeoMap::ModificationCallback::postRemoveBridge(GeoMap::Face &)
-{
-}
-
-bool GeoMap::ModificationCallback::preMergeFaces(GeoMap::Dart &dart)
-{
-    return true;
-}
-
-void GeoMap::ModificationCallback::postMergeFaces(GeoMap::Face &)
-{
-}
-
-void GeoMap::ModificationCallback::associatePixels(GeoMap::Face &,
-                                                   const PixelList &)
-{
-}
-
-/********************************************************************/
-
-void GeoMap::addCallback(ModificationCallback *cb)
-{
-    //if(&cb->removeNode != &ModificationCallback::removeNode)
-    removeNodeHooks_.push_back(cb);
-}
-
-void GeoMap::removeCallback(ModificationCallback *cb)
-{
-    removeOne(removeNodeHooks_, cb);
-}
-
-/********************************************************************/
-
 void GeoMap::removeIsolatedNode(GeoMap::Node &node)
 {
-    for(GeoMap::MCIterator it = removeNodeHooks_.begin();
-        it != removeNodeHooks_.end(); ++it)
-    {
-        (*it)->removeNode(node);
-    }
+    vigra_precondition(removeNodeHook(node),
+                       "removeIsolatedNode() cancelled by removeNode hook");
 
     node.uninitialize();
 }
@@ -1619,14 +1549,10 @@ GeoMap::Edge &GeoMap::mergeEdges(GeoMap::Dart &dart)
     GeoMap::Edge &survivor(*d1.edge());
     GeoMap::Edge &mergedEdge(*d2.edge());
 
-    for(GeoMap::MCIterator it = mergeEdgesHooks_.begin();
-        it != mergeEdgesHooks_.end(); ++it)
-        vigra_precondition((*it)->preMergeEdges(d1),
-                           "mergeEdges() cancelled by mergeEdges hook");
-    for(GeoMap::MCIterator it = removeNodeHooks_.begin();
-        it != removeNodeHooks_.end(); ++it)
-        vigra_precondition((*it)->removeNode(mergedNode),
-                           "mergeEdges() cancelled by removeNode hook");
+    vigra_precondition(preMergeEdgesHook(d1),
+                       "mergeEdges() cancelled by mergeEdges hook");
+    vigra_precondition(removeNodeHook(mergedNode),
+                       "mergeEdges() cancelled by removeNode hook");
 
     // TODO: history append?
 
@@ -1676,9 +1602,7 @@ GeoMap::Edge &GeoMap::mergeEdges(GeoMap::Dart &dart)
     mergedNode.uninitialize();
     mergedEdge.uninitialize();
 
-    for(GeoMap::MCIterator it = mergeEdgesHooks_.begin();
-        it != mergeEdgesHooks_.end(); ++it)
-        (*it)->postMergeEdges(survivor);
+    postMergeEdgesHook(survivor);
 
     return survivor;
 }
@@ -1706,9 +1630,7 @@ void GeoMap::associatePixels(GeoMap::Face &face, const PixelList &pixels)
     face.pixelArea_ += pixels.size();
 //     for(unsigned int i = 0; i < pixels.size(); ++i)
 //         pixelBounds_ |= pixels[i];
-    for(GeoMap::MCIterator it = associatedPixelsHooks_.begin();
-        it != associatedPixelsHooks_.end(); ++it)
-        (*it)->associatePixels(face, pixels);
+    associatePixelsHook(face, pixels);
 }
 
 GeoMap::Face &GeoMap::removeBridge(GeoMap::Dart &dart)
@@ -1722,10 +1644,8 @@ GeoMap::Face &GeoMap::removeBridge(GeoMap::Dart &dart)
     vigra_precondition(node1.label() != node2.label(),
                        "Inconsistent map: bridge to be removed is also a self-loop!?");
 
-    for(GeoMap::MCIterator it = removeBridgeHooks_.begin();
-        it != removeBridgeHooks_.end(); ++it)
-        vigra_precondition((*it)->preRemoveBridge(dart),
-                           "removeBridge() cancelled by hook");
+    vigra_precondition(preRemoveBridgeHook(dart),
+                       "removeBridge() cancelled by hook");
 
     // TODO: history append?
 
@@ -1770,9 +1690,7 @@ GeoMap::Face &GeoMap::removeBridge(GeoMap::Dart &dart)
 
     edge.uninitialize();
 
-    for(GeoMap::MCIterator it = removeBridgeHooks_.begin();
-        it != removeBridgeHooks_.end(); ++it)
-        (*it)->postRemoveBridge(face);
+    postRemoveBridgeHook(face);
 
     if(associatedPixels.size())
         associatePixels(face, associatedPixels);
@@ -1802,10 +1720,8 @@ GeoMap::Face &GeoMap::mergeFaces(GeoMap::Dart &dart)
     unsigned int contour2 = mergedFace.findComponentAnchor(
         GeoMap::Dart(removedDart).nextAlpha());
 
-    for(GeoMap::MCIterator it = mergeFacesHooks_.begin();
-        it != mergeFacesHooks_.end(); ++it)
-        vigra_precondition((*it)->preMergeFaces(dart),
-                           "mergeFaces() cancelled by hook");
+    vigra_precondition(preMergeFacesHook(dart),
+                       "mergeFaces() cancelled by hook");
 
     // TODO: history append?
 
@@ -1889,9 +1805,7 @@ GeoMap::Face &GeoMap::mergeFaces(GeoMap::Dart &dart)
     mergedEdge.uninitialize();
     mergedFace.uninitialize();
 
-    for(GeoMap::MCIterator it = mergeFacesHooks_.begin();
-        it != mergeFacesHooks_.end(); ++it)
-        (*it)->postMergeFaces(survivor);
+    postMergeFacesHook(survivor);
 
     if(associatedPixels.size())
         associatePixels(survivor, associatedPixels);
@@ -1954,6 +1868,49 @@ struct RangeIterWrapper
     }
 
 };
+
+/********************************************************************/
+
+class RemoveNodeCallback
+{
+  public:
+    RemoveNodeCallback(GeoMap *geomap, boost::python::object callback)
+    : geomap_(geomap),
+      callback_(callback),
+      connection_(geomap->removeNodeHook.connect(
+                      sigc::mem_fun(this, &RemoveNodeCallback::operator())))
+    {}
+
+    ~RemoveNodeCallback()
+    {
+        disconnect();
+    }
+
+    void disconnect()
+    {
+        if(connection_.connected())
+            connection_.disconnect();
+    }
+
+    bool operator()(GeoMap::Node &node)
+    {
+        return boost::python::extract<bool>(callback_(boost::ref(node)))();
+    }
+
+  protected:
+    GeoMap *geomap_;
+    boost::python::object callback_;
+    sigc::connection connection_;
+};
+
+std::auto_ptr<RemoveNodeCallback>
+addRemoveNodeCallback(GeoMap *geomap, boost::python::object callback)
+{
+    return std::auto_ptr<RemoveNodeCallback>(
+        new RemoveNodeCallback(geomap, callback));
+}
+
+/********************************************************************/
 
 using namespace boost::python;
 
@@ -2086,6 +2043,13 @@ void defMap()
         register_ptr_to_python< CELL_PTR(GeoMap::Edge) >();
         register_ptr_to_python< CELL_PTR(GeoMap::Face) >();
 #endif
+
+        class_<RemoveNodeCallback>("RemoveNodeCallback", no_init)
+            .def("disconnect", &RemoveNodeCallback::disconnect)
+        ;
+
+        def("addRemoveNodeCallback", &addRemoveNodeCallback);
+        register_ptr_to_python< std::auto_ptr<RemoveNodeCallback> >();
     }
 
     def("removeIsolatedNode", &removeIsolatedNode);
