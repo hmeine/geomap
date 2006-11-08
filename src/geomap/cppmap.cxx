@@ -1304,6 +1304,8 @@ void GeoMap::embedFaces(bool initLabelImage)
 
     if(initLabelImage)
     {
+        vigra_precondition(imageSize_.area() > 0,
+                           "initLabelImage: non-zero imageSize must be given!");
         labelImage_ = new LabelImage(
             LabelImage::size_type(imageSize().width(), imageSize().height()), 0);
         faceLabelLUT_.resize(faces_.size());
@@ -1850,6 +1852,114 @@ CELL_PTR(GeoMap::Face) mergeFaces(GeoMap::Dart &dart)
 
 /********************************************************************/
 
+class OrbitIterator
+{
+    GeoMap::Dart dart_, end_;
+    bool atEnd_;
+
+  public:
+    typedef const GeoMap::Dart        value_type;
+    typedef value_type               &reference;
+    typedef value_type               *pointer;
+    typedef std::forward_iterator_tag iterator_category;
+
+    OrbitIterator(GeoMap::Dart const &dart)
+    : dart_(dart),
+      end_(dart),
+      atEnd_(false)
+    {
+    }
+
+    OrbitIterator & operator++()
+    {
+        if(dart_.nextPhi() == end_)
+            atEnd_ = true;
+        return *this;
+    }
+
+    OrbitIterator operator++(int)
+    {
+        OrbitIterator ret(*this);
+        operator++();
+        return ret;
+    }
+
+    bool atEnd() const
+    {
+        return atEnd_;
+    }
+
+    bool inRange() const
+    {
+        return !atEnd_;
+    }
+
+    reference operator*() const
+    {
+        return dart_;
+    }
+
+    pointer operator->() const
+    {
+        return &(operator*());
+    }
+};
+
+std::auto_ptr<OrbitIterator>
+phiOrbit(const GeoMap::Dart &dart)
+{
+    return std::auto_ptr<OrbitIterator>(new OrbitIterator(dart));
+}
+
+template<class Iterator>
+struct RangeIterAdapter
+{
+    typedef typename Iterator::value_type value_type;
+    typedef typename Iterator::reference  reference;
+    typedef typename Iterator::pointer    pointer;
+    typedef std::forward_iterator_tag     iterator_category;
+
+    RangeIterAdapter(const Iterator &begin, const Iterator &end)
+    : iter_(begin),
+      end_(end)
+    {}
+
+    bool inRange() const
+    {
+        return iter_ != end_;
+    }
+
+    bool atEnd() const
+    {
+        return iter_ == end_;
+    }
+
+    RangeIterAdapter &operator++()
+    {
+        ++iter_;
+        return *this;
+    }
+
+    RangeIterAdapter operator++(int)
+    {
+        RangeIterAdapter ret(*this);
+        operator++();
+        return ret;
+    }
+
+    reference operator*() const
+    {
+        return *iter_;
+    }
+
+    pointer operator->() const
+    {
+        return &(operator*());
+    }
+
+    Iterator iter_, end_;
+};
+
 template<class Iterator>
 struct RangeIterWrapper
 : bp::class_<Iterator>
@@ -1876,7 +1986,6 @@ struct RangeIterWrapper
         }
         return *v++;
     }
-
 };
 
 /********************************************************************/
@@ -2089,6 +2198,14 @@ addAssociatePixelsCallback(GeoMap *geomap,
 
 using namespace boost::python;
 
+typedef RangeIterAdapter<GeoMap::Face::ContourIterator> ContourRangeIterator;
+
+ContourRangeIterator
+faceContours(const GeoMap::Face &face)
+{
+    return ContourRangeIterator(face.contoursBegin(), face.contoursEnd());
+}
+
 void defMap()
 {
     CELL_RETURN_POLICY crp;
@@ -2096,7 +2213,10 @@ void defMap()
     {
         scope geoMap(
             class_<GeoMap, boost::noncopyable>(
-                "GeoMap", init<bp::list, bp::list, vigra::Size2D>())
+                "GeoMap", init<bp::list, bp::list, vigra::Size2D>(
+                    (arg("nodePositions") = bp::list(),
+                     arg("edgeTuples") = bp::list(),
+                     arg("imageSize") = vigra::Size2D(0, 0))))
             .def("node", &GeoMap::node, crp)
             .def("nodeIter", &GeoMap::nodesBegin)
             .def("edge", &GeoMap::edge, crp)
@@ -2104,6 +2224,7 @@ void defMap()
             .def("face", &GeoMap::face, crp)
             .def("faceIter", &GeoMap::facesBegin)
             .def("dart", &GeoMap::dart)
+            .def("faceAt", &GeoMap::faceAt, crp)
             .add_property("nodeCount", &GeoMap::nodeCount)
             .add_property("edgeCount", &GeoMap::edgeCount)
             .add_property("faceCount", &GeoMap::faceCount)
@@ -2178,10 +2299,14 @@ void defMap()
             .def("area", &GeoMap::Face::area)
             .def("pixelArea", &GeoMap::Face::pixelArea)
             .def("contour", &GeoMap::Face::contour,
-                 return_internal_reference<>())
+                 return_internal_reference<>(),
+                 arg("index") = 0)
+            .def("contours", &faceContours)
             .def(self == self)
             .def(self != self)
         ;
+
+        RangeIterWrapper<ContourRangeIterator>("ContourIterator");
 
         return_internal_reference<> rself; // "return self" policy
 
@@ -2211,9 +2336,13 @@ void defMap()
             .def("prevSigma", &GeoMap::Dart::prevSigma, (arg("times") = 1), rself)
             .def("nextPhi", &GeoMap::Dart::nextPhi, rself)
             .def("prevPhi", &GeoMap::Dart::prevPhi, rself)
+            .def("phiOrbit", &phiOrbit)
             .def(self == self)
             .def(self != self)
         ;
+
+        RangeIterWrapper<OrbitIterator>("OrbitIterator");
+        register_ptr_to_python< std::auto_ptr<OrbitIterator> >();
 
 #ifndef USE_INSECURE_CELL_PTRS
         register_ptr_to_python< CELL_PTR(GeoMap::Node) >();
