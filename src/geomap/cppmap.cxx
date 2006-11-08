@@ -126,11 +126,11 @@ class GeoMap::Edge
     typedef vigra::BBoxPolygon<vigra::Vector2> Base;
 
   protected:
-    GeoMap   *map_;
-    CellLabel label_;
-    CellLabel startNodeLabel_, endNodeLabel_;
-    CellLabel leftFaceLabel_, rightFaceLabel_;
-    int       protection_;
+    GeoMap      *map_;
+    CellLabel    label_;
+    CellLabel    startNodeLabel_, endNodeLabel_;
+    CellLabel    leftFaceLabel_, rightFaceLabel_;
+    unsigned int protection_;
 
     friend class Dart; // allow setLeftFaceLabel
     friend GeoMap::Edge &GeoMap::mergeEdges(Dart &);
@@ -239,6 +239,19 @@ class GeoMap::Edge
         return !operator==(other);
     }
 
+    unsigned int protection() const
+    {
+        return protection_;
+    }
+
+    void protect(unsigned int flag, bool onoff)
+    {
+        if(onoff)
+            protection_ |= flag;
+        else
+            protection_ &= ~flag;
+    }
+
     GeoMap *map() const
     {
         return map_;
@@ -331,6 +344,22 @@ class GeoMap::Dart
     friend class Face; // allow setLeftFaceLabel in Face constructor
     friend GeoMap::Face &GeoMap::mergeFaces(Dart &);
 
+    Dart &turnSigma(int times)
+    {
+        Node::DartLabels &darts(startNode()->darts_);
+        int i = 0;
+        for(; i < (int)darts.size(); ++i)
+            if(darts[i] == label_)
+                break;
+        vigra_precondition(i < (int)darts.size(),
+                           "Dart not attached to its startnode??");
+        i = (i + times) % (int)darts.size();
+        if(i < 0)
+            i += darts.size();
+        label_ = darts[i];
+        return *this;
+    }
+
   public:
     Dart(GeoMap *map, int label)
     : map_(map),
@@ -345,6 +374,11 @@ class GeoMap::Dart
     int label() const
     {
         return label_;
+    }
+
+    GeoMap *map() const
+    {
+        return map_;
     }
 
     CellLabel edgeLabel() const
@@ -395,7 +429,6 @@ class GeoMap::Dart
         else
             return guaranteedEdge()->leftFaceLabel();
     }
-
 
     GeoMap::Edges::value_type edge() const
     {
@@ -464,25 +497,14 @@ class GeoMap::Dart
         return *this;
     }
 
-    Dart &nextSigma(int times = 1)
+    Dart &nextSigma()
     {
-        Node::DartLabels &darts(startNode()->darts_);
-        int i = 0;
-        for(; i < (int)darts.size(); ++i)
-            if(darts[i] == label_)
-                break;
-        vigra_precondition(i < (int)darts.size(),
-                           "Dart not attached to its startnode??");
-        i = (i + times) % (int)darts.size();
-        if(i < 0)
-            i += darts.size();
-        label_ = darts[i];
-        return *this;
+        return turnSigma(1);
     }
 
-    Dart &prevSigma(int times = 1)
+    Dart &prevSigma()
     {
-        return nextSigma(-times);
+        return turnSigma(-1);
     }
 
     Dart &nextPhi()
@@ -503,29 +525,6 @@ class GeoMap::Dart
     bool operator!=(const Dart &other) const
     {
         return label_ != other.label_;
-    }
-
-//         def alphaOrbit(self):
-//             return self._orbit("nextAlpha")
-
-//         def sigmaOrbit(self):
-//             return self._orbit("nextSigma")
-
-//         def phiOrbit(self):
-//             return self._orbit("nextPhi")
-
-//         def _orbit(self, opName):
-//             dart = self.clone()
-//             op = getattr(dart, opName)
-//             while True:
-//                 yield dart.clone()
-//                 op()
-//                 if dart == self:
-//                     break
-
-    GeoMap *map() const
-    {
-        return map_;
     }
 };
 
@@ -1852,6 +1851,7 @@ CELL_PTR(GeoMap::Face) mergeFaces(GeoMap::Dart &dart)
 
 /********************************************************************/
 
+template<GeoMap::Dart &(GeoMap::Dart::*nextMethod)(void)>
 class OrbitIterator
 {
     GeoMap::Dart dart_, end_;
@@ -1872,7 +1872,7 @@ class OrbitIterator
 
     OrbitIterator & operator++()
     {
-        if(dart_.nextPhi() == end_)
+        if((dart_.*nextMethod)() == end_)
             atEnd_ = true;
         return *this;
     }
@@ -1905,10 +1905,26 @@ class OrbitIterator
     }
 };
 
-std::auto_ptr<OrbitIterator>
+typedef OrbitIterator<&GeoMap::Dart::nextPhi> PhiOrbitIterator;
+typedef OrbitIterator<&GeoMap::Dart::nextSigma> SigmaOrbitIterator;
+typedef OrbitIterator<&GeoMap::Dart::nextAlpha> AlphaOrbitIterator;
+
+std::auto_ptr<PhiOrbitIterator>
 phiOrbit(const GeoMap::Dart &dart)
 {
-    return std::auto_ptr<OrbitIterator>(new OrbitIterator(dart));
+    return std::auto_ptr<PhiOrbitIterator>(new PhiOrbitIterator(dart));
+}
+
+std::auto_ptr<SigmaOrbitIterator>
+sigmaOrbit(const GeoMap::Dart &dart)
+{
+    return std::auto_ptr<SigmaOrbitIterator>(new SigmaOrbitIterator(dart));
+}
+
+std::auto_ptr<AlphaOrbitIterator>
+alphaOrbit(const GeoMap::Dart &dart)
+{
+    return std::auto_ptr<AlphaOrbitIterator>(new AlphaOrbitIterator(dart));
 }
 
 template<class Iterator>
@@ -2286,6 +2302,9 @@ void defMap()
             .def("dart", &GeoMap::Edge::dart)
             .def("isBridge", &GeoMap::Edge::isBridge)
             .def("isLoop", &GeoMap::Edge::isLoop)
+            .def("protection", &GeoMap::Edge::protection)
+            .def("protect", &GeoMap::Edge::protect,
+                 (arg("flag"), arg("onoff") = true))
             .def(self == self)
             .def(self != self)
         ;
@@ -2316,6 +2335,8 @@ void defMap()
             .def(init<GeoMap *, int>())
             .def("clone", &GeoMap::Dart::clone)
             .def("label", &GeoMap::Dart::label)
+            .def("map", &GeoMap::Dart::map,
+                 bp::return_value_policy<bp::reference_existing_object>())
             .def("edgeLabel", &GeoMap::Dart::edgeLabel)
             .def("edge", &GeoMap::Dart::edge, crp)
             .def("guaranteedEdge", &GeoMap::Dart::guaranteedEdge, crp)
@@ -2332,17 +2353,23 @@ void defMap()
             .def("__iter__", &GeoMap::Dart::pointIter)
             .def("__len__", &GeoMap::Dart::size)
             .def("nextAlpha", &GeoMap::Dart::nextAlpha, rself)
-            .def("nextSigma", &GeoMap::Dart::nextSigma, (arg("times") = 1), rself)
-            .def("prevSigma", &GeoMap::Dart::prevSigma, (arg("times") = 1), rself)
+            .def("nextSigma", &GeoMap::Dart::nextSigma, rself)
+            .def("prevSigma", &GeoMap::Dart::prevSigma, rself)
             .def("nextPhi", &GeoMap::Dart::nextPhi, rself)
             .def("prevPhi", &GeoMap::Dart::prevPhi, rself)
             .def("phiOrbit", &phiOrbit)
+            .def("sigmaOrbit", &sigmaOrbit)
+            .def("alphaOrbit", &alphaOrbit)
             .def(self == self)
             .def(self != self)
         ;
 
-        RangeIterWrapper<OrbitIterator>("OrbitIterator");
-        register_ptr_to_python< std::auto_ptr<OrbitIterator> >();
+        RangeIterWrapper<PhiOrbitIterator>("PhiOrbitIterator");
+        register_ptr_to_python< std::auto_ptr<PhiOrbitIterator> >();
+        RangeIterWrapper<SigmaOrbitIterator>("SigmaOrbitIterator");
+        register_ptr_to_python< std::auto_ptr<SigmaOrbitIterator> >();
+        RangeIterWrapper<AlphaOrbitIterator>("AlphaOrbitIterator");
+        register_ptr_to_python< std::auto_ptr<AlphaOrbitIterator> >();
 
 #ifndef USE_INSECURE_CELL_PTRS
         register_ptr_to_python< CELL_PTR(GeoMap::Node) >();
