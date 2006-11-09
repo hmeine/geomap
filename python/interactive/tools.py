@@ -47,7 +47,7 @@ class ActivePaintbrush(qt.QObject):
         self.painting = False
         self.currentLabel = None
         self.changed = None
-        s = map.labelImage.size()
+        s = map.imageSize()
         self.mapArea = s.width * s.height
 
         viewer = parent.viewer
@@ -70,11 +70,7 @@ class ActivePaintbrush(qt.QObject):
         if not self.painting: return # comment out to get mouse-over face output
 
         map = self.map
-        if x < 0 or x >= map.labelImage.width() or y < 0 or y >= map.labelImage.height():
-            return
-        otherLabel = int(map.labelImage[(x, y)])
-        if otherLabel < 0:
-            return
+        otherLabel = map.faceAt(Vector2(x, y)).label()
         if otherLabel == 0 and map.face(0).area() < -self.mapArea + 1:
             currentLabel = None
             return
@@ -92,7 +88,7 @@ class ActivePaintbrush(qt.QObject):
             survivor = mergeFacesByLabel(map, self.currentLabel, otherLabel)
             if survivor:
                 self.changed = True
-                self.currentLabel = survivor._label
+                self.currentLabel = survivor.label()
             else:
                 self.currentLabel = otherLabel
         except CancelOperation:
