@@ -299,8 +299,8 @@ class WatershedStatistics(DynamicEdgeStatistics):
                 if edgeLabel < len(flowlines):
                     saddleIndex = flowlines[edgeLabel][3] \
                                   - edge.isSplitResultOf[1] # saddle index offset
-            elif edge._label < len(flowlines): # could be a border edge, too
-                saddleIndex = flowlines[edge._label][3]
+            elif edge.label() < len(flowlines): # could be a border edge, too
+                saddleIndex = flowlines[edge.label()][3]
             
             if saddleIndex >= 0 and saddleIndex < len(edge):
                 edge._passValue = gmSiv[edge[saddleIndex]]
