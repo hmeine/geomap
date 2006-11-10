@@ -58,7 +58,7 @@ def pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0),
     # border edges manually:
     for edge in result.edgeIter():
         if not edge.leftFaceLabel() or not edge.rightFaceLabel():
-            edge.protection |= BORDER_PROTECTION
+            edge.protect(BORDER_PROTECTION)
     return result
 
 def crackEdges2MidCracks(subpixelMap):

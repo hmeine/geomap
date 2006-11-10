@@ -60,7 +60,8 @@ def constrainedDelaunayMap(points, jumpPoints, imageSize,
 
     if boundaryProtection:
         for edge in result.edgeIter():
-            edge.protection |= edge.isContourEdge and boundaryProtection
+            if edge.isContourEdge:
+                edge.protect(boundaryProtection)
 
     return result
 
