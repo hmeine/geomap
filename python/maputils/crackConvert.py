@@ -13,8 +13,8 @@ def crackEdgeMap(labelImage):
     nodes, edges = crackConnections(cc)
     sys.stdout.write("done. (%ss)\n" % (time.clock()-c, ))
 
-    sys.stdout.write("- creating Map...\n")
-    return Map(nodes, edges, labelImage.size())
+    sys.stdout.write("- creating GeoMap...\n")
+    return GeoMap(nodes, edges, labelImage.size())
 
 # --------------------------------------------------------------------
 

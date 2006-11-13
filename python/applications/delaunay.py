@@ -4,7 +4,7 @@ _cvsVersion = "$Id$" \
 
 import math, sys
 from hourglass import Polygon, simplifyPolygon, delaunay
-from map import Map, contourPoly, mergeFaces
+from map import GeoMap, contourPoly, mergeFaces
 from vigra import Vector2
 
 try:
@@ -47,10 +47,10 @@ def constrainedDelaunayMap(points, jumpPoints, imageSize,
               [nodePositions[startEnd[0]], nodePositions[startEnd[1]]])
              for startEnd in edgeData]
 
-    result = Map(nodePositions, edges, imageSize,
-                 performBorderClosing = False,
-                 ssMinDist = None,
-                 skipLabelImage = True)
+    result = GeoMap(nodePositions, edges, imageSize,
+                    performBorderClosing = False,
+                    ssMinDist = None,
+                    skipLabelImage = True)
 
     if not markContour:
         return result
@@ -70,11 +70,11 @@ def fakeConstrainedDelaunayMap(points, jumpPoints, imageSize,
     print "- performing Delaunay Triangulation (%d points)..." % len(points)
     nodePositions, edges, sigma = delaunay(points)
     
-    print "- storing result in a Map..."
-    result = Map(nodePositions, edges, imageSize,
-                 performBorderClosing= False,
-                 sigmaOrbits = sigma,
-                 skipLabelImage = True)
+    print "- storing result in a GeoMap..."
+    result = GeoMap(nodePositions, edges, imageSize,
+                    performBorderClosing= False,
+                    sigmaOrbits = sigma,
+                    skipLabelImage = True)
 
     if not markContour:
         return result
@@ -113,10 +113,10 @@ def delaunayMap(face, imageSize, simplifyEpsilon = None,
                 markContour = True, performCleaning = True):
     """USAGE: dlm = delaunayMap(face, mapSize)
 
-    `face` should be a Map.Face object, and all its contours will be
+    `face` should be a GeoMap.Face object, and all its contours will be
     extracted.  (If a list of points or a Polygon is passed as `face`,
     it is assumed to contain exactly one contour.)  `mapSize` is used
-    to initialize the Map with the resulting edges.
+    to initialize the GeoMap with the resulting edges.
       
     Optional keyword parameters:
 
@@ -191,10 +191,10 @@ def middlePoint(twoPointEdge):
 def catMap(delaunayMap,
            includeTerminalPositions = False,
            joinMiddleThreshold = 1.61):
-    """Extract a CAT (chordal axis transform) from a Map object
+    """Extract a CAT (chordal axis transform) from a GeoMap object
     containing a Delaunay Triangulation.
     Assumes that all edges have only two points and that all finite
-    regions are triangles (such a Map is returned by
+    regions are triangles (such a GeoMap is returned by
     delaunayMap())."""
 
     nodePositions = [None]
@@ -337,8 +337,8 @@ def catMap(delaunayMap,
 
             del triangle.innerDarts
 
-    result = Map(nodePositions, edgeTriples, delaunayMap.imageSize(),
-                 sigmaOrbits = sigmaOrbits)
+    result = GeoMap(nodePositions, edgeTriples, delaunayMap.imageSize(),
+                    sigmaOrbits = sigmaOrbits)
     for edge in result.edgeIter():
         edge.startSide = edgeTriples[edge.label()][3]
         edge.endSide = edgeTriples[edge.label()][4]
