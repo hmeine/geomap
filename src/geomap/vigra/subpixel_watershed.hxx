@@ -1686,7 +1686,7 @@ if(DEBUG) std::cerr << "stop index, x, y " << index << ' ' << curve.back()[0] <<
         return index;
     }
 
-    for(int k=0; k<10000; ++k)
+    for(int k = 0; k < 10000; ++k)
     {
         double xn, yn;
         RungeKuttaResult rungeKuttaResult(
