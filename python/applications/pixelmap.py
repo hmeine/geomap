@@ -2,7 +2,7 @@ from vigra import *
 from hourglass import Polygon
 addPathFromHere('../cellimage')
 from cellimage import GeoMap, CellType
-from map import Map, BORDER_PROTECTION
+from map import GeoMap, BORDER_PROTECTION
 
 __all__ = ["pixelMap2subPixelMap", "crackEdgeMap",
            "crackEdges2MidCracks", "cannyEdgeMap", "pixelWatershedMap"]
@@ -44,16 +44,16 @@ def pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0),
     """pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0), labelImageSize = None)
 
     Uses pixelMapData() to extract the pixel-geomap's geometry and
-    returns a new subpixel-Map object initialized with it.  The
+    returns a new subpixel-GeoMap object initialized with it.  The
     labelImageSize defaults to the (scaled) pixel-based geomap's
     cellImage.size().  See also the documentation of pixelMapData()."""
     
     nodes, edges = pixelMapData(geomap, scale, offset, skipEverySecond)
     if labelImageSize == None:
         labelImageSize = geomap.cellImage.size() * scale
-    result = Map(nodes, edges, labelImageSize,
-                 performBorderClosing = False, performEdgeSplits = False,
-                 ssMinDist = None)
+    result = GeoMap(nodes, edges, labelImageSize,
+                    performEdgeSplits = False,
+                    ssMinDist = None)
     # the border closing was done in C++, so we have to mark the
     # border edges manually:
     for edge in result.edgeIter():
@@ -111,7 +111,7 @@ def cannyEdgeImageThinning(img):
 def cannyEdgeMap(image, scale, thresh):
     """cannyEdgeMap(image, scale, thresh)
 
-    Returns a subpixel-Map object containing thinned canny edges
+    Returns a subpixel-GeoMap object containing thinned canny edges
     obtained from cannyEdgeImage(image, scale, thresh).
     (Internally creates a pixel GeoMap first.)"""
     
@@ -125,7 +125,7 @@ def cannyEdgeMap(image, scale, thresh):
 def crackEdgeMap(labelImage, midCracks = True):
     """crackEdgeMap(labelImage, midCracks = True)
 
-    Returns a subpixel-Map containing crack-edge contours extracted
+    Returns a subpixel-GeoMap containing crack-edge contours extracted
     from the given labelImage.  If the optional parameter 'midCracks'
     is True(default), the resulting edges consist of the connected
     midpoints of the cracks, not of the crack segments themselves."""
@@ -146,7 +146,7 @@ def pixelWatershedMap(biImage, crackEdges = 4, midCracks = True):
     """pixelWatershedMap(biImage, crackEdges = 4, midCracks = True)
 
     Performs a watershed segmentation on biImage and returns a
-    subpixel-Map containing the resulting contours.  The type of
+    subpixel-GeoMap containing the resulting contours.  The type of
     watershed segmentation depends on the 'crackEdges' parameter:
 
     0: 8-connected edges on 4-connected background
