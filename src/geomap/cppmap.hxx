@@ -112,6 +112,8 @@ class GeoMap
     LabelImage            *labelImage_;
     std::vector<CellLabel> faceLabelLUT_;
 
+    bool edgesSorted_;
+
   public:
     GeoMap(bp::list nodePositions,
            bp::list edgeTuples, vigra::Size2D imageSize);
@@ -166,11 +168,19 @@ class GeoMap
     CELL_PTR(Node) addNode(const vigra::Vector2 &position);
     CELL_PTR(Edge) addEdge(CellLabel startNodeLabel, CellLabel endNodeLabel,
                            const Vector2Array &points, CellLabel label = 0);
+
     void sortEdgesDirectly();
     void sortEdgesEventually(double stepDist, double minDist);
-    void initContours();
-    void embedFaces(bool initLabelImage = true);
+    bool edgesSorted() const { return edgesSorted_; }
 
+    void initializeMap(bool initLabelImage = true);
+    bool mapInitialized() const  { return faces_.size() > 0; }
+
+  protected:
+    void initContours();
+    void embedFaces(bool initLabelImage);
+
+  public:
     CELL_PTR(Node) nearestNode(
         const vigra::Vector2 &position,
         double maxSquaredDist = vigra::NumericTraits<double>::max());

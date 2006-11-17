@@ -885,12 +885,11 @@ GeoMap::GeoMap(bp::list nodePositions,
   edgeCount_(0),
   faceCount_(0),
   imageSize_(imageSize),
-  labelImage_(NULL)
+  labelImage_(NULL),
+  edgesSorted_(false)
 {
-    if(len(nodePositions))
-        std::cerr << "initalizing nodes...\n";
-    nodes_.push_back(NULL_PTR(Node));
-    for(int i = 1; i < len(nodePositions); ++i)
+    nodes_.push_back();
+    for(int i = 0; i < len(nodePositions); ++i)
     {
         bp::extract<Vector2> ve(nodePositions[i]);
         if(ve.check())
@@ -899,8 +898,6 @@ GeoMap::GeoMap(bp::list nodePositions,
             nodes_.push_back(NULL_PTR(Node));
     }
 
-    if(len(edgeTuples))
-        std::cerr << "initalizing edges...\n";
     edges_.push_back(NULL_PTR(Edge));
     for(int i = 1; i < len(edgeTuples); ++i)
     {
@@ -908,29 +905,17 @@ GeoMap::GeoMap(bp::list nodePositions,
         if(ete.check())
         {
             bp::tuple edgeTuple(ete());
+            // FIXME: check length of tuple
             bp::extract<Vector2Array> pe(edgeTuple[2]);
             if(!pe.check())
-            {
-                std::cerr << "why, oh why, do I have to die??\n";
                 bp::throw_type_error(
                     "GeoMap.__init__: edge geometry not convertable to Vector2Array");
-            }
             CellLabel startNodeLabel = bp::extract<CellLabel>(edgeTuple[0])();
             CellLabel endNodeLabel   = bp::extract<CellLabel>(edgeTuple[1])();
             addEdge(startNodeLabel, endNodeLabel, pe());
         }
         else
             edges_.push_back(NULL_PTR(Edge));
-    }
-
-    if(edgeCount_)
-    {
-        std::cerr << "initalizing sigma orbits...\n";
-        sortEdgesDirectly();
-        std::cerr << "initalizing contours...\n";
-        initContours();
-        std::cerr << "initalizing faces (" << faceCount() << " contours)...\n";
-        embedFaces();
     }
 }
 
@@ -1026,6 +1011,8 @@ void GeoMap::sortEdgesDirectly()
             dartLabels[i] = dartAngles[i].second;
         }
     }
+
+    edgesSorted_ = true;
 }
 
 class DartPosition
@@ -1248,9 +1235,9 @@ void GeoMap::sortEdgesEventually(double stepDist, double minDist)
 
     for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
     {
-        DartPositionAngles dartPositions;
-
         GeoMap::Node::DartLabels &dartLabels((*it)->darts_);
+
+        DartPositionAngles dartPositions;
 
         for(unsigned int i = 0; i < dartLabels.size(); ++i)
             dartPositions.push_back(
@@ -1261,17 +1248,25 @@ void GeoMap::sortEdgesEventually(double stepDist, double minDist)
                           stepDist2, minAngle);
 
         for(unsigned int i = 0; i < dartLabels.size(); ++i)
-        {
             dartLabels[i] = dartPositions[i].dp.dartLabel();
-        }
     }
+
+    edgesSorted_ = true;
+}
+
+void GeoMap::initializeMap(bool initLabelImage)
+{
+    vigra_precondition(!mapInitialized(),
+                       "initializeMap() called more than once");
+    vigra_precondition(edgesSorted(),
+                       "initializeMap() called without sorting edges first");
+
+    initContours();
+    embedFaces(initLabelImage);
 }
 
 void GeoMap::initContours()
 {
-    vigra_precondition(faces_.size() == 0,
-        "initContours() called when contours were already present");
-
     new Face(this, Dart(this, 0)); // create infinite face, dart will be ignored
 
     for(EdgeIterator it = edgesBegin(); it.inRange(); ++it)
@@ -1524,6 +1519,8 @@ void removeEdgeFromLabelImage(
 
 GeoMap::Edge &GeoMap::mergeEdges(GeoMap::Dart &dart)
 {
+    vigra_precondition(dart.edge(),
+                       "mergeEdges called on removed dart!");
     Dart d1(dart);
     d1.nextSigma();
     vigra_precondition(d1.edgeLabel() != dart.edgeLabel(),
@@ -1646,6 +1643,9 @@ void GeoMap::associatePixels(GeoMap::Face &face, const PixelList &pixels)
 
 GeoMap::Face &GeoMap::removeBridge(GeoMap::Dart &dart)
 {
+    vigra_precondition(dart.edge(),
+                       "removeBridge called on removed dart!");
+
     GeoMap::Edge &edge(*dart.edge());
     GeoMap::Face &face(*dart.leftFace());
     vigra_precondition(face.label() == dart.rightFace()->label(),
@@ -1711,6 +1711,9 @@ GeoMap::Face &GeoMap::removeBridge(GeoMap::Dart &dart)
 
 GeoMap::Face &GeoMap::mergeFaces(GeoMap::Dart &dart)
 {
+    vigra_precondition(dart.edge(),
+                       "mergeFaces called on removed dart!");
+
     GeoMap::Dart removedDart(dart);
 
     if(dart.leftFace()->area() < dart.rightFace()->area())
@@ -2263,8 +2266,9 @@ void defMap()
             .def("sortEdgesDirectly", &GeoMap::sortEdgesDirectly)
             .def("sortEdgesEventually", &GeoMap::sortEdgesEventually,
                  args("stepDist", "minDist"))
-            .def("initContours", &GeoMap::initContours)
-            .def("embedFaces", &GeoMap::embedFaces, (arg("initLabelImage") = true))
+            .def("edgesSorted", &GeoMap::edgesSorted)
+            .def("initializeMap", &GeoMap::initializeMap, (arg("initLabelImage") = true))
+            .def("mapInitialized", &GeoMap::mapInitialized)
             .def("nearestNode", &GeoMap::nearestNode, crp,
                  (arg("position"), arg(
                      "maxSquaredDist") = vigra::NumericTraits<double>::max()))
