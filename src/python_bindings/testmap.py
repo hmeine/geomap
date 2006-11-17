@@ -77,6 +77,13 @@ gm = hourglass.GeoMap(points, [], Size2D(11, 11))
 
 showMapStats(gm)
 
+import mapdisplay
+d = mapdisplay.MapDisplay(gm)
+
+for node in gm.nodeIter():
+    if not node.degree():
+        hourglass.removeIsolatedNode(node) # check MapDisplay callbacks
+
 for i in range(len(points)-1):
     assert gm.node(i+1).position() == points[i+1]
 
