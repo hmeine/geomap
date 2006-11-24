@@ -3,6 +3,7 @@
 #include <vigra/tinyvector.hxx>
 #include <vigra/pythonimage.hxx>
 #include <vigra/pythonutil.hxx>
+#include <vigra/copyimage.hxx>
 #include <iostream>
 #include <algorithm>
 #include <cmath>
@@ -888,7 +889,6 @@ GeoMap::GeoMap(bp::list nodePositions,
   labelImage_(NULL),
   edgesSorted_(false)
 {
-    nodes_.push_back();
     for(int i = 0; i < len(nodePositions); ++i)
     {
         bp::extract<Vector2> ve(nodePositions[i]);
@@ -2225,6 +2225,18 @@ faceContours(const GeoMap::Face &face)
     return ContourRangeIterator(face.contoursBegin(), face.contoursEnd());
 }
 
+boost::python::object
+labelImage(const GeoMap &map)
+{
+    if(!map.hasLabelImage())
+        return boost::python::object();
+    vigra::PythonGrayImage result(map.imageSize());
+    copyImage(srcIterRange(map.labelsUpperLeft(), map.labelsLowerRight(),
+                           map.labelAccessor()),
+              destImage(result));
+    return boost::python::object(result);
+}
+
 void defMap()
 {
     CELL_RETURN_POLICY crp;
@@ -2269,6 +2281,8 @@ void defMap()
             .def("edgesSorted", &GeoMap::edgesSorted)
             .def("initializeMap", &GeoMap::initializeMap, (arg("initLabelImage") = true))
             .def("mapInitialized", &GeoMap::mapInitialized)
+            .def("hasLabelImage", &GeoMap::hasLabelImage)
+            .def("labelImage", &labelImage)
             .def("nearestNode", &GeoMap::nearestNode, crp,
                  (arg("position"), arg(
                      "maxSquaredDist") = vigra::NumericTraits<double>::max()))

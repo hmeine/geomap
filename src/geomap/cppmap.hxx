@@ -93,6 +93,33 @@ class GeoMap
     typedef vigra::FilterIterator<Faces::iterator, NotNull<Faces::value_type> >
         FaceIterator;
 
+    typedef vigra::ConstImageIterator<int> LabelImageIterator;
+    struct LabelImageAccessor {
+        typedef int value_type;
+
+        template<class Iterator>
+        value_type operator()(Iterator it)
+        {
+            return faceLabelLUT_[*it];
+        }
+
+        template<class Iterator>
+        value_type operator()(Iterator it,
+                              typename Iterator::difference_type diff)
+        {
+            return faceLabelLUT_[it[diff]];
+        }
+
+      protected:        
+        friend class GeoMap;
+
+        LabelImageAccessor(std::vector<CellLabel> const &faceLabelLUT)
+        : faceLabelLUT_(faceLabelLUT)
+        {}
+
+        std::vector<CellLabel> const &faceLabelLUT_;
+    };
+
   protected:
     Nodes nodes_;
     Edges edges_;
@@ -175,6 +202,20 @@ class GeoMap
 
     void initializeMap(bool initLabelImage = true);
     bool mapInitialized() const  { return faces_.size() > 0; }
+    bool hasLabelImage() const { return labelImage_; }
+
+    LabelImageIterator labelsUpperLeft() const
+    {
+        return LabelImageIterator(labelImage_->data(), labelImage_->shape(0));
+    }
+    LabelImageIterator labelsLowerRight() const
+    {
+        return labelsUpperLeft() + imageSize_;
+    }
+    LabelImageAccessor labelAccessor() const
+    {
+        return LabelImageAccessor(faceLabelLUT_);
+    }
 
   protected:
     void initContours();
