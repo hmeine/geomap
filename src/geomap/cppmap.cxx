@@ -1258,8 +1258,8 @@ void GeoMap::initializeMap(bool initLabelImage)
 {
     vigra_precondition(!mapInitialized(),
                        "initializeMap() called more than once");
-    vigra_precondition(edgesSorted(),
-                       "initializeMap() called without sorting edges first");
+    if(!edgesSorted())
+        sortEdgesDirectly();
 
     initContours();
     embedFaces(initLabelImage);
