@@ -333,8 +333,7 @@ class MapDisplay(DisplaySettings):
         if hasattr(preparedImage, "imageSize") and hasattr(map, "width"):
             map, preparedImage = preparedImage, map
         elif preparedImage == None:
-            if hasattr(map, "labelImage"):
-                preparedImage = map.labelImage
+            #preparedImage = map.labelImage() # FIXME
             if not preparedImage:
                 preparedImage = GrayImage(map.imageSize())
         
@@ -531,7 +530,7 @@ class MapDisplay(DisplaySettings):
         self.setTool(onoff and 1 or None)
 
     def cleanupMap(self):
-        removeCruft(self.map, 6)
+        removeCruft(self.map, 7)
         mergeZeroPixelFaces(self.map)
 
     def navigate(self, dart):
