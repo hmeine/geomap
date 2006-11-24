@@ -100,14 +100,20 @@ class GeoMap
         template<class Iterator>
         value_type operator()(Iterator it)
         {
-            return faceLabelLUT_[*it];
+            int label = *it;
+            if(label >= 0)
+                label = faceLabelLUT_[label];
+            return label;
         }
 
         template<class Iterator>
         value_type operator()(Iterator it,
                               typename Iterator::difference_type diff)
         {
-            return faceLabelLUT_[it[diff]];
+            int label = it[diff];
+            if(label >= 0)
+                label = faceLabelLUT_[label];
+            return label;
         }
 
       protected:        
