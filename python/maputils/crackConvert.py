@@ -1,4 +1,5 @@
-import copy
+import copy, sys, time
+from map import GeoMap
 
 # --------------------------------------------------------------------
 #                           USAGE EXAMPLE
@@ -14,9 +15,15 @@ def crackEdgeMap(labelImage):
     sys.stdout.write("done. (%ss)\n" % (time.clock()-c, ))
 
     sys.stdout.write("- creating GeoMap...\n")
-    return GeoMap(nodes, edges, labelImage.size())
+    result = GeoMap(nodes, edges, labelImage.size())
+    result.sortEdgesDirectly()
+    result.initializeMap()
+    return result
 
 # --------------------------------------------------------------------
+
+from vigra import GrayImage, Vector2, Point2D, Size2D
+from hourglass import Polygon
 
 CONN_UP = 1
 CONN_DOWN = 2
@@ -129,6 +136,8 @@ def showDegrees(crackConnectionImage):
     return showImage(degreeImage)
 
 # --------------------------------------------------------------------
+
+from vigra import showImage
 
 def displayDiscreteLine(A, B, mu, w = None):
     img = GrayImage(31, 31)
