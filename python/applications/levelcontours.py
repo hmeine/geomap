@@ -220,3 +220,20 @@ def levelEdgesMap(edges, imageSize):
 # ze = ZeroEdges(transformImage(phi, '\l x: x + %s' % level), "direct")
 # ee = ze.edges(False)
 # levelMap = levelEdgesMap(ee, phi.size())
+
+# --------------------------------------------------------------------
+
+from vigra import addPathFromHere
+addPathFromHere("../evaluation/")
+import edgedetectors
+from map import removeCruft
+
+def levelSetMap(image, threshold, sigma = None):
+    ed = edgedetectors.EdgeDetector(
+        bi = "Thresholding", s1 = sigma, nonmax = "zerosSubPixel",
+        threshold = threshold)
+    result, _, _ = ed.computeMap(image)
+    removeCruft(result, 2)
+    return result
+
+__all__ = ["levelSetMap"]
