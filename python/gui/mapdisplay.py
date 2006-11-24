@@ -6,7 +6,6 @@ from vigra import BYTE, NBYTE, Point2D, Rect2D, Vector2, GrayImage
 from vigrapyqt import ImageWindow, EdgeOverlay, PointOverlay
 from hourglass import simplifyPolygon, intPos, BoundingBox
 from map import removeCruft, mergeZeroPixelFaces
-from statistics import faceImage
 from weakref import ref
 
 # ui-generated base classes:
@@ -333,7 +332,7 @@ class MapDisplay(DisplaySettings):
         if hasattr(preparedImage, "imageSize") and hasattr(map, "width"):
             map, preparedImage = preparedImage, map
         elif preparedImage == None:
-            #preparedImage = map.labelImage() # FIXME
+            preparedImage = map.labelImage()
             if not preparedImage:
                 preparedImage = GrayImage(map.imageSize())
         
@@ -432,9 +431,10 @@ class MapDisplay(DisplaySettings):
         elif mode == 2:
             displayImage = self.preparedImage.bi.gm
         elif mode == 3:
-            displayImage = self.map.labelImage
+            displayImage = self.map.labelImage()
         elif mode == 4:
-            displayImage = faceImage(self.map)
+            sys.stderr.write("FIXME: face mean image now needs access to some FaceColorStatistics!\n")
+            return # FIXME
         else:
             sys.stderr.write("Unknown background mode %d!\n" % mode)
             return
