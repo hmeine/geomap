@@ -1,8 +1,9 @@
 import copy, sys, time
-from map import GeoMap
+from hourglass import GeoMap
+from map import connectBorderNodes
 
 # --------------------------------------------------------------------
-#                           USAGE EXAMPLE
+#                              FRONTEND
 # --------------------------------------------------------------------
 
 def crackEdgeMap(labelImage):
@@ -16,10 +17,13 @@ def crackEdgeMap(labelImage):
 
     sys.stdout.write("- creating GeoMap...\n")
     result = GeoMap(nodes, edges, labelImage.size())
+    connectBorderNodes(result, 0.1, aroundPixels = True)
     result.sortEdgesDirectly()
     result.initializeMap()
     return result
 
+# --------------------------------------------------------------------
+# 						   helper functions
 # --------------------------------------------------------------------
 
 from vigra import GrayImage, Vector2, Point2D, Size2D
@@ -134,22 +138,3 @@ def showDegrees(crackConnectionImage):
     for p in crackConnectionImage.size():
         degreeImage[p] = degree[int(crackConnectionImage[p])]
     return showImage(degreeImage)
-
-# --------------------------------------------------------------------
-
-from vigra import showImage
-
-def displayDiscreteLine(A, B, mu, w = None):
-    img = GrayImage(31, 31)
-    if w == None:
-        #w = abs(A) + abs(B)    # four-connected
-        w = max(abs(A), abs(B)) # eight-connected
-    wh, hh = img.width() / 2, img.height() / 2
-    for x, y in img.size():
-        t = A*(x-wh) - B*(y-hh)
-        if mu <= t and t < mu + w:
-            img[x, y] = 6
-        else:
-            if (x >= wh) != (y >= hh):
-                img[x, y] = 1
-    return showImage(img)
