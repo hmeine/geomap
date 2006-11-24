@@ -83,7 +83,7 @@ class FaceIntensityStatistics(DynamicFaceStatistics):
                 if label >= 0:
                     self.map.face(int(label))._faceColor(value)
 
-        inspectImage(map.labelImage, originalImage, MeansInitFunctor(map))
+        inspectImage(map.labelImage(), originalImage, MeansInitFunctor(map))
 
     def preMergeFaces(self, dart):
         self.mergedStats = copy.copy(dart.leftFace()._faceColor)
@@ -116,7 +116,7 @@ class FaceColorStatistics(DynamicFaceStatistics):
                     self.map.face(int(label))._faceMeanCIE_a(value[1])
                     self.map.face(int(label))._faceMeanCIE_b(value[2])
 
-        inspectImage(map.labelImage, cielabImage, MeansInitFunctor(map))
+        inspectImage(map.labelImage(), cielabImage, MeansInitFunctor(map))
 
     def preMergeFaces(self, dart):
         self.mergedStats_L = copy.copy(dart.leftFace()._faceMeanCIE_L)
@@ -157,7 +157,7 @@ class FaceColorHistogram(DynamicFaceStatistics):
                     self.map.face(int(label))._colorHistogram.addValue(list(value))
                     self.map.face(int(label))._colorHistogram2.addValue(list(value)[1:])
 
-        inspectImage(map.labelImage, image, HistInitFunctor(map))
+        inspectImage(map.labelImage(), image, HistInitFunctor(map))
 
         for face in map.faceIter():
             face._colorHistogram.gaussianSmoothing(2.2)
@@ -197,7 +197,7 @@ def faceImage(map):
             return self.default
 
     mlf = MeanLookupFunctor(map)
-    return transformImage(map.labelImage, mlf)
+    return transformImage(map.labelImage(), mlf)
 
 def faceMeanDiff(dart):
     return abs(dart.leftFace()._faceColor.average() -
