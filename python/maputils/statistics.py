@@ -8,11 +8,16 @@ from hourglass import PositionedMap, EdgeStatistics, \
      spatialStabilityImage, tangentList
 from map import arcLengthIter
 
+class DetachableStatistics(object):
+    def detachHooks(self):
+        for cb in self._attachedHooks:
+            cb.disconnect()
+
 # --------------------------------------------------------------------
 #              Region-based Statistics & Cost Measures
 # --------------------------------------------------------------------
 
-class FaceStatistics(object):
+class FaceMeanFunctor(object):
     def __init__(self, defaultValue):
         self.pixelCount = None
         self.defaultValue = defaultValue
@@ -53,91 +58,75 @@ class FaceStatistics(object):
             self.sum = otherStats.sum
             self.sum2 = otherStats.sum2
 
-class DetachableStatistics(object):
-    def detachHooks(self):
-        for cb in self._attachedHooks:
-            cb.disconnect()
-
 class DynamicFaceStatistics(DetachableStatistics):
     def __init__(self, map):
         self._attachedHooks = (
             map.addMergeFacesCallbacks(self.preMergeFaces, self.postMergeFaces),
             map.addAssociatePixelsCallback(self.associatePixels))
 
-class FaceIntensityStatistics(DynamicFaceStatistics):
+# new API: does not touch the Face objects themselves
+class FaceColorStatistics(DynamicFaceStatistics):
     def __init__(self, map, originalImage, defaultValue = None):
         DynamicFaceStatistics.__init__(self, map)
         self.originalImage = originalImage
+        self.map = ref(map)
 
         if defaultValue == None:
-            defaultValue = originalImage[0,0]
+            defaultValue = originalImage[0, 0]
 
+        self._functors = [None] * map.maxFaceLabel()
         for face in map.faceIter():
-            face._faceColor = FaceStatistics(defaultValue)
+            self._functors[face.label()] = FaceMeanFunctor(defaultValue)
 
         class MeansInitFunctor(object):
-            def __init__(self, map):
-                self.map = map
+            def __init__(self, functors):
+                self._functors = functors
 
             def __call__(self, label, value):
                 if label >= 0:
-                    self.map.face(int(label))._faceColor(value)
+                    self._functors[int(label)](value)
 
-        inspectImage(map.labelImage(), originalImage, MeansInitFunctor(map))
+        inspectImage(map.labelImage(), originalImage,
+                     MeansInitFunctor(self._functors))
+
+    def bands(self):
+        return self.originalImage.bands()
+
+    def faceMeanFunctor(self, index):
+        return self._functors[index]
+
+    def __getitem__(self, index):
+        return self._functors[index].average()
 
     def preMergeFaces(self, dart):
-        self.mergedStats = copy.copy(dart.leftFace()._faceColor)
-        self.mergedStats.merge(dart.rightFace()._faceColor)
+        self.mergedStats = copy.copy(self._functors[dart.leftFaceLabel()])
+        self.mergedStats.merge(self._functors[dart.rightFaceLabel()])
         return True
 
     def postMergeFaces(self, survivor):
-        survivor._faceColor = self.mergedStats
+        self._functors[survivor.label()] = self.mergedStats
 
     def associatePixels(self, face, positions):
+        functor = self._functors[face.label()]
         for pos in positions:
-            face._faceColor(self.originalImage[pos])
+            functor(self.originalImage[pos])
 
-class FaceColorStatistics(DynamicFaceStatistics):
-    def __init__(self, map, cielabImage):
-        DynamicFaceStatistics.__init__(self, map)
-        self.cielabImage = cielabImage
-        for face in map.faceIter():
-            face._faceMeanCIE_L = FaceStatistics(0.0) # FIXME: one property
-            face._faceMeanCIE_a = FaceStatistics(0.0)
-            face._faceMeanCIE_b = FaceStatistics(0.0)
+    def regionImage(self):
+        class MeanLookupFunctor(object):
+            def __init__(self, faceColorStatistics, default):
+                self._fis = faceColorStatistics
+                self._default = default
 
-        class MeansInitFunctor(object):
-            def __init__(self, map):
-                self.map = map
-
-            def __call__(self, label, value):
+            def __call__(self, label):
                 if label >= 0:
-                    self.map.face(int(label))._faceMeanCIE_L(value[0])
-                    self.map.face(int(label))._faceMeanCIE_a(value[1])
-                    self.map.face(int(label))._faceMeanCIE_b(value[2])
+                    return self._fis[int(label)]
+                return self._default
 
-        inspectImage(map.labelImage(), cielabImage, MeansInitFunctor(map))
+        zeroPixel = Pixel(*((0.0, )*self.bands()))
+        mlf = MeanLookupFunctor(self, zeroPixel)
+        return transformImage(self.map().labelImage(), mlf)
 
-    def preMergeFaces(self, dart):
-        self.mergedStats_L = copy.copy(dart.leftFace()._faceMeanCIE_L)
-        self.mergedStats_L.merge(dart.rightFace()._faceMeanCIE_L)
-        self.mergedStats_a = copy.copy(dart.leftFace()._faceMeanCIE_a)
-        self.mergedStats_a.merge(dart.rightFace()._faceMeanCIE_a)
-        self.mergedStats_b = copy.copy(dart.leftFace()._faceMeanCIE_b)
-        self.mergedStats_b.merge(dart.rightFace()._faceMeanCIE_b)
-        return True
-
-    def postMergeFaces(self, survivor):
-        survivor._faceMeanCIE_L = self.mergedStats_L
-        survivor._faceMeanCIE_a = self.mergedStats_a
-        survivor._faceMeanCIE_b = self.mergedStats_b
-
-    def associatePixels(self, face, positions):
-        for pos in positions:
-            face._faceMeanCIE_L(self.cielabImage[pos][0])
-            face._faceMeanCIE_a(self.cielabImage[pos][1])
-            face._faceMeanCIE_b(self.cielabImage[pos][2])
-
+# FIXME: still old API (see FaceColorStatistics)
 class FaceColorHistogram(DynamicFaceStatistics):
     def __init__(self, map, image):
         DynamicFaceStatistics.__init__(self, map)
@@ -179,26 +168,6 @@ class FaceColorHistogram(DynamicFaceStatistics):
             face._colorHistogram.addValue(list(self.image[pos]))
             face._colorHistogram2.addValue(list(self.image[pos])[1:])
 
-def faceImage(map):
-    class MeanLookupFunctor(object):
-        def __init__(self, map):
-            self.map = map
-            fi = map.faceIter()
-            fi.next() # skip region 0
-            self.hasColor = type(fi.next()._faceColor.average()) != float
-            if not self.hasColor:
-                self.default = Pixel(0.0)
-            else:
-                self.default = Pixel(0, 0, 0)
-
-        def __call__(self, label):
-            if label >= 0:
-                return self.map.face(int(label))._faceColor.average()
-            return self.default
-
-    mlf = MeanLookupFunctor(map)
-    return transformImage(map.labelImage(), mlf)
-
 def faceMeanDiff(dart):
     return abs(dart.leftFace()._faceColor.average() -
                dart.rightFace()._faceColor.average())/255
@@ -216,8 +185,6 @@ def vecNorm(vec):
     return math.sqrt(dot(vec,vec))
 
 def faceMeanCDiff(dart):
-    if not dart.leftFaceLabel() or not dart.rightFaceLabel():
-        return 10000
     return vecNorm(dart.leftFace()._faceColor.average() -
                    dart.rightFace()._faceColor.average())/441.7
 
