@@ -1,8 +1,9 @@
 from vigra import *
 from hourglass import Polygon
 addPathFromHere('../cellimage')
-from cellimage import GeoMap, CellType
-from map import GeoMap, BORDER_PROTECTION
+import cellimage
+from cellimage import CellType
+import map as spmap
 
 __all__ = ["pixelMap2subPixelMap", "crackEdgeMap",
            "crackEdges2MidCracks", "cannyEdgeMap", "pixelWatershedMap"]
@@ -51,14 +52,14 @@ def pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0),
     nodes, edges = pixelMapData(geomap, scale, offset, skipEverySecond)
     if labelImageSize == None:
         labelImageSize = geomap.cellImage.size() * scale
-    result = GeoMap(nodes, edges, labelImageSize,
-                    performEdgeSplits = False,
-                    ssMinDist = None)
+    result = spmap.GeoMap(nodes, edges, labelImageSize)
+    result.sortEdgesDirectly()
+    result.initializeMap()
     # the border closing was done in C++, so we have to mark the
     # border edges manually:
     for edge in result.edgeIter():
         if not edge.leftFaceLabel() or not edge.rightFaceLabel():
-            edge.protect(BORDER_PROTECTION)
+            edge.protect(spmap.BORDER_PROTECTION)
     return result
 
 def crackEdges2MidCracks(subpixelMap):
@@ -117,7 +118,7 @@ def cannyEdgeMap(image, scale, thresh):
     
     edgeImage = cannyEdgeImage(image, scale, thresh)
     edgeImage = cannyEdgeImageThinning(edgeImage)
-    geomap = GeoMap(edgeImage, 0, CellType.Line)
+    geomap = cellimage.GeoMap(edgeImage, 0, CellType.Line)
     spmap = pixelMap2subPixelMap(
         geomap, offset = Vector2(1,1), labelImageSize = image.size())
     return spmap
@@ -132,7 +133,7 @@ def crackEdgeMap(labelImage, midCracks = True):
 
     print "- creating pixel-based GeoMap..."
     ce = regionImageToCrackEdgeImage(transformImage(labelImage, "\l x:x+1"), 0)
-    geomap = GeoMap(ce, 0, CellType.Line)
+    geomap = cellimage.GeoMap(ce, 0, CellType.Line)
 
     print "- converting pixel-based GeoMap..."
     result = pixelMap2subPixelMap(
@@ -167,7 +168,7 @@ def pixelWatershedMap(biImage, crackEdges = 4, midCracks = True):
     lab, count = watershedSegmentation(biImage, KeepContours)
 
     print "- creating pixel-based GeoMap..."
-    geomap = GeoMap(lab, 0, CellType.Vertex)
+    geomap = cellimage.GeoMap(lab, 0, CellType.Vertex)
 
     print "- converting pixel-based GeoMap..."
     return pixelMap2subPixelMap(
