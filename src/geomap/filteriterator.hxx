@@ -33,6 +33,7 @@ namespace vigra {
 template<class Iterator, class Predicate>
 class FilterIterator
 {
+  protected:
     Iterator iter_, end_;
     Predicate predicate_;
 
@@ -55,22 +56,17 @@ public:
 
     typedef Iterator adaptee;
 
-    FilterIterator()
-    {}
-
     FilterIterator(Iterator begin, Iterator end,
                    Predicate predicate = Predicate())
         : iter_(begin), end_(end), predicate_(predicate)
     {
-        if((iter_ != end_) && !predicate_(*iter_))
-            operator++();
+        checkPredicate();
     }
 
     FilterIterator & operator++()
     {
         ++iter_;
-        while((iter_ != end_) && !predicate_(*iter_))
-            ++iter_;
+        checkPredicate();
         return *this;
     }
 
@@ -127,6 +123,56 @@ public:
     {
         return &(operator*());
     }
+
+    inline void checkPredicate()
+    {
+        while((iter_ != end_) && !predicate_(*iter_))
+            ++iter_;
+    }
+};
+
+/**
+ * More "safe" version of FilterIterator: Checks predicate also before
+ * dereferencing or when checking atEnd/inRange.  The downside is that
+ * these operations are not const anymore, since they may move the
+ * iterator (conceptually, this is wrong so I should probably have
+ * made iter_ mutable).
+ */
+template<class Iterator, class Predicate>
+class SafeFilterIterator
+: public FilterIterator<Iterator, Predicate>
+{
+public:
+    typedef FilterIterator<Iterator, Predicate> Base;
+
+    SafeFilterIterator(Iterator begin, Iterator end,
+                       Predicate predicate = Predicate())
+    : Base(begin, end, predicate)
+    {}
+
+    typename Base::reference operator*()
+    {
+        checkPredicate();
+        return *iter_;
+    }
+
+    typename Base::pointer operator->()
+    {
+        checkPredicate();
+        return &(operator*());
+    }
+
+	bool atEnd()
+	{
+        checkPredicate();
+		return Base::atEnd();
+	}
+
+	bool inRange()
+	{
+        checkPredicate();
+		return Base::inRange();
+	}
 };
 
 /** \addtogroup ImageIteratorAdapters
