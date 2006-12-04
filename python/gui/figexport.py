@@ -323,12 +323,16 @@ class FigExporter:
     def addMapEdges(self, map, returnEdges = False, **attr):
         """fe.addMapEdges(map, ...)
 
-        Adds and returns fig.Polygons for all map edges (or -parts, see
-        addClippedPoly)."""
+        Adds and returns fig.Polygons for all map edges (or -parts,
+        see addClippedPoly).  If no penColor is given, only edges with
+        a valid 'color' attribute are exported (can be either a fig or
+        a Qt color)."""
         
         result = []
         for edge in map.edgeIter():
-            if not attr.has_key("penColor") and hasattr(edge, "color"):
+            if attr.has_key("penColor"):
+                parts = self.addClippedPoly(edge, **attr)
+            elif hasattr(edge, "color") and edge.color:
                 penColor = edge.color
                 if type(penColor) == qt.QColor:
                     penColor = qtColor2figColor(penColor, self.f)
@@ -336,7 +340,7 @@ class FigExporter:
                 thisattr["penColor"] = penColor
                 parts = self.addClippedPoly(edge, **thisattr)
             else:
-                parts = self.addClippedPoly(edge, **attr)
+                continue # skip invisible edge
             if returnEdges:
                 result.extend([(edge, part) for part in parts])
             else:
