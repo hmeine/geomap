@@ -50,7 +50,7 @@ typedef vigra::TinyVector<double, 2>       Vector2;
 typedef vigra::PointArray<Vector2>         Vector2Array;
 typedef vigra::BBoxPolygon<vigra::Vector2> Polygon;
 
-typedef std::vector<vigra::Point2D> PixelList;
+typedef vigra::PointArray<vigra::Point2D> PixelList;
 
 // "accumulator" for libsigc++, which calls pre-operation
 // callbacks in order but cancels whenever a callback returns false
@@ -86,11 +86,11 @@ class GeoMap
     typedef std::vector< CELL_PTR(Edge) > Edges;
     typedef std::vector< CELL_PTR(Face) > Faces;
 
-    typedef vigra::FilterIterator<Nodes::iterator, NotNull<Nodes::value_type> >
+    typedef vigra::SafeFilterIterator<Nodes::iterator, NotNull<Nodes::value_type> >
         NodeIterator;
-    typedef vigra::FilterIterator<Edges::iterator, NotNull<Edges::value_type> >
+    typedef vigra::SafeFilterIterator<Edges::iterator, NotNull<Edges::value_type> >
         EdgeIterator;
-    typedef vigra::FilterIterator<Faces::iterator, NotNull<Faces::value_type> >
+    typedef vigra::SafeFilterIterator<Faces::iterator, NotNull<Faces::value_type> >
         FaceIterator;
 
     typedef vigra::ConstImageIterator<int> LabelImageIterator;
