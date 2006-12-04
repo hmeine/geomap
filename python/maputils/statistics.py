@@ -60,7 +60,7 @@ class FaceMeanFunctor(object):
             self.sum2 = otherStats.sum2
 
 class DynamicFaceStatistics(DetachableStatistics):
-    def __init__(self, map):
+    def attach(self, map):
         self._attachedHooks = (
             map.addMergeFacesCallbacks(self.preMergeFaces, self.postMergeFaces),
             map.addAssociatePixelsCallback(self.associatePixels))
@@ -72,7 +72,6 @@ class FaceColorStatistics(DynamicFaceStatistics):
     def __init__(self, map, originalImage,
                  defaultValue = None, minSampleCount = 1,
                  SIV = SplineImageView5):
-        DynamicFaceStatistics.__init__(self, map)
         self.originalImage = originalImage
         self.map = ref(map)
 
@@ -107,6 +106,7 @@ class FaceColorStatistics(DynamicFaceStatistics):
                 while self._functors[face.label()].pixelCount < minSampleCount and level < 32:
                     level *= 2
                     self.superSample(face, level)
+        self.attach(map)
 
     def bands(self):
         return self.originalImage.bands()
@@ -181,7 +181,6 @@ class FaceColorStatistics(DynamicFaceStatistics):
 # FIXME: still old API (see FaceColorStatistics)
 class FaceColorHistogram(DynamicFaceStatistics):
     def __init__(self, map, image):
-        DynamicFaceStatistics.__init__(self, map)
         self.image = image
         for face in map.faceIter():
             face._colorHistogram = MultiHistogram3()
@@ -203,6 +202,7 @@ class FaceColorHistogram(DynamicFaceStatistics):
         for face in map.faceIter():
             face._colorHistogram.gaussianSmoothing(2.2)
             face._colorHistogram2.gaussianSmoothing(2.2)
+        self.attach(map)
 
     def preMergeFaces(self, dart):
         self.mergedHist = dart.leftFace()._colorHistogram
@@ -301,7 +301,7 @@ def faceHist2Diff(dart):
 # --------------------------------------------------------------------
 
 class DynamicEdgeStatistics(DetachableStatistics):
-    def __init__(self, map):
+    def attach(self, map):
         self._attachedHooks = (map.addMergeEdgesCallbacks(
             self.preMergeEdges, self.postMergeEdges), )
 
@@ -310,8 +310,8 @@ class EdgeMergeTree(DynamicEdgeStatistics):
     that have been merged into each edge."""
     
     def __init__(self, map):
-        statistics.DynamicEdgeStatistics.__init__(self, map)
         self._tree = range(map.maxEdgeLabel())
+        self.attach(map)
     
     def preMergeEdges(self, dart):
         self._merged = dart.clone().nextSigma().edgeLabel()
@@ -342,7 +342,6 @@ class EdgeMergeTree(DynamicEdgeStatistics):
 
 class WatershedStatistics(DynamicEdgeStatistics):
     def __init__(self, map, flowlines, gmSiv):
-        DynamicEdgeStatistics.__init__(self, map)
         for edge in map.edgeIter():
             edge._passValue = None
             edge._saddles = []
@@ -361,6 +360,7 @@ class WatershedStatistics(DynamicEdgeStatistics):
                 edge._saddles.append(saddleIndex)
             else:
                 edge._passValue = min(gmSiv[edge[0]], gmSiv[edge[-1]])
+        self.attach(map)
 
     def preMergeEdges(self, dart):
         edge1 = dart.edge()
@@ -380,7 +380,6 @@ def _makeAttrName(someStr):
 
 class BoundaryIndicatorStatistics(DynamicEdgeStatistics):
     def __init__(self, map, attrName):
-        DynamicEdgeStatistics.__init__(self, map)
         self.attrName = _makeAttrName(attrName)
 
     def preMergeEdges(self, dart):
@@ -397,6 +396,7 @@ class EdgeGradientStatistics(BoundaryIndicatorStatistics):
         BoundaryIndicatorStatistics.__init__(self, map, "mag_" + bi.name)
         for edge in map.edgeIter():
             setattr(edge, self.attrName, EdgeStatistics(edge, bi.gm.siv))
+        self.attach(map)
 
 # USAGE:
 # >>> boundaryIndicator = ...
@@ -442,6 +442,8 @@ class EdgeGradDirDotStatistics(BoundaryIndicatorStatistics):
 
             setattr(edge, self.attrName, stats)
 
+        self.attach(map)
+
 def calcGradAngDisp(grad,n):
     ki = GrayImage(2*n+1,2*n+1)
     for x in range(0,ki.width()):
@@ -465,10 +467,10 @@ class EdgeGradAngDispStatistics(BoundaryIndicatorStatistics):
         gad.siv = eval("SplineImageView%d(gad)" % (splineOrder, ))
         for edge in map.edgeIter():
             setattr(edge, self.attrName, EdgeStatistics(edge, gad.siv))
+        self.attach(map)
 
 class EdgeMinimumDistance(DynamicEdgeStatistics):
     def __init__(self, map, minima):
-        DynamicEdgeStatistics.__init__(self, map)
         self.attrName = "minDist"
         minimaMap = PositionedMap()
         for min in minima:
@@ -480,6 +482,7 @@ class EdgeMinimumDistance(DynamicEdgeStatistics):
                 if near:
                     mindist2 = (near-p).squaredMagnitude()
             setattr(edge, self.attrName, math.sqrt(mindist2))
+        self.attach(map)
 
     def preMergeEdges(self, dart):
         self.mergedStats = min(getattr(dart.edge(), self.attrName),
@@ -516,6 +519,7 @@ class EdgeGradScaleSum(BoundaryIndicatorStatistics):
         gms.siv=eval("SplineImageView%d(gms)" % (splineOrder, ))
         for edge in map.edgeIter():
             setattr(edge, self.attrName, EdgeStatistics(edge, gms.siv))
+        self.attach(map)
 
 class EdgeSpatialStability(BoundaryIndicatorStatistics):
     def __init__(self, map, image, radius, propexp, splineOrder):
@@ -524,6 +528,7 @@ class EdgeSpatialStability(BoundaryIndicatorStatistics):
         ss.siv = eval("SplineImageView%d(ss)" % (splineOrder, ))
         for edge in map.edgeIter():
             setattr(edge, self.attrName, EdgeStatistics(edge, ss.siv))
+        self.attach(map)
 
 def calcGradProd(image, sigma1, sigma2):
     ggv1 = gaussianGradientAsVector(image,sigma1)
@@ -552,6 +557,7 @@ class EdgeGradProd(BoundaryIndicatorStatistics):
         gp.siv = eval("SplineImageView%d(gp)" % (splineOrder, ))
         for edge in map.edgeIter():
             setattr(edge, self.attrName, EdgeStatistics(edge, gp.siv))
+        self.attach(map)
 
 class EdgeColGradProd(BoundaryIndicatorStatistics):
     def __init__(self, map, image, sigma1, sigma2, splineOrder):
@@ -560,6 +566,7 @@ class EdgeColGradProd(BoundaryIndicatorStatistics):
         cgp.siv = eval("SplineImageView%d(cgp)" % (splineOrder, ))
         for edge in map.edgeIter():
             setattr(edge, self.attrName, EdgeStatistics(edge, cgp.siv))
+        self.attach(map)
 
 def calcBTPhaseImage(image,scale):
     filterImage=getBTFilterResponses(image,scale)
@@ -571,7 +578,6 @@ def calcBTPhaseImage(image,scale):
 
 class EdgePhase(DynamicEdgeStatistics):
     def __init__(self, map, image, scaleList, splineOrder):
-        DynamicEdgeStatistics.__init__(self, map)
         self.scaleList=scaleList
         self.attrNames=[]
         for s in scaleList:
@@ -591,6 +597,7 @@ class EdgePhase(DynamicEdgeStatistics):
             for i in range(len(scaleList)):
                 setattr(edge, self.attrNames[i], EdgeStatistics(edge,phaseSivs[i]))
             edge.phaseDiffSum = EdgeStatistics(edge,phaseDiffSumSiv)
+        self.attach(map)
 
     def preMergeEdges(self, dart):
         self.mergedStats=[]
@@ -839,9 +846,9 @@ class EdgeTangents(DynamicEdgeStatistics):
         """Either make sure to call calculateTangentLists() or one of
         its friends on the map by hand, or pass parameters like this:
         et = EdgeTangents(someMap, 4)"""
-        DynamicEdgeStatistics.__init__(self, map)
         if args:
             calculateTangentLists(map, *args)
+        self.attach(map)
 
     def preMergeEdges(self, dart):
         import dartpath # prevent cyclic import
