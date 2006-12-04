@@ -6,6 +6,7 @@ from weakref import ref
 from vigra import *
 from hourglass import PositionedMap, EdgeStatistics, \
      spatialStabilityImage, tangentList
+import sivtools
 from map import arcLengthIter
 
 class DetachableStatistics(object):
@@ -64,19 +65,27 @@ class DynamicFaceStatistics(DetachableStatistics):
             map.addMergeFacesCallbacks(self.preMergeFaces, self.postMergeFaces),
             map.addAssociatePixelsCallback(self.associatePixels))
 
+from Numeric import arange
+
 # new API: does not touch the Face objects themselves
 class FaceColorStatistics(DynamicFaceStatistics):
-    def __init__(self, map, originalImage, defaultValue = None):
+    def __init__(self, map, originalImage,
+                 defaultValue = None, minSampleCount = 1,
+                 SIV = SplineImageView5):
         DynamicFaceStatistics.__init__(self, map)
         self.originalImage = originalImage
         self.map = ref(map)
 
         if defaultValue == None:
+            # initialize zero Vector of appropriate size:
             defaultValue = originalImage[0, 0]
+            for i in range(originalImage.bands()):
+                defaultValue[i] = 0.0
 
         self._functors = [None] * map.maxFaceLabel()
         for face in map.faceIter():
             self._functors[face.label()] = FaceMeanFunctor(defaultValue)
+        self._defaultValue = defaultValue
 
         class MeansInitFunctor(object):
             def __init__(self, functors):
@@ -89,6 +98,16 @@ class FaceColorStatistics(DynamicFaceStatistics):
         inspectImage(map.labelImage(), originalImage,
                      MeansInitFunctor(self._functors))
 
+        self._SIV = SIV # class
+        self._origSIV = None # instance, lazily-initialized usingf self._SIV
+        self._superSampled = [0] * map.maxFaceLabel()
+        if minSampleCount:
+            for face in map.faceIter(skipInfinite = True):
+                level = 1
+                while self._functors[face.label()].pixelCount < minSampleCount and level < 32:
+                    level *= 2
+                    self.superSample(face, level)
+
     def bands(self):
         return self.originalImage.bands()
 
@@ -98,9 +117,40 @@ class FaceColorStatistics(DynamicFaceStatistics):
     def __getitem__(self, index):
         return self._functors[index].average()
 
+    def superSample(self, face, level = 2):
+        if not self._origSIV:
+            if self.bands() == 3:
+                self._origSIV = sivtools.ThreeBandSIVProxy(self.originalImage, self._SIV)
+            else:
+                self._origSIV = self._SIV(self.originalImage)
+        bbox = face.boundingBox()
+        xRange = arange(bbox.begin()[0], bbox.end()[0], 1.0/level)
+        for y in arange(bbox.begin()[1], bbox.end()[1], 1.0/level):
+            for x in xRange:
+                if face.contains(Vector2(x, y)):
+                    self._functors[face.label()](self._origSIV[Vector2(x, y)])
+        self._superSampled[face.label()] = level
+
     def preMergeFaces(self, dart):
-        self.mergedStats = copy.copy(self._functors[dart.leftFaceLabel()])
-        self.mergedStats.merge(self._functors[dart.rightFaceLabel()])
+        ssLeft = self._superSampled[dart.leftFaceLabel()]
+        ssRight = self._superSampled[dart.rightFaceLabel()]
+        self.ssMerged = 0 # hopefully, the merged face has no supersampling
+        if ssLeft and (ssLeft == ssRight):
+            self.ssMerged = ssLeft
+            ssLeft, ssRight = 0, 0 # can be merged
+        if ssLeft and ssRight:
+            if ssLeft < ssRight:
+                self.ssMerged = ssLeft
+                ssLeft = 0 # take stats from face with less supersampling
+            else:
+                self.ssMerged = ssRight
+                ssRight = 0
+        if not ssLeft:
+            self.mergedStats = copy.copy(self._functors[dart.leftFaceLabel()])
+        else:
+            self.mergedStats = FaceMeanFunctor(self._defaultValue)
+        if not ssRight:
+            self.mergedStats.merge(self._functors[dart.rightFaceLabel()])
         return True
 
     def postMergeFaces(self, survivor):
@@ -111,7 +161,7 @@ class FaceColorStatistics(DynamicFaceStatistics):
         for pos in positions:
             functor(self.originalImage[pos])
 
-    def regionImage(self):
+    def regionImage(self, labelImage = None):
         class MeanLookupFunctor(object):
             def __init__(self, faceColorStatistics, default):
                 self._fis = faceColorStatistics
@@ -122,9 +172,11 @@ class FaceColorStatistics(DynamicFaceStatistics):
                     return self._fis[int(label)]
                 return self._default
 
+        if not labelImage:
+            labelImage = self.map().labelImage()
         zeroPixel = Pixel(*((0.0, )*self.bands()))
         mlf = MeanLookupFunctor(self, zeroPixel)
-        return transformImage(self.map().labelImage(), mlf)
+        return transformImage(labelImage, mlf)
 
 # FIXME: still old API (see FaceColorStatistics)
 class FaceColorHistogram(DynamicFaceStatistics):
@@ -252,6 +304,41 @@ class DynamicEdgeStatistics(DetachableStatistics):
     def __init__(self, map):
         self._attachedHooks = (map.addMergeEdgesCallbacks(
             self.preMergeEdges, self.postMergeEdges), )
+
+class EdgeMergeTree(DynamicEdgeStatistics):
+    """Actually, this is not a tree but it manages a list of edges
+    that have been merged into each edge."""
+    
+    def __init__(self, map):
+        statistics.DynamicEdgeStatistics.__init__(self, map)
+        self._tree = range(map.maxEdgeLabel())
+    
+    def preMergeEdges(self, dart):
+        self._merged = dart.clone().nextSigma().edgeLabel()
+        return True
+    
+    def postMergeEdges(self, survivor):
+        label = survivor.label()
+        while True: # search list end
+            merged = self._tree[label]
+            if merged == label:
+                break
+            label = merged
+        self._tree[label] = self._merged # concatenate lists
+    
+    def __call__(self, edge):
+        """Returns list of all edges of original map of which the
+        given edge of the current map is composed."""
+        if hasattr(edge, "label"):
+            edge = edge.label()
+        result = [edge]
+        while True:
+            merged = self._tree[edge]
+            if merged == edge:
+                break
+            result.append(merged)
+            edge = merged
+        return result
 
 class WatershedStatistics(DynamicEdgeStatistics):
     def __init__(self, map, flowlines, gmSiv):
