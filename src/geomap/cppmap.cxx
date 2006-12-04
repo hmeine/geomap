@@ -817,6 +817,14 @@ class GeoMap::Face
         return anchors_.end();
     }
 
+    ContourIterator holesBegin() const
+    {
+        ContourIterator result(anchors_.begin());
+        if(label())
+            ++result;
+        return result;
+    }
+
     void embedContour(const Dart &anchor)
     {
         anchors_.push_back(anchor);
@@ -1429,11 +1437,30 @@ bool GeoMap::checkConsistency()
     }
     for(FaceIterator it = facesBegin(); it.inRange(); ++it)
     {
-        if((*it)->map() != this)
+        GeoMap::Face &face(**it);
+        if(face.map() != this)
         {
-            std::cerr << "  Face " << (*it)->label() << " has wrong map()!\n";
+            std::cerr << "  Face " << face.label() << " has wrong map()!\n";
             result = false;
             break;
+        }
+
+        for(GeoMap::Face::ContourIterator ci = face.contoursBegin();
+            ci != face.contoursEnd(); ++ci)
+        {
+            Dart anchor(*ci), dart(anchor);
+            do
+            {
+                if(dart.leftFaceLabel() != face.label())
+                {
+                    std::cerr << "  Dart " << dart.label()
+                              << " has leftFaceLabel() " << dart.leftFaceLabel()
+                              << " != " << face.label() << "!\n";
+                    result = false;
+                    break;
+                }
+            }
+            while(dart.nextPhi() != anchor);
         }
     }
     return result;
@@ -2217,12 +2244,26 @@ addAssociatePixelsCallback(GeoMap *geomap,
 
 using namespace boost::python;
 
+GeoMap::FaceIterator faceIter(GeoMap &geomap, bool skipInfinite)
+{
+    GeoMap::FaceIterator result(geomap.facesBegin());
+    if(skipInfinite)
+        ++result;
+    return result;
+}
+
 typedef RangeIterAdapter<GeoMap::Face::ContourIterator> ContourRangeIterator;
 
 ContourRangeIterator
 faceContours(const GeoMap::Face &face)
 {
     return ContourRangeIterator(face.contoursBegin(), face.contoursEnd());
+}
+
+ContourRangeIterator
+faceHoleContours(const GeoMap::Face &face)
+{
+    return ContourRangeIterator(face.holesBegin(), face.contoursEnd());
 }
 
 boost::python::object
@@ -2235,6 +2276,35 @@ labelImage(const GeoMap &map)
                            map.labelAccessor()),
               destImage(result));
     return boost::python::object(result);
+}
+
+std::string Node__repr__(GeoMap::Node const &node)
+{
+    std::stringstream s;
+    s.precision(3);
+    s << "<GeoMap.Node " << node.label() << " at " << node.position()
+      << ", degree " << node.degree() << ">";
+    return s.str();
+}
+
+std::string Edge__repr__(GeoMap::Edge const &edge)
+{
+    std::stringstream s;
+    s.precision(1);
+    s << "<GeoMap.Edge " << edge.label()
+      << ", node " << edge.startNodeLabel() << " -> " << edge.endNodeLabel()
+      << ", partial area " << edge.partialArea() << ", length" << edge.length()
+      << ", " << edge.size() << " points>";
+    return s.str();
+}
+
+std::string Face__repr__(GeoMap::Face const &face)
+{
+    std::stringstream s;
+    s << "<GeoMap.Face " << face.label() << ", "
+      << (face.contoursEnd() - face.holesBegin())
+      << " holes, area " << face.area() << ">";
+    return s.str();
 }
 
 void defMap()
@@ -2253,7 +2323,7 @@ void defMap()
             .def("edge", &GeoMap::edge, crp)
             .def("edgeIter", &GeoMap::edgesBegin)
             .def("face", &GeoMap::face, crp)
-            .def("faceIter", &GeoMap::facesBegin)
+            .def("faceIter", &faceIter, arg("skipInfinite") = false)
             .def("dart", &GeoMap::dart)
             .def("faceAt", &GeoMap::faceAt, crp)
             .add_property("nodeCount", &GeoMap::nodeCount)
@@ -2303,6 +2373,7 @@ void defMap()
             .def("anchor", &GeoMap::Node::anchor)
             .def(self == self)
             .def(self != self)
+            .def("__repr__", &Node__repr__)
         ;
 
         class_<GeoMap::Edge, bases<Polygon>, boost::noncopyable>("Edge", no_init)
@@ -2325,6 +2396,7 @@ void defMap()
                  (arg("flag"), arg("onoff") = true))
             .def(self == self)
             .def(self != self)
+            .def("__repr__", &Edge__repr__)
         ;
 
         class_<GeoMap::Face, boost::noncopyable>("Face", init<GeoMap *, GeoMap::Dart>())
@@ -2339,8 +2411,10 @@ void defMap()
                  return_internal_reference<>(),
                  arg("index") = 0)
             .def("contours", &faceContours)
+            .def("holeContours", &faceHoleContours)
             .def(self == self)
             .def(self != self)
+            .def("__repr__", &Face__repr__)
         ;
 
         RangeIterWrapper<ContourRangeIterator>("ContourIterator");
