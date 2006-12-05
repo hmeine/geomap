@@ -13,6 +13,8 @@ from displaysettings import DisplaySettings
 from dartnavigator import DartNavigatorBase
 
 def findZoomFactor(srcSize, destSize):
+    if destSize > srcSize:
+        return 1.0/findZoomFactor(destSize, srcSize)
     result = 1.0
     potentialDiff = 0
     while destSize < srcSize:
@@ -28,6 +30,7 @@ class MapEdges(object):
     def __init__(self, map, color, width = 0):
         self.setMap(map)
         self.color = color
+        self.colors = None
         self.width = width
         self.useIndividualColors = False
         self._zoomedEdges = None
@@ -89,23 +92,24 @@ class MapEdges(object):
     def _calculateEdgePoints(self, index, origEdgePoints):
         qpa = self._zoomedEdges[index]
 
-        origEdgePoints = simplifyPolygon(origEdgePoints * self._zoom, 0.5) \
-                         .roundToInteger()
+        offset = Vector2(self._zoom / 2.0 - 0.5, self._zoom / 2.0 - 0.5)
+        origEdgePoints = (
+            simplifyPolygon(origEdgePoints * self._zoom, 0.5)
+            + offset).roundToInteger()
 
         if qpa == None:
             qpa = qt.QPointArray(len(origEdgePoints))
         elif qpa.size() < len(origEdgePoints):
             qpa.resize(len(origEdgePoints))
 
-        d0 = Point2D(int(self._zoom / 2), int(self._zoom / 2))
         points = iter(origEdgePoints)
         oldPos = points.next()
-        qpa.setPoint(0, *(oldPos + d0))
+        qpa.setPoint(0, oldPos[0], oldPos[1])
 
         qpaIndex = 1
         for pos in points:
             if pos != oldPos:
-                qpa.setPoint(qpaIndex, *(pos + d0))
+                qpa.setPoint(qpaIndex, pos[0], pos[1])
                 qpaIndex += 1
                 oldPos = pos
 
@@ -165,11 +169,29 @@ class MapEdges(object):
             self._calculatePoints()
         r = p.clipRegion()
         r.translate(-self.viewer.x, -self.viewer.y)
-        if self.useIndividualColors:
-            edges = self._map().edges
-            for edge, zoomedEdge in map(None, edges, self._zoomedEdges):
-                if edge and hasattr(edge, "color") and edge.color:
-                    p.setPen(qt.QPen(edge.color, self.width))
+        map = self._map()
+        if self.colors:
+            for i, zoomedEdge in enumerate(self._zoomedEdges):
+                if not (zoomedEdge and (r.isNull() or
+                                        r.contains(zoomedEdge.boundingRect()))):
+                    continue
+                try:
+                    edgeColor = self.colors[i]
+                    if edgeColor:
+                        p.setPen(qt.QPen(edgeColor, self.width))
+                        p.drawPolyline(zoomedEdge)
+                except IndexError, e:
+                    print "IndexError: %d > %d (maxEdgeLabel: %d)!" % (
+                        i, len(self.colors), map.maxEdgeLabel())
+        elif self.useIndividualColors:
+            for i, zoomedEdge in enumerate(self._zoomedEdges):
+                if not (zoomedEdge and (r.isNull() or
+                                        r.contains(zoomedEdge.boundingRect()))):
+                    continue
+                edge = map.edge(i)
+                edgeColor = hasattr(edge, "color") and edge.color
+                if edgeColor:
+                    p.setPen(qt.QPen(edgeColor, self.width))
                     p.drawPolyline(zoomedEdge)
         else:
             p.setPen(qt.QPen(self.color, self.width))
@@ -213,7 +235,8 @@ class MapNodes(object):
         c = time.clock()
         if self.relativeRadius:
             self.radius = int(self._zoom * self.origRadius + 0.5)
-        d0 = Vector2(0.5 * self._zoom - self.radius, 0.5 * self._zoom - self.radius)
+        d0 = Vector2(0.5 * (self._zoom-1) - self.radius,
+                     0.5 * (self._zoom-1) - self.radius)
         w = 2 * self.radius + 1
         self.s = qt.QSize(w, w)
         self._qpointlist = [None] * self._map().maxNodeLabel()
@@ -295,15 +318,19 @@ class DartHighlighter(object):
         Highlight the given darts (can be any iterable returning labels
         or Dart objects)."""
 
-        if type(darts) == int:
-            darts = [darts]
         if darts:
+            # hasattr(darts, "__iter__"): would be better, but is True for Edges
+            if not isinstance(darts, (list, tuple)):
+                darts = [darts]
             dartObjects = []
             for dart in darts:
                 if type(dart) == int:
-                    dartObjects.append(self._map().dart(dart))
-                else:
-                    dartObjects.append(dart)
+                    dart = self._map().dart(dart)
+                elif hasattr(dart, "anchor"): # Nodes
+                    dart = dart.anchor()
+                elif hasattr(dart, "dart"): # Edges
+                    dart = dart.dart()
+                dartObjects.append(dart)
             darts = dartObjects
 
         if self.eo != None:
@@ -637,20 +664,26 @@ class MapDisplay(DisplaySettings):
             if not overlay.visible:
                 continue
             # FIXME: str(type(overlay)).contains(...) instead?
-            if type(overlay) == MapNodes:
-                radius = overlay.origRadius
-                if not overlay.relativeRadius:
-                    radius /= float(overlay._zoom)
-                color = qtColor2figColor(overlay.color, fe.f)
-                fe.addMapNodes(self.map, radius,
-                               fillColor = color, lineWidth = 0, depth = depth)
-            elif type(overlay) == MapEdges:
-                attr = {"depth" : depth}
-                if not overlay.useIndividualColors:
-                    attr["penColor"] = qtColor2figColor(overlay.color, fe.f)
-                if overlay.width:
-                    attr["lineWidth"] = overlay.width
-                fe.addMapEdges(overlay._map(), **attr)
+            if type(overlay) in (MapNodes, MapEdges):
+                extraZoom = float(overlay._zoom) / self.viewer.scale
+                oldScale, oldOffset = fe.scale, fe.offset
+                fe.scale *= extraZoom
+                #fe.offset = fe.offset + Vector2(1, 1) * (extraZoom / 2.0 - 0.5)
+                if type(overlay) == MapNodes:
+                    radius = overlay.origRadius
+                    if not overlay.relativeRadius:
+                        radius /= float(overlay._zoom)
+                    color = qtColor2figColor(overlay.color, fe.f)
+                    fe.addMapNodes(self.map, radius,
+                                   fillColor = color, lineWidth = 0, depth = depth)
+                else:
+                    attr = {"depth" : depth}
+                    if not overlay.useIndividualColors:
+                        attr["penColor"] = qtColor2figColor(overlay.color, fe.f)
+                    if overlay.width:
+                        attr["lineWidth"] = overlay.width
+                    fe.addMapEdges(overlay._map(), **attr)
+                fe.scale, fe.offset = oldScale, oldOffset
             elif type(overlay) == PointOverlay:
                 fe.addPointOverlay(overlay, depth = depth)
             elif type(overlay) == EdgeOverlay:
@@ -755,8 +788,8 @@ class DartNavigator(DartNavigatorBase):
             "%s%s\nStart node: %s\nEnd node: %s\nFaces: %d (left), %d (right)"
             % (self.dart.edge().isLoop() and "Loop" or (
                    self.dart.edge().isBridge() and "Bridge" or "Edge"),
-               str(self.dart.edge())[9:-1],
-               str(self.dart.startNode())[5:-1], str(self.dart.endNode())[5:-1],
+               str(self.dart.edge())[12:-1],
+               str(self.dart.startNode())[8:-1], str(self.dart.endNode())[8:-1],
                self.dart.leftFaceLabel(), self.dart.rightFaceLabel()))
         self.setCaption("DartNavigator(%d)" % (self.dart.label(), ))
         self.emit(qt.PYSIGNAL('updateDart'),(self.dart,))
