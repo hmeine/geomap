@@ -1032,7 +1032,6 @@ class DartPosition
       pointIter_(DartPointIter(dart)),
       segmentIndex_(0),
       arcLength_(0.0),
-      partialLength_(0.0),
       position_(*pointIter_)
     {
         p1_ = *pointIter_;
@@ -1060,11 +1059,16 @@ class DartPosition
 
     void intersectCircle(const vigra::Vector2 &center, double radius2)
     {
+        if((p1_ - center).squaredMagnitude() >= radius2)
+        {
+            std::cerr << "intersectCircle: we are already outside!\n";
+            position_ = p1_;
+            return;
+        }
         while((p2_ - center).squaredMagnitude() < radius2)
         {
             if(!nextSegment())
             {
-                partialLength_ = 0.0;
                 position_ = p2_;
                 return;
             }
@@ -1079,7 +1083,6 @@ class DartPosition
              - dot(diff, p1_ - center))
             / dist2);
         diff *= lambda;
-        partialLength_ += diff.magnitude();
         position_ = p1_ + diff;
     }
 
@@ -1109,7 +1112,7 @@ class DartPosition
     bool hitEnd_;
     DartPointIter pointIter_;
     unsigned int segmentIndex_;
-    double arcLength_, partialLength_;
+    double arcLength_;
     vigra::Vector2 p1_, p2_, position_;
 };
 
@@ -2307,6 +2310,16 @@ std::string Face__repr__(GeoMap::Face const &face)
     return s.str();
 }
 
+std::string Dart__repr__(GeoMap::Dart const &dart)
+{
+    std::stringstream s;
+    s << "<GeoMap.Dart " << dart.label()
+      << ", node " << dart.startNodeLabel() << " -> " << dart.endNodeLabel()
+      << ", faces " << dart.leftFaceLabel() << "(l), " << dart.rightFaceLabel()
+      << "(r)>";
+    return s.str();
+}
+
 void defMap()
 {
     CELL_RETURN_POLICY crp;
@@ -2454,6 +2467,7 @@ void defMap()
             .def("alphaOrbit", &alphaOrbit)
             .def(self == self)
             .def(self != self)
+            .def("__repr__", &Dart__repr__)
         ;
 
         RangeIterWrapper<PhiOrbitIterator>("PhiOrbitIterator");
