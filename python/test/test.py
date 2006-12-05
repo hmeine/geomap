@@ -8,9 +8,10 @@ execfile("testSPWS")
 # which ATM leads to overlapping edges after border closing. That
 # violates some assumptions and would lead to errors if we actually
 # worked with that Map.
-map = Map(maxima2, flowlines2, Size2D(39, 39),
-          ssStepDist = 0.2, ssMinDist = 0.05,
-          performEdgeSplits = True)
+map = GeoMap(maxima2, flowlines2, Size2D(39, 39))
+map.sortEdgesEventually(ssStepDist = 0.2, ssMinDist = 0.05)
+map.initializeMap()
+# FIXME: performEdgeSplits!!
 assert checkConsistency(map), "map inconsistent"
 assert checkLabelConsistency(map), "map.labelImage inconsistent"
 assert len(map.history) == 0
@@ -44,6 +45,8 @@ assert cm.faceCount == count + 1
 # --------------------------------------------------------------------
 
 map = Map(maxima1, flowlines1, Size2D(256, 256))
+map.sortEdgesEventually(ssStepDist = 0.2, ssMinDist = 0.05)
+map.initializeMap()
 assert checkConsistency(map), "map inconsistent"
 assert checkLabelConsistency(map), "map.labelImage inconsistent"
 
