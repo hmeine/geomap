@@ -678,11 +678,19 @@ class MapDisplay(DisplaySettings):
                                    fillColor = color, lineWidth = 0, depth = depth)
                 else:
                     attr = {"depth" : depth}
-                    if not overlay.useIndividualColors:
+                    if not (overlay.useIndividualColors or overlay.colors):
                         attr["penColor"] = qtColor2figColor(overlay.color, fe.f)
                     if overlay.width:
                         attr["lineWidth"] = overlay.width
-                    fe.addMapEdges(overlay._map(), **attr)
+                    if overlay.colors:
+                        for edge in overlay._map().edgeIter():
+                            edgeColor = overlay.colors[edge.label()]
+                            if edgeColor:
+                                parts = fe.addClippedPoly(edge,
+                                    penColor = qtColor2figColor(edgeColor, fe.f),
+                                    **attr)
+                    else:
+                        fe.addMapEdges(overlay._map(), **attr)
                 fe.scale, fe.offset = oldScale, oldOffset
             elif type(overlay) == PointOverlay:
                 fe.addPointOverlay(overlay, depth = depth)
