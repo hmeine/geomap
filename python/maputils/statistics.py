@@ -76,10 +76,12 @@ class FaceColorStatistics(DynamicFaceStatistics):
         self.map = ref(map)
 
         if defaultValue == None:
-            # initialize zero Vector of appropriate size:
-            defaultValue = originalImage[0, 0]
-            for i in range(originalImage.bands()):
-                defaultValue[i] = 0.0
+            defaultValue = 0.0
+            if originalImage.bands() > 1:
+                # initialize zero Vector of appropriate size:
+                defaultValue = originalImage[0, 0]
+                for i in range(originalImage.bands()):
+                    defaultValue[i] = 0.0
 
         self._functors = [None] * map.maxFaceLabel()
         for face in map.faceIter():
