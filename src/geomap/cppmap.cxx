@@ -1059,12 +1059,13 @@ class DartPosition
 
     void intersectCircle(const vigra::Vector2 &center, double radius2)
     {
-        if((p1_ - center).squaredMagnitude() >= radius2)
-        {
-            std::cerr << "intersectCircle: we are already outside!\n";
-            position_ = p1_;
-            return;
-        }
+        // unfortunately, this prevents larger steps:
+//         if((p1_ - center).squaredMagnitude() >= radius2)
+//         {
+//             std::cerr << "intersectCircle: we are already outside!\n";
+//             position_ = p1_;
+//             return;
+//         }
         while((p2_ - center).squaredMagnitude() < radius2)
         {
             if(!nextSegment())
@@ -1082,7 +1083,12 @@ class DartPosition
                                    + center[0]*diff[1] - diff[0]*center[1]))
              - dot(diff, p1_ - center))
             / dist2);
-        diff *= lambda;
+        if(!isnan(lambda))
+            diff *= lambda;
+        else
+        {
+            std::cerr << "intersectCircle: error interpolating between " << p1_ << " and " << p2_ << " to a squared distance of " << radius2 << " from " << center << "!\n";
+        }
         position_ = p1_ + diff;
     }
 
@@ -1190,7 +1196,7 @@ void sortEdgesInternal(const vigra::Vector2 &currentPos,
     // handle cyclicity of array first (by rotation if necessary):
     DPAI firstGroupStart = dpEnd;
     bool needRotation = false;
-    while((--firstGroupStart)->angle + minAngle < dpBegin->angle)
+    while((--firstGroupStart)->angle + minAngle - 2*M_PI > dpBegin->angle)
     {
         needRotation = true;
         if(firstGroupStart == dpBegin)
