@@ -1195,19 +1195,23 @@ void sortEdgesInternal(const vigra::Vector2 &currentPos,
 
     // handle cyclicity of array first (by rotation if necessary):
     DPAI firstGroupStart = dpEnd;
-    bool needRotation = false;
-    while((--firstGroupStart)->angle + minAngle - 2*M_PI > dpBegin->angle)
+    if((--firstGroupStart)->angle + minAngle - 2*M_PI > dpBegin->angle)
     {
-        needRotation = true;
-        if(firstGroupStart == dpBegin)
+        // first and last dart are less than minAngle apart,..
+        DPAI prev(firstGroupStart);
+        while(--firstGroupStart > dpBegin)
         {
-            needRotation = false; // whole array unsortable
-            break;
+            // ..determine last decision point..
+            if(prev->angle - firstGroupStart->angle >= minAngle)
+            {
+                // ..and rotate array to have whole dart group together
+                // (start with "prev" == last correct firstGroupStart as newBegin)
+                rotateArray(dpBegin, prev, dpEnd);
+                break;
+            }
+            prev = firstGroupStart;
         }
     }
-
-    if(needRotation)
-        rotateArray(dpBegin, firstGroupStart, dpEnd);
 
     // look for groups of parallel edges
     DPAI groupStart = dpBegin,
