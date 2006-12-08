@@ -554,6 +554,74 @@ void findCriticalPointsNewtonMethod(IMAGEVIEW const & image,
     std::cerr << "findCriticalPointsNewtonMethod(): done.\n";
 }
 
+template <class IMAGEVIEW, class VECTOR, class MaskIterator, class MaskAccessor>
+void findCriticalPointsNewtonMethod(IMAGEVIEW const & image,
+    pair<MaskIterator, MaskAccessor> mask,
+    VECTOR & minima, VECTOR & saddles, VECTOR & maxima,
+    double epsilon, unsigned int oversampling)
+{
+    int w = image.width();
+    int h = image.height();
+
+    typedef typename IMAGEVIEW::value_type Value;
+    typedef typename VECTOR::value_type Coordinate;
+
+    double d = 1.0 / oversampling;
+    double squareEpsilon = sq(epsilon);
+
+    Map2D<Coordinate> points;
+
+    // search for critical points
+    int percent = -1, lastPercent = -1;
+    //std::cerr << "\n";
+    MaskIterator maskRow(mask.first);
+    for(int y=0; y <= h-1; ++y, ++maskRow.y)
+    {
+        percent = 100 * y / h;
+        if(percent != lastPercent)
+        {
+            std::cerr << "findCriticalPointsNewtonMethod(): " << percent << "%\r";
+            lastPercent = percent;
+        }
+        MaskIterator mit(maskRow);
+        for(int x=0; x <= w-1; ++x, ++mit.x)
+        {
+            if(!mask.second(mit))
+                continue;
+            for(double dy = 0.0; dy < 1.0; dy += d)
+            {
+                for(double dx = 0.0; dx < 1.0; dx += d)
+                {
+                    double xx, yy;
+                    CriticalPoint type = findCriticalPointNewtonMethod(
+                        image, x + dx, y + dy, xx, yy, epsilon / 10.0, 4.0);
+                    if(type == Failed)
+                        continue;
+
+                    Coordinate c(xx, yy);
+                    if(points.nearest(c, squareEpsilon) != points.end())
+                        continue;
+
+                    if(type == Saddle)
+                    {
+                        saddles.push_back(c);
+                    }
+                    else if(type == Minimum)
+                    {
+                        minima.push_back(c);
+                    }
+                    else
+                    {
+                        maxima.push_back(c);
+                    }
+                    points.insert(c);
+                }
+            }
+        }
+    }
+    std::cerr << "findCriticalPointsNewtonMethod(): done.\n";
+}
+
 template <class T, class VECTOR>
 void
 findCriticalPointsInFacet(
@@ -1269,6 +1337,8 @@ class SubPixelWatersheds
 
     void findCriticalPointsInFacet(double x, double y,
                                    PointArray & mi, PointArray & sa, PointArray & ma);
+    template <class MaskIterator, class MaskAccessor>
+    void findCriticalPoints(pair<MaskIterator, MaskAccessor> mask);
     void findCriticalPoints();
     void updateMaxImage();
     double nearestMaximum(double x, double y, double dx, double dy, int & resindex) const;
@@ -1430,6 +1500,24 @@ SubPixelWatersheds<SplineImageView>::findCriticalPointsInFacet(double x0, double
         xold = x;
     }
 #endif
+}
+
+template <class SplineImageView>
+template<class MaskIterator, class MaskAccessor>
+void SubPixelWatersheds<SplineImageView>::findCriticalPoints(
+    pair<MaskIterator, MaskAccessor> mask)
+{
+    minima_.clear();
+    saddles_.clear();
+    maxima_.clear();
+    // use 1-based arrays
+    minima_.push_back(PointType());
+    saddles_.push_back(PointType());
+    maxima_.push_back(PointType());
+
+    findCriticalPointsNewtonMethod(
+        image_, mask, minima_, saddles_, maxima_, 1e-4, 2);
+    updateMaxImage();
 }
 
 template <class SplineImageView>
