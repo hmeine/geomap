@@ -9,6 +9,8 @@
 #include <cmath>
 #include "exporthelpers.hxx"
 
+namespace bp = boost::python;
+
 template<class Container>
 void removeAll(Container &container,
                const typename Container::value_type &element)
@@ -69,13 +71,11 @@ class GeoMap::Node
 
     void uninitialize()
     {
-        GeoMap *map = map_; // local copy (prevent 2nd uninitialize() through destructor)
-        map_ = NULL;
-        --map->nodeCount_;
-        map->nodeMap_.erase(
-            map->nodeMap_.nearest(PositionedNodeLabel(position_, label_),
-                                  vigra::NumericTraits<double>::epsilon()));
-        RESET_PTR(map->nodes_[label_]); // may have effect like "delete this;"
+        --map_->nodeCount_;
+        map_->nodeMap_.erase(
+            map_->nodeMap_.nearest(PositionedNodeLabel(position_, label_),
+                                   vigra::NumericTraits<double>::epsilon()));
+        RESET_PTR(map_->nodes_[label_]); // may have effect like "delete this;"
 #ifdef USE_INSECURE_CELL_PTRS
         delete this;
 #endif
@@ -160,10 +160,8 @@ class GeoMap::Edge
 
     void uninitialize()
     {
-        GeoMap *map = map_; // local copy (prevent 2nd uninitialize() through destructor)
-        map_ = NULL;
-        --map->edgeCount_;
-        RESET_PTR(map->edges_[label_]); // may have effect like "delete this;"
+        --map_->edgeCount_;
+        RESET_PTR(map_->edges_[label_]); // may have effect like "delete this;"
 #ifdef USE_INSECURE_CELL_PTRS
         delete this;
 #endif
@@ -727,10 +725,8 @@ class GeoMap::Face
 
     void uninitialize()
     {
-        GeoMap *map = map_; // local copy (prevent 2nd uninitialize() through destructor)
-        map_ = NULL;
-        --map->faceCount_;
-        RESET_PTR(map->faces_[label_]); // may have effect like "delete this;"
+        --map_->faceCount_;
+        RESET_PTR(map_->faces_[label_]); // may have effect like "delete this;"
 #ifdef USE_INSECURE_CELL_PTRS
         delete this;
 #endif
@@ -1273,6 +1269,54 @@ void GeoMap::sortEdgesEventually(double stepDist, double minDist)
     }
 
     edgesSorted_ = true;
+}
+
+void GeoMap::setSigmaMapping(SigmaMapping const &sigmaMapping)
+{
+    vigra_precondition(sigmaMapping.size() == (2*edges_.size() - 1),
+                       "setSigmaMapping: sigmaMapping has wrong size!");
+    SigmaMapping::const_iterator sigma(
+        sigmaMapping.begin() + (edges_.size() - 1));
+    
+    for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
+    {
+        GeoMap::Node::DartLabels &dartLabels((*it)->darts_);
+
+        GeoMap::Node::DartLabels singleOrbit;
+        int label = (*it)->anchor().label();
+        do
+        {
+            singleOrbit.push_back(label);
+            label = sigma[label];
+        }
+        while(label != singleOrbit[0]);
+
+        vigra_precondition(singleOrbit.size() == dartLabels.size(),
+                           "setSigmaMapping: sigma orbit has wrong size");
+        std::swap(singleOrbit, dartLabels);
+    }
+
+    edgesSorted_ = true;
+}
+
+std::auto_ptr<GeoMap::SigmaMapping> GeoMap::sigmaMapping()
+{
+    std::auto_ptr<GeoMap::SigmaMapping> result(
+        new GeoMap::SigmaMapping(2*edges_.size() - 1));
+    GeoMap::SigmaMapping::iterator sigma(result->begin() + (edges_.size() - 1));
+    
+    for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
+    {
+        GeoMap::Dart anchor((*it)->anchor()), d(anchor);
+        do
+        {
+            int dl = d.label();
+            sigma[dl] = d.nextSigma().label();
+        }
+        while(d != anchor);
+    }
+
+    return result;
 }
 
 void GeoMap::initializeMap(bool initLabelImage)
@@ -2072,7 +2116,7 @@ class SimpleCallback
 class RemoveNodeCallback : public SimpleCallback
 {
   public:
-    RemoveNodeCallback(GeoMap *geomap, boost::python::object callback)
+    RemoveNodeCallback(GeoMap *geomap, bp::object callback)
     : callback_(callback)
     {
         connections_.push_back(
@@ -2082,19 +2126,19 @@ class RemoveNodeCallback : public SimpleCallback
 
     bool operator()(GeoMap::Node &node)
     {
-        return boost::python::extract<bool>(callback_(boost::ref(node)))();
+        return bp::extract<bool>(callback_(boost::ref(node)))();
     }
 
   protected:
-    boost::python::object callback_;
+    bp::object callback_;
 };
 
 class MergeEdgesCallbacks : public SimpleCallback
 {
   public:
     MergeEdgesCallbacks(GeoMap *geomap,
-                        boost::python::object preOpCallback,
-                        boost::python::object postOpCallback)
+                        bp::object preOpCallback,
+                        bp::object postOpCallback)
     : preOpCallback_(preOpCallback),
       postOpCallback_(postOpCallback)
     {
@@ -2110,7 +2154,7 @@ class MergeEdgesCallbacks : public SimpleCallback
 
     bool preMergeEdges(const GeoMap::Dart &dart)
     {
-        return boost::python::extract<bool>(
+        return bp::extract<bool>(
             preOpCallback_(boost::ref(dart)))();
     }
 
@@ -2120,15 +2164,15 @@ class MergeEdgesCallbacks : public SimpleCallback
     }
 
   protected:
-    boost::python::object preOpCallback_, postOpCallback_;
+    bp::object preOpCallback_, postOpCallback_;
 };
 
 class RemoveBridgeCallbacks : public SimpleCallback
 {
   public:
     RemoveBridgeCallbacks(GeoMap *geomap,
-                          boost::python::object preOpCallback,
-                          boost::python::object postOpCallback)
+                          bp::object preOpCallback,
+                          bp::object postOpCallback)
     : preOpCallback_(preOpCallback),
       postOpCallback_(postOpCallback)
     {
@@ -2144,7 +2188,7 @@ class RemoveBridgeCallbacks : public SimpleCallback
 
     bool preRemoveBridge(const GeoMap::Dart &dart)
     {
-        return boost::python::extract<bool>(
+        return bp::extract<bool>(
             preOpCallback_(boost::ref(dart)))();
     }
 
@@ -2154,15 +2198,15 @@ class RemoveBridgeCallbacks : public SimpleCallback
     }
 
   protected:
-    boost::python::object preOpCallback_, postOpCallback_;
+    bp::object preOpCallback_, postOpCallback_;
 };
 
 class MergeFacesCallbacks : public SimpleCallback
 {
   public:
     MergeFacesCallbacks(GeoMap *geomap,
-                        boost::python::object preOpCallback,
-                        boost::python::object postOpCallback)
+                        bp::object preOpCallback,
+                        bp::object postOpCallback)
     : preOpCallback_(preOpCallback),
       postOpCallback_(postOpCallback)
     {
@@ -2178,7 +2222,7 @@ class MergeFacesCallbacks : public SimpleCallback
 
     bool preMergeFaces(const GeoMap::Dart &dart)
     {
-        return boost::python::extract<bool>(
+        return bp::extract<bool>(
             preOpCallback_(boost::ref(dart)))();
     }
 
@@ -2188,13 +2232,13 @@ class MergeFacesCallbacks : public SimpleCallback
     }
 
   protected:
-    boost::python::object preOpCallback_, postOpCallback_;
+    bp::object preOpCallback_, postOpCallback_;
 };
 
 class AssociatePixelsCallback : public SimpleCallback
 {
   public:
-    AssociatePixelsCallback(GeoMap *geomap, boost::python::object callback)
+    AssociatePixelsCallback(GeoMap *geomap, bp::object callback)
     : callback_(callback)
     {
         connections_.push_back(
@@ -2208,11 +2252,11 @@ class AssociatePixelsCallback : public SimpleCallback
     }
 
   protected:
-    boost::python::object callback_;
+    bp::object callback_;
 };
 
 std::auto_ptr<SimpleCallback>
-addRemoveNodeCallback(GeoMap *geomap, boost::python::object callback)
+addRemoveNodeCallback(GeoMap *geomap, bp::object callback)
 {
     return std::auto_ptr<SimpleCallback>(
         new RemoveNodeCallback(geomap, callback));
@@ -2220,8 +2264,8 @@ addRemoveNodeCallback(GeoMap *geomap, boost::python::object callback)
 
 std::auto_ptr<SimpleCallback>
 addMergeEdgesCallbacks(GeoMap *geomap,
-                       boost::python::object preOpCallback,
-                       boost::python::object postOpCallback)
+                       bp::object preOpCallback,
+                       bp::object postOpCallback)
 {
     return std::auto_ptr<SimpleCallback>(
         new MergeEdgesCallbacks(geomap, preOpCallback, postOpCallback));
@@ -2229,8 +2273,8 @@ addMergeEdgesCallbacks(GeoMap *geomap,
 
 std::auto_ptr<SimpleCallback>
 addRemoveBridgeCallbacks(GeoMap *geomap,
-                         boost::python::object preOpCallback,
-                         boost::python::object postOpCallback)
+                         bp::object preOpCallback,
+                         bp::object postOpCallback)
 {
     return std::auto_ptr<SimpleCallback>(
         new RemoveBridgeCallbacks(geomap, preOpCallback, postOpCallback));
@@ -2238,8 +2282,8 @@ addRemoveBridgeCallbacks(GeoMap *geomap,
 
 std::auto_ptr<SimpleCallback>
 addMergeFacesCallbacks(GeoMap *geomap,
-                       boost::python::object preOpCallback,
-                       boost::python::object postOpCallback)
+                       bp::object preOpCallback,
+                       bp::object postOpCallback)
 {
     return std::auto_ptr<SimpleCallback>(
         new MergeFacesCallbacks(geomap, preOpCallback, postOpCallback));
@@ -2247,7 +2291,7 @@ addMergeFacesCallbacks(GeoMap *geomap,
 
 std::auto_ptr<SimpleCallback>
 addAssociatePixelsCallback(GeoMap *geomap,
-                           boost::python::object callback)
+                           bp::object callback)
 {
     return std::auto_ptr<SimpleCallback>(
         new AssociatePixelsCallback(geomap, callback));
@@ -2279,17 +2323,72 @@ faceHoleContours(const GeoMap::Face &face)
     return ContourRangeIterator(face.holesBegin(), face.contoursEnd());
 }
 
-boost::python::object
+bp::object
 labelImage(const GeoMap &map)
 {
     if(!map.hasLabelImage())
-        return boost::python::object();
+        return bp::object();
     vigra::PythonGrayImage result(map.imageSize());
     copyImage(srcIterRange(map.labelsUpperLeft(), map.labelsLowerRight(),
                            map.labelAccessor()),
               destImage(result));
-    return boost::python::object(result);
+    return bp::object(result);
 }
+
+struct GeoMapPickleSuite : bp::pickle_suite
+{
+    static bp::tuple getinitargs(GeoMap &map)
+    {
+        bp::list nodePositions;
+        for(GeoMap::NodeIterator it = map.nodesBegin(); it.inRange(); ++it)
+        {
+            for(unsigned int i = 0; i < (len(nodePositions)- (*it)->label()); ++i)
+                nodePositions.append(bp::object());
+            nodePositions.append((*it)->position());
+        }
+
+        bp::list edgeTuples;
+        for(GeoMap::EdgeIterator it = map.edgesBegin(); it.inRange(); ++it)
+        {
+            for(unsigned int i = 0; i < (len(edgeTuples)- (*it)->label()); ++i)
+                edgeTuples.append(bp::object());
+            edgeTuples.append(
+                bp::make_tuple(
+                    (*it)->startNodeLabel(),
+                    (*it)->endNodeLabel(),
+                    Polygon(**it)));
+        }
+
+        return bp::make_tuple(nodePositions, edgeTuples, map.imageSize());
+    }
+
+    static bp::tuple getstate(GeoMap &map)
+    {
+        bp::list pySigmaMapping;
+        std::auto_ptr<GeoMap::SigmaMapping> sigmaMapping(map.sigmaMapping());
+        for(GeoMap::SigmaMapping::iterator it = sigmaMapping->begin();
+            it != sigmaMapping->end(); ++it)
+        {
+            pySigmaMapping.append(*it);
+        }
+        return bp::make_tuple(pySigmaMapping);
+    }
+    
+    static void setstate(GeoMap &map, bp::tuple state)
+    {
+        bp::list pySigmaMapping((
+            bp::extract<bp::list>(state[0])()));
+        GeoMap::SigmaMapping sigmaMapping(bp::len(pySigmaMapping));
+        unsigned int i = 0;
+        for(GeoMap::SigmaMapping::iterator it = sigmaMapping.begin();
+            it != sigmaMapping.end(); ++it, ++i)
+        {
+            *it = bp::extract<int>(pySigmaMapping[i])();
+        }
+        map.setSigmaMapping(sigmaMapping);
+        map.initializeMap();
+    }
+};
 
 std::string Node__repr__(GeoMap::Node const &node)
 {
@@ -2380,6 +2479,7 @@ void defMap()
                  (arg("position"), arg(
                      "maxSquaredDist") = vigra::NumericTraits<double>::max()))
             .def("checkConsistency", &GeoMap::checkConsistency)
+            .def_pickle(GeoMapPickleSuite())
             );
 
         RangeIterWrapper<GeoMap::NodeIterator>("NodeIterator");

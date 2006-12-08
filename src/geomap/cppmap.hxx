@@ -116,7 +116,7 @@ class GeoMap
             return label;
         }
 
-      protected:        
+      protected:
         friend class GeoMap;
 
         LabelImageAccessor(std::vector<CellLabel> const &faceLabelLUT)
@@ -204,6 +204,9 @@ class GeoMap
 
     void sortEdgesDirectly();
     void sortEdgesEventually(double stepDist, double minDist);
+    typedef std::vector<int> SigmaMapping;
+    void setSigmaMapping(SigmaMapping const &sigmaMapping);
+    std::auto_ptr<SigmaMapping > sigmaMapping();
     bool edgesSorted() const { return edgesSorted_; }
 
     void initializeMap(bool initLabelImage = true);
