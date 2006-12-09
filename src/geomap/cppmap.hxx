@@ -201,12 +201,20 @@ class GeoMap
     CELL_PTR(Node) addNode(const vigra::Vector2 &position);
     CELL_PTR(Edge) addEdge(CellLabel startNodeLabel, CellLabel endNodeLabel,
                            const Vector2Array &points, CellLabel label = 0);
+    CELL_PTR(Edge) addEdge(Dart startNeighbor, Dart endNeighbor,
+                           const Vector2Array &points);
+    void removeEdge(Dart &dart);
 
     void sortEdgesDirectly();
-    void sortEdgesEventually(double stepDist, double minDist);
+
+    typedef std::list<std::list<int> > UnsortableGroups;
+    void sortEdgesEventually(double stepDist, double minDist,
+                             UnsortableGroups &unsortable);
+
     typedef std::vector<int> SigmaMapping;
     void setSigmaMapping(SigmaMapping const &sigmaMapping);
     std::auto_ptr<SigmaMapping > sigmaMapping();
+
     bool edgesSorted() const { return edgesSorted_; }
 
     void initializeMap(bool initLabelImage = true);

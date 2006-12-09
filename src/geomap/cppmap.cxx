@@ -987,6 +987,51 @@ CELL_PTR(GeoMap::Edge) GeoMap::addEdge(
     return edge(result->label());
 }
 
+CELL_PTR(GeoMap::Edge) GeoMap::addEdge(
+    GeoMap::Dart startNeighbor, GeoMap::Dart endNeighbor,
+    const Vector2Array &points)
+{
+    CELL_PTR(GeoMap::Node)
+        startNode = startNeighbor.startNode(),
+        endNode = endNeighbor.startNode();
+    GeoMap::Edge *result = new GeoMap::Edge(
+        this, startNode->label(), endNode->label(), points);
+
+    GeoMap::Node::DartLabels::iterator
+        pos1(std::find(startNode->darts_.begin(),
+                       startNode->darts_.end(), startNeighbor.label())),
+        pos2(std::find(endNode  ->darts_.begin(),
+                       endNode  ->darts_.end(), endNeighbor  .label()));
+    startNode->darts_.insert(pos1,  result->label());
+    endNode  ->darts_.insert(pos2, -result->label());
+    return edge(result->label());
+}
+
+void GeoMap::removeEdge(GeoMap::Dart &dart)
+{
+    if(mapInitialized())
+    {
+        if(dart.edge()->isBridge())
+            removeBridge(dart);
+        else
+            mergeFaces(dart);
+    }
+    else
+    {
+        // this is just a graph -> detach from nodes & uninitialize()
+
+        GeoMap::Node &node1(*dart.startNode());
+        GeoMap::Node &node2(*dart.endNode());
+
+        node1.darts_.erase(std::find(node1.darts_.begin(),
+                                     node1.darts_.end(),  dart.label()));
+        node2.darts_.erase(std::find(node2.darts_.begin(),
+                                     node2.darts_.end(), -dart.label()));
+
+        dart.edge()->uninitialize();
+    }
+}
+
 void GeoMap::sortEdgesDirectly()
 {
     typedef std::pair<double, int> DartAngle;
@@ -1158,7 +1203,8 @@ inline double normAngle(double diff)
 void sortEdgesInternal(const vigra::Vector2 &currentPos,
                        double referenceAngle,
                        DPAI dpBegin, DPAI dpEnd,
-                       double stepDist2, double minAngle)
+                       double stepDist2, double minAngle,
+                       GeoMap::UnsortableGroups &unsortable)
 {
     if(dpEnd - dpBegin < 2)
         return;
@@ -1182,8 +1228,10 @@ void sortEdgesInternal(const vigra::Vector2 &currentPos,
 
     if(unsortableState)
     {
-        // FIXME: implement this, at least for edges with common endpoints
-        vigra_fail("Unsortable group of edges occured and not handled yet!");
+        GeoMap::UnsortableGroups::value_type unsortableGroup;
+        for(DPAI dpi = dpBegin; dpi != dpEnd; ++dpi)
+            unsortableGroup.push_back(dpi->dp.dartLabel());
+        unsortable.push_back(unsortableGroup);
         return;
     }
 
@@ -1234,7 +1282,8 @@ void sortEdgesInternal(const vigra::Vector2 &currentPos,
                                       normAngle(groupLast->absAngle -
                                                 groupStart->absAngle) / 2),
                                   groupStart, groupEnd,
-                                  stepDist2, minAngle);
+                                  stepDist2, minAngle,
+                                  unsortable);
             }
 
             if(groupEnd == dpEnd)
@@ -1243,9 +1292,11 @@ void sortEdgesInternal(const vigra::Vector2 &currentPos,
             groupStart = groupEnd;
         }
     }
+    return;
 }
 
-void GeoMap::sortEdgesEventually(double stepDist, double minDist)
+void GeoMap::sortEdgesEventually(double stepDist, double minDist,
+                                 UnsortableGroups &unsortable)
 {
     double minAngle = std::atan2(minDist, stepDist),
           stepDist2 = vigra::sq(stepDist);
@@ -1262,7 +1313,8 @@ void GeoMap::sortEdgesEventually(double stepDist, double minDist)
 
         sortEdgesInternal((*it)->position(), 0.0,
                           dartPositions.begin(), dartPositions.end(),
-                          stepDist2, minAngle);
+                          stepDist2, minAngle,
+                          unsortable);
 
         for(unsigned int i = 0; i < dartLabels.size(); ++i)
             dartLabels[i] = dartPositions[i].dp.dartLabel();
@@ -1277,7 +1329,7 @@ void GeoMap::setSigmaMapping(SigmaMapping const &sigmaMapping)
                        "setSigmaMapping: sigmaMapping has wrong size!");
     SigmaMapping::const_iterator sigma(
         sigmaMapping.begin() + (edges_.size() - 1));
-    
+
     for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
     {
         GeoMap::Node::DartLabels &dartLabels((*it)->darts_);
@@ -1304,7 +1356,7 @@ std::auto_ptr<GeoMap::SigmaMapping> GeoMap::sigmaMapping()
     std::auto_ptr<GeoMap::SigmaMapping> result(
         new GeoMap::SigmaMapping(2*edges_.size() - 1));
     GeoMap::SigmaMapping::iterator sigma(result->begin() + (edges_.size() - 1));
-    
+
     for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
     {
         GeoMap::Dart anchor((*it)->anchor()), d(anchor);
@@ -2335,6 +2387,28 @@ labelImage(const GeoMap &map)
     return bp::object(result);
 }
 
+bp::list GeoMap_sortEdgesEventually(GeoMap &map, double stepDist, double minDist)
+{
+    GeoMap::UnsortableGroups unsortable;
+    map.sortEdgesEventually(stepDist, minDist, unsortable);
+    bp::list result;
+    for(GeoMap::UnsortableGroups::iterator it = unsortable.begin();
+        it != unsortable.end(); ++it)
+    {
+        std::cerr << "copying unsortable group (" << it->size() << " darts): ";
+        bp::list unsortableGroup;
+        for(GeoMap::UnsortableGroups::value_type::iterator dit = it->begin();
+            dit != it->end(); ++dit)
+        {
+            std::cerr << ".";
+            unsortableGroup.append(*dit);
+        }
+        std::cerr << "\n";
+        result.append(unsortableGroup);
+    }
+    return result;
+}
+
 struct GeoMapPickleSuite : bp::pickle_suite
 {
     static bp::tuple getinitargs(GeoMap &map)
@@ -2373,7 +2447,7 @@ struct GeoMapPickleSuite : bp::pickle_suite
         }
         return bp::make_tuple(pySigmaMapping);
     }
-    
+
     static void setstate(GeoMap &map, bp::tuple state)
     {
         bp::list pySigmaMapping((
@@ -2464,11 +2538,14 @@ void defMap()
                  return_value_policy<copy_const_reference>())
             .def("addNode", &GeoMap::addNode, crp,
                  args("position"))
-            .def("addEdge", &GeoMap::addEdge, crp,
+            .def("addEdge", (CELL_PTR(GeoMap::Edge)(GeoMap::*)(CellLabel, CellLabel, const Vector2Array &, CellLabel))&GeoMap::addEdge, crp,
                  (arg("startNodeLabel"), arg("endNodeLabel"), arg("points"),
                   arg("label") = 0))
+            .def("addEdge", (CELL_PTR(GeoMap::Edge)(GeoMap::*)(GeoMap::Dart, GeoMap::Dart, const Vector2Array &))&GeoMap::addEdge, crp,
+                 (arg("startNeighbor"), arg("endNeighbor"), arg("points")))
+            .def("removeEdge", &GeoMap::removeEdge, crp)
             .def("sortEdgesDirectly", &GeoMap::sortEdgesDirectly)
-            .def("sortEdgesEventually", &GeoMap::sortEdgesEventually,
+            .def("sortEdgesEventually", &GeoMap_sortEdgesEventually,
                  args("stepDist", "minDist"))
             .def("edgesSorted", &GeoMap::edgesSorted)
             .def("initializeMap", &GeoMap::initializeMap, (arg("initLabelImage") = true))
