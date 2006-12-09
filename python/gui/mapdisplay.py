@@ -353,7 +353,8 @@ class DartHighlighter(object):
 # --------------------------------------------------------------------
 
 class MapDisplay(DisplaySettings):
-    def __init__(self, map, preparedImage = None, immediateShow = True):
+    def __init__(self, map, preparedImage = None, immediateShow = True,
+                 faceMeans = None):
         DisplaySettings.__init__(self)
         # for backward compatibility:
         if hasattr(preparedImage, "imageSize") and hasattr(map, "width"):
@@ -365,6 +366,7 @@ class MapDisplay(DisplaySettings):
         
         self.preparedImage = preparedImage
         self.map = map
+        self.setFaceMeans(faceMeans)
         self._togglingGUI = False
 
         if not hasattr(preparedImage, "orig"):
@@ -433,6 +435,10 @@ class MapDisplay(DisplaySettings):
             self.attachHooks()
         self.viewer.update()
 
+    def setFaceMeans(self, faceMeans):
+        self.faceMeans = faceMeans
+        self.displayMeansAction.setEnabled(bool(faceMeans))
+
     def _adjustSize(self):
         pass # don't change window size out of a sudden
 
@@ -460,8 +466,7 @@ class MapDisplay(DisplaySettings):
         elif mode == 3:
             displayImage = self.map.labelImage()
         elif mode == 4:
-            sys.stderr.write("FIXME: face mean image now needs access to some FaceColorStatistics!\n")
-            return # FIXME
+            displayImage = self.faceMeans.regionImage(self.map.labelImage())
         else:
             sys.stderr.write("Unknown background mode %d!\n" % mode)
             return
