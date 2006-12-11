@@ -1323,13 +1323,15 @@ class SubPixelWatersheds
     template <class SrcIterator, class SrcAccessor>
     SubPixelWatersheds(SrcIterator ul, SrcIterator lr, SrcAccessor src)
     : image_(ul, lr, src),
-      initialStep_(0.1)
+      initialStep_(0.1),
+      minCPDist_(1e-3)
     {}
 
     template <class SrcIterator, class SrcAccessor>
     SubPixelWatersheds(triple<SrcIterator, SrcIterator, SrcAccessor> src)
     : image_(src),
-      initialStep_(0.1)
+      initialStep_(0.1),
+      minCPDist_(1e-3)
     {}
 
     int width() const { return image_.width(); }
@@ -1352,7 +1354,7 @@ class SubPixelWatersheds
     SplineImageView image_;
     PointArray minima_, saddles_, maxima_;
     IImage maxImage_;
-    double initialStep_;
+    double initialStep_, minCPDist_;
 };
 
 // static int sturmcount, zeroOrder;
@@ -1516,7 +1518,7 @@ void SubPixelWatersheds<SplineImageView>::findCriticalPoints(
     maxima_.push_back(PointType());
 
     findCriticalPointsNewtonMethod(
-        image_, mask, minima_, saddles_, maxima_, 1e-4, 2);
+        image_, mask, minima_, saddles_, maxima_, minCPDist_, 2);
     updateMaxImage();
 }
 
@@ -1542,7 +1544,7 @@ SubPixelWatersheds<SplineImageView>::findCriticalPoints()
 //             findCriticalPointsInFacet(x, y, minima_, saddles_, maxima_);
 //         }
 //     }
-    findCriticalPointsNewtonMethod(image_, minima_, saddles_, maxima_, 1e-4, 2);
+    findCriticalPointsNewtonMethod(image_, minima_, saddles_, maxima_, minCPDist_, 2);
     updateMaxImage();
 //     std::cerr << "Sturm fired: " << sturmcount << " times\n";
 //     std::cerr << "Zero order fired: " << zeroOrder << " times\n";
@@ -1700,6 +1702,13 @@ SubPixelWatersheds<SplineImageView>::rungeKuttaDoubleStepSecondOrder(
     {
         h /= 4.0;
         return Outside;
+    }
+
+    // check that we don't jump too far (next step shall not go backwards)
+    if((x2-x0)*image_.dx(x2, y2) + (y2-y0)*image_.dy(x2, y2) <= 0.0)
+    {
+        h /= 2.0;
+        return StepToLarge;
     }
 
     // estimate error and desirable step size (hh)
