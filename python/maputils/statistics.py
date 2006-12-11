@@ -18,6 +18,19 @@ class DetachableStatistics(object):
 #              Region-based Statistics & Cost Measures
 # --------------------------------------------------------------------
 
+def clampEpsilon(variance, epsilon):
+    if type(variance) == float:
+        return max(epsilon, variance)
+    for i in range(len(variance)):
+        variance[i] = max(epsilon, variance[i])
+    return variance
+
+def safeSqrt(variance):
+    if type(variance) == float:
+        return math.sqrt(max(0.0, variance))
+    result = [math.sqrt(max(0.0, variance[i])) for i in range(len(variance))]
+    return type(variance)(*result)
+
 class FaceMeanFunctor(object):
     def __init__(self, defaultValue):
         self.pixelCount = None
@@ -30,12 +43,12 @@ class FaceMeanFunctor(object):
 
     def variance(self):
         if self.pixelCount:
-            return max(0.0,  (self.sum2 / self.pixelCount) -
-                       math.sq(self.sum / self.pixelCount))
+            return (self.sum2 / self.pixelCount) - \
+                   math.sq(self.sum / self.pixelCount)
         return self.defaultValue
 
     def stdDeviation(self):
-        return math.sqrt(self.variance())
+        return safeSqrt(self.variance())
 
     def __call__(self, value):
         if self.pixelCount:
@@ -87,6 +100,7 @@ class FaceColorStatistics(DynamicFaceStatistics):
         for face in map.faceIter():
             self._functors[face.label()] = FaceMeanFunctor(defaultValue)
         self._defaultValue = defaultValue
+        self._diffNorm = 255.*math.sqrt(self.bands())
 
         class MeansInitFunctor(object):
             def __init__(self, functors):
@@ -114,9 +128,13 @@ class FaceColorStatistics(DynamicFaceStatistics):
         return self.originalImage.bands()
 
     def faceMeanFunctor(self, index):
+#         if hasattr(index, "label"):
+#             index = index.label()
         return self._functors[index]
 
     def __getitem__(self, index):
+#         if hasattr(index, "label"):
+#             index = index.label()
         return self._functors[index].average()
 
     def superSample(self, face, level = 2):
@@ -180,6 +198,65 @@ class FaceColorStatistics(DynamicFaceStatistics):
         mlf = MeanLookupFunctor(self, zeroPixel)
         return transformImage(labelImage, mlf)
 
+    def faceMeanDiff(self, dart):
+        m1 = self[dart.leftFaceLabel()]
+        m2 = self[dart.rightFaceLabel()]
+        return norm(m1 - m2) / self._diffNorm
+
+    def facePoissonLikelyhoodRatio(self, dart):
+        f1 = self.faceMeanFunctor(dart.leftFaceLabel())
+        f2 = self.faceMeanFunctor(dart.rightFaceLabel())
+        m1 = f1.average(); clampEpsilon(m1, 1e-5)
+        m2 = f2.average(); clampEpsilon(m2, 1e-5)
+        n1 = float(f1.pixelCount)
+        n2 = float(f2.pixelCount)
+        n = n1 + n2
+        m = (n1*m1 + n2*m2)/n
+        if self.bands() > 1:
+            return sum([n1*m1[i]*math.log(m1[i]) + n2*m2[i]*math.log(m2[i])
+                        - n*m[i]*math.log(m[i]) for i in range(self.bands())])
+        else:
+            return n1*m1*math.log(m1) + n2*m2*math.log(m2) - n*m*math.log(m)
+
+    def faceGaussLikelyhoodRatio(self, dart):
+        f1 = self.faceMeanFunctor(dart.leftFaceLabel())
+        f2 = self.faceMeanFunctor(dart.rightFaceLabel())
+        n1 = float(f1.pixelCount)
+        n2 = float(f2.pixelCount)
+        n = n1 + n2
+        v1 = f1.variance(); clampEpsilon(v1, 1e-5)
+        v2 = f2.variance(); clampEpsilon(v2, 1e-5)
+        v = ((f1.sum2+f2.sum2) / n) - math.sq((f1.sum+f2.sum) / n)
+        clampEpsilon(v, 1e-5)
+        if self.bands() > 1:
+            return sum([(n*math.log(v[i]) - n1*math.log(v1[i]) - n2*math.log(v2[i]))
+                        for i in range(self.bands())]) * 0.5
+        else:
+            return (n*math.log(v) - n1*math.log(v1) - n2*math.log(v2)) * 0.5
+
+    # FIXME: is this needed?
+    def faceStdDevDiff(self, dart):
+        f1 = self.faceMeanFunctor(dart.leftFaceLabel())
+        f2 = self.faceMeanFunctor(dart.rightFaceLabel())
+        return abs(f1.stdDeviation() - f2.stdDeviation())
+
+    # FIXME: wrap in sqrt?
+    def faceHomogenity(self, d):
+        return math.sq(self.faceMeanDiff(d)) * faceAreaHomogenity(d)
+
+    # FIXME: double-check, comment on deficiencies
+    def faceTTest(self, dart):
+        f1 = self.faceMeanFunctor(dart.leftFaceLabel())
+        f2 = self.faceMeanFunctor(dart.rightFaceLabel())
+        return norm(f1.average() - f2.average()) / \
+           max(math.sqrt(f1.variance() / f1.pixelCount + \
+                         f2.variance() / f2.pixelCount), 1e-3)
+
+def faceAreaHomogenity(dart):
+    a1 = dart.leftFace().area()
+    a2 = dart.rightFace().area()
+    return (a1 * a2) / (a1 + a2)
+
 # FIXME: still old API (see FaceColorStatistics)
 class FaceColorHistogram(DynamicFaceStatistics):
     def __init__(self, map, image):
@@ -221,72 +298,6 @@ class FaceColorHistogram(DynamicFaceStatistics):
         for pos in positions:
             face._colorHistogram.addValue(list(self.image[pos]))
             face._colorHistogram2.addValue(list(self.image[pos])[1:])
-
-def faceMeanDiff(dart):
-    return abs(dart.leftFace()._faceColor.average() -
-               dart.rightFace()._faceColor.average())/255
-
-def faceMeanDiffPoisson(dart):
-    m1=dart.leftFace()._faceColor.average()
-    m2=dart.rightFace()._faceColor.average()
-    n1=float(dart.leftFace()._faceColor.pixelCount)
-    n2=float(dart.rightFace()._faceColor.pixelCount)
-    n=n1+n2
-    m=(n1*m1+n2*m2)/n
-    return n1*m1*math.log(m1)+n2*m2*math.log(m2)-n*m*math.log(m)
-
-def vecNorm(vec):
-    return math.sqrt(dot(vec,vec))
-
-def faceMeanCDiff(dart):
-    return vecNorm(dart.leftFace()._faceColor.average() -
-                   dart.rightFace()._faceColor.average())/441.7
-
-def faceMeanDiff_ab(dart):
-    return Vector(dart.leftFace()._faceMeanCIE_a.average() -
-                  dart.rightFace()._faceMeanCIE_a.average(),
-                  dart.leftFace()._faceMeanCIE_b.average() -
-                  dart.rightFace()._faceMeanCIE_b.average()).magnitude()
-
-def faceMeanDiff_Lab(dart):
-    return Vector(dart.leftFace()._faceMeanCIE_L.average() -
-                  dart.rightFace()._faceMeanCIE_L.average(),
-                  dart.leftFace()._faceMeanCIE_a.average() -
-                  dart.rightFace()._faceMeanCIE_a.average(),
-                  dart.leftFace()._faceMeanCIE_b.average() -
-                  dart.rightFace()._faceMeanCIE_b.average()).magnitude()
-
-def faceStdDevDiff(dart):
-    return abs(dart.leftFace()._faceColor.stdDeviation() -
-               dart.rightFace()._faceColor.stdDeviation())
-
-def faceStdDevDiff_ab(dart):
-    return Vector(dart.leftFace()._faceMeanCIE_a.stdDeviation() -
-                  dart.rightFace()._faceMeanCIE_a.stdDeviation(),
-                  dart.leftFace()._faceMeanCIE_b.stdDeviation() -
-                  dart.rightFace()._faceMeanCIE_b.stdDeviation()).magnitude()
-
-def faceStdDevDiff_Lab(dart):
-    return Vector(dart.leftFace()._faceMeanCIE_L.stdDeviation() -
-                  dart.rightFace()._faceMeanCIE_L.stdDeviation(),
-                  dart.leftFace()._faceMeanCIE_a.stdDeviation() -
-                  dart.rightFace()._faceMeanCIE_a.stdDeviation(),
-                  dart.leftFace()._faceMeanCIE_b.stdDeviation() -
-                  dart.rightFace()._faceMeanCIE_b.stdDeviation()).magnitude()
-
-def faceAreaHomogenity(d):
-    return (d.leftFace().area() * d.rightFace().area()) / \
-           (d.leftFace().area() + d.rightFace().area())
-
-def faceHomogenity(d):
-    return math.sq(faceMeanDiff(d)) * faceAreaHomogenity(d)
-
-def faceTTest(dart):
-    if (dart.leftFace()._faceColor.pixelCount==0) or (dart.rightFace()._faceColor.pixelCount==0):
-        return 0
-    return abs(dart.leftFace()._faceColor.average() - dart.rightFace()._faceColor.average()) / \
-           max(math.sqrt(dart.leftFace()._faceColor.variance()/dart.leftFace()._faceColor.pixelCount + \
-           dart.rightFace()._faceColor.variance()/dart.rightFace()._faceColor.pixelCount),0.001)
 
 def faceHistDiff(dart):
     if (dart.leftFace()._colorHistogram.count()==0) or (dart.rightFace()._colorHistogram.count()==0):
@@ -342,12 +353,11 @@ class EdgeMergeTree(DynamicEdgeStatistics):
             edge = merged
         return result
 
-class WatershedStatistics(DynamicEdgeStatistics):
-    def __init__(self, map, flowlines, gmSiv):
+class WatershedStatistics(DetachableStatistics):
+    def __init__(self, map, flowlines, minima, gmSiv):
+        self._passValues = [None] * map.maxEdgeLabel()
+        self._saddles = [[] for i in range(map.maxEdgeLabel())]
         for edge in map.edgeIter():
-            edge._passValue = None
-            edge._saddles = []
-
             saddleIndex = None
             if hasattr(edge, "isSplitResultOf"): # split result?
                 edgeLabel = abs(edge.isSplitResultOf[0])
@@ -355,26 +365,74 @@ class WatershedStatistics(DynamicEdgeStatistics):
                     saddleIndex = flowlines[edgeLabel][3] \
                                   - edge.isSplitResultOf[1] # saddle index offset
             elif edge.label() < len(flowlines): # could be a border edge, too
-                saddleIndex = flowlines[edge.label()][3]
+                fl = flowlines[edge.label()]
+                if fl:
+                    saddleIndex = fl[3]
             
             if saddleIndex >= 0 and saddleIndex < len(edge):
-                edge._passValue = gmSiv[edge[saddleIndex]]
-                edge._saddles.append(saddleIndex)
+                self._passValues[edge.label()] = gmSiv[edge[saddleIndex]]
+                self._saddles[edge.label()].append(saddleIndex)
             else:
-                edge._passValue = min(gmSiv[edge[0]], gmSiv[edge[-1]])
+                self._passValues[edge.label()] = min(gmSiv[edge[0]], gmSiv[edge[-1]])
+
+        self._basinDepth = [None] * map.maxFaceLabel()
+        for mpos in minima:
+            face = map.faceAt(mpos)
+            depth = gmSiv[mpos]
+            fDepth = self._basinDepth[face.label()]
+            if fDepth == None or fDepth > depth:
+                self._basinDepth[face.label()] = depth
+
+        for face in map.faceIter():
+            if self._basinDepth[face.label()] == None:
+                print "Face %d (area %s, anchor %d) contains no minimum!" % (
+                    face.label(), face.area(), face.contour().label())
+                self._basinDepth[face.label()] = 0.0
+        
         self.attach(map)
+
+    def attach(self, map):
+        self._attachedHooks = (
+            map.addMergeFacesCallbacks(self.preMergeFaces, self.postMergeFaces),
+            map.addMergeEdgesCallbacks(self.preMergeEdges, self.postMergeEdges))
+        self._map = ref(map)
 
     def preMergeEdges(self, dart):
         edge1 = dart.edge()
         edge2 = dart.clone().nextSigma().edge()
-        self.mergedSaddles = list(edge1._saddles)
-        self.mergedSaddles.extend(edge2._saddles)
-        self.mergedPV = min(edge1._passValue, edge2._passValue)
+        self.mergedSaddles = list(self._saddles[edge1.label()])
+        self.mergedSaddles.extend(self._saddles[edge2.label()])
+        self.mergedPV = min(self._passValues[edge1.label()],
+                            self._passValues[edge2.label()])
         return True
 
     def postMergeEdges(self, survivor):
-        survivor._passValue = self.mergedPV
-        survivor._saddles = self.mergedSaddles
+        self._passValues[survivor.label()]
+        self._saddles[survivor.label()]
+
+    def preMergeFaces(self, dart):
+        self.mergedDepth = min(
+            self._basinDepth[dart.leftFaceLabel()],
+            self._basinDepth[dart.rightFaceLabel()])
+        return True
+
+    def postMergeFaces(self, survivor):
+        self._basinDepth[survivor.label()] = self.mergedDepth
+
+    def passValue(self, edge):
+        if hasattr(edge, "label"):
+            edge = edge.label()
+        return self._passValues[edge]
+
+    def dynamic(self, edgeLabel):
+        if hasattr(edgeLabel, "label"):
+            edge = edgeLabel
+            edgeLabel = edge.label()
+        else:
+            edge = self._map().edge(edgeLabel)
+        return self._passValues[edgeLabel] - min(
+            self._basinDepth[edge.leftFaceLabel()],
+            self._basinDepth[edge.rightFaceLabel()])
 
 def _makeAttrName(someStr):
     attrTrans = string.maketrans(".+-", "__n")
