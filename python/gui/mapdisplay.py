@@ -563,7 +563,6 @@ class MapDisplay(DisplaySettings):
 
     def cleanupMap(self):
         removeCruft(self.map, 7)
-        mergeZeroPixelFaces(self.map)
 
     def navigate(self, dart):
         if type(dart) == int:
