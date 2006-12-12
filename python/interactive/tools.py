@@ -40,6 +40,34 @@ class MapSearcher(qt.QObject):
         self.disconnect(self.display.viewer, qt.PYSIGNAL("mousePressed"),
                         self.search)
 
+class ManualClassifier(qt.QObject):
+    classes = [None, False, True]
+
+    def __init__(self, map, foreground, parent = None, name = None):
+        qt.QObject.__init__(self, parent, name)
+        self.map = map
+        viewer = parent.viewer
+        self.connect(viewer, qt.PYSIGNAL("mousePressed"),
+                     self.mousePressed)
+        self.foreground = foreground
+        self.manual = {}
+
+    def mousePressed(self, x, y, button):
+        if button != qt.Qt.LeftButton:
+            return
+        face = self.map.faceAt(Vector2(x, y))
+        oldClass = self.foreground[face.label()]
+        newClass = self.classes[(self.classes.index(oldClass) + 1) % 3]
+        self.foreground[face.label()] = newClass
+        self.manual[face.label()] = newClass
+        print "manually changed face %d to %s" % (face.label(), newClass)
+        self.emit(qt.PYSIGNAL("classChanged"), (face, ))
+
+    def disconnectViewer(self):
+        viewer = self.parent().viewer
+        self.disconnect(viewer, qt.PYSIGNAL("mousePressed"),
+                        self.mousePressed)
+
 class ActivePaintbrush(qt.QObject):
     def __init__(self, map, parent = None, name = None):
         qt.QObject.__init__(self, parent, name)
