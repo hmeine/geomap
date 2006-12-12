@@ -400,6 +400,8 @@ class WatershedStatistics(DetachableStatistics):
     def preMergeEdges(self, dart):
         edge1 = dart.edge()
         edge2 = dart.clone().nextSigma().edge()
+        # FIXME: this is totally wrong - the indices have to be corrected!!
+        # (alternatively, we could store the saddle positions?)
         self.mergedSaddles = list(self._saddles[edge1.label()])
         self.mergedSaddles.extend(self._saddles[edge2.label()])
         self.mergedPV = min(self._passValues[edge1.label()],
@@ -419,16 +421,24 @@ class WatershedStatistics(DetachableStatistics):
     def postMergeFaces(self, survivor):
         self._basinDepth[survivor.label()] = self.mergedDepth
 
+    def edgeSaddles(self, edge):
+        if hasattr(edge, "label"):
+            edgeLabel = edge.label()
+        else:
+            edgeLabel = edge
+            edge = self._map().edge(edgeLabel)
+        return [edge[i] for i in self._saddles[edgeLabel]]
+
     def passValue(self, edge):
         if hasattr(edge, "label"):
             edge = edge.label()
         return self._passValues[edge]
 
     def dynamic(self, edgeLabel):
-        if hasattr(edgeLabel, "label"):
-            edge = edgeLabel
+        if hasattr(edge, "label"):
             edgeLabel = edge.label()
         else:
+            edgeLabel = edge
             edge = self._map().edge(edgeLabel)
         return self._passValues[edgeLabel] - min(
             self._basinDepth[edge.leftFaceLabel()],
