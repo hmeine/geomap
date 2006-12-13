@@ -9,6 +9,11 @@
 #include <cmath>
 #include "exporthelpers.hxx"
 
+#ifdef _MSC_VER
+template <class T>
+inline bool isnan(T t) { return _isnan(t); }
+#endif
+
 namespace bp = boost::python;
 
 template<class Container>
@@ -871,7 +876,7 @@ void GeoMap::Node::setPosition(const vigra::Vector2 &p)
         }
         else
         {
-            GeoMap::Edge &edge(*map_->edge(-i));
+            GeoMap::Edge &edge(*map_->edge(-(int)i));
             edge[edge.size()-1] = p;
         }
     }
@@ -1003,7 +1008,7 @@ CELL_PTR(GeoMap::Edge) GeoMap::addEdge(
         pos2(std::find(endNode  ->darts_.begin(),
                        endNode  ->darts_.end(), endNeighbor  .label()));
     startNode->darts_.insert(pos1,  result->label());
-    endNode  ->darts_.insert(pos2, -result->label());
+    endNode  ->darts_.insert(pos2, -(int)result->label());
     return edge(result->label());
 }
 
@@ -1391,7 +1396,7 @@ void GeoMap::initContours()
         if((*it)->leftFaceLabel() == UNINITIALIZED_CELL_LABEL)
             new Face(this, dart( (*it)->label()));
         if((*it)->rightFaceLabel() == UNINITIALIZED_CELL_LABEL)
-            new Face(this, dart(-(*it)->label()));
+            new Face(this, dart(-(int)(*it)->label()));
     }
 }
 
@@ -1854,7 +1859,7 @@ GeoMap::Face &GeoMap::mergeFaces(GeoMap::Dart &dart)
 
     if(dart.leftFace()->area() < dart.rightFace()->area())
         removedDart.nextAlpha();
-    if(not removedDart.rightFaceLabel()) // face 0 shall stay face 0
+    if(! removedDart.rightFaceLabel()) // face 0 shall stay face 0
         removedDart.nextAlpha();
 
     GeoMap::Edge &mergedEdge(*removedDart.edge());
