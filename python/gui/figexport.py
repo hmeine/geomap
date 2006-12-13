@@ -96,7 +96,7 @@ class FigExporter:
     __init__()."""
     
     def __init__(self, scale = 30, roi = None, offset = Vector2(0.5, 0.5)):
-        """fe = FigExporter(90.0, BoundingBox(10, 10, 50, 50))
+        """fe = FigExporter(90.0, BoundingBox(Vector2(10, 10), Vector2(50, 50)))
 
         Initializes a FigExporter with the given scale and roi.
 
@@ -186,7 +186,7 @@ class FigExporter:
         simplify the polygon to 0.5 fig units, which are integer
         anyways)."""
         
-        o = self.offset
+        o = self.offset + attr.get('offset', Vector2(0,0))
         if self.roi:
             o = o - self.roi.begin() # don't modify in-place!
         pp = Polygon([(point + o) * self.scale for point in points])
@@ -219,7 +219,8 @@ class FigExporter:
         if not self.roi.intersects(polygon.boundingBox()):
             return []
         clipRect = BoundingBox(self.roi)
-        clipRect.moveBy(-self.offset)
+        o = self.offset + attr.get('offset', Vector2(0,0))
+        clipRect.moveBy(-o)
         if clipRect.contains(polygon.boundingBox()):
             return [self.addEdge(polygon, **attr)]
         return [self.addEdge(polygon, **attr)
@@ -234,6 +235,11 @@ class FigExporter:
         of setting properties (depth, penColor, lineStyle, lineWidth,
         ...) on all resulting objects via keyword arguments
         (cf. documentation of the FigExporter class).
+        
+        By default, circles will be filled, but have lineWidth=0. 
+        To draw a transparent circle, call:
+        
+        fi.addPointCircles([Vector2(5.2,5.3)], 2, penColor=fig.colorCyan,fillStyle=fig.fillStyleNone,lineWidth=1)
 
         If returnIndices is set to True (default: False), a list of
         (i, c) pairs is returned instead, where c is the fig.Circle
@@ -244,11 +250,11 @@ class FigExporter:
         attr["fillStyle"] = attr.get("fillStyle", fig.fillStyleSolid)
         attr["lineWidth"] = attr.get("lineWidth", 0)
         result = []
-        o = self.offset
+        o = self.offset + attr.get('offset', Vector2(0,0))
         if self.roi:
             o = o - self.roi.begin() # don't modify in-place!
         for i, point in enumerate(points):
-            if self.roi and not self.roi.contains(point+self.offset):
+            if self.roi and not self.roi.contains(point+o):
                 continue
             p = intPos((point + o) * self.scale)
             dc = fig.Circle(p, radius)
@@ -299,8 +305,6 @@ class FigExporter:
             result.extend(parts)
         return result
 
-        return self.addPointCircles(points, radius, **attr)
-
     def addMapNodes(self, map, radius, returnNodes = False, **attr):
         """fe.addMapNodes(map, radius, ...)
 
@@ -326,8 +330,16 @@ class FigExporter:
         Adds and returns fig.Polygons for all map edges (or -parts,
         see addClippedPoly).  If no penColor is given, only edges with
         a valid 'color' attribute are exported (can be either a fig or
-        a Qt color)."""
+        a Qt color).
         
+        For example, to draw only a subregion, and shift the upper left of 
+        the region to the origin, call
+        
+        fi.addMapEdges(map, penColor=fig.colorGreen, \
+             offset=Vector2(-13,-13), roi=BoundingBox(Vector2(13,13), Vector2(24,24)))
+        
+        """
+
         result = []
         for edge in map.edgeIter():
             if attr.has_key("penColor"):
