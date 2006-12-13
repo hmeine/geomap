@@ -6,7 +6,7 @@ INT2BUILDDIR = ../../interactive2/build-$(PLATFORM)
 include $(INT2BUILDDIR)/config/Makefile.include
 
 # at KOGS, try: module add pkgconfig libsigc++
-LOCAL_CPPFLAGS = -I. `pkg-config --cflags sigc++-2.0`
+LOCAL_CPPFLAGS = -I. -I../cellimage `pkg-config --cflags sigc++-2.0`
 
 #CXXFLAGS += -Wall -g
 CXXFLAGS += -Wall
