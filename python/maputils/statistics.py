@@ -339,7 +339,7 @@ class EdgeMergeTree(DynamicEdgeStatistics):
             label = merged
         self._tree[label] = self._merged # concatenate lists
     
-    def __call__(self, edge):
+    def __getitem__(self, edge):
         """Returns list of all edges of original map of which the
         given edge of the current map is composed."""
         if hasattr(edge, "label"):
@@ -434,7 +434,7 @@ class WatershedStatistics(DetachableStatistics):
             edge = edge.label()
         return self._passValues[edge]
 
-    def dynamic(self, edgeLabel):
+    def dynamic(self, edge):
         if hasattr(edge, "label"):
             edgeLabel = edge.label()
         else:
