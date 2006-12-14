@@ -249,7 +249,7 @@ class GeoMap
     void associatePixels(Face &face, const PixelList &pixels);
 
   public:
-    void removeIsolatedNode(Node &node);
+    bool removeIsolatedNode(Node &node);
     Edge &mergeEdges(Dart &dart);
     Face &removeBridge(Dart &dart);
     Face &mergeFaces(Dart &dart);

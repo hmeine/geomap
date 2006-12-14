@@ -1330,10 +1330,10 @@ void GeoMap::sortEdgesEventually(double stepDist, double minDist,
 
 void GeoMap::setSigmaMapping(SigmaMapping const &sigmaMapping)
 {
-    vigra_precondition(sigmaMapping.size() == (2*edges_.size() - 1),
-                       "setSigmaMapping: sigmaMapping has wrong size!");
+    vigra_precondition(sigmaMapping.size() >= (2*edges_.size() - 1),
+                       "setSigmaMapping: sigmaMapping too small!");
     SigmaMapping::const_iterator sigma(
-        sigmaMapping.begin() + (edges_.size() - 1));
+        sigmaMapping.begin() + (sigmaMapping.size() / 2));
 
     for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
     {
@@ -1359,8 +1359,9 @@ void GeoMap::setSigmaMapping(SigmaMapping const &sigmaMapping)
 std::auto_ptr<GeoMap::SigmaMapping> GeoMap::sigmaMapping()
 {
     std::auto_ptr<GeoMap::SigmaMapping> result(
-        new GeoMap::SigmaMapping(2*edges_.size() - 1));
-    GeoMap::SigmaMapping::iterator sigma(result->begin() + (edges_.size() - 1));
+        new GeoMap::SigmaMapping(2*edges_.size() - 1, 0));
+    GeoMap::SigmaMapping::iterator
+        sigma(result->begin() + (result->size() / 2));
 
     for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
     {
@@ -1413,6 +1414,11 @@ struct AbsAreaCompare
     }
 };
 
+typedef vigra::MultiArray<2, int> LabelImage;
+
+void markEdgeInLabelImage(
+    const vigra::Scanlines &scanlines, LabelImage &labelImage);
+
 void GeoMap::embedFaces(bool initLabelImage)
 {
     vigra_precondition(!labelImage_,
@@ -1453,6 +1459,10 @@ void GeoMap::embedFaces(bool initLabelImage)
                                     labelImage_->traverser_begin(),
                                     labelImage_->size(),
                                     vigra::StandardValueAccessor<int>());
+                // no need for rawAddEdgeToLabelImage here, since we
+                // work with darts anyways, and there's no easy way to
+                // ensure that the negative counts will not be wrong
+                // (esp. also for interior bridges etc.)
                 drawScannedPoly(*scanlines, -1,
                                 labelImage_->traverser_begin(),
                                 labelImage_->size(),
@@ -1513,6 +1523,41 @@ void GeoMap::embedFaces(bool initLabelImage)
             parent->embedContour(anchor);
             contour.uninitialize();
         }
+    }
+
+    if(initLabelImage)
+    {
+        // in the case of holes, the face's pixelArea()s will be wrong:
+        for(FaceIterator it = facesBegin(); it.inRange(); ++it)
+            (*it)->pixelArea_ = 0;
+
+        // interior bridges may not have been set to negative labels yet:
+        for(EdgeIterator it = edgesBegin(); it.inRange(); ++it)
+            if((*it)->isBridge())
+                drawScannedPoly(*scanPoly(**it, labelImage_->size()[1]), -1,
+                                labelImage_->traverser_begin(),
+                                labelImage_->size(),
+                                vigra::StandardValueAccessor<int>());
+
+        // remove temporary edge markings and fix pixelAreas:
+        for(GeoMap::LabelImage::traverser lrow = labelImage_->traverser_begin();
+            lrow != labelImage_->traverser_end(); ++lrow)
+        {
+            for(GeoMap::LabelImage::traverser::next_type lit = lrow.begin();
+                lit != lrow.end(); ++lit)
+            {
+                int label = *lit;
+                if(label < 0)
+                    *lit = 0;
+                else
+                    ++face(label)->pixelArea_;
+            }
+        }
+
+        // redo all edge markings correctly:
+        for(EdgeIterator it = edgesBegin(); it.inRange(); ++it)
+            markEdgeInLabelImage(*scanPoly(**it, labelImage_->size()[1]),
+                                 *labelImage_);
     }
 }
 
@@ -1582,15 +1627,34 @@ bool GeoMap::checkConsistency()
 
 /********************************************************************/
 
-void GeoMap::removeIsolatedNode(GeoMap::Node &node)
+// FIXME: better API?  (e.g. like in Python/global funcs?)
+// exception thrown when pre-operation hooks return false
+class CancelOperation : public std::exception
+{
+    std::string what_;
+
+  public:
+    CancelOperation(std::string what)
+    : what_(what)
+    {}
+
+    ~CancelOperation() throw()
+    {}
+
+    virtual const char * what() const throw()
+    {
+        return what_.c_str();
+    }
+};
+
+bool GeoMap::removeIsolatedNode(GeoMap::Node &node)
 {
     vigra_precondition(removeNodeHook(node),
                        "removeIsolatedNode() cancelled by removeNode hook");
 
     node.uninitialize();
+    return true;
 }
-
-typedef vigra::MultiArray<2, int> LabelImage;
 
 void rawAddEdgeToLabelImage(
     const vigra::Scanlines &scanlines, LabelImage &labelImage, int diff)
@@ -1614,6 +1678,36 @@ void rawAddEdgeToLabelImage(
 
             for(int x = begin; x < end; ++x)
                 labelImage[LabelImage::difference_type(x, y)] += diff;
+        }
+    }
+}
+
+void markEdgeInLabelImage(
+    const vigra::Scanlines &scanlines, LabelImage &labelImage)
+{
+    // clip to image range vertically:
+    int y = std::max(0, scanlines.startIndex()),
+     endY = std::min(labelImage.size()[1], scanlines.endIndex());
+
+    for(; y < endY; ++y)
+    {
+        const vigra::Scanlines::Scanline &scanline(scanlines[y]);
+        for(unsigned int j = 0; j < scanline.size(); ++j)
+        {
+            // X range checking
+            int begin = scanline[j].begin,
+                  end = scanline[j].end;
+            if(begin < 0)
+                begin = 0;
+            if(end > labelImage.size()[0])
+                end = labelImage.size()[0];
+
+            for(int x = begin; x < end; ++x)
+            {
+                LabelImage::difference_type pos(x, y);
+                int label = labelImage[pos];
+                labelImage[pos] = (label >= 0 ? -1 : label-1);
+            }
         }
     }
 }
@@ -1698,10 +1792,10 @@ GeoMap::Edge &GeoMap::mergeEdges(GeoMap::Dart &dart)
     GeoMap::Edge &survivor(*d1.edge());
     GeoMap::Edge &mergedEdge(*d2.edge());
 
-    vigra_precondition(preMergeEdgesHook(d1),
-                       "mergeEdges() cancelled by mergeEdges hook");
-    vigra_precondition(removeNodeHook(mergedNode),
-                       "mergeEdges() cancelled by removeNode hook");
+    if(!preMergeEdgesHook(d1))
+        throw CancelOperation("mergeEdges() cancelled by mergeEdges hook");
+    if(!removeNodeHook(mergedNode))
+        throw CancelOperation("mergeEdges() cancelled by removeNode hook");
 
     // TODO: history append?
 
@@ -1718,9 +1812,9 @@ GeoMap::Edge &GeoMap::mergeEdges(GeoMap::Dart &dart)
     if(labelImage_)
     {
         rawAddEdgeToLabelImage(*scanPoly(mergedEdge, labelImage_->size()[1]),
-                               *labelImage_, -1);
+                               *labelImage_, 1);
         rawAddEdgeToLabelImage(*scanPoly(survivor, labelImage_->size()[1]),
-                               *labelImage_, -1);
+                               *labelImage_, 1);
     }
 
     if(survivor.startNodeLabel() != mergedNode.label())
@@ -1745,7 +1839,7 @@ GeoMap::Edge &GeoMap::mergeEdges(GeoMap::Dart &dart)
     if(labelImage_)
     {
         rawAddEdgeToLabelImage(*scanPoly(survivor, labelImage_->size()[1]),
-                               *labelImage_, 1);
+                               *labelImage_, -1);
     }
 
     mergedNode.uninitialize();
@@ -1796,8 +1890,8 @@ GeoMap::Face &GeoMap::removeBridge(GeoMap::Dart &dart)
     vigra_precondition(node1.label() != node2.label(),
                        "Inconsistent map: bridge to be removed is also a self-loop!?");
 
-    vigra_precondition(preRemoveBridgeHook(dart),
-                       "removeBridge() cancelled by hook");
+    if(!preRemoveBridgeHook(dart))
+        throw CancelOperation("removeBridge() cancelled by hook");
 
     // TODO: history append?
 
@@ -1875,8 +1969,8 @@ GeoMap::Face &GeoMap::mergeFaces(GeoMap::Dart &dart)
     unsigned int contour2 = mergedFace.findComponentAnchor(
         GeoMap::Dart(removedDart).nextAlpha());
 
-    vigra_precondition(preMergeFacesHook(dart),
-                       "mergeFaces() cancelled by hook");
+    if(!preMergeFacesHook(dart))
+        throw CancelOperation("mergeFaces() cancelled by hook");
 
     // TODO: history append?
 
@@ -1970,27 +2064,51 @@ GeoMap::Face &GeoMap::mergeFaces(GeoMap::Dart &dart)
 
 /********************************************************************/
 
-void removeIsolatedNode(GeoMap::Node &node)
+bool removeIsolatedNode(GeoMap::Node &node)
 {
-    node.map()->removeIsolatedNode(node);
+    try
+    {
+        return node.map()->removeIsolatedNode(node);
+    }
+    catch(CancelOperation)
+    {}
+    return false;
 }
 
 CELL_PTR(GeoMap::Edge) mergeEdges(GeoMap::Dart &dart)
 {
-    GeoMap::Edge &survivor(dart.map()->mergeEdges(dart));
-    return dart.map()->edge(survivor.label());
+    try
+    {
+        GeoMap::Edge &survivor(dart.map()->mergeEdges(dart));
+        return dart.map()->edge(survivor.label());
+    }
+    catch(CancelOperation)
+    {}
+    return NULL_PTR(GeoMap::Edge);
 }
 
 CELL_PTR(GeoMap::Face) removeBridge(GeoMap::Dart &dart)
 {
-    GeoMap::Face &survivor(dart.map()->removeBridge(dart));
-    return dart.map()->face(survivor.label());
+    try
+    {
+        GeoMap::Face &survivor(dart.map()->removeBridge(dart));
+        return dart.map()->face(survivor.label());
+    }
+    catch(CancelOperation)
+    {}
+    return NULL_PTR(GeoMap::Face);
 }
 
 CELL_PTR(GeoMap::Face) mergeFaces(GeoMap::Dart &dart)
 {
-    GeoMap::Face &survivor(dart.map()->mergeFaces(dart));
-    return dart.map()->face(survivor.label());
+    try
+    {
+        GeoMap::Face &survivor(dart.map()->mergeFaces(dart));
+        return dart.map()->face(survivor.label());
+    }
+    catch(CancelOperation)
+    {}
+    return NULL_PTR(GeoMap::Face);
 }
 
 /********************************************************************/
@@ -2481,10 +2599,11 @@ std::string Node__repr__(GeoMap::Node const &node)
 std::string Edge__repr__(GeoMap::Edge const &edge)
 {
     std::stringstream s;
+    s.unsetf(std::ios::scientific);
     s.precision(1);
     s << "<GeoMap.Edge " << edge.label()
       << ", node " << edge.startNodeLabel() << " -> " << edge.endNodeLabel()
-      << ", partial area " << edge.partialArea() << ", length" << edge.length()
+      << ", partial area " << edge.partialArea() << ", length " << edge.length()
       << ", " << edge.size() << " points>";
     return s.str();
 }
