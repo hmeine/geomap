@@ -2,7 +2,7 @@ _cvsVersion = "$Id$" \
               .split(" ")[2:-2]
 
 import sys, qt, math
-from map import mergeFacesByLabel, CancelOperation
+from map import mergeFacesByLabel
 from vigrapyqt import EdgeOverlay, PointOverlay
 from vigra import *
 
@@ -119,8 +119,6 @@ class ActivePaintbrush(qt.QObject):
                 self.currentLabel = survivor.label()
             else:
                 self.currentLabel = otherLabel
-        except CancelOperation:
-            self.currentLabel = otherLabel
         except Exception, e:
             sys.stderr.write("Paintbrush: Merge operation failed. Cancelling paint mode.\n")
             self.painting = False

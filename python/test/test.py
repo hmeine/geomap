@@ -131,9 +131,8 @@ try:
 
     operation = random.choice(possible)
     changed = False
-    try:
 
-      if operation == 0:
+    if operation == 0:
         if mec == None:
             mec = mergeEdgesCandidates(map)
         if not len(mec):
@@ -146,11 +145,12 @@ try:
             history += "mergeEdges(map.dart(%d))\n" % (dart.label(), )
             mergePos = dart[0]
             survivor = mergeEdges(dart)
-            assert mergePos in [survivor[i] for i in survivor.mergeIndices], \
-                   "mergeIndices do not point to merge position!"
-            changed = True
+            if survivor:
+                assert mergePos in [survivor[i] for i in survivor.mergeIndices], \
+                       "mergeIndices do not point to merge position!"
+                changed = True
 
-      if operation == 1:
+    if operation == 1:
         if rbc == None:
             rbc = removeBridgeCandidates(map)
         if not len(rbc):
@@ -161,10 +161,10 @@ try:
             dart = map.dart(dartLabel)
             print "removing bridge via %s" % (dart, )
             history += "removeBridge(map.dart(%d))\n" % (dartLabel, )
-            removeBridge(dart)
-            changed = True
+            if removeBridge(dart):
+                changed = True
 
-      if operation == 2:
+    if operation == 2:
         if mfc == None:
             mfc = mergeFacesCandidates(map)
         if not len(mfc):
@@ -175,12 +175,8 @@ try:
             dart = map.dart(dartLabel)
             print "removing edge via %s" % (dart, )
             history += "mergeFaces(map.dart(%d))\n" % (dartLabel, )
-            mergeFaces(dart)
-            changed = True
-
-    except CancelOperation:
-        print "-> cancelled"
-        pass # border can't be removed..
+            if mergeFaces(dart):
+                changed = True
 
 except Exception, e:
     print history
