@@ -544,7 +544,7 @@ class MapDisplay(DisplaySettings):
                     edge.color = qt.Qt.black
             self.edgeOverlay.useIndividualColors = True
             self.nodeOverlay.visible = False
-        elif type(tool) != int:
+        elif hasattr(tool, "disconnectViewer"):
             self.tool = tool
         elif tool != None:
             print "setTool: invalid argument, tool deactivated now."
@@ -618,7 +618,7 @@ class MapDisplay(DisplaySettings):
     def saveFig(self, basepath, geometry = None, scale = None,
                 bgFilename = None):
         """display.saveFig(basepath,
-                        geometry=None, scale=None, bgFilename = None)
+                           geometry=None, scale=None, bgFilename = None)
 
         Saves an XFig file as <basepath>.fig (and the pixel background
         as <basepath>_bg.png if bgFilename is not given) and returns
@@ -670,8 +670,10 @@ class MapDisplay(DisplaySettings):
             # FIXME: str(type(overlay)).contains(...) instead?
             if type(overlay) in (MapNodes, MapEdges):
                 extraZoom = float(overlay._zoom) / self.viewer.scale
-                oldScale, oldOffset = fe.scale, fe.offset
+                oldScale, oldOffset, oldROI = fe.scale, fe.offset, fe.roi
                 fe.scale *= extraZoom
+                fe.roi = BoundingBox(fe.roi.begin() / extraZoom,
+                                     fe.roi.end() / extraZoom)
                 #fe.offset = fe.offset + Vector2(1, 1) * (extraZoom / 2.0 - 0.5)
                 if type(overlay) == MapNodes:
                     radius = overlay.origRadius
@@ -695,7 +697,7 @@ class MapDisplay(DisplaySettings):
                                     **attr)
                     else:
                         fe.addMapEdges(overlay._map(), **attr)
-                fe.scale, fe.offset = oldScale, oldOffset
+                fe.scale, fe.offset, fe.roi = oldScale, oldOffset, oldROI
             elif type(overlay) == PointOverlay:
                 fe.addPointOverlay(overlay, depth = depth)
             elif type(overlay) == EdgeOverlay:
@@ -721,6 +723,16 @@ class MapDisplay(DisplaySettings):
 
         fe = self.saveFig(basepath, *args, **kwargs)
         fe.f.fig2dev(lang = "eps")
+
+    def savePDF(self, basepath, *args, **kwargs):
+        """display.savePDF(basepath, geometry=None, scale=None)
+
+        Saves an XFig file as <basepath>.fig (see saveFig()
+        documentation for details) and calls fig2dev to create an
+        additional <basepath>.pdf."""
+
+        fe = self.saveFig(basepath, *args, **kwargs)
+        fe.f.fig2dev(lang = "pdf")
 
 # --------------------------------------------------------------------
 #                         dart navigation dialog
