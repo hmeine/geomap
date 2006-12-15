@@ -303,18 +303,37 @@ class DartPointIter
         return ret;
     }
 
-    /**
-     * the opposite of inRange(); true if this iterator is behind the
-     * range and should not be dereferenced any more
-     */
+        /** 
+         * Change the direction of traversal, without changing the
+         * current position.  (Thus, atEnd()/inRange() will also not
+         * change.)
+         */
+    void reverse()
+    {
+        if(inc_ < 0)
+        {
+            inc_ = 1;
+            end_ = edge_->size();
+        }
+        else
+        {
+            inc_ = -1;
+            end_ = -1;
+        }
+    }
+
+        /**
+         * the opposite of inRange(); true if this iterator is behind the
+         * range and should not be dereferenced any more
+         */
     bool atEnd() const
     {
         return index_ == end_;
     }
 
-    /**
-     * the opposite of atEnd(); true if this iterator is dereferencable
-     */
+        /**
+         * the opposite of atEnd(); true if this iterator is dereferencable
+         */
     bool inRange() const
     {
         return index_ != end_;
@@ -908,6 +927,8 @@ GeoMap::GeoMap(bp::list nodePositions,
     }
 
     edges_.push_back(NULL_PTR(Edge));
+    vigra_precondition(edgeTuples[0] == bp::object(),
+        "GeoMap.__init__: edgeTuples[0] must be None (valid labels start at 1)");
     for(int i = 1; i < len(edgeTuples); ++i)
     {
         bp::extract<bp::tuple> ete(edgeTuples[i]);
@@ -1074,10 +1095,10 @@ class DartPosition
   public:
     DartPosition(const GeoMap::Dart &dart)
     : dart_(dart),
-      hitEnd_(false),
-      pointIter_(DartPointIter(dart)),
+      pointIter_(dart),
       segmentIndex_(0),
       arcLength_(0.0),
+      partialArcLength_(0.0),
       position_(*pointIter_)
     {
         p1_ = *pointIter_;
@@ -1086,7 +1107,7 @@ class DartPosition
 
     bool atEnd() const
     {
-        return hitEnd_;
+        return pointIter_.atEnd();
     }
 
     const vigra::Vector2 &operator()() const
@@ -1094,16 +1115,85 @@ class DartPosition
         return position_;
     }
 
-    void leaveCircle(const vigra::Vector2 &center, double radius2)
+    int dartLabel() const
+    {
+        return dart_.label();
+    }
+
+    unsigned int segmentIndex() const
+    {
+        return segmentIndex_;
+    }
+
+    double arcLength() const
+    {
+        return arcLength_ + partialArcLength_;
+    }
+
+    const vigra::Vector2 &segmentStart() const
+    {
+        return p1_;
+    }
+
+    const vigra::Vector2 &segmentEnd() const
+    {
+        return p2_;
+    }
+
+    double segmentLength() const
+    {
+        return (p2_ - p1_).magnitude();
+    }
+
+    bool gotoArcLength(double arcLength)
+    {
+        while(arcLength < arcLength_)
+            if(!prevSegmentInternal())
+                return false;
+        do
+        {
+            double rest = arcLength - arcLength_;
+            Vector2 diff(p2_ - p1_);
+            if(diff.squaredMagnitude() > rest*rest)
+            {
+                position_ = p1_ + diff*rest/diff.magnitude();
+                partialArcLength_ = rest;
+                return true;
+            }
+        }
+        while(nextSegmentInternal());
+        partialArcLength_ = 0.0;
+        return false;
+    }
+
+    bool gotoNextSegment()
+    {
+        bool result = nextSegmentInternal();
+        position_ = p1_;
+        partialArcLength_ = 0.0;
+        return result;
+    }
+
+    bool gotoPrevSegment()
+    {
+        bool result = prevSegmentInternal();
+        position_ = p1_;
+        partialArcLength_ = 0.0;
+        return result;
+    }
+
+    bool leaveCircle(const vigra::Vector2 &center, double radius2)
     {
         while((p2_ - center).squaredMagnitude() < radius2)
-            if(!nextSegment())
+            if(!nextSegmentInternal())
                 break;
 
         position_ = p2_;
+        partialArcLength_ = (p2_ - p1_).magnitude();
+        return !atEnd();
     }
 
-    void intersectCircle(const vigra::Vector2 &center, double radius2)
+    bool intersectCircle(const vigra::Vector2 &center, double radius2)
     {
         // unfortunately, this prevents larger steps:
 //         if((p1_ - center).squaredMagnitude() >= radius2)
@@ -1114,10 +1204,10 @@ class DartPosition
 //         }
         while((p2_ - center).squaredMagnitude() < radius2)
         {
-            if(!nextSegment())
+            if(!nextSegmentInternal())
             {
                 position_ = p2_;
-                return;
+                return false;
             }
         }
 
@@ -1136,35 +1226,44 @@ class DartPosition
             std::cerr << "intersectCircle: error interpolating between " << p1_ << " and " << p2_ << " to a squared distance of " << radius2 << " from " << center << "!\n";
         }
         position_ = p1_ + diff;
-    }
-
-    int dartLabel() const
-    {
-        return dart_.label();
+        partialArcLength_ = diff.magnitude();
     }
 
   protected:
-    bool nextSegment()
+    bool nextSegmentInternal()
     {
-        //vigra_precondition(!hitEnd_, "DartPosition: trying to proceed from end");
+        if(atEnd())
+            return false;
         arcLength_ += (p2_ - p1_).magnitude();
         p1_ = p2_;
         ++pointIter_;
         if(pointIter_.atEnd())
-        {
-            hitEnd_ = true;
             return false;
-        }
         p2_ = *pointIter_;
         ++segmentIndex_;
         return true;
     }
 
+    bool prevSegmentInternal()
+    {
+        if(!segmentIndex_)
+            return false;
+        // now I assume that pointIter_ can step backwards and still
+        // is inRange():
+        pointIter_.reverse();
+        p2_ = p1_;
+        ++pointIter_;
+        pointIter_.reverse();
+        p1_ = *pointIter_;
+        arcLength_ -= (p2_ - p1_).magnitude();
+        --segmentIndex_;
+        return true;
+    }
+
     GeoMap::Dart dart_;
-    bool hitEnd_;
     DartPointIter pointIter_;
     unsigned int segmentIndex_;
-    double arcLength_;
+    double arcLength_, partialArcLength_;
     vigra::Vector2 p1_, p2_, position_;
 };
 
@@ -2822,4 +2921,23 @@ void defMap()
     def("contourPoly", &contourPoly,
         "contourPoly(anchor) -> Polygon\n\n"
         "Returns a Polygon composed by traversing anchor's phi orbit once.");
+
+    class_<DartPosition>("DartPosition", init<GeoMap::Dart>())
+        .def("atEnd", &DartPosition::atEnd)
+        .def("__call__", &DartPosition::operator(),
+             return_value_policy<copy_const_reference>())
+        .def("dartLabel", &DartPosition::dartLabel)
+        .def("segmentIndex", &DartPosition::segmentIndex)
+        .def("arcLength", &DartPosition::arcLength)
+        .def("segmentStart", &DartPosition::segmentStart,
+             return_value_policy<copy_const_reference>())
+        .def("segmentEnd", &DartPosition::segmentEnd,
+             return_value_policy<copy_const_reference>())
+        .def("segmentLength", &DartPosition::segmentLength)
+        .def("gotoArcLength", &DartPosition::gotoArcLength)
+        .def("gotoNextSegment", &DartPosition::gotoNextSegment)
+        .def("gotoPrevSegment", &DartPosition::gotoPrevSegment)
+        .def("leaveCircle", &DartPosition::leaveCircle)
+        .def("intersectCircle", &DartPosition::intersectCircle)
+    ;
 }
