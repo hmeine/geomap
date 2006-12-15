@@ -128,6 +128,10 @@ class MapEdges(object):
     def setEdgePoints(self, index, edgePoints):
         if not self._zoomedEdges:
             return
+        if index >= len(self._zoomedEdges):
+            # FIXME: this happens if new edges were created (e.g. with
+            # splitEdge) and we do not know them yet
+            return
         if self._zoomedEdges[index]:
             updateROI = self._zoomedEdges[index].boundingRect()
         else:
