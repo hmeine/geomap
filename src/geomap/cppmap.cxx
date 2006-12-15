@@ -2798,6 +2798,12 @@ std::string Dart__repr__(GeoMap::Dart const &dart)
     return s.str();
 }
 
+template<class T>
+T returnCopy(const T &v)
+{
+    return v;
+}
+
 void defMap()
 {
     CELL_RETURN_POLICY crp;
@@ -3000,6 +3006,7 @@ void defMap()
         .def("atEnd", &DartPosition::atEnd)
         .def("__call__", &DartPosition::operator(),
              return_value_policy<copy_const_reference>())
+        .def("__copy__", &returnCopy<DartPosition>)
         .def("dartLabel", &DartPosition::dartLabel)
         .def("segmentIndex", &DartPosition::segmentIndex)
         .def("arcLength", &DartPosition::arcLength)
