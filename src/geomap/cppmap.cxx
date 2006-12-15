@@ -927,8 +927,9 @@ GeoMap::GeoMap(bp::list nodePositions,
     }
 
     edges_.push_back(NULL_PTR(Edge));
-    vigra_precondition(edgeTuples[0] == bp::object(),
-        "GeoMap.__init__: edgeTuples[0] must be None (valid labels start at 1)");
+    if(edgeTuples)
+        vigra_precondition(edgeTuples[0] == bp::object(),
+            "GeoMap.__init__: edgeTuples[0] must be None (valid labels start at 1)");
     for(int i = 1; i < len(edgeTuples); ++i)
     {
         bp::extract<bp::tuple> ete(edgeTuples[i]);
