@@ -251,6 +251,9 @@ class GeoMap
   public:
     bool removeIsolatedNode(Node &node);
     Edge &mergeEdges(Dart &dart);
+    Edge &splitEdge(Edge &edge, unsigned int segmentIndex);
+    Edge &splitEdge(Edge &edge, unsigned int segmentIndex,
+                    const vigra::Vector2 &newPoint, bool insertPoint = true);
     Face &removeBridge(Dart &dart);
     Face &mergeFaces(Dart &dart);
 

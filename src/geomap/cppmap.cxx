@@ -140,6 +140,8 @@ class GeoMap::Edge
 
     friend class Dart; // allow setLeftFaceLabel
     friend GeoMap::Edge &GeoMap::mergeEdges(Dart &);
+    friend GeoMap::Edge &GeoMap::splitEdge(
+        Edge &, unsigned int, const vigra::Vector2 &, bool);
 
   public:
     template<class POINTS>
@@ -1228,6 +1230,7 @@ class DartPosition
         }
         position_ = p1_ + diff;
         partialArcLength_ = diff.magnitude();
+        return true;
     }
 
   protected:
@@ -1950,6 +1953,61 @@ GeoMap::Edge &GeoMap::mergeEdges(GeoMap::Dart &dart)
     return survivor;
 }
 
+GeoMap::Edge &GeoMap::splitEdge(GeoMap::Edge &edge, unsigned int segmentIndex)
+{
+    return splitEdge(edge, segmentIndex, edge[0], false);
+}
+
+GeoMap::Edge &GeoMap::splitEdge(GeoMap::Edge &edge, unsigned int segmentIndex,
+                                const vigra::Vector2 &newPoint, bool insertPoint)
+{
+    vigra_precondition(
+        (segmentIndex || insertPoint) && 
+        (segmentIndex < edge.size() - 1 + (insertPoint ? 1 : 0)),
+        "splitEdge: invalid segmentIndex (must not produce edge with zero length)!");
+    
+    CELL_PTR(GeoMap::Node) newNode(
+        addNode(insertPoint ? newPoint : edge[segmentIndex]));
+
+    if(labelImage_)
+    {
+        rawAddEdgeToLabelImage(*scanPoly(edge, labelImage_->size()[1]),
+                               *labelImage_, 1);
+    }
+
+    if(insertPoint)
+    {
+        edge.insert(edge.begin() + segmentIndex, newPoint);
+        ++segmentIndex;
+    }
+
+    GeoMap::Edge *result = new GeoMap::Edge(
+        this, newNode->label(), edge.endNodeLabel(), edge.split(segmentIndex));
+    result->leftFaceLabel_ = edge.leftFaceLabel_;
+    result->rightFaceLabel_ = edge.rightFaceLabel_;
+    result->protection_ = edge.protection_;
+
+    newNode->darts_.push_back(-(int)edge.label());
+    newNode->darts_.push_back( (int)result->label());
+
+    edge.endNodeLabel_ = newNode->label();
+
+    GeoMap::Node &changedNode(*result->endNode());
+    *std::find(changedNode.darts_.begin(),
+               changedNode.darts_.end(), -(int)edge.label())
+        = -(int)result->label();
+
+    if(labelImage_)
+    {
+        rawAddEdgeToLabelImage(*scanPoly(edge, labelImage_->size()[1]),
+                               *labelImage_, -1);
+        rawAddEdgeToLabelImage(*scanPoly(*result, labelImage_->size()[1]),
+                               *labelImage_, -1);
+    }
+
+    return *result;
+}
+
 unsigned int GeoMap::Face::findComponentAnchor(const GeoMap::Dart &dart)
 {
     for(unsigned int i = 0; i < anchors_.size(); ++i)
@@ -2209,6 +2267,19 @@ CELL_PTR(GeoMap::Face) mergeFaces(GeoMap::Dart &dart)
     catch(CancelOperation)
     {}
     return NULL_PTR(GeoMap::Face);
+}
+
+CELL_PTR(GeoMap::Edge) pySplitEdge(
+    GeoMap &geomap, GeoMap::Edge &edge, unsigned int segmentIndex,
+    bp::object newPoint)
+{
+    bp::extract<vigra::Vector2> insertPoint(newPoint);
+    CellLabel newEdgeLabel(0);
+    if(insertPoint.check())
+        newEdgeLabel = geomap.splitEdge(edge, segmentIndex, insertPoint()).label();
+    else
+        newEdgeLabel = geomap.splitEdge(edge, segmentIndex).label();
+    return geomap.edge(newEdgeLabel);
 }
 
 /********************************************************************/
@@ -2768,6 +2839,8 @@ void defMap()
             .def("addEdge", (CELL_PTR(GeoMap::Edge)(GeoMap::*)(GeoMap::Dart, GeoMap::Dart, const Vector2Array &))&GeoMap::addEdge, crp,
                  (arg("startNeighbor"), arg("endNeighbor"), arg("points")))
             .def("removeEdge", &GeoMap::removeEdge, crp)
+            .def("splitEdge", &pySplitEdge,
+                 (arg("edge"), arg("segmentIndex"), arg("newPoint") = bp::object()))
             .def("sortEdgesDirectly", &GeoMap::sortEdgesDirectly)
             .def("sortEdgesEventually", &GeoMap_sortEdgesEventually,
                  args("stepDist", "minDist"))
