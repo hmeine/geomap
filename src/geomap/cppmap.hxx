@@ -74,6 +74,8 @@ struct interruptable_accumulator
 /*                                                                  */
 /********************************************************************/
 
+class PlannedSplits;
+
 class GeoMap
 {
   public:
@@ -146,6 +148,7 @@ class GeoMap
     std::vector<CellLabel> faceLabelLUT_;
 
     bool edgesSorted_;
+    std::auto_ptr<PlannedSplits> splitInfo_;
 
   public:
     GeoMap(bp::list nodePositions,
@@ -209,7 +212,9 @@ class GeoMap
 
     typedef std::list<std::list<int> > UnsortableGroups;
     void sortEdgesEventually(double stepDist, double minDist,
-                             UnsortableGroups &unsortable);
+                             UnsortableGroups &unsortable,
+                             bool splitEdges);
+    void splitParallelEdges();
 
     typedef std::vector<int> SigmaMapping;
     void setSigmaMapping(SigmaMapping const &sigmaMapping);

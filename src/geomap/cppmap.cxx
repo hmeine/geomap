@@ -305,7 +305,7 @@ class DartPointIter
         return ret;
     }
 
-        /** 
+        /**
          * Change the direction of traversal, without changing the
          * current position.  (Thus, atEnd()/inRange() will also not
          * change.)
@@ -1118,6 +1118,11 @@ class DartPosition
         return position_;
     }
 
+    GeoMap::Dart dart() const
+    {
+        return dart_;
+    }
+
     int dartLabel() const
     {
         return dart_.label();
@@ -1273,8 +1278,34 @@ class DartPosition
 
 struct DartPositionAngle
 {
+    struct EdgePosition
+    {
+        unsigned int segmentIndex;
+        double arcLength;
+        vigra::Vector2 position;
+    };
+
+    struct CommonPos : public EdgePosition
+    {
+        CommonPos()
+        : isSet(false)
+        {}
+
+        const vigra::Vector2 &set(const DartPosition &dp)
+        {
+            position = dp();
+            segmentIndex = dp.segmentIndex();
+            arcLength = dp.arcLength();
+            isSet = true;
+            return position;
+        }
+
+        bool isSet;
+    };
+
     DartPosition dp;
     double absAngle, angle;
+    CommonPos commonPos;
 
     DartPositionAngle(const GeoMap::Dart &dart)
     : dp(dart)
@@ -1283,6 +1314,37 @@ struct DartPositionAngle
     bool operator<(const DartPositionAngle &other) const
     {
         return angle < other.angle;
+    }
+
+    struct SplitPos : public EdgePosition
+    {
+        int dartLabel, sigmaPos;
+        unsigned int splitGroup, newEdgeLabel;
+
+        SplitPos(const EdgePosition &ep, int dl, unsigned int sg)
+        : EdgePosition(ep),
+          dartLabel(dl),
+          splitGroup(sg)
+        {}
+
+        bool operator<(const SplitPos &other) const
+        {
+            return arcLength > other.arcLength;
+        }
+    };
+
+    SplitPos splitPos(unsigned int group) const
+    {
+        vigra_precondition(
+            commonPos.isSet, "splitPos() called with uninitialized commonPos");
+        SplitPos result(commonPos, dp.dartLabel(), group);
+        if(dp.dartLabel() < 0)
+        {
+            GeoMap::Edge &edge(*dp.dart().edge());
+            result.segmentIndex = edge.size()-2 - result.segmentIndex;
+            result.arcLength = edge.length() - result.arcLength;
+        }
+        return result;
     }
 };
 
@@ -1308,11 +1370,23 @@ inline double normAngle(double diff)
     return diff;
 }
 
+class PlannedSplits : public std::vector<DartPositionAngle::SplitPos>
+{
+  public:
+    PlannedSplits()
+    : splitGroupCount(0)
+    {}
+
+    unsigned int splitGroupCount;
+};
+
 void sortEdgesInternal(const vigra::Vector2 &currentPos,
                        double referenceAngle,
                        DPAI dpBegin, DPAI dpEnd,
                        double stepDist2, double minAngle,
-                       GeoMap::UnsortableGroups &unsortable)
+                       GeoMap::UnsortableGroups &unsortable,
+                       PlannedSplits *splitInfo,
+                       bool parallel)
 {
     if(dpEnd - dpBegin < 2)
         return;
@@ -1365,9 +1439,12 @@ void sortEdgesInternal(const vigra::Vector2 &currentPos,
         }
     }
 
+    bool storedSplitPos = false;
+    PlannedSplits::size_type storedSplitsOffset = 0;
+
     // look for groups of parallel edges
     DPAI groupStart = dpBegin,
-          groupLast = groupStart, // for convenience, this is always groupEnd - 1
+          groupLast = groupStart, // for convenience; this is always groupEnd - 1
            groupEnd = groupLast + 1;
     for(; true; ++groupLast, ++groupEnd)
     {
@@ -1375,23 +1452,37 @@ void sortEdgesInternal(const vigra::Vector2 &currentPos,
         if((groupEnd == dpEnd) || // last group
            (groupEnd->angle >= groupLast->angle + minAngle)) // decision here
         {
+            if(splitInfo && groupEnd != dpEnd && parallel)
+            {
+                // build group of edges to be split:
+                // (since we have been given group of parallel darts and could
+                // decide about the order at the current position, but not in
+                // the last common position)
+                unsigned int splitGroup = splitInfo->splitGroupCount++;
+                storedSplitsOffset = splitInfo->size();
+                for(DPAI dpi = dpBegin; dpi != dpEnd; ++dpi)
+                    splitInfo->push_back(dpi->splitPos(splitGroup));
+                storedSplitPos = true;
+            }
+
             // recursion needed if > one dart in group:
             if(groupLast != groupStart)
             {
                 // determine mean position of dart positions in subgroup:
-                vigra::Vector2 meanPos(groupLast->dp());
-                for(DPAI dpi = groupStart; dpi != groupLast; ++dpi)
-                    meanPos += dpi->dp();
+                vigra::Vector2 meanPos(0, 0);
+                for(DPAI dpi = groupStart; dpi != groupEnd; ++dpi)
+                    meanPos += dpi->commonPos.set(dpi->dp);
                 meanPos /= (groupEnd - groupStart);
 
-                // sort subgroup recursively:
+                // sort parallel subgroup recursively:
                 sortEdgesInternal(meanPos, normAngle(
                                       groupStart->absAngle +
                                       normAngle(groupLast->absAngle -
                                                 groupStart->absAngle) / 2),
                                   groupStart, groupEnd,
                                   stepDist2, minAngle,
-                                  unsortable);
+                                  unsortable, splitInfo,
+                                  true);
             }
 
             if(groupEnd == dpEnd)
@@ -1400,14 +1491,47 @@ void sortEdgesInternal(const vigra::Vector2 &currentPos,
             groupStart = groupEnd;
         }
     }
-    return;
+
+    if(storedSplitPos)
+    {
+        // Later, in order to get the merging of the split nodes
+        // right, we need to know the sigma order we just found out
+        // here.  We do not do it then, because it becomes much more
+        // complicated after the splitting.
+
+        PlannedSplits::iterator
+            storedSplitsBegin(splitInfo->begin() + storedSplitsOffset),
+            storedSplitsEnd(storedSplitsBegin + (dpEnd - dpBegin));
+
+        // Unfortunately, this is O(n^2) - I thought long about this,
+        // but I cannot see any shortcut.  Maybe I am too tired, but
+        // right now I have to get it working.
+        int sigmaPos = 0;
+        for(DPAI dpi = dpBegin; dpi != dpEnd; ++dpi, ++sigmaPos)
+        {
+            int dartLabel = dpi->dp.dartLabel();
+            for(PlannedSplits::iterator splIt = // wordplay ;-)
+                    storedSplitsBegin; splIt != storedSplitsEnd; ++splIt)
+            {
+                if(splIt->dartLabel == dartLabel)
+                {
+                    splIt->sigmaPos = sigmaPos;
+                    break;
+                }
+            }
+        }
+    }
 }
 
 void GeoMap::sortEdgesEventually(double stepDist, double minDist,
-                                 UnsortableGroups &unsortable)
+                                 UnsortableGroups &unsortable,
+                                 bool splitEdges)
 {
     double minAngle = std::atan2(minDist, stepDist),
           stepDist2 = vigra::sq(stepDist);
+
+    if(splitEdges)
+        splitInfo_ = std::auto_ptr<PlannedSplits>(new PlannedSplits());
 
     for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
     {
@@ -1419,16 +1543,136 @@ void GeoMap::sortEdgesEventually(double stepDist, double minDist,
             dartPositions.push_back(
                 DartPositionAngle(dart(dartLabels[i])));
 
+//         std::cerr << "sorting darts of node " << (*it)->label() << ":\n";
         sortEdgesInternal((*it)->position(), 0.0,
                           dartPositions.begin(), dartPositions.end(),
                           stepDist2, minAngle,
-                          unsortable);
+                          unsortable, splitInfo_.get(), false);
 
         for(unsigned int i = 0; i < dartLabels.size(); ++i)
             dartLabels[i] = dartPositions[i].dp.dartLabel();
     }
 
+    if(splitEdges)
+        std::cerr << splitInfo_->splitGroupCount << " split groups initialized.\n";
+
     edgesSorted_ = true;
+}
+
+struct MergeDart
+{
+    int dartLabel, sigmaPos;
+    bool turnLater;
+
+    MergeDart(int dl, bool tl, int sp)
+    : dartLabel(dl), sigmaPos(sp), turnLater(tl)
+    {}
+
+        // default constructor - mark as uninitialized through zero dartLabel
+    MergeDart()
+    : dartLabel(0)
+    {}
+
+    bool operator<(MergeDart const &other) const
+    {
+        return !dartLabel || (other.dartLabel &&
+                              sigmaPos < other.sigmaPos);
+    }
+};
+
+void GeoMap::splitParallelEdges()
+{
+    vigra_precondition(splitInfo_.get(), "splitParallelEdges(): no planned splits (set splitEdges parameter of sortEdgesEventually?)");
+
+    std::vector<PlannedSplits::difference_type> groupPositions;
+    for(PlannedSplits::iterator it = splitInfo_->begin();
+        it != splitInfo_->end(); ++it)
+    {
+        if(it->splitGroup == groupPositions.size())
+            groupPositions.push_back(it - splitInfo_->begin());
+    }
+
+    std::sort(splitInfo_->begin(), splitInfo_->end());
+
+    typedef std::vector<MergeDart> MergeDarts;
+    MergeDarts mergeDarts(splitInfo_->size());
+    for(PlannedSplits::iterator it = splitInfo_->begin();
+        it != splitInfo_->end(); ++it)
+    {
+//         std::cerr << "splitting dart " << it->dartLabel << " at edge segment index " << it->segmentIndex << " (of " << (edge(abs(it->dartLabel))->size()-1) << ")\n";
+        Edge &newEdge(splitEdge(
+                          *edge(abs(it->dartLabel)),
+                          it->segmentIndex, it->position));
+
+        PlannedSplits::difference_type &pos(
+            groupPositions[it->splitGroup]);
+
+        mergeDarts[pos] =
+            MergeDart((int)newEdge.label(), it->dartLabel > 0, it->sigmaPos);
+
+        ++pos;
+    }
+
+    splitInfo_.reset();
+
+    // now search for the best continuation to choose the survivor
+    const double checkSurvivorDist  = 0.5;
+    const double checkSurvivorDist2 = checkSurvivorDist*checkSurvivorDist;
+
+    MergeDarts::iterator mergeDartsGroupEnd = mergeDarts.begin();
+    for(unsigned int i = 0; i < groupPositions.size(); ++i)
+    {
+        MergeDarts::iterator mergeDartsGroupBegin = mergeDartsGroupEnd;
+        mergeDartsGroupEnd = mergeDarts.begin() + (int)groupPositions[i];
+
+        std::sort(mergeDartsGroupBegin, mergeDartsGroupEnd);
+
+        while(mergeDartsGroupBegin->dartLabel == 0)
+            ++mergeDartsGroupBegin;
+
+        double bestContinuationValue = 0.0;
+        int bestContinuationIndex = 0;
+
+        std::vector<DartPosition> dps;
+        for(MergeDarts::iterator it = mergeDartsGroupBegin;
+            it != mergeDartsGroupEnd; ++it)
+        {
+            GeoMap::Dart d(dart(it->dartLabel));
+            vigra::Vector2 nodePos(d.startNode()->position());
+
+            DartPosition dp1(d);
+            dp1.leaveCircle(nodePos, checkSurvivorDist2);
+            d.nextSigma();
+            DartPosition dp2(d);
+            dp2.leaveCircle(nodePos, checkSurvivorDist2);
+
+            vigra::Vector2
+                v1(dp1() - nodePos),
+                v2(nodePos - dp2());
+
+            double cont = dot(v1, v2)/(v1.magnitude()*v2.magnitude());
+            if(cont > bestContinuationValue)
+            {
+                bestContinuationValue = cont;
+                bestContinuationIndex = it - mergeDartsGroupBegin;
+            }
+        }
+
+        Dart survivor(
+            dart(mergeDartsGroupBegin[bestContinuationIndex].dartLabel));
+        if(mergeDartsGroupBegin[bestContinuationIndex].turnLater)
+            survivor.nextSigma();
+
+        for(MergeDarts::iterator it = 
+                mergeDartsGroupBegin + bestContinuationIndex + 1;
+            it != mergeDartsGroupEnd; ++it)
+        {
+            GeoMap::Dart d(dart(it->dartLabel));
+            if(it->turnLater)
+                d.nextSigma();
+            
+        }
+    }
 }
 
 void GeoMap::setSigmaMapping(SigmaMapping const &sigmaMapping)
@@ -1962,10 +2206,10 @@ GeoMap::Edge &GeoMap::splitEdge(GeoMap::Edge &edge, unsigned int segmentIndex,
                                 const vigra::Vector2 &newPoint, bool insertPoint)
 {
     vigra_precondition(
-        (segmentIndex || insertPoint) && 
+        (segmentIndex || insertPoint) &&
         (segmentIndex < edge.size() - 1 + (insertPoint ? 1 : 0)),
         "splitEdge: invalid segmentIndex (must not produce edge with zero length)!");
-    
+
     CELL_PTR(GeoMap::Node) newNode(
         addNode(insertPoint ? newPoint : edge[segmentIndex]));
 
@@ -2681,10 +2925,11 @@ labelImage(const GeoMap &map)
     return bp::object(result);
 }
 
-bp::list GeoMap_sortEdgesEventually(GeoMap &map, double stepDist, double minDist)
+bp::list GeoMap_sortEdgesEventually(
+    GeoMap &map, double stepDist, double minDist, bool splitEdges)
 {
     GeoMap::UnsortableGroups unsortable;
-    map.sortEdgesEventually(stepDist, minDist, unsortable);
+    map.sortEdgesEventually(stepDist, minDist, unsortable, splitEdges);
     bp::list result;
     for(GeoMap::UnsortableGroups::iterator it = unsortable.begin();
         it != unsortable.end(); ++it)
@@ -2849,8 +3094,9 @@ void defMap()
                  (arg("edge"), arg("segmentIndex"), arg("newPoint") = bp::object()))
             .def("sortEdgesDirectly", &GeoMap::sortEdgesDirectly)
             .def("sortEdgesEventually", &GeoMap_sortEdgesEventually,
-                 args("stepDist", "minDist"))
+                 (arg("stepDist"), arg("minDist"), arg("splitEdges") = true))
             .def("edgesSorted", &GeoMap::edgesSorted)
+            .def("splitParallelEdges", &GeoMap::splitParallelEdges)
             .def("initializeMap", &GeoMap::initializeMap, (arg("initLabelImage") = true))
             .def("mapInitialized", &GeoMap::mapInitialized)
             .def("hasLabelImage", &GeoMap::hasLabelImage)
