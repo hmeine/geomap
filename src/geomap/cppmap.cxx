@@ -27,17 +27,10 @@ void removeAll(Container &container,
 }
 
 template<class Container>
-bool removeOne(Container &container,
+void removeOne(Container &container,
                const typename Container::value_type &element)
 {
-    typename Container::iterator it;
-    if((it = std::find(container.begin(), container.end(), element))
-       != container.end())
-    {
-        container.erase(it);
-        return true;
-    }
-    return false;
+    container.erase(std::find(container.begin(), container.end(), element));
 }
 
 /********************************************************************/
@@ -142,6 +135,7 @@ class GeoMap::Edge
     friend GeoMap::Edge &GeoMap::mergeEdges(Dart &);
     friend GeoMap::Edge &GeoMap::splitEdge(
         Edge &, unsigned int, const vigra::Vector2 &, bool);
+    friend void GeoMap::splitParallelEdges();
 
   public:
     template<class POINTS>
@@ -463,8 +457,13 @@ class GeoMap::Dart
     GeoMap::Edges::value_type guaranteedEdge() const
     {
         GeoMap::Edges::value_type result(edge());
-        vigra_precondition(result,
-            "Cannot operate on invalid dart belonging to removed edge!");
+        if(!result)
+        {
+            std::stringstream s;
+            s << "Cannot operate on invalid dart " << label()
+              << " belonging to removed edge!";
+            vigra_precondition(result, s.str());
+        }
         return result;
     }
 
@@ -1052,10 +1051,8 @@ void GeoMap::removeEdge(GeoMap::Dart &dart)
         GeoMap::Node &node1(*dart.startNode());
         GeoMap::Node &node2(*dart.endNode());
 
-        node1.darts_.erase(std::find(node1.darts_.begin(),
-                                     node1.darts_.end(),  dart.label()));
-        node2.darts_.erase(std::find(node2.darts_.begin(),
-                                     node2.darts_.end(), -dart.label()));
+        removeOne(node1.darts_,  dart.label());
+        removeOne(node2.darts_, -dart.label());
 
         dart.edge()->uninitialize();
     }
@@ -1553,9 +1550,6 @@ void GeoMap::sortEdgesEventually(double stepDist, double minDist,
             dartLabels[i] = dartPositions[i].dp.dartLabel();
     }
 
-    if(splitEdges)
-        std::cerr << splitInfo_->splitGroupCount << " split groups initialized.\n";
-
     edgesSorted_ = true;
 }
 
@@ -1580,6 +1574,8 @@ struct MergeDart
     }
 };
 
+std::string Dart__repr__(GeoMap::Dart const &dart);
+
 void GeoMap::splitParallelEdges()
 {
     vigra_precondition(splitInfo_.get(), "splitParallelEdges(): no planned splits (set splitEdges parameter of sortEdgesEventually?)");
@@ -1599,7 +1595,6 @@ void GeoMap::splitParallelEdges()
     for(PlannedSplits::iterator it = splitInfo_->begin();
         it != splitInfo_->end(); ++it)
     {
-//         std::cerr << "splitting dart " << it->dartLabel << " at edge segment index " << it->segmentIndex << " (of " << (edge(abs(it->dartLabel))->size()-1) << ")\n";
         Edge &newEdge(splitEdge(
                           *edge(abs(it->dartLabel)),
                           it->segmentIndex, it->position));
@@ -1613,9 +1608,9 @@ void GeoMap::splitParallelEdges()
         ++pos;
     }
 
-    splitInfo_.reset();
+    splitInfo_.reset(); // splitting finished, free memory
 
-    // now search for the best continuation to choose the survivor
+    // for each split group, merge the resulting nodes:
     const double checkSurvivorDist  = 0.5;
     const double checkSurvivorDist2 = checkSurvivorDist*checkSurvivorDist;
 
@@ -1627,9 +1622,11 @@ void GeoMap::splitParallelEdges()
 
         std::sort(mergeDartsGroupBegin, mergeDartsGroupEnd);
 
+        // skip deleted edges (e.g. unsortable)
         while(mergeDartsGroupBegin->dartLabel == 0)
             ++mergeDartsGroupBegin;
 
+        // now search for the best continuation to choose the survivor
         double bestContinuationValue = 0.0;
         int bestContinuationIndex = 0;
 
@@ -1663,14 +1660,91 @@ void GeoMap::splitParallelEdges()
         if(mergeDartsGroupBegin[bestContinuationIndex].turnLater)
             survivor.nextSigma();
 
-        for(MergeDarts::iterator it = 
+        GeoMap::Node &survivingNode(*survivor.startNode());
+        GeoMap::Node::DartLabels::iterator
+            targetSigmaPos(std::find(survivingNode.darts_.begin(), survivingNode.darts_.end(), survivor.label()));
+
+        if(bestContinuationIndex)
+        {
+            // loop from survivor-1 to "begin" of sigma orbit
+            MergeDarts::iterator it = mergeDartsGroupBegin + bestContinuationIndex;
+            do
+            {
+                --it;
+
+                // determine mergeDart and relocateDart
+                GeoMap::Dart mergeDart(dart(it->dartLabel));
+                if(it->turnLater)
+                    mergeDart.nextSigma();
+
+                vigra_invariant(mergeDart.startNode()->degree() == 2,
+                                "merge nodes are expected to have degree 2");
+
+                GeoMap::Dart relocateDart(mergeDart);
+                relocateDart.nextSigma();
+
+                // re-attach relocateDart to surviving node
+                CELL_PTR(GeoMap::Edge) relocateEdge(relocateDart.edge());
+                if(relocateDart.label() < 0)
+                {
+                    relocateEdge->endNodeLabel_ = survivingNode.label();
+                    (*relocateEdge)[relocateEdge->size() - 1] =
+                        survivingNode.position();
+                }
+                else
+                {
+                    relocateEdge->startNodeLabel_ = survivingNode.label();
+                    (*relocateEdge)[0] = survivingNode.position();
+                }
+                targetSigmaPos =
+                    survivingNode.darts_.insert(targetSigmaPos, relocateDart.label());
+
+                // remove mergeDart and its startNode:
+                GeoMap::Node &mergedNode(*mergeDart.startNode());
+                removeEdge(mergeDart);
+                removeIsolatedNode(mergedNode);
+            }
+            while(it != mergeDartsGroupBegin);
+        }
+
+        ++targetSigmaPos;
+
+        for(MergeDarts::iterator it =
                 mergeDartsGroupBegin + bestContinuationIndex + 1;
             it != mergeDartsGroupEnd; ++it)
         {
-            GeoMap::Dart d(dart(it->dartLabel));
+            // determine mergeDart and relocateDart
+            GeoMap::Dart mergeDart(dart(it->dartLabel));
             if(it->turnLater)
-                d.nextSigma();
-            
+                mergeDart.nextSigma();
+
+            vigra_invariant(mergeDart.startNode()->degree() == 2,
+                            "merge nodes are expected to have degree 2");
+
+            GeoMap::Dart relocateDart(mergeDart);
+            relocateDart.nextSigma();
+
+            // re-attach relocateDart to surviving node
+            CELL_PTR(GeoMap::Edge) relocateEdge(relocateDart.edge());
+            if(relocateDart.label() < 0)
+            {
+                relocateEdge->endNodeLabel_ = survivingNode.label();
+                (*relocateEdge)[relocateEdge->size() - 1] =
+                    survivingNode.position();
+            }
+            else
+            {
+                relocateEdge->startNodeLabel_ = survivingNode.label();
+                (*relocateEdge)[0] = survivingNode.position();
+            }
+            targetSigmaPos =
+                survivingNode.darts_.insert(targetSigmaPos, relocateDart.label());
+            ++targetSigmaPos;
+
+            // remove mergeDart and its startNode:
+            GeoMap::Node &mergedNode(*mergeDart.startNode());
+            removeEdge(mergeDart);
+            removeIsolatedNode(mergedNode);
         }
     }
 }
@@ -2221,7 +2295,7 @@ GeoMap::Edge &GeoMap::splitEdge(GeoMap::Edge &edge, unsigned int segmentIndex,
 
     if(insertPoint)
     {
-        edge.insert(edge.begin() + segmentIndex, newPoint);
+        edge.insert(edge.begin() + segmentIndex + 1, newPoint);
         ++segmentIndex;
     }
 
@@ -2302,10 +2376,8 @@ GeoMap::Face &GeoMap::removeBridge(GeoMap::Dart &dart)
     newAnchor2.nextAlpha().prevSigma();
     unsigned int contourIndex = face.findComponentAnchor(dart);
 
-    node1.darts_.erase(std::find(node1.darts_.begin(),
-                                 node1.darts_.end(),  dart.label()));
-    node2.darts_.erase(std::find(node2.darts_.begin(),
-                                 node2.darts_.end(), -dart.label()));
+    removeOne(node1.darts_,  dart.label());
+    removeOne(node2.darts_, -dart.label());
 
     if(contourIndex == 0)
     {
@@ -2434,10 +2506,8 @@ GeoMap::Face &GeoMap::mergeFaces(GeoMap::Dart &dart)
 //         survivor.pixelBounds_ |= mergedFace.pixelBounds_;
     }
 
-    node1.darts_.erase(std::find(node1.darts_.begin(),
-                                 node1.darts_.end(),  removedDart.label()));
-    node2.darts_.erase(std::find(node2.darts_.begin(),
-                                 node2.darts_.end(), -removedDart.label()));
+    removeOne(node1.darts_,  dart.label());
+    removeOne(node2.darts_, -dart.label());
 
     // remove singular nodes
     bool removeNode1 = !node1.degree();
@@ -3036,10 +3106,13 @@ std::string Face__repr__(GeoMap::Face const &face)
 std::string Dart__repr__(GeoMap::Dart const &dart)
 {
     std::stringstream s;
-    s << "<GeoMap.Dart " << dart.label()
-      << ", node " << dart.startNodeLabel() << " -> " << dart.endNodeLabel()
-      << ", faces " << dart.leftFaceLabel() << "(l), " << dart.rightFaceLabel()
-      << "(r)>";
+    s << "<GeoMap.Dart " << dart.label();
+    if(!dart.edge())
+        s << ", invalid!>";
+    else
+        s << ", node " << dart.startNodeLabel() << " -> " << dart.endNodeLabel()
+          << ", faces " << dart.leftFaceLabel() << "(l), " << dart.rightFaceLabel()
+          << "(r)>";
     return s.str();
 }
 
