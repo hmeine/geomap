@@ -14,9 +14,6 @@ namespace bp = boost::python;
 
 // The define USE_INSECURE_CELL_PTRS can be used to switch between
 // "safe" cell handling e.g. for Python and a possibly faster C++ way.
-// Actually, it's not 100% safe anyways ATM, since the cell
-// destructors do access the map, so they must not be deleted after
-// the Map. ;-(
 
 #ifdef USE_INSECURE_CELL_PTRS
 #  define CELL_PTR(Type) Type *
