@@ -214,7 +214,7 @@ class GeoMap
     void splitParallelEdges();
 
     typedef std::vector<int> SigmaMapping;
-    void setSigmaMapping(SigmaMapping const &sigmaMapping);
+    void setSigmaMapping(SigmaMapping const &sigmaMapping, bool sorted = true);
     std::auto_ptr<SigmaMapping > sigmaMapping();
 
     bool edgesSorted() const { return edgesSorted_; }

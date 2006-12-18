@@ -1749,7 +1749,7 @@ void GeoMap::splitParallelEdges()
     }
 }
 
-void GeoMap::setSigmaMapping(SigmaMapping const &sigmaMapping)
+void GeoMap::setSigmaMapping(SigmaMapping const &sigmaMapping, bool sorted)
 {
     vigra_precondition(sigmaMapping.size() >= (2*edges_.size() - 1),
                        "setSigmaMapping: sigmaMapping too small!");
@@ -1774,7 +1774,7 @@ void GeoMap::setSigmaMapping(SigmaMapping const &sigmaMapping)
         std::swap(singleOrbit, dartLabels);
     }
 
-    edgesSorted_ = true;
+    edgesSorted_ = sorted;
 }
 
 std::auto_ptr<GeoMap::SigmaMapping> GeoMap::sigmaMapping()
@@ -3054,13 +3054,21 @@ struct GeoMapPickleSuite : bp::pickle_suite
         {
             pySigmaMapping.append(*it);
         }
-        return bp::make_tuple(pySigmaMapping);
+        return bp::make_tuple(
+            pySigmaMapping,
+            map.edgesSorted(),
+            map.mapInitialized(),
+            map.hasLabelImage());
     }
 
     static void setstate(GeoMap &map, bp::tuple state)
     {
         bp::list pySigmaMapping((
             bp::extract<bp::list>(state[0])()));
+        bool edgesSorted = bp::extract<bool>(state[1])();
+        bool mapInitialized = bp::extract<bool>(state[2])();
+        bool initLabelImage = bp::extract<bool>(state[3])();
+
         GeoMap::SigmaMapping sigmaMapping(bp::len(pySigmaMapping));
         unsigned int i = 0;
         for(GeoMap::SigmaMapping::iterator it = sigmaMapping.begin();
@@ -3068,8 +3076,10 @@ struct GeoMapPickleSuite : bp::pickle_suite
         {
             *it = bp::extract<int>(pySigmaMapping[i])();
         }
-        map.setSigmaMapping(sigmaMapping);
-        map.initializeMap();
+
+        map.setSigmaMapping(sigmaMapping, edgesSorted);
+        if(mapInitialized)
+            map.initializeMap(initLabelImage);
     }
 };
 
