@@ -1829,7 +1829,7 @@ void GeoMap::initContours()
     for(EdgeIterator it = edgesBegin(); it.inRange(); ++it)
     {
         if((*it)->leftFaceLabel() == UNINITIALIZED_CELL_LABEL)
-            new Face(this, dart( (*it)->label()));
+            new Face(this, dart( (int)(*it)->label()));
         if((*it)->rightFaceLabel() == UNINITIALIZED_CELL_LABEL)
             new Face(this, dart(-(int)(*it)->label()));
     }
@@ -2440,7 +2440,7 @@ GeoMap::Face &GeoMap::mergeFaces(GeoMap::Dart &dart)
 
     if(dart.leftFace()->area() < dart.rightFace()->area())
         removedDart.nextAlpha();
-    if(! removedDart.rightFaceLabel()) // face 0 shall stay face 0
+    if(!removedDart.rightFaceLabel()) // face 0 shall stay face 0
         removedDart.nextAlpha();
 
     GeoMap::Edge &mergedEdge(*removedDart.edge());
@@ -2519,8 +2519,8 @@ GeoMap::Face &GeoMap::mergeFaces(GeoMap::Dart &dart)
 //         survivor.pixelBounds_ |= mergedFace.pixelBounds_;
     }
 
-    removeOne(node1.darts_,  dart.label());
-    removeOne(node2.darts_, -dart.label());
+    removeOne(node1.darts_,  removedDart.label());
+    removeOne(node2.darts_, -removedDart.label());
 
     // remove singular nodes
     bool removeNode1 = !node1.degree();
