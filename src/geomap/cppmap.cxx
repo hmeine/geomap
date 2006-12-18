@@ -906,6 +906,7 @@ void GeoMap::Node::setPosition(const vigra::Vector2 &p)
 inline GeoMap::Dart GeoMap::Node::anchor() const
 {
     vigra_precondition(initialized(), "anchor() of uninitialized node!");
+    vigra_precondition(degree(), "anchor() of degree 0 node!");
     return Dart(map_, darts_[0]);
 }
 
@@ -1764,6 +1765,9 @@ void GeoMap::setSigmaMapping(SigmaMapping const &sigmaMapping, bool sorted)
 
     for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
     {
+        if(!(*it)->degree())
+            continue;
+
         GeoMap::Node::DartLabels &dartLabels((*it)->darts_);
 
         GeoMap::Node::DartLabels singleOrbit;
@@ -1792,6 +1796,9 @@ std::auto_ptr<GeoMap::SigmaMapping> GeoMap::sigmaMapping()
 
     for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
     {
+        if(!(*it)->degree())
+            continue;
+
         GeoMap::Dart anchor((*it)->anchor()), d(anchor);
         do
         {
