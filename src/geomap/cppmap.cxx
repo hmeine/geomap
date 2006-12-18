@@ -1662,7 +1662,7 @@ void GeoMap::splitParallelEdges()
 
         GeoMap::Node &survivingNode(*survivor.startNode());
         GeoMap::Node::DartLabels::iterator
-            targetSigmaPos(std::find(survivingNode.darts_.begin(), survivingNode.darts_.end(), survivor.label()));
+            targetSigmaPos(std::find(survivingNode.darts_.begin(), survivingNode.darts_.end(), GeoMap::Dart(survivor).nextSigma().label()));
 
         if(bestContinuationIndex)
         {
