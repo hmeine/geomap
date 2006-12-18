@@ -1661,8 +1661,11 @@ void GeoMap::splitParallelEdges()
             survivor.nextSigma();
 
         GeoMap::Node &survivingNode(*survivor.startNode());
+        int sigmaNeighborLabel(survivor.clone().nextSigma().label());
         GeoMap::Node::DartLabels::iterator
-            targetSigmaPos(std::find(survivingNode.darts_.begin(), survivingNode.darts_.end(), GeoMap::Dart(survivor).nextSigma().label()));
+            targetSigmaPos(
+                std::find(survivingNode.darts_.begin(), survivingNode.darts_.end(),
+                          sigmaNeighborLabel));
 
         if(bestContinuationIndex)
         {
@@ -1707,6 +1710,9 @@ void GeoMap::splitParallelEdges()
             while(it != mergeDartsGroupBegin);
         }
 
+        targetSigmaPos = std::find(
+            survivingNode.darts_.begin(), survivingNode.darts_.end(),
+            sigmaNeighborLabel);
         ++targetSigmaPos;
 
         for(MergeDarts::iterator it =
