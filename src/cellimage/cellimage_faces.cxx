@@ -6,7 +6,7 @@ using namespace vigra::cellimage;
 
 void defineFaces()
 {
-    class_<GeoMap::FaceIterator>("FaceIterator")
+    class_<GeoMap::FaceIterator>("FaceIterator", no_init)
         .def("__iter__", (GeoMap::FaceIterator &(*)(GeoMap::FaceIterator &))&returnSelf,
              return_internal_reference<>())
         .def("next", &nextIterPos<GeoMap::FaceIterator>,

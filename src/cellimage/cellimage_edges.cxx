@@ -6,7 +6,7 @@ using namespace vigra::cellimage;
 
 void defineEdges()
 {
-    class_<GeoMap::EdgeIterator>("EdgeIterator")
+    class_<GeoMap::EdgeIterator>("EdgeIterator", no_init)
         .def("__iter__", (GeoMap::EdgeIterator &(*)(GeoMap::EdgeIterator &))&returnSelf,
              return_internal_reference<>())
         .def("next", &nextIterPos<GeoMap::EdgeIterator>,

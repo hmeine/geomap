@@ -6,7 +6,7 @@ using namespace vigra::cellimage;
 
 void defineNodes()
 {
-    class_<GeoMap::NodeIterator>("NodeIterator")
+    class_<GeoMap::NodeIterator>("NodeIterator", no_init)
         .def("__iter__", (GeoMap::NodeIterator &(*)(GeoMap::NodeIterator &))&returnSelf,
              return_internal_reference<>())
         .def("next", &nextIterPos<GeoMap::NodeIterator>,
