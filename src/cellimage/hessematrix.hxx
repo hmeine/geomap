@@ -32,7 +32,7 @@ void determinantOfHessian(SIter sul, SIter slr, SAcc src,
     separableConvolveY(srcIterRange(sul, slr, src), destImage(tmp), kernel1d(symgrad));
     separableConvolveY(srcImageRange(tmp), destImage(dyy), kernel1d(symgrad));
 
-    using namespace vigra::functor;
+    using namespace functor;
     combineThreeImages(srcImageRange(dxx), srcImage(dyy), srcImage(dxy),
                        destIter(dul, dest), Arg1()*Arg2() - Arg3()*Arg3());
 }
