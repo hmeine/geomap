@@ -81,20 +81,20 @@ public:
      * the opposite of inRange(); true if this iterator is behind the
      * range and should not be dereferenced any more
      */
-	bool atEnd() const
-	{
-		return iter_ == end_;
-	}
+    bool atEnd() const
+    {
+        return iter_ == end_;
+    }
 
     /**
      * the opposite of atEnd(); true if this iterator is dereferencable
      */
-	bool inRange() const
-	{
-		return iter_ != end_;
-	}
+    bool inRange() const
+    {
+        return iter_ != end_;
+    }
 
-	bool operator==(FilterIterator const &other) const
+    bool operator==(FilterIterator const &other) const
     {
         return iter_ == other.iter_;
     }
@@ -104,7 +104,7 @@ public:
         return iter_ != other.iter_;
     }
 
-	bool operator==(Iterator const &other) const
+    bool operator==(Iterator const &other) const
     {
         return iter_ == other;
     }
@@ -152,27 +152,27 @@ public:
 
     typename Base::reference operator*()
     {
-        checkPredicate();
-        return *iter_;
+        this->checkPredicate();
+        return Base::operator*();
     }
 
     typename Base::pointer operator->()
     {
-        checkPredicate();
-        return &(operator*());
+        this->checkPredicate();
+        return Base::operator->();
     }
 
-	bool atEnd()
-	{
-        checkPredicate();
-		return Base::atEnd();
-	}
+    bool atEnd()
+    {
+        this->checkPredicate();
+        return Base::atEnd();
+    }
 
-	bool inRange()
-	{
-        checkPredicate();
-		return Base::inRange();
-	}
+    bool inRange()
+    {
+        this->checkPredicate();
+        return Base::inRange();
+    }
 };
 
 /** \addtogroup ImageIteratorAdapters
