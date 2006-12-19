@@ -6,16 +6,19 @@
 #include "cellimage.hxx"
 #include <vigra/diff2d.hxx>
 
+namespace vigra {
+namespace cellimage {
+
 inline std::ostream &operator <<(std::ostream &s,
-                                 const vigra::cellimage::CellPixel &p)
+                                 const CellPixel &p)
 {
     std::streamsize width= s.width();
     switch(p.type())
     {
-    case vigra::cellimage::CellTypeRegion:
+    case CellTypeRegion:
         s << p.label();
         break;
-    case vigra::cellimage::CellTypeLine:
+    case CellTypeLine:
         s << "\033[1;31m" << std::setw(width) << p.label() << "\033[0m";
         break;
     default:
@@ -25,14 +28,14 @@ inline std::ostream &operator <<(std::ostream &s,
 }
 
 inline std::ostream &operator <<(std::ostream &s,
-                                 const vigra::cellimage::CellType &p)
+                                 const CellType &p)
 {
     switch(p)
     {
-    case vigra::cellimage::CellTypeRegion:
+    case CellTypeRegion:
         s << " ";
         break;
-    case vigra::cellimage::CellTypeLine:
+    case CellTypeLine:
         s << "\033[1;31m*\033[0m";
         break;
     default:
@@ -40,5 +43,7 @@ inline std::ostream &operator <<(std::ostream &s,
     }
     return s;
 }
+
+}} // namespace vigra::cellimage
 
 #endif // MYDEBUG_HXX
