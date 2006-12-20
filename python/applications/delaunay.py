@@ -4,8 +4,8 @@ _cvsVersion = "$Id$" \
 
 import math, sys
 from hourglass import Polygon, simplifyPolygon, delaunay
-from map import GeoMap, contourPoly, mergeFaces
-from vigra import Vector2
+from map import GeoMap, contourPoly, mergeFaces, removeBridge
+from vigra import Vector2, Vector, dot
 
 try:
     import triangle
@@ -47,10 +47,8 @@ def constrainedDelaunayMap(points, jumpPoints, imageSize,
               [nodePositions[startEnd[0]], nodePositions[startEnd[1]]])
              for startEnd in edgeData]
 
-    result = GeoMap(nodePositions, edges, imageSize,
-                    performBorderClosing = False,
-                    ssMinDist = None,
-                    skipLabelImage = True)
+    result = GeoMap(nodePositions, edges, imageSize)
+    result.initializeMap(initLabelImage = False)
 
     if not markContour:
         return result
@@ -71,10 +69,8 @@ def fakeConstrainedDelaunayMap(points, jumpPoints, imageSize,
     nodePositions, edges, sigma = delaunay(points)
     
     print "- storing result in a GeoMap..."
-    result = GeoMap(nodePositions, edges, imageSize,
-                    performBorderClosing= False,
-                    sigmaOrbits = sigma,
-                    skipLabelImage = True)
+    result = GeoMap(nodePositions, edges, imageSize)
+    result.initializeMap(initLabelImage = False)
 
     if not markContour:
         return result
@@ -147,14 +143,13 @@ def delaunayMap(face, imageSize, simplifyEpsilon = None,
     else:
         jumpPoints = [0]
 
-        c = face.contours()
-        points = contourPoly(c[0])
+        points = contourPoly(face.contour())
         if simplifyEpsilon != None:
             points = simplifyPolygon(points, simplifyEpsilon, simplifyEpsilon)
         del points[-1]
         jumpPoints.append(len(points))
 
-        for anchor in c[1:]:
+        for anchor in face.holeContours():
             innerContour = contourPoly(anchor)
             if simplifyEpsilon != None:
                 innerContour = simplifyPolygon(
@@ -337,8 +332,9 @@ def catMap(delaunayMap,
 
             del triangle.innerDarts
 
-    result = GeoMap(nodePositions, edgeTriples, delaunayMap.imageSize(),
-                    sigmaOrbits = sigmaOrbits)
+    result = GeoMap(nodePositions, edgeTriples, delaunayMap.imageSize())
+    result.initializeMap(initLabelImage = False)
+    # FIXME: re-use above sigmaOrbits
     for edge in result.edgeIter():
         edge.startSide = edgeTriples[edge.label()][3]
         edge.endSide = edgeTriples[edge.label()][4]
