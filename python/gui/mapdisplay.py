@@ -575,9 +575,15 @@ class MapDisplay(DisplaySettings):
         self.dn.show()
 
     def setImage(self, image, pixelFormat = NBYTE):
+        if hasattr(image, "orig"):
+            self.backgroundGroup.setEnabled(True)
+            self.preparedImage = image
+            self.displayColoredAction.setEnabled(
+                self.preparedImage.orig.bands() == 3)
+            image = image.view
         self.image = image
-        self.imageWindow.image = image
-        self.viewer.replaceImage(image.toPNM(pixelFormat))
+        self.imageWindow.image = self.image
+        self.viewer.replaceImage(self.image.toPNM(pixelFormat))
 
     def highlight(self, darts):
         """highlight(darts)
