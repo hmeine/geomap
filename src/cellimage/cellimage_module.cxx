@@ -100,14 +100,6 @@ std::string CellPixel__repr__(const vigra::cellimage::CellPixel p)
     return s.str();
 }
 
-#ifdef _MSC_VER
-// HACK??? the linker should find this in the boost_python library, but it doesn't
-namespace boost { namespace python { namespace detail
-{
-  BOOST_PYTHON_DECL PyObject* current_scope = 0;
-}}}
-#endif
-
 using namespace boost::python;
 using namespace vigra::cellimage;
 
