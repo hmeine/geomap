@@ -266,6 +266,8 @@ class GeoMap
         preMergeEdgesHook;
     sigc::signal<void, Edge &>
         postMergeEdgesHook;
+    sigc::signal<void, Edge &, unsigned int, vigra::Vector2 const &, bool>
+        preSplitEdgeHook;
     sigc::signal<bool, const Dart &>::accumulated<interruptable_accumulator>
         preRemoveBridgeHook;
     sigc::signal<void, Face &>

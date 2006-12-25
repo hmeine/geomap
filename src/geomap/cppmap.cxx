@@ -131,6 +131,8 @@ class GeoMap::Edge
     CellLabel    leftFaceLabel_, rightFaceLabel_;
     unsigned int protection_;
 
+    mutable std::auto_ptr<vigra::Scanlines> scanLines_;
+
     friend class Dart; // allow setLeftFaceLabel
     friend GeoMap::Edge &GeoMap::mergeEdges(Dart &);
     friend GeoMap::Edge &GeoMap::splitEdge(
@@ -148,7 +150,8 @@ class GeoMap::Edge
       endNodeLabel_(endNodeLabel),
       leftFaceLabel_(UNINITIALIZED_CELL_LABEL),
       rightFaceLabel_(UNINITIALIZED_CELL_LABEL),
-      protection_(0)
+      protection_(0),
+      scanLines_(NULL)
     {
         map_->edges_.push_back(GeoMap::Edges::value_type(this));
         ++map_->edgeCount_;
@@ -255,6 +258,13 @@ class GeoMap::Edge
     GeoMap *map() const
     {
         return map_;
+    }
+
+    const vigra::Scanlines &scanLines() const
+    {
+        if(!scanLines_.get())
+            scanLines_ = scanPoly(*this);
+        return *scanLines_;
     }
 
   private:
@@ -1968,7 +1978,7 @@ void GeoMap::embedFaces(bool initLabelImage)
         // interior bridges may not have been set to negative labels yet:
         for(EdgeIterator it = edgesBegin(); it.inRange(); ++it)
             if((*it)->isBridge())
-                drawScannedPoly(*scanPoly(**it, labelImage_->size()[1]), -1,
+                drawScannedPoly((*it)->scanLines(), -1,
                                 labelImage_->traverser_begin(),
                                 labelImage_->size(),
                                 vigra::StandardValueAccessor<int>());
@@ -1990,7 +2000,7 @@ void GeoMap::embedFaces(bool initLabelImage)
 
         // redo all edge markings correctly:
         for(EdgeIterator it = edgesBegin(); it.inRange(); ++it)
-            markEdgeInLabelImage(*scanPoly(**it, labelImage_->size()[1]),
+            markEdgeInLabelImage((*it)->scanLines(),
                                  *labelImage_);
     }
 }
@@ -2245,10 +2255,8 @@ GeoMap::Edge &GeoMap::mergeEdges(GeoMap::Dart &dart)
 
     if(labelImage_)
     {
-        rawAddEdgeToLabelImage(*scanPoly(mergedEdge, labelImage_->size()[1]),
-                               *labelImage_, 1);
-        rawAddEdgeToLabelImage(*scanPoly(survivor, labelImage_->size()[1]),
-                               *labelImage_, 1);
+        rawAddEdgeToLabelImage(mergedEdge.scanLines(), *labelImage_, 1);
+        rawAddEdgeToLabelImage(survivor.scanLines(), *labelImage_, 1);
     }
 
     if(survivor.startNodeLabel() != mergedNode.label())
@@ -2272,8 +2280,8 @@ GeoMap::Edge &GeoMap::mergeEdges(GeoMap::Dart &dart)
 
     if(labelImage_)
     {
-        rawAddEdgeToLabelImage(*scanPoly(survivor, labelImage_->size()[1]),
-                               *labelImage_, -1);
+        (*survivor.scanLines_) += mergedEdge.scanLines();
+        rawAddEdgeToLabelImage(survivor.scanLines(), *labelImage_, -1);
     }
 
     mergedNode.uninitialize();
@@ -2297,14 +2305,13 @@ GeoMap::Edge &GeoMap::splitEdge(GeoMap::Edge &edge, unsigned int segmentIndex,
         (segmentIndex < edge.size() - 1 + (insertPoint ? 1 : 0)),
         "splitEdge: invalid segmentIndex (must not produce edge with zero length)!");
 
+    preSplitEdgeHook(edge, segmentIndex, newPoint, insertPoint);
+
     CELL_PTR(GeoMap::Node) newNode(
         addNode(insertPoint ? newPoint : edge[segmentIndex]));
 
     if(labelImage_)
-    {
-        rawAddEdgeToLabelImage(*scanPoly(edge, labelImage_->size()[1]),
-                               *labelImage_, 1);
-    }
+        rawAddEdgeToLabelImage(edge.scanLines(), *labelImage_, 1);
 
     if(insertPoint)
     {
@@ -2330,10 +2337,9 @@ GeoMap::Edge &GeoMap::splitEdge(GeoMap::Edge &edge, unsigned int segmentIndex,
 
     if(labelImage_)
     {
-        rawAddEdgeToLabelImage(*scanPoly(edge, labelImage_->size()[1]),
-                               *labelImage_, -1);
-        rawAddEdgeToLabelImage(*scanPoly(*result, labelImage_->size()[1]),
-                               *labelImage_, -1);
+        edge.scanLines_.reset();
+        rawAddEdgeToLabelImage(edge.scanLines(), *labelImage_, -1);
+        rawAddEdgeToLabelImage(result->scanLines(), *labelImage_, -1);
     }
 
     return *result;
@@ -2406,8 +2412,8 @@ GeoMap::Face &GeoMap::removeBridge(GeoMap::Dart &dart)
 
     PixelList associatedPixels;
     if(labelImage_)
-        removeEdgeFromLabelImage(*scanPoly(edge, labelImage_->size()[1]),
-                                 *labelImage_, face.label(), associatedPixels);
+        removeEdgeFromLabelImage(
+            edge.scanLines(), *labelImage_, face.label(), associatedPixels);
 
     // remove singular nodes
     if(newAnchor1.edgeLabel() == dart.edgeLabel())
@@ -2513,7 +2519,7 @@ GeoMap::Face &GeoMap::mergeFaces(GeoMap::Dart &dart)
                 faceLabelLUT_[i] = survivor.label();
 
         removeEdgeFromLabelImage(
-            *scanPoly(mergedEdge, labelImage_->size()[1]),
+            mergedEdge.scanLines(),
             *labelImage_, survivor.label(), associatedPixels);
 
 //         survivor.pixelBounds_ |= mergedFace.pixelBounds_;
@@ -2968,6 +2974,25 @@ addAssociatePixelsCallback(GeoMap *geomap,
 {
     return std::auto_ptr<SimpleCallback>(
         new AssociatePixelsCallback(geomap, callback));
+}
+
+/********************************************************************/
+
+template<class OriginalImage>
+class FaceColorStatistics
+{
+    FaceColorStatistics(GeoMap &map, const OriginalImage &originalImage);
+
+    GeoMap &map_;
+    const OriginalImage &originalImage_;
+};
+
+template<class OriginalImage>
+FaceColorStatistics::FaceColorStatistics(
+    GeoMap &map, const OriginalImage &originalImage)
+: map_(map),
+  originalImage_(originalImage)
+{
 }
 
 /********************************************************************/
