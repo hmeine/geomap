@@ -114,7 +114,7 @@ class FaceColorStatistics(DynamicFaceStatistics):
                      MeansInitFunctor(self._functors))
 
         self._SIV = SIV # class
-        self._origSIV = None # instance, lazily-initialized usingf self._SIV
+        self._origSIV = None # instance, lazily-initialized using self._SIV
         self._superSampled = [0] * map.maxFaceLabel()
         if minSampleCount:
             for face in map.faceIter(skipInfinite = True):
@@ -122,6 +122,8 @@ class FaceColorStatistics(DynamicFaceStatistics):
                 while self._functors[face.label()].pixelCount < minSampleCount and level < 32:
                     level *= 2
                     self.superSample(face, level)
+        del self._origSIV # only needed for supersampling here in __init__
+        del self._SIV
         self.attach(map)
 
     def bands(self):
@@ -199,8 +201,9 @@ class FaceColorStatistics(DynamicFaceStatistics):
         return transformImage(labelImage, mlf)
 
     def faceMeanDiff(self, dart):
-        m1 = self[dart.leftFaceLabel()]
-        m2 = self[dart.rightFaceLabel()]
+        f = self._functors
+        m1 = f[dart.leftFaceLabel()].average()
+        m2 = f[dart.rightFaceLabel()].average()
         return norm(m1 - m2) / self._diffNorm
 
     def facePoissonLikelyhoodRatio(self, dart):
