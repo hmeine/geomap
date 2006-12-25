@@ -800,12 +800,12 @@ void simplifyPolygonDigitalLine(
         simple = poly;
         return;
     }
-    
+
     vigra_precondition(connectivity == 4 || connectivity == 8,
        "simplifyPolygonDigitalLine(): connectivity must be 4 or 8.");
 
     bool isOpenPolygon = (poly[0] - poly[size-1]).magnitude() > 1e-6;
-    
+
     ArrayVector<TinyVector<double, 3> > lines;
     Point l1 = poly[0],
           r1 = l1,
@@ -890,9 +890,9 @@ void resamplePolygon(
         simple = poly;
         return;
     }
-    
+
     bool isOpenPolygon = (poly[0] - poly[size-1]).magnitude() > 1e-6;
-    
+
     ArrayVector<double> arcLength;
     poly.arcLengthList(arcLength);
     int segmentCount = int(std::ceil(arcLength[size-1] / desiredPointDistance));
@@ -917,11 +917,11 @@ void resamplePolygon(
         simple.push_back(poly[size-1]);
         return;
     }
-    
+
     for(int k=0; k<size; ++k)
         arcLength[k] *= segmentCount / arcLength[size-1];
-    
-    ArrayVector<Point> integrals(segmentCount+1, Point(0.0, 0.0));    
+
+    ArrayVector<Point> integrals(segmentCount+1, Point(0.0, 0.0));
     Point p1 = poly[0];
     double t1 = 0.0;
     int l = 1;
@@ -962,13 +962,13 @@ void resamplePolygon(
             t1 = t2;
         }
     }
-    
+
     if(isOpenPolygon)
     {
         integrals[segmentCount] += poly[size-1] - integrals[segmentCount-1];
         integrals[1] -= integrals[0] / 6.0;
         integrals[segmentCount-1] -= integrals[segmentCount] / 6.0;
-        
+
         ArrayVector<double> g(segmentCount);
         double b = 2.0 / 3.0;
         simple.push_back(poly[0]);
@@ -989,13 +989,13 @@ void resamplePolygon(
     else
     {
         integrals[0] += integrals[segmentCount];
-        
+
         int initializationSteps = std::min(segmentCount, 5);
         ArrayVector<Point> p(segmentCount+2*initializationSteps);
         double b = 0.6220084679281461,
                g = 0.26794919243112275;
         p[0] = integrals[0] / b;
- 
+
         for(int k=1; k<segmentCount+2*initializationSteps; ++k)
         {
             p[k] = (integrals[k % segmentCount] - p[k-1] / 6.0) / b;
@@ -1004,12 +1004,12 @@ void resamplePolygon(
         {
             p[k] -= g * p[k+1];
         }
-        
+
         for(int k=segmentCount; k<segmentCount+initializationSteps; ++k)
             simple.push_back(p[k]);
         for(int k=initializationSteps; k<=segmentCount; ++k)
             simple.push_back(p[k]);
-    }    
+    }
 }
 
 /********************************************************************/
@@ -1030,7 +1030,7 @@ void resamplePolygonLinearInterpolation(
 
     int steps = int(std::ceil(arcLengths[size-1] / desiredPointDistance));
     double newStep = arcLengths[size-1] / steps;
-    
+
     simple.push_back(poly[0]);
     int l = 1;
     for(int k=1; k<steps; ++k)
@@ -1061,13 +1061,13 @@ void resamplePolygonExponentialFilter(
     }
 
     bool isOpenPolygon = (poly[0] - poly[size-1]).magnitude() > 1e-6;
-    
+
     typedef typename PointArray::value_type Point;
     ArrayVector<Point> pforward(size), pbackward(size);
     ArrayVector<double> wforward(size), wbackward(size), weights(size-1);
     for(int k=0; k < size - 1; ++k)
         weights[k] = std::exp(-(poly[k] - poly[k+1]).magnitude()/scale);
-    
+
     // init recursion with cyclic boundary conditions
     Point p = poly[0];
     double w = 1.0;
@@ -1078,7 +1078,7 @@ void resamplePolygonExponentialFilter(
     }
     pforward[0] = p;
     wforward[0] = w;
-        
+
     p = poly[size-1];
     w = 1.0;
     for(int k=size-2; k>=0; --k)
@@ -1091,13 +1091,13 @@ void resamplePolygonExponentialFilter(
 
     if(isOpenPolygon)
     {
-        // change initialization into anti-reflective boundary conditions for open polygons 
+        // change initialization into anti-reflective boundary conditions for open polygons
         std::swap(wbackward[size-1], wforward[0]);
         std::swap(pbackward[size-1], pforward[0]);
         pforward[0] = 2.0*wforward[0]*poly[0] - pforward[0];
         pbackward[size-1] = 2.0*wbackward[size-1]*poly[size-1] - pbackward[size-1];
     }
-    
+
     // forward and backward pass of the recursive filter
     for(int k=1; k < size; ++k)
     {
@@ -1109,13 +1109,13 @@ void resamplePolygonExponentialFilter(
         pbackward[k] = poly[k] + weights[k]*pbackward[k+1];
         wbackward[k] = 1.0 + weights[k]*wbackward[k+1];
     }
-    
+
     // measure the arc length of the new polygon (after possible shrinkage)
     p = (pforward[0]+weights[0]*pbackward[1]) / (wforward[0] + weights[0]*wbackward[1]);
     simple.push_back(p);
 
     Point pend = isOpenPolygon
-                   ? (weights[size-2]*pforward[size-2]+pbackward[size-1]) / 
+                   ? (weights[size-2]*pforward[size-2]+pbackward[size-1]) /
                      (weights[size-2]*wforward[size-2] + wbackward[size-1])
                    : p;
 
@@ -1133,8 +1133,8 @@ void resamplePolygonExponentialFilter(
     arcLength.push_back(length);
 
 //    alternative: use the arc lenth of the original polygon
-//    poly.arcLengthList(arcLength);    
-    
+//    poly.arcLengthList(arcLength);
+
     int steps = int(std::floor(arcLength[size-1] / desiredPointDistance+0.5));
     double newStep = arcLength[size-1] / steps;
 
@@ -1295,7 +1295,7 @@ void resamplePolygonGaussianFilter(
 
     int steps = int(std::ceil(arcLengths[size-1] / desiredPointDistance));
     double newStep = arcLengths[size-1] / steps;
-    
+
     int l = 0;
     for(int k=0; k<steps; ++k)
     {
@@ -1385,7 +1385,7 @@ void polygonSplineControlPoints(
     double totalLength = segmentCount / arcLength[size-1];
     for(int k=0; k<size; ++k)
         arcLength[k] *= totalLength;
-    
+
     PointArray augmentedPoly;
     augmentedPoly.push_back(poly[0]);
 
@@ -1417,7 +1417,7 @@ void polygonSplineControlPoints(
     augmentedArcLength.push_back(segmentCount);
     splineIndices[segmentCount] = augmentedPoly.size()-1;
     size = augmentedPoly.size();
-    
+
     ArrayVector<Point> integrals(segmentCount+1);
     if(isOpenPolygon)
     {
@@ -1438,7 +1438,7 @@ void polygonSplineControlPoints(
                 reflectedArcLength.push_back(augmentedArcLength[k]);
             }
         }
-        integrals[1] = detail::singleSpline3ConvolvePolygon(reflectedArcLength, reflectedPoly, 
+        integrals[1] = detail::singleSpline3ConvolvePolygon(reflectedArcLength, reflectedPoly,
                                     0, 2*splineIndices[1], splineIndices[1] + splineIndices[3]);
 
         reflectPoint = 2.0*augmentedPoly[size-1];
@@ -1447,8 +1447,8 @@ void polygonSplineControlPoints(
             augmentedPoly.push_back(reflectPoint - augmentedPoly[k]);
             augmentedArcLength.push_back(2.0*segmentCount - augmentedArcLength[k]);
         }
-        integrals[segmentCount-1] = detail::singleSpline3ConvolvePolygon(augmentedArcLength, augmentedPoly, 
-               splineIndices[segmentCount-3], splineIndices[segmentCount-1], 
+        integrals[segmentCount-1] = detail::singleSpline3ConvolvePolygon(augmentedArcLength, augmentedPoly,
+               splineIndices[segmentCount-3], splineIndices[segmentCount-1],
                2*splineIndices[segmentCount] - splineIndices[segmentCount-1]);
         integrals[segmentCount] = augmentedPoly[size-1];
     }
@@ -1467,7 +1467,7 @@ void polygonSplineControlPoints(
             wrappedPoly.push_back(augmentedPoly[k]);
             wrappedArcLength.push_back(augmentedArcLength[k]);
         }
-        integrals[1] = detail::singleSpline3ConvolvePolygon(wrappedArcLength, wrappedPoly, 
+        integrals[1] = detail::singleSpline3ConvolvePolygon(wrappedArcLength, wrappedPoly,
                              0, splineIndices[1] + indexShift, splineIndices[3] + indexShift);
 
         for(int k=1; k <= splineIndices[2]; ++k)
@@ -1475,16 +1475,16 @@ void polygonSplineControlPoints(
             augmentedPoly.push_back(augmentedPoly[k]);
             augmentedArcLength.push_back(segmentCount + augmentedArcLength[k]);
         }
-        integrals[segmentCount-1] = detail::singleSpline3ConvolvePolygon(augmentedArcLength, augmentedPoly, 
-               splineIndices[segmentCount-3], splineIndices[segmentCount-1], 
+        integrals[segmentCount-1] = detail::singleSpline3ConvolvePolygon(augmentedArcLength, augmentedPoly,
+               splineIndices[segmentCount-3], splineIndices[segmentCount-1],
                splineIndices[segmentCount] + splineIndices[1]);
-        integrals[0] = detail::singleSpline3ConvolvePolygon(augmentedArcLength, augmentedPoly, 
-               splineIndices[segmentCount-2], splineIndices[segmentCount], 
+        integrals[0] = detail::singleSpline3ConvolvePolygon(augmentedArcLength, augmentedPoly,
+               splineIndices[segmentCount-2], splineIndices[segmentCount],
                splineIndices[segmentCount] + splineIndices[2]);
     }
-    
+
     for(int k=2; k <= segmentCount-2; ++k)
-        integrals[k] = detail::singleSpline3ConvolvePolygon(augmentedArcLength, augmentedPoly, 
+        integrals[k] = detail::singleSpline3ConvolvePolygon(augmentedArcLength, augmentedPoly,
                                     splineIndices[k-2], splineIndices[k], splineIndices[k+2]);
 
     BSpline<7, double> spline7;
@@ -1492,7 +1492,7 @@ void polygonSplineControlPoints(
     {
         int solutionSize = segmentCount + 1;
         Matrix<double> m(solutionSize, solutionSize),
-                    rhs(solutionSize, 2), 
+                    rhs(solutionSize, 2),
                     solution(solutionSize, 2);
         for(int k=0; k<solutionSize; ++k)
         {
@@ -1514,9 +1514,9 @@ void polygonSplineControlPoints(
             rhs(k, 0) = integrals[k][0];
             rhs(k, 1) = integrals[k][1];
         }
-        
+
         linearSolve(m, rhs, solution);
-        
+
         for(int k=0; k<solutionSize; ++k)
         {
             splinePoints.push_back(Point(solution(k,0), solution(k,1)));
@@ -1528,7 +1528,7 @@ void polygonSplineControlPoints(
     {
         int solutionSize = segmentCount;
         Matrix<double> m(solutionSize, solutionSize),
-                    rhs(solutionSize, 2), 
+                    rhs(solutionSize, 2),
                     solution(solutionSize, 2);
         for(int k=0; k<solutionSize; ++k)
         {
@@ -1538,7 +1538,7 @@ void polygonSplineControlPoints(
             rhs(k, 1) = integrals[k][1];
         }
         linearSolve(m, rhs, solution);
-        
+
         for(int k=0; k<solutionSize; ++k)
         {
             splinePoints.push_back(Point(solution(k,0), solution(k,1)));
@@ -1596,18 +1596,25 @@ struct Scanlines
     typedef Scanline value_type;
 
     int startIndex_;
-    std::vector<Scanline> scanlines_;
+    std::vector<Scanline> scanLines_;
 
     Scanlines(int startIndex, unsigned int count)
     : startIndex_(startIndex),
-      scanlines_(count)
+      scanLines_(count)
     {}
 
     void append(int line, const ScanlineSegment &seg)
     {
         int index = line - startIndex_;
-        if(index >= 0 && index < (int)scanlines_.size())
-            scanlines_[index].push_back(seg);
+//         vigra_precondition(index >= 0 && index < (int)scanLines_.size(),
+//                            "Scanlines::append(): line out of range");
+
+        // the following if-clause instead of a precondition allows
+        // scanning the "relevant part" of a polygon only, e.g. used
+        // when filling a poly inside an image with
+        //   scanPoly(arbitraryPoly, imageHeight[, 0]);
+        if(index >= 0 && index < (int)scanLines_.size())
+            scanLines_[index].push_back(seg);
     }
 
     int startIndex() const
@@ -1617,29 +1624,59 @@ struct Scanlines
 
     int endIndex() const
     {
-        return scanlines_.size() + startIndex_;
+        return scanLines_.size() + startIndex_;
     }
 
     Scanline &operator[](unsigned int index)
     {
-        return scanlines_[index - startIndex_];
+        return scanLines_[index - startIndex_];
     }
 
     const Scanline &operator[](unsigned int index) const
     {
-        return scanlines_[index - startIndex_];
+        return scanLines_[index - startIndex_];
     }
 
     unsigned int size() const
     {
-        return scanlines_.size();
+        return scanLines_.size();
+    }
+
+    Scanlines &operator+=(const Scanlines &other)
+    {
+        // ensure that other's line domain is contained in this one's:
+        int missingAtStart = startIndex() - other.startIndex();
+        if(missingAtStart > 0)
+        {
+            std::vector<Scanline> newScanlines(missingAtStart);
+            scanLines_.insert(
+                scanLines_.begin(), newScanlines.begin(), newScanlines.end());
+            startIndex_ = other.startIndex();
+        }
+        int missingAtEnd = other.endIndex() - endIndex();
+        if(missingAtEnd > 0)
+        {
+            scanLines_.resize(scanLines_.size() + missingAtEnd);
+        }
+
+        // now add other's data and re-normalize:
+        std::vector<Scanline>::iterator
+            destLine(scanLines_.begin() + (other.startIndex() - startIndex()));
+        for(std::vector<Scanline>::const_iterator srcLine = other.scanLines_.begin();
+            srcLine != other.scanLines_.end(); ++srcLine, ++destLine)
+        {
+            destLine->insert(destLine->end(), srcLine->begin(), srcLine->end());
+        }
+        normalize();
+
+        return *this;
     }
 
     void normalize()
     {
         for(unsigned int i = 0; i < size(); ++i)
         {
-            Scanlines::Scanline &scanline(scanlines_[i]);
+            Scanlines::Scanline &scanline(scanLines_[i]);
 
             std::sort(scanline.begin(), scanline.end(),
                       ScanlineSegmentCompare());
@@ -1657,6 +1694,15 @@ struct Scanlines
         }
     }
 };
+
+template<class Point>
+std::auto_ptr<Scanlines> scanPoly(const BBoxPolygon<Point> &poly)
+{
+    typename BBoxPolygon<Point>::BoundingBox bbox(poly.boundingBox());
+    int startIndex = (int)floor(bbox.begin()[1] + 0.5);
+    int endIndex = (int)floor(bbox.end()[1] + 0.5);
+    return scanPoly(poly, endIndex - startIndex + 1, startIndex);
+}
 
 template<class Point>
 std::auto_ptr<Scanlines> scanPoly(

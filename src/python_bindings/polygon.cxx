@@ -1904,7 +1904,12 @@ void defPolygon()
     ;
 
     register_ptr_to_python< std::auto_ptr<Scanlines> >();
-    def("scanPoly", &scanPoly<Vector2>,
+    
+    def("scanPoly", (std::auto_ptr<Scanlines>(*)
+                     (const PythonPolygon&))&scanPoly,
+        args("polygon"));
+    def("scanPoly", (std::auto_ptr<Scanlines>(*)
+                     (const Vector2Array &, unsigned int, int))&scanPoly,
         (arg("points"), arg("scanLineCount"), arg("startIndex") = 0));
     def("fillScannedPoly", &pyFillScannedPoly);
     def("drawScannedPoly", &pyDrawScannedPoly);
