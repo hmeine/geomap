@@ -268,7 +268,7 @@ class GeoMap::Edge
     }
 
   private:
-    Edge(const Edge &) {} // disallow copying
+    Edge(const Edge &) : vigra::BBoxPolygon<vigra::Vector2>() {} // disallow copying
     Edge &operator=(const Edge &) { return *this; }
 };
 
@@ -1460,7 +1460,7 @@ void sortEdgesInternal(const vigra::Vector2 &currentPos,
         if((groupEnd == dpEnd) || // last group
            (groupEnd->angle >= groupLast->angle + minAngle)) // decision here
         {
-            if(splitInfo && groupEnd != dpEnd && parallel)
+            if(splitInfo && groupEnd != dpEnd && parallel && !storedSplitPos)
             {
                 // build group of edges to be split:
                 // (since we have been given group of parallel darts and could
@@ -1551,7 +1551,7 @@ void GeoMap::sortEdgesEventually(double stepDist, double minDist,
             dartPositions.push_back(
                 DartPositionAngle(dart(dartLabels[i])));
 
-//         std::cerr << "sorting darts of node " << (*it)->label() << ":\n";
+        //std::cerr << "sorting darts of node " << (*it)->label() << ":\n";
         sortEdgesInternal((*it)->position(), 0.0,
                           dartPositions.begin(), dartPositions.end(),
                           stepDist2, minAngle,
@@ -2300,10 +2300,8 @@ GeoMap::Edge &GeoMap::splitEdge(GeoMap::Edge &edge, unsigned int segmentIndex)
 GeoMap::Edge &GeoMap::splitEdge(GeoMap::Edge &edge, unsigned int segmentIndex,
                                 const vigra::Vector2 &newPoint, bool insertPoint)
 {
-    vigra_precondition(
-        (segmentIndex || insertPoint) &&
-        (segmentIndex < edge.size() - 1 + (insertPoint ? 1 : 0)),
-        "splitEdge: invalid segmentIndex (must not produce edge with zero length)!");
+    vigra_precondition(segmentIndex < edge.size() - 1,
+                       "splitEdge: invalid segmentIndex");
 
     preSplitEdgeHook(edge, segmentIndex, newPoint, insertPoint);
 
@@ -2341,6 +2339,8 @@ GeoMap::Edge &GeoMap::splitEdge(GeoMap::Edge &edge, unsigned int segmentIndex,
         rawAddEdgeToLabelImage(edge.scanLines(), *labelImage_, -1);
         rawAddEdgeToLabelImage(result->scanLines(), *labelImage_, -1);
     }
+
+    postSplitEdgeHook(edge, *result);
 
     return *result;
 }
@@ -2846,6 +2846,41 @@ class MergeEdgesCallbacks : public SimpleCallback
     bp::object preOpCallback_, postOpCallback_;
 };
 
+class SplitEdgeCallbacks : public SimpleCallback
+{
+  public:
+    SplitEdgeCallbacks(GeoMap *geomap,
+                       bp::object preOpCallback,
+                       bp::object postOpCallback)
+    : preOpCallback_(preOpCallback),
+      postOpCallback_(postOpCallback)
+    {
+        if(preOpCallback)
+            connections_.push_back(
+                geomap->preSplitEdgeHook.connect(
+                    sigc::mem_fun(this, &SplitEdgeCallbacks::preSplitEdge)));
+        if(postOpCallback)
+            connections_.push_back(
+                geomap->postSplitEdgeHook.connect(
+                    sigc::mem_fun(this, &SplitEdgeCallbacks::postSplitEdge)));
+    }
+
+    void preSplitEdge(GeoMap::Edge &edge, unsigned int segmentIndex,
+                      vigra::Vector2 const &newPoint, bool insertPoint)
+    {
+        preOpCallback_(boost::ref(edge), segmentIndex,
+                       insertPoint ? bp::object(newPoint) : bp::object());
+    }
+
+    void postSplitEdge(GeoMap::Edge &edge, GeoMap::Edge &newEdge)
+    {
+        postOpCallback_(boost::ref(edge), boost::ref(newEdge));
+    }
+
+  protected:
+    bp::object preOpCallback_, postOpCallback_;
+};
+
 class RemoveBridgeCallbacks : public SimpleCallback
 {
   public:
@@ -2951,6 +2986,15 @@ addMergeEdgesCallbacks(GeoMap *geomap,
 }
 
 std::auto_ptr<SimpleCallback>
+addSplitEdgeCallbacks(GeoMap *geomap,
+                       bp::object preOpCallback,
+                       bp::object postOpCallback)
+{
+    return std::auto_ptr<SimpleCallback>(
+        new SplitEdgeCallbacks(geomap, preOpCallback, postOpCallback));
+}
+
+std::auto_ptr<SimpleCallback>
 addRemoveBridgeCallbacks(GeoMap *geomap,
                          bp::object preOpCallback,
                          bp::object postOpCallback)
@@ -2978,22 +3022,22 @@ addAssociatePixelsCallback(GeoMap *geomap,
 
 /********************************************************************/
 
-template<class OriginalImage>
-class FaceColorStatistics
-{
-    FaceColorStatistics(GeoMap &map, const OriginalImage &originalImage);
+// template<class OriginalImage>
+// class FaceColorStatistics
+// {
+//     FaceColorStatistics(GeoMap &map, const OriginalImage &originalImage);
 
-    GeoMap &map_;
-    const OriginalImage &originalImage_;
-};
+//     GeoMap &map_;
+//     const OriginalImage &originalImage_;
+// };
 
-template<class OriginalImage>
-FaceColorStatistics::FaceColorStatistics(
-    GeoMap &map, const OriginalImage &originalImage)
-: map_(map),
-  originalImage_(originalImage)
-{
-}
+// template<class OriginalImage>
+// FaceColorStatistics::FaceColorStatistics(
+//     GeoMap &map, const OriginalImage &originalImage)
+// : map_(map),
+//   originalImage_(originalImage)
+// {
+// }
 
 /********************************************************************/
 
@@ -3346,6 +3390,7 @@ void defMap()
 
         def("addRemoveNodeCallback", &addRemoveNodeCallback);
         def("addMergeEdgesCallbacks", &addMergeEdgesCallbacks);
+        def("addSplitEdgeCallbacks", &addSplitEdgeCallbacks);
         def("addRemoveBridgeCallbacks", &addRemoveBridgeCallbacks);
         def("addMergeFacesCallbacks", &addMergeFacesCallbacks);
         def("addAssociatePixelsCallback", &addAssociatePixelsCallback);
