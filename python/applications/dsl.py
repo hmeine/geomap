@@ -215,13 +215,6 @@ def originatingPolyIter(freemanIter, allowed, freeman2Diff):
         cur += freeman2Diff[fc % 2]
         yield copy.copy(cur)
 
-def _dirDSL(startCode, freemanIter, allowed):
-    dsl = DigitalStraightLine(startCode % 2 and 1 or 0, 1, 0)
-    for point in originatingPolyIter(freemanIter, allowed):
-        if not dsl.addPoint(point):
-            break
-    return dsl
-
 def forwardDSL(freemanCodes, index, closed, allowed = None):
     if allowed == None:
         allowed = searchForwardQuadrant(freemanCodes, index, closed)
@@ -323,11 +316,6 @@ class DSLExperiment(object):
                     Gnuplot.Func(self.dsl.plotEquation(1), title = "lower leaning line"),
                     Gnuplot.Func(self.dsl.plotEquation(2), title = "upper leaning line"),
                     self.points)
-
-#     si = index
-#     forwardCodes = []
-#     while freemanCodes[si] in fc:
-#         si -= 1
 
 if __name__ == "__main__":
     dsl = DigitalStraightLine(0, 1, 0)
