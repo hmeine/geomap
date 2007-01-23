@@ -124,6 +124,17 @@ class FigExporter:
                                    Vector2(*roi.lowerRight()))
         self.offset = offset
 
+    def position2Fig(self, pos):
+        """fe.position2Fig(Vector2 pos) -> Vector2
+
+        Maps a pixel position to fig coordinates in the same way in
+        which e.g. polygon points are mapped by addEdge()."""
+        result = (pos + self.offset)
+        if self.roi:
+            result -= self.roi.begin()
+        result *= self.scale
+        return result
+
     def addROIRect(self, roi = None, **attr):
         """fe.addROIRect(roi, depth = 85, ...)
 
@@ -134,6 +145,7 @@ class FigExporter:
         assert roi or self.roi, "addROIRect(): no ROI given!?"
         if roi == None:
             roi = self.roi
+        
         if self.roi:
             roi = BoundingBox(roi) # don't modify in-place
             roi.moveBy(-self.roi.begin())
@@ -236,7 +248,7 @@ class FigExporter:
         ...) on all resulting objects via keyword arguments
         (cf. documentation of the FigExporter class).
         
-        By default, circles will be filled, but have lineWidth=0. 
+        By default, circles will be filled, but have lineWidth=0.
         To draw a transparent circle, call:
         
         fi.addPointCircles([Vector2(5.2,5.3)], 2, penColor=fig.colorCyan,fillStyle=fig.fillStyleNone,lineWidth=1)
@@ -332,7 +344,7 @@ class FigExporter:
         a valid 'color' attribute are exported (can be either a fig or
         a Qt color).
         
-        For example, to draw only a subregion, and shift the upper left of 
+        For example, to draw only a subregion, and shift the upper left of
         the region to the origin, call
         
         fi.addMapEdges(map, penColor=fig.colorGreen, \
@@ -391,10 +403,10 @@ class FigExporter:
             result.extend(parts)
         return result
 
-    def save(self, filename):
+    def save(self, filename, fig2dev = None):
         """Save the resulting XFig file to 'filename' (cf. fig.File.save)."""
 
-        return self.f.save(filename)
+        return self.f.save(filename, fig2dev)
 
     def saveEPS(self, basename):
         """Save the resulting XFig file to [basename].{fig,eps} (cf. fig.File.save)."""
