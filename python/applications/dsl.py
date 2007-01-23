@@ -66,9 +66,9 @@ def backwardIter(list, index, loop):
             i -= 1
 
 def searchForwardQuadrant(freemanCodes, index, closed = True):
-    it = forwardIter(freemanCodes, index, closed)
-    c1 = it.next()
     try:
+        it = forwardIter(freemanCodes, index, closed)
+        c1 = it.next()
         while True:
             c2 = it.next()
             if c2 != c1:
@@ -77,9 +77,10 @@ def searchForwardQuadrant(freemanCodes, index, closed = True):
         return c1
 
 def searchBackwardQuadrant(freemanCodes, index, closed = True):
-    it = backwardIter(freemanCodes, index, closed)
-    c1 = it.next()
     try:
+        it = backwardIter(freemanCodes, index, closed)
+        c1 = it.next() # skip first
+        c1 = it.next()
         while True:
             c2 = it.next()
             if c2 != c1:
@@ -110,7 +111,7 @@ class DigitalStraightLine(object):
     
     def axisIntercept(self, leaningType = 0):
         """dsl.axisIntercept(leaningType = 0)
-
+        
         leaningType means:
         0: center line
         1: lower leaning line
@@ -118,13 +119,18 @@ class DigitalStraightLine(object):
         
         pos = Rational(self.pos, 1)
         if leaningType == 0:
-            pos += Rational(self.thickness()-1, 2)
+            pos += Rational(self.width()-1, 2)
         elif leaningType == 1:
-            pos += self.thickness()-1
+            pos += self.width()-1
         return -pos / self.b
     
     def plotEquation(self, leaningType = 0):
         return ("%s*x + (%s)" % (self.slope(), self.axisIntercept(leaningType))).replace("/", "./")
+    
+    def plotItems(self):
+        return [Gnuplot.Func(self.plotEquation(), title = "center line"),
+                Gnuplot.Func(self.plotEquation(1), title = "lower leaning line"),
+                Gnuplot.Func(self.plotEquation(2), title = "upper leaning line")]
     
     def __call__(self, point):
         return self.a*point[0] - self.b*point[1]
@@ -134,9 +140,9 @@ class DigitalStraightLine(object):
     
     def contains(self, point):
         v = self(point) - self.pos
-        return 0 <= v < self.thickness()
+        return 0 <= v < self.width()
     
-    def thickness(self):
+    def width(self):
         if self.is8Connected:
             return max(abs(self.a), abs(self.b))
         else:
@@ -149,11 +155,11 @@ class DigitalStraightLine(object):
         """works only for 8-connected lines in 1st octant"""
         assert self.is8Connected
         v = self(point) - self.pos
-        width = self.thickness()
+        width = self.width()
         if 0 <= v < width:
             #print "point already inside:", self, point
             return True # point is within DSL
-
+        
         above = True
         if v == -1:
             # point above
@@ -164,7 +170,7 @@ class DigitalStraightLine(object):
         else:
             #print point, "cannot be added to", self, self.contains(point)
             return False
-
+        
         y = abs(point[1])
         x = point[0]
         if point[1] < 0: # since sign(0) == 0, let's be safe here.. :-(
@@ -195,8 +201,8 @@ class DigitalStraightLine(object):
             self.a = y - l
             self.b = x - k
             # ensure new point is on upper leaning line:
-            self.pos = self(point) - self.thickness() + 1
-
+            self.pos = self(point) - self.width() + 1
+        
         if not self.contains(point):
             print self, v, point
             assert self.contains(point), \
@@ -204,6 +210,7 @@ class DigitalStraightLine(object):
         return True
     
     def convert8to4(self):
+        assert self.is8Connected, "DSL should not be converted twice"
         self.b = self.b - self.a
         self.is8Connected = False
 
@@ -220,17 +227,18 @@ def forwardDSL(freemanCodes, index, closed, allowed = None):
         allowed = searchForwardQuadrant(freemanCodes, index, closed)
     fmi = forwardIter(freemanCodes, index, closed)
     dsl = DigitalStraightLine(freemanCodes[index] % 2 and 1 or 0, 1, 0)
-    for point in originatingPolyIter(freemanIter, allowed, freeman2Diff8Conn):
+    for point in originatingPolyIter(fmi, allowed, freeman2Diff8Conn):
         if not dsl.addPoint(point):
             break
     return dsl, fmi.gi_frame.f_locals["i"]-index
 
 def backwardDSL(freemanCodes, index, closed, allowed = None):
     if allowed == None:
-        allowed = searchForwardQuadrant(freemanCodes, index, closed)
+        allowed = searchBackwardQuadrant(freemanCodes, index, closed)
     fmi = backwardIter(freemanCodes, index, closed)
+    fmi.next()
     dsl = DigitalStraightLine(freemanCodes[index] % 2 and 1 or 0, 1, 0)
-    for point in originatingPolyIter(freemanIter, allowed, freeman2Diff8ConnNeg):
+    for point in originatingPolyIter(fmi, allowed, freeman2Diff8ConnNeg):
         if not dsl.addPoint(point):
             break
     return dsl, -(fmi.gi_frame.f_locals["i"]-index)
@@ -242,6 +250,7 @@ def tangentDSL(freemanCodes, index, closed, allowed = None):
     result = dsl
     ffmi = forwardIter(freemanCodes, index, closed)
     bfmi = backwardIter(freemanCodes, index, closed)
+    bfmi.next()
     bopi = originatingPolyIter(bfmi, allowed, freeman2Diff8ConnNeg)
     for point1 in originatingPolyIter(ffmi, allowed, freeman2Diff8Conn):
         try:
@@ -260,7 +269,6 @@ def offset(freemanCodes, index, closed = True):
     bc = searchBackwardQuadrant(freemanCodes, index, closed)
     assert type(fc) == tuple and type(bc) == tuple
     if fc != bc:
-        print "---"
         return Vector2(0, 0)
     dsl, ofs = tangentDSL(freemanCodes, index, closed)
     #dsl.convert8to4()
@@ -279,6 +287,7 @@ def offset(freemanCodes, index, closed = True):
         return Vector2( alpha,  alpha)
 
 import Gnuplot
+
 class DSLExperiment(object):
     def __init__(self, reverse = False):
         g = Gnuplot.Gnuplot()
@@ -312,10 +321,7 @@ class DSLExperiment(object):
         for point in self.points:
             if not self.dsl.contains(point):
                 print "%s lost (no longer in DSL!)" % point
-        self.g.plot(Gnuplot.Func(self.dsl.plotEquation(), title = "center line"),
-                    Gnuplot.Func(self.dsl.plotEquation(1), title = "lower leaning line"),
-                    Gnuplot.Func(self.dsl.plotEquation(2), title = "upper leaning line"),
-                    self.points)
+        self.g.plot(self.points, *self.dsl.plotItems())
 
 if __name__ == "__main__":
     dsl = DigitalStraightLine(0, 1, 0)
@@ -323,3 +329,32 @@ if __name__ == "__main__":
     dsl.addPoint(Point2D(-1,  0))
     dsl.addPoint(Point2D(-2, -1))
 
+    gimg = GrayImage(50, 50)
+    for p in gimg.size():
+        gimg[p] = norm(p - Point2D(25, 25)) < 20 and 255 or 0
+
+    w = showImage(gimg)
+    addPathFromHere("../subpixelWatersheds")
+    import pixelmap
+    cem = pixelmap.crackEdgeMap(gimg, False)
+    crackPoly = cem.edge(2)
+
+    fc = freeman(crackPoly)
+    ep = [p + offset(fc, i) for i, p in enumerate(list(crackPoly)[:-1])]
+    ep.append(ep[0])
+
+    import Gnuplot
+    def gpLine(points, with = "lines", **kwargs):
+        return Gnuplot.Data(points, with = with, **kwargs)
+
+    g = Gnuplot.Gnuplot()
+    g("set size ratio -1")
+    g.plot(gpLine(crackPoly), gpLine(ep))
+    index = 42
+    dsl, ofs = tangentDSL(fc, index, True)
+    dsl.convert8to4()
+    g.plot(Polygon(list(crackPoly)[index-ofs:index+ofs+1]) + (-crackPoly[index]),
+           *dsl.plotItems())
+
+#   import mapdisplay
+#   d = mapdisplay.MapDisplay(cem, gimg)
