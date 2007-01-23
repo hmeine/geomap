@@ -297,12 +297,12 @@ class IntelligentScissors(qt.QObject):
         nearest node is chosen as start node and highlighted."""
 
         p = Vector2(x, y)
-        node = self.map.node(self.map.nodeMap(p))
+        node = self.map.nearestNode(p)
         if not self.liveWire:
             if node.label() != self.startNodeLabel:
                 self.startNodeLabel = node.label()
                 self.viewer.replaceOverlay(
-                    PointOverlay([node._position], qt.Qt.green, 1),
+                    PointOverlay([node.position()], qt.Qt.green, 1),
                     self.overlayIndex)
         else:
             if node.label() != self.liveWire.endNodeLabel:
