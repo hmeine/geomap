@@ -441,6 +441,8 @@ class MapDisplay(DisplaySettings):
 
     def setFaceMeans(self, faceMeans):
         self.faceMeans = faceMeans
+        if faceMeans:
+            tools.activePathMeasure = faceMeans.faceMeanDiff
         self.displayMeansAction.setEnabled(bool(faceMeans))
 
     def _adjustSize(self):
