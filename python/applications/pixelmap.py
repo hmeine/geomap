@@ -1,9 +1,10 @@
 from vigra import *
-from hourglass import Polygon
 addPathFromHere('../cellimage')
-import cellimage
+import cellimage, hourglass
 from cellimage import CellType
-import map as spmap
+import map as spmap # for BORDER_PROTECTION only ;-)
+#from map import GeoMap
+from hourglass import GeoMap
 
 __all__ = ["pixelMap2subPixelMap", "crackEdgeMap",
            "crackEdges2MidCracks", "cannyEdgeMap", "pixelWatershedMap"]
@@ -37,7 +38,7 @@ def pixelMapData(geomap, scale = 1.0, offset = Vector2(0, 0),
         if skipEverySecond:
             points = [points[i] for i in range(0, len(points), 2)]
         edges[edge.label] = (
-            startNodeLabel, endNodeLabel, Polygon(points))
+            startNodeLabel, endNodeLabel, hourglass.Polygon(points))
     return nodes, edges
 
 def pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0),
@@ -49,17 +50,39 @@ def pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0),
     labelImageSize defaults to the (scaled) pixel-based geomap's
     cellImage.size().  See also the documentation of pixelMapData()."""
     
-    nodes, edges = pixelMapData(geomap, scale, offset, skipEverySecond)
     if labelImageSize == None:
         labelImageSize = geomap.cellImage.size() * scale
-    result = spmap.GeoMap(nodes, edges, labelImageSize)
-    result.sortEdgesDirectly()
+    result = GeoMap(imageSize = labelImageSize)
+
+    nodes = [None] * (geomap.maxNodeLabel() + 1)
+    for node in geomap.nodes:
+        ul = node.bounds.upperLeft()
+        center = Vector2(*ul) + Vector2(node.bounds.width() - 1,
+                                        node.bounds.height() - 1) / 2
+        nodes[node.label] = result.addNode((center+offset) * scale)
+
+    edges = [None] * (geomap.maxEdgeLabel() + 1)
+    for edge in geomap.edges:
+        points = [(Vector2(p[0], p[1])+offset) * scale for p in iter(edge.start)]
+        startNodeLabel = edge.start.startNodeLabel()
+        endNodeLabel = edge.end.startNodeLabel()
+        points.insert(0, nodes[startNodeLabel].position())
+        points.append(nodes[endNodeLabel].position())
+        if skipEverySecond:
+            points = [points[i] for i in range(0, len(points), 2)]
+        result.addEdge(
+            nodes[startNodeLabel].label(),
+            nodes[endNodeLabel].label(),
+            points)
+
     result.initializeMap()
+
     # the border closing was done in C++, so we have to mark the
     # border edges manually:
     for edge in result.edgeIter():
         if not edge.leftFaceLabel() or not edge.rightFaceLabel():
             edge.protect(spmap.BORDER_PROTECTION)
+
     return result
 
 def crackEdges2MidCracks(subpixelMap):
@@ -70,7 +93,7 @@ def crackEdges2MidCracks(subpixelMap):
     points, except for the edge ends)."""
     
     for edge in subpixelMap.edgeIter():
-        p = Polygon()
+        p = hourglass.Polygon()
         p.append(edge[0])
         for i in range(0, len(edge)-1):
             p.append((edge[i]+edge[i+1])/2)
