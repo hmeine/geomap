@@ -100,7 +100,7 @@ def straightPoints(poly):
     return result
 
 class DigitalStraightLine(object):
-    def __init__(self, a, b, pos = 0):
+    def __init__(self, a, b, pos):
         self.a = a
         self.b = b
         self.pos = pos
@@ -153,7 +153,7 @@ class DigitalStraightLine(object):
     
     def addPoint(self, point):
         """works only for 8-connected lines in 1st octant"""
-        assert self.is8Connected
+        assert self.is8Connected and 0 <= self.a <= self.b
 
         v = self(point) - self.pos
         width = self.width()
