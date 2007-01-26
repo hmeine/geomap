@@ -290,17 +290,16 @@ def offset(freemanCodes, index, closed = True):
     fc = searchForwardQuadrant(freemanCodes, index, closed)
     bc = searchBackwardQuadrant(freemanCodes, index, closed)
     assert type(fc) == tuple and type(bc) == tuple
-    if fc != bc:
+    if fc != bc and fc != (bc[1], bc[0]):
+        #print "no tangent here (%s != %s)" % (fc, bc)
         return Vector2(0, 0)
     dsl, ofs = tangentDSL(freemanCodes, index, closed)
+    #print "tangent DSL:", dsl
     #dsl.convert8to4()
     alpha = (2.*dsl.pos+dsl.b-1)/(2*dsl.b)
     q = quadrant(*fc)
     if q == 0:
-        print ofs, index, fc, bc, dsl
         return Vector2( alpha, -alpha)
-    elif True:
-        return Vector2(0, 0)
     elif q == 1:
         return Vector2(-alpha, -alpha)
     elif q == 2:
@@ -369,20 +368,22 @@ if __name__ == "__main__":
     g = Gnuplot.Gnuplot()
     g("set size ratio -1")
 
-#     ep = [p + offset(fc, i) for i, p in enumerate(list(crackPoly)[:-1])]
-#     ep.append(ep[0])
-#     g.plot(gpLine(crackPoly), gpLine(ep))
+    ep = [p + offset(fc, i) for i, p in enumerate(list(crackPoly)[:-1])]
+    ep.append(ep[0])
+    g.plot(gpLine(crackPoly), gpLine(ep))
 
-    e = DSLExperiment(True)
-    for code in [1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1]:
-        if not e(code):
-            break
-        print "code %s -> %s" % (code, e.dsl)
+#     e = DSLExperiment(True)
+#     for code in [1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1]:
+#         if not e(code):
+#             break
+#         print "code %s -> %s" % (code, e.dsl)
 
 #     index = 43
 #     print "debugging %d:" % index
 #     dsl, ofs = tangentDSL(fc, index, True)
 #     dsl.convert8to4()
+#     g.set_range("xrange", (-5, 5))
+#     g.set_range("yrange", (-10, 10))
 #     g.plot(gpLine(crackPoly + (-crackPoly[index])),
 #            Polygon(list(crackPoly)[index-ofs:index+ofs+1]) + (-crackPoly[index]),
 #            *dsl.plotItems())
