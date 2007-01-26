@@ -1,3 +1,5 @@
+#include "vigra/polygon.hxx"
+
 #include <boost/python.hpp>
 #include <boost/python/detail/api_placeholder.hpp>
 #include <boost/python/make_constructor.hpp>
@@ -5,7 +7,6 @@
 #include <vigra/pythonimage.hxx>
 #include <vigra/linear_algebra.hxx>
 #include <cmath>
-#include "vigra/polygon.hxx"
 #include "delaunay.hxx"
 #include "exporthelpers.hxx"
 
@@ -49,6 +50,15 @@ PyObject * Box__repr__(Box const & b)
 
     return PyString_FromString(s.str().c_str());
 }
+
+template<class Box>
+struct BoxPickleSuite : pickle_suite
+{
+    static tuple getinitargs(Box const& b)
+    {
+        return make_tuple(b.begin(), b.end());
+    }
+};
 
 double angleTheta(double dy, double dx)
 {
@@ -176,18 +186,18 @@ void defIter(const char *name)
 }
 
 template<class Array>
-PointIter<typename Array::const_iterator>
+STLIterWrapper<typename Array::const_iterator>
 __iter__(const Array &a)
 {
-    return PointIter<typename Array::const_iterator>(
+    return STLIterWrapper<typename Array::const_iterator>(
         a.begin(), a.end());
 }
 
 template<class Array>
-PointIter<typename Array::const_reverse_iterator>
+STLIterWrapper<typename Array::const_reverse_iterator>
 __reviter__(const Array &a)
 {
-    return PointIter<typename Array::const_reverse_iterator>(
+    return STLIterWrapper<typename Array::const_reverse_iterator>(
         a.rbegin(), a.rend());
 }
 
@@ -1789,10 +1799,10 @@ void defPolygon()
     typedef PythonPolygon::Base PythonPolygonBase;
 
     typedef PythonPolygonBase::Base Vector2Array;
-    typedef PointIter<Vector2Array::const_iterator>
+    typedef STLIterWrapper<Vector2Array::const_iterator>
         VectorIter;
     defIter<VectorIter>("Vector2Iter");
-    typedef PointIter<Vector2Array::const_reverse_iterator>
+    typedef STLIterWrapper<Vector2Array::const_reverse_iterator>
         VectorRevIter;
     defIter<VectorRevIter>("Vector2RevIter");
     class_<Vector2Array>("Vector2Array")
@@ -1814,10 +1824,10 @@ void defPolygon()
     PolygonFromPython<Vector2Array>();
 
     typedef PointArray<Point2D> Point2DArray;
-    typedef PointIter<Point2DArray::const_iterator>
+    typedef STLIterWrapper<Point2DArray::const_iterator>
         Point2DIter;
     defIter<Point2DIter>("Point2DIter");
-    typedef PointIter<Point2DArray::const_reverse_iterator>
+    typedef STLIterWrapper<Point2DArray::const_reverse_iterator>
         Point2DRevIter;
     defIter<Point2DRevIter>("Point2DRevIter");
     class_<Point2DArray>("Point2DArray")
@@ -1881,6 +1891,7 @@ void defPolygon()
         .def(self | self)
         .def(self &= self)
         .def(self & self)
+        .def_pickle(BoxPickleSuite<BoundingBox>())
     ;
 
     class_<Scanlines>("Scanlines", no_init)
@@ -1904,7 +1915,7 @@ void defPolygon()
     ;
 
     register_ptr_to_python< std::auto_ptr<Scanlines> >();
-    
+
     def("scanPoly", (std::auto_ptr<Scanlines>(*)
                      (const PythonPolygon&))&scanPoly,
         args("polygon"));

@@ -8,7 +8,7 @@ include $(INT2BUILDDIR)/config/Makefile.include
 # at KOGS, try: module add pkgconfig libsigc++
 LOCAL_CPPFLAGS = -I. -I../cellimage `pkg-config --cflags sigc++-2.0`
 
-#CXXFLAGS += -Wall -g
+#CXXFLAGS += -Wall -g -W
 CXXFLAGS += -Wall
 CPPFLAGS += $(LOCAL_CPPFLAGS)
 LIBCPPFLAGS += $(LOCAL_CPPFLAGS)
@@ -21,6 +21,7 @@ OBJS = \
 	statistics.lo \
 	delaunay.lo \
 	cppmap.lo \
+	dsl.lo \
 # Ulli added the following to OBJS, uncomment if you need this:
 #    $(INT2BUILDDIR)/src/vigracmodule/.libs/pythonimage.o
 
@@ -46,10 +47,9 @@ $(INT2BUILDDIR)/config/Makefile.include:
 	@echo "*** Otherwise, change the definition of INT2BUILDDIR in the Makefile."
 
 clean:
-	rm -f $(OBJS) $(TARGET) hourglass delaunay *.o *.ld
+	rm -f $(OBJS) $(TARGET) hourglass delaunay *.o *.ld *.d
 
 ifneq "$(MAKECMDGOALS)" "clean"
 include hourglass.d
-include delaunay.ld
 include $(patsubst %.lo,%.ld,$(OBJS))
 endif

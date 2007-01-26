@@ -48,4 +48,42 @@ Array__setitem__(Array & a, int i, typename Array::value_type v)
     a[i] = v;
 }
 
+
+/********************************************************************/
+
+template<class ITERATOR>
+class STLIterWrapper
+{
+  public:
+    typedef ITERATOR Iterator;
+
+    STLIterWrapper(Iterator begin, Iterator end)
+    : begin_(begin),
+      end_(end)
+    {}
+
+    STLIterWrapper __iter__() const
+    {
+        return *this;
+    }
+
+    unsigned int __len__() const
+    {
+        return end_ - begin_;
+    }
+
+    typename Iterator::value_type next()
+    {
+        if(begin_ == end_)
+        {
+            PyErr_SetString(PyExc_StopIteration, "");
+            boost::python::throw_error_already_set();
+        }
+        return *(begin_++);
+    }
+
+  protected:
+    Iterator begin_, end_;
+};
+
 #endif // EXPORTHELPERS_HXX
