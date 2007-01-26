@@ -88,6 +88,23 @@ def searchBackwardQuadrant(freemanCodes, index, closed = True):
     except StopIteration:
         return c1
 
+def searchTangentQuadrant(freemanCodes, index, closed = True):
+    try:
+        it1 = forwardIter(freemanCodes, index, closed)
+        it2 = backwardIter(freemanCodes, index, closed)
+        c1 = it2.next()
+        while True:
+            c2 = it1.next()
+            c3 = it2.next()
+            if c2 != c1:
+                if c3 != c2 and c3 != c1:
+                    return c1
+                return (c1, c2)
+            if c3 != c1:
+                return (c1, c3)
+    except StopIteration:
+        return c1
+
 def straightPoints(poly):
     closed = poly[0] == poly[-1]
     freemanCodes = freeman(poly)
@@ -254,7 +271,9 @@ def backwardDSL(freemanCodes, index, closed, allowed = None):
 
 def tangentDSL(freemanCodes, index, closed, allowed = None):
     if allowed == None:
-        allowed = searchForwardQuadrant(freemanCodes, index, closed)
+        allowed = searchTangentQuadrant(freemanCodes, index, closed)
+        if type(allowed) != tuple:
+            return DigitalStraightLine(0, 1, 0), None
     dsl = DigitalStraightLine(freemanCodes[index] % 2 and 1 or 0, 1, 0)
     result = dsl
     ffmi = forwardIter(freemanCodes, index, closed)
@@ -287,13 +306,12 @@ def tangentDSL(freemanCodes, index, closed, allowed = None):
     return result, ffmi.gi_frame.f_locals["i"]-index
 
 def offset(freemanCodes, index, closed = True):
-    fc = searchForwardQuadrant(freemanCodes, index, closed)
-    bc = searchBackwardQuadrant(freemanCodes, index, closed)
-    assert type(fc) == tuple and type(bc) == tuple
-    if fc != bc and fc != (bc[1], bc[0]):
+    fc = searchTangentQuadrant(freemanCodes, index, closed)
+    if type(fc) != tuple:
         #print "no tangent here (%s != %s)" % (fc, bc)
         return Vector2(0, 0)
     dsl, ofs = tangentDSL(freemanCodes, index, closed)
+    assert ofs, "should be handled above"
     #print "tangent DSL:", dsl
     #dsl.convert8to4()
     alpha = (2.*dsl.pos+dsl.b-1)/(2*dsl.b)
