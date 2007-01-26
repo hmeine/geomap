@@ -154,6 +154,7 @@ class DigitalStraightLine(object):
     def addPoint(self, point):
         """works only for 8-connected lines in 1st octant"""
         assert self.is8Connected
+
         v = self(point) - self.pos
         width = self.width()
         if 0 <= v < width:
@@ -162,57 +163,65 @@ class DigitalStraightLine(object):
         
         above = True
         if v == -1:
-            # point above
+            #print "point above"
             pass
         elif v == width:
-            # point below
+            #print "point below"
             above = False
         else:
             #print point, "cannot be added to", self, self.contains(point)
             return False
-        
+
+        increase = above
         y = abs(point[1])
         x = point[0]
+        pos = self.pos
         if point[1] < 0: # since sign(0) == 0, let's be safe here.. :-(
             x = -x
-        
-        if above:
+            increase = not increase
+            pos = 1-self.width()-self.pos
+
+        k = 0
+        if increase:
             #print "slope increases:", self, point
-            k = 0
             while k < width:
-                if (self.a*k-self.pos) % width == 0:
+                if (self.a*k-pos) % width == 0:
                     break
                 k += 1
             assert k < width
-            l = (self.a*k-self.pos) / width
-            self.a = y - l
-            self.b = x - k
+            l = (self.a*k-pos) / width
+        else:
+            #print "slope decreases:", self, point
+            while k < width:
+                if (self.a*k-pos-width+1) % width == 0:
+                    break
+                k += 1
+            assert k < width
+            l = (self.a*k-pos-width+1) / width
+
+        self.a = y - l
+        self.b = x - k
+
+        if above:
             # ensure new point is on lower leaning line:
             self.pos = self(point)
         else:
-            #print "slope decreases:", self, point
-            k = 0
-            while k < width:
-                if (self.a*k-self.pos-width+1) % width == 0:
-                    break
-                k += 1
-            assert k < width
-            l = (self.a*k-self.pos-width+1) / width
-            self.a = y - l
-            self.b = x - k
             # ensure new point is on upper leaning line:
             self.pos = self(point) - self.width() + 1
         
         if not self.contains(point):
-            print self, v, point
+            #print self, v, point
             assert self.contains(point), \
                    "post-condition: addPoint should lead to contains"
+
+        #print "->", self
         return True
     
     def convert8to4(self):
         assert self.is8Connected, "DSL should not be converted twice"
         self.b = self.b - self.a
         self.is8Connected = False
+        return self
 
 def originatingPolyIter(freemanIter, allowed, freeman2Diff):
     cur = Point2D(0, 0)
@@ -251,6 +260,7 @@ def tangentDSL(freemanCodes, index, closed, allowed = None):
     ffmi = forwardIter(freemanCodes, index, closed)
     bfmi = backwardIter(freemanCodes, index, closed)
     bfmi.next()
+    origin = Point2D(0, 0)
     bopi = originatingPolyIter(bfmi, allowed, freeman2Diff8ConnNeg)
     for point1 in originatingPolyIter(ffmi, allowed, freeman2Diff8Conn):
         try:
@@ -258,10 +268,22 @@ def tangentDSL(freemanCodes, index, closed, allowed = None):
         except StopIteration:
             break
         result = copy.copy(dsl)
-        if not dsl.addPoint(point1) or not dsl.addPoint(point2):
+
+        dsl.pos -= dsl(origin)
+        #print "1: adding %s (was %s) to %s" % (point1 - origin, point1, dsl)
+        if not dsl.addPoint(point1 - origin):
             break
-        else:
-            print "added %s and %s" % (point1, point2)
+        dsl.pos += dsl(origin)
+        origin = point1
+
+        dsl.pos -= dsl(origin)
+        #print "2: adding %s (was %s) to %s" % (point2 - origin, point2, dsl)
+        if not dsl.addPoint(point2 - origin):
+            break
+        dsl.pos += dsl(origin)
+        origin = point2
+
+        #print "added %s and %s: %s" % (point1, point2, dsl)
     return result, ffmi.gi_frame.f_locals["i"]-index
 
 def offset(freemanCodes, index, closed = True):
@@ -313,15 +335,17 @@ class DSLExperiment(object):
         if self.dsl.addPoint(newPos):
             self.pos = newPos
             self.points.append(newPos)
-            self.plot()
-            return True
+            return self.plot()
         return False
     
     def plot(self):
+        result = True
         for point in self.points:
             if not self.dsl.contains(point):
                 print "%s lost (no longer in DSL!)" % point
+                result = False
         self.g.plot(self.points, *self.dsl.plotItems())
+        return result
 
 if __name__ == "__main__":
     dsl = DigitalStraightLine(0, 1, 0)
@@ -333,15 +357,10 @@ if __name__ == "__main__":
     for p in gimg.size():
         gimg[p] = norm(p - Point2D(25, 25)) < 20 and 255 or 0
 
-    w = showImage(gimg)
-    addPathFromHere("../subpixelWatersheds")
     import pixelmap
     cem = pixelmap.crackEdgeMap(gimg, False)
     crackPoly = cem.edge(2)
-
     fc = freeman(crackPoly)
-    ep = [p + offset(fc, i) for i, p in enumerate(list(crackPoly)[:-1])]
-    ep.append(ep[0])
 
     import Gnuplot
     def gpLine(points, with = "lines", **kwargs):
@@ -349,12 +368,24 @@ if __name__ == "__main__":
 
     g = Gnuplot.Gnuplot()
     g("set size ratio -1")
-    g.plot(gpLine(crackPoly), gpLine(ep))
-    index = 42
-    dsl, ofs = tangentDSL(fc, index, True)
-    dsl.convert8to4()
-    g.plot(Polygon(list(crackPoly)[index-ofs:index+ofs+1]) + (-crackPoly[index]),
-           *dsl.plotItems())
+
+#     ep = [p + offset(fc, i) for i, p in enumerate(list(crackPoly)[:-1])]
+#     ep.append(ep[0])
+#     g.plot(gpLine(crackPoly), gpLine(ep))
+
+    e = DSLExperiment(True)
+    for code in [1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1]:
+        if not e(code):
+            break
+        print "code %s -> %s" % (code, e.dsl)
+
+#     index = 43
+#     print "debugging %d:" % index
+#     dsl, ofs = tangentDSL(fc, index, True)
+#     dsl.convert8to4()
+#     g.plot(gpLine(crackPoly + (-crackPoly[index])),
+#            Polygon(list(crackPoly)[index-ofs:index+ofs+1]) + (-crackPoly[index]),
+#            *dsl.plotItems())
 
 #   import mapdisplay
 #   d = mapdisplay.MapDisplay(cem, gimg)
