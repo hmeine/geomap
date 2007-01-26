@@ -5,14 +5,22 @@
 
 namespace vigra {
 
+namespace DSL {
+
+    enum LeaningType {
+        CenterLine,
+        LowerLeaningLine,
+        UpperLeaningLine
+    };
+
+};
+
 template<class INTEGER = int, bool EIGHT_CONNECTED = true>
 class DigitalStraightLine
 {
   public:
     typedef INTEGER Integer;
     typedef Rational<Integer> RationalType;
-    
-    enum LeaningType { CenterLine, LowerLeaningLine, UpperLeaningLine };
 
     bool eightConnected() const
     {
@@ -27,7 +35,22 @@ class DigitalStraightLine
     Integer a() const { return a_; }
     Integer b() const { return b_; }
     Integer pos() const { return pos_; }
-    
+
+    void setA(Integer a)
+    {
+        a_ = a;
+    }
+
+    void setB(Integer b)
+    {
+        b_ = b;
+    }
+
+    void setPos(Integer pos)
+    {
+        pos_ = pos;
+    }
+
     bool contains(Integer x, Integer y) const
     {
         Integer v(operator()(x, y) - pos_);
@@ -46,17 +69,17 @@ class DigitalStraightLine
     {
         return RationalType(a_, b_);
     }
-    
-    RationalType axisIntercept(LeaningType leaningType = CenterLine) const
+
+    RationalType axisIntercept(DSL::LeaningType leaningType = DSL::CenterLine) const
     {
         RationalType result(pos_);
-        if(leaningType == CenterLine)
+        if(leaningType == DSL::CenterLine)
             result += RationalType(width()-1, 2);
-        else if(leaningType == LowerLeaningLine)
+        else if(leaningType == DSL::LowerLeaningLine)
             result += width()-1;
         return -result / b_;
     }
-    
+
     bool addPoint(Integer x, Integer y)
     {
         vigra_precondition(
@@ -66,7 +89,7 @@ class DigitalStraightLine
         Integer v(operator()(x, y) - pos_);
         if((0 <= v) && (v < b_))
             return true; // point is already within DSL
-        
+
         bool above = true;
         if(v != -1)
         {
@@ -84,8 +107,6 @@ class DigitalStraightLine
         {
             increaseSlope = !increaseSlope;
             pos = 1-b_-pos_; // temporarily mirror line at origin
-            x = -x;
-            y = -y;
         }
 
         Integer k = 0, divPos = (increaseSlope ? pos : pos + width() - 1);
@@ -96,8 +117,8 @@ class DigitalStraightLine
         }
         Integer l = (a_*k-divPos) / b_;
 
-        a_ = y - l;
-        b_ = x - k;
+        a_ = abs(y) - l;
+        b_ = abs(x) - k;
 
         if(above)
             // ensure new point is on lower leaning line:
@@ -111,7 +132,7 @@ class DigitalStraightLine
 
         return true;
     }
- 
+
     DigitalStraightLine<Integer, false>
     convertToFourConnected() const
     {
@@ -123,16 +144,16 @@ class DigitalStraightLine
                 a_, b_, pos_);
     }
 
-  protected:
-    Integer a_, b_, pos_;
-    bool eightConnected_;
-
-        // could be public IMHO, but Ulli doesn't like it (admittedly,
-        // it's not too intuitive):
+        // Ulli doesn't like this being public
+        // (admittedly, it's not too intuitive):
     Integer operator()(Integer x, Integer y) const
     {
         return a_*x - b_*y;
     }
+
+  protected:
+    Integer a_, b_, pos_;
+    bool eightConnected_;
 };
 
 } // namespace vigra
