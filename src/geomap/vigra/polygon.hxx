@@ -183,43 +183,6 @@ class PointArray
 
 /********************************************************************/
 
-template<class ITERATOR>
-class PointIter
-{
-  public:
-    typedef ITERATOR Iterator;
-
-    PointIter(Iterator begin, Iterator end)
-    : begin_(begin),
-      end_(end)
-    {}
-
-    PointIter __iter__() const
-    {
-        return *this;
-    }
-
-    unsigned int __len__() const
-    {
-        return end_ - begin_;
-    }
-
-    typename Iterator::value_type next()
-    {
-        if(begin_ == end_)
-        {
-            PyErr_SetString(PyExc_StopIteration, "");
-            boost::python::throw_error_already_set();
-        }
-        return *(begin_++);
-    }
-
-  protected:
-    Iterator begin_, end_;
-};
-
-/********************************************************************/
-
 template<class POINT>
 class Polygon : public PointArray<POINT>
 {
