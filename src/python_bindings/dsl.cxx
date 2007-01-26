@@ -3,6 +3,7 @@
 #include <boost/python.hpp>
 #include <boost/python/detail/api_placeholder.hpp>
 #include <boost/python/make_constructor.hpp>
+#include <vector>
 
 using namespace boost::python;
 using namespace vigra;
@@ -15,6 +16,18 @@ struct DSLPickleSuite : pickle_suite
         return make_tuple(dsl.a(), dsl.b(), dsl.pos());
     }
 };
+
+tuple pyTangentDSL(list pyFreemanCodes, int index, bool closed)
+{
+    std::vector<unsigned char> freemanCodes(len(pyFreemanCodes));
+    for(unsigned int i = 0; i < freemanCodes.size(); ++i)
+        freemanCodes[i] = extract<unsigned char>(pyFreemanCodes[i])();
+    
+    DigitalStraightLine<int, true> result(0, 1, 0);
+    int offset = tangentDSL(freemanCodes.begin(), freemanCodes.end(),
+                            index, closed, result);
+    return make_tuple(result, offset ? object(offset) : object());
+}
 
 void defDSL()
 {
@@ -57,4 +70,6 @@ void defDSL()
              arg("leaningType") = DSL::CenterLine)
         .def_pickle(DSLPickleSuite<DigitalStraightLine8>())
     ;
+
+    def("tangentDSL", &pyTangentDSL);
 }
