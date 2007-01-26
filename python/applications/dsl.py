@@ -116,7 +116,7 @@ def straightPoints(poly):
             result.append(poly[i])
     return result
 
-class DigitalStraightLine(object):
+class PyDigitalStraightLine(object):
     def __init__(self, a, b, pos):
         self.a = a
         self.b = b
@@ -149,14 +149,14 @@ class DigitalStraightLine(object):
                 Gnuplot.Func(self.plotEquation(1), title = "lower leaning line"),
                 Gnuplot.Func(self.plotEquation(2), title = "upper leaning line")]
     
-    def __call__(self, point):
-        return self.a*point[0] - self.b*point[1]
+    def __call__(self, x, y):
+        return self.a*x - self.b*y
     
     def __getinitargs__(self):
         return (self.a, self.b, self.pos)
     
-    def contains(self, point):
-        v = self(point) - self.pos
+    def contains(self, x, y):
+        v = self(x, y) - self.pos
         return 0 <= v < self.width()
     
     def width(self):
@@ -168,11 +168,11 @@ class DigitalStraightLine(object):
     def __repr__(self):
         return "DigitalStraightLine(%d, %d, %d)" % (self.a, self.b, self.pos)
     
-    def addPoint(self, point):
+    def addPoint(self, x, y):
         """works only for 8-connected lines in 1st octant"""
-        assert self.is8Connected and 0 <= self.a <= self.b
+        assert self.is8Connected and (0 <= self.a <= self.b)
 
-        v = self(point) - self.pos
+        v = self(x, y) - self.pos
         width = self.width()
         if 0 <= v < width:
             #print "point already inside:", self, point
@@ -190,11 +190,12 @@ class DigitalStraightLine(object):
             return False
 
         increase = above
-        y = abs(point[1])
-        x = point[0]
         pos = self.pos
-        if point[1] < 0: # since sign(0) == 0, let's be safe here.. :-(
-            x = -x
+        ax = x
+        ay = y
+        if x < 0:
+            ax = -ax
+            ay = -ay
             increase = not increase
             pos = 1-self.width()-self.pos
 
@@ -216,29 +217,48 @@ class DigitalStraightLine(object):
             assert k < width
             l = (self.a*k-pos-width+1) / width
 
-        self.a = y - l
-        self.b = x - k
+        self.a = ay - l
+        self.b = ax - k
 
         if above:
             # ensure new point is on lower leaning line:
-            self.pos = self(point)
+            self.pos = self(x, y)
         else:
             # ensure new point is on upper leaning line:
-            self.pos = self(point) - self.width() + 1
+            self.pos = self(x, y) - self.width() + 1
         
-        if not self.contains(point):
+        if not self.contains(x, y):
             #print self, v, point
-            assert self.contains(point), \
+            assert self.contains(x, y), \
                    "post-condition: addPoint should lead to contains"
 
         #print "->", self
         return True
     
-    def convert8to4(self):
+    def convertToFourConnected(self):
         assert self.is8Connected, "DSL should not be converted twice"
         self.b = self.b - self.a
         self.is8Connected = False
         return self
+
+def DigitalStraightLine_plotEquation(self, leaningType = LeaningType.CenterLine):
+    return ("%s*x + (%s)" % (self.slope(), self.axisIntercept(leaningType))).replace("/", "./")
+
+def DigitalStraightLine_plotItems(self):
+    return [Gnuplot.Func(self.plotEquation(), title = "center line"),
+            Gnuplot.Func(self.plotEquation(LeaningType.LowerLeaningLine), title = "lower leaning line"),
+            Gnuplot.Func(self.plotEquation(LeaningType.UpperLeaningLine), title = "upper leaning line")]
+
+def DigitalStraightLine__repr__(self):
+    return "DigitalStraightLine8(%d, %d, %d)" % (self.a, self.b, self.pos)
+
+hourglass.DigitalStraightLine8.plotEquation = DigitalStraightLine_plotEquation
+hourglass.DigitalStraightLine8.plotItems = DigitalStraightLine_plotItems
+hourglass.DigitalStraightLine8.__repr__ = DigitalStraightLine__repr__
+
+import hourglass
+DigitalStraightLine = hourglass.DigitalStraightLine8
+#DigitalStraightLine = PyDigitalStraightLine
 
 def originatingPolyIter(freemanIter, allowed, freeman2Diff):
     cur = Point2D(0, 0)
@@ -254,7 +274,7 @@ def forwardDSL(freemanCodes, index, closed, allowed = None):
     fmi = forwardIter(freemanCodes, index, closed)
     dsl = DigitalStraightLine(freemanCodes[index] % 2 and 1 or 0, 1, 0)
     for point in originatingPolyIter(fmi, allowed, freeman2Diff8Conn):
-        if not dsl.addPoint(point):
+        if not dsl.addPoint(*point):
             break
     return dsl, fmi.gi_frame.f_locals["i"]-index
 
@@ -265,7 +285,7 @@ def backwardDSL(freemanCodes, index, closed, allowed = None):
     fmi.next()
     dsl = DigitalStraightLine(freemanCodes[index] % 2 and 1 or 0, 1, 0)
     for point in originatingPolyIter(fmi, allowed, freeman2Diff8ConnNeg):
-        if not dsl.addPoint(point):
+        if not dsl.addPoint(*point):
             break
     return dsl, -(fmi.gi_frame.f_locals["i"]-index)
 
@@ -288,34 +308,34 @@ def tangentDSL(freemanCodes, index, closed, allowed = None):
             break
         result = copy.copy(dsl)
 
-        dsl.pos -= dsl(origin)
+        dsl.pos -= dsl(origin[0], origin[1])
         #print "1: adding %s (was %s) to %s" % (point1 - origin, point1, dsl)
-        if not dsl.addPoint(point1 - origin):
+        if not dsl.addPoint(point1[0] - origin[0], point1[1] - origin[1]):
             break
-        dsl.pos += dsl(origin)
+        dsl.pos += dsl(origin[0], origin[1])
         origin = point1
 
-        dsl.pos -= dsl(origin)
+        dsl.pos -= dsl(origin[0], origin[1])
         #print "2: adding %s (was %s) to %s" % (point2 - origin, point2, dsl)
-        if not dsl.addPoint(point2 - origin):
+        if not dsl.addPoint(point2[0] - origin[0], point2[1] - origin[1]):
             break
-        dsl.pos += dsl(origin)
+        dsl.pos += dsl(origin[0], origin[1])
         origin = point2
 
         #print "added %s and %s: %s" % (point1, point2, dsl)
     return result, ffmi.gi_frame.f_locals["i"]-index
 
 def offset(freemanCodes, index, closed = True):
-    fc = searchTangentQuadrant(freemanCodes, index, closed)
-    if type(fc) != tuple:
-        #print "no tangent here (%s != %s)" % (fc, bc)
-        return Vector2(0, 0)
-    dsl, ofs = tangentDSL(freemanCodes, index, closed)
-    assert ofs, "should be handled above"
-    #print "tangent DSL:", dsl
-    #dsl.convert8to4()
+    dsl, ofs = hourglass.tangentDSL(freemanCodes, index, closed)
+
+    fc1 = freemanCodes[index - ofs]
+    for i in range(index - ofs + 1, index + ofs):
+        fc2 = freemanCodes[i]
+        if fc2 != fc1:
+            break
+
     alpha = (2.*dsl.pos+dsl.b-1)/(2*dsl.b)
-    q = quadrant(*fc)
+    q = quadrant(fc1, fc2)
     if q == 0:
         return Vector2( alpha, -alpha)
     elif q == 1:
@@ -349,7 +369,7 @@ class DSLExperiment(object):
                 self.code2 = code
             assert code == self.code2, "more than two different freeman codes passed to DigitalStraightLine!"
         newPos = self.pos + self.freeman2Diff[code % 2]
-        if self.dsl.addPoint(newPos):
+        if self.dsl.addPoint(*newPos):
             self.pos = newPos
             self.points.append(newPos)
             return self.plot()
@@ -358,7 +378,7 @@ class DSLExperiment(object):
     def plot(self):
         result = True
         for point in self.points:
-            if not self.dsl.contains(point):
+            if not self.dsl.contains(point[0], point[1]):
                 print "%s lost (no longer in DSL!)" % point
                 result = False
         self.g.plot(self.points, *self.dsl.plotItems())
@@ -366,9 +386,9 @@ class DSLExperiment(object):
 
 if __name__ == "__main__":
     dsl = DigitalStraightLine(0, 1, 0)
-    dsl.addPoint(Point2D( 1,  0))
-    dsl.addPoint(Point2D(-1,  0))
-    dsl.addPoint(Point2D(-2, -1))
+    dsl.addPoint( 1,  0)
+    dsl.addPoint(-1,  0)
+    dsl.addPoint(-2, -1)
 
     gimg = GrayImage(50, 50)
     for p in gimg.size():
@@ -390,6 +410,10 @@ if __name__ == "__main__":
     ep.append(ep[0])
     g.plot(gpLine(crackPoly), gpLine(ep))
 
+#     tangents = [tangentDSL(fc, i, True)[0] for i in range(len(fc))]
+#     g.plot(gpLine(tangentList(ep, 1), "lp"),
+#            gpLine([atan2(t.b, t.a)+math.pi/2 for t in tangents], "lp"))
+
 #     e = DSLExperiment(True)
 #     for code in [1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1]:
 #         if not e(code):
@@ -399,7 +423,7 @@ if __name__ == "__main__":
 #     index = 43
 #     print "debugging %d:" % index
 #     dsl, ofs = tangentDSL(fc, index, True)
-#     dsl.convert8to4()
+#     dsl.convertToFourConnected()
 #     g.set_range("xrange", (-5, 5))
 #     g.set_range("yrange", (-10, 10))
 #     g.plot(gpLine(crackPoly + (-crackPoly[index])),
