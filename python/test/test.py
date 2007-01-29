@@ -13,7 +13,7 @@ map.sortEdgesEventually(ssStepDist = 0.2, ssMinDist = 0.05)
 map.initializeMap()
 # FIXME: performEdgeSplits!!
 assert checkConsistency(map), "map inconsistent"
-assert checkLabelConsistency(map), "map.labelImage inconsistent"
+assert checkLabelConsistency(map), "map.labelImage() inconsistent"
 assert len(map.history) == 0
 
 # merge faces so that survivor has a hole:
@@ -33,12 +33,12 @@ assert not face.contains(Vector2(12,12)) # in hole
 # test copying / init from map data with disconnected contours:
 om = copy.copy(map)
 assert checkConsistency(om), "map inconsistent"
-assert checkLabelConsistency(om), "om.labelImage inconsistent"
+assert checkLabelConsistency(om), "om.labelImage() inconsistent"
 
 # --------------------------------------------------------------------
 
 import pixelmap
-lab, count = labelImage4(map.labelImage)
+lab, count = labelImage4(map.labelImage())
 cm = pixelmap.crackEdgeMap(lab)
 assert cm.faceCount == count + 1
 
@@ -48,7 +48,7 @@ map = Map(maxima1, flowlines1, Size2D(256, 256))
 map.sortEdgesEventually(ssStepDist = 0.2, ssMinDist = 0.05)
 map.initializeMap()
 assert checkConsistency(map), "map inconsistent"
-assert checkLabelConsistency(map), "map.labelImage inconsistent"
+assert checkLabelConsistency(map), "map.labelImage() inconsistent"
 
 # showMapStats(map)
 # bg = readImage("../../../Testimages/blox.gif")
