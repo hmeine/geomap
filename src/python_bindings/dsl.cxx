@@ -22,7 +22,7 @@ tuple pyTangentDSL(list pyFreemanCodes, int index, bool closed)
     std::vector<unsigned char> freemanCodes(len(pyFreemanCodes));
     for(unsigned int i = 0; i < freemanCodes.size(); ++i)
         freemanCodes[i] = extract<unsigned char>(pyFreemanCodes[i])();
-    
+
     DigitalStraightLine<int, true> result(0, 1, 0);
     int offset = tangentDSL(freemanCodes.begin(), freemanCodes.end(),
                             index, closed, result);
@@ -50,6 +50,9 @@ void defDSL()
         .def("slope", &DigitalStraightLine8::slope)
         .def("axisIntercept", &DigitalStraightLine8::axisIntercept,
              arg("leaningType") = DSL::CenterLine)
+        .def("mirrorX", &DigitalStraightLine8::mirrorX)
+        .def("mirrorXY", &DigitalStraightLine8::mirrorXY)
+        .def("mirrorY", &DigitalStraightLine8::mirrorY)
         .def("addPoint", &DigitalStraightLine8::addPoint)
         .def("convertToFourConnected", &DigitalStraightLine8::convertToFourConnected)
         .def_pickle(DSLPickleSuite<DigitalStraightLine8>())
@@ -68,7 +71,10 @@ void defDSL()
         .def("slope", &DigitalStraightLine4::slope)
         .def("axisIntercept", &DigitalStraightLine4::axisIntercept,
              arg("leaningType") = DSL::CenterLine)
-        .def_pickle(DSLPickleSuite<DigitalStraightLine8>())
+        .def("mirrorX", &DigitalStraightLine4::mirrorX)
+        .def("mirrorXY", &DigitalStraightLine4::mirrorXY)
+        .def("mirrorY", &DigitalStraightLine4::mirrorY)
+        .def_pickle(DSLPickleSuite<DigitalStraightLine4>())
     ;
 
     def("tangentDSL", &pyTangentDSL);

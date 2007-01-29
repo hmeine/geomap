@@ -145,6 +145,22 @@ class DigitalStraightLine
                 a_, b_, pos_);
     }
 
+    void mirrorX()
+    {
+        a_ = -a_;
+    }
+    
+    void mirrorY()
+    {
+        mirrorX();
+        mirrorXY();
+    }
+    
+    void mirrorXY()
+    {
+        pos_ = 1-width()-pos_;
+    }
+
         // Ulli doesn't like this being public
         // (admittedly, it's not too intuitive):
     Integer operator()(Integer x, Integer y) const
@@ -158,7 +174,7 @@ class DigitalStraightLine
 };
 
 template<class Integer, class FreemanCodeIter>
-int tangentDSL(FreemanCodeIter freemanCodesBegin, 
+int tangentDSL(FreemanCodeIter freemanCodesBegin,
                FreemanCodeIter freemanCodesEnd,
                int index,
                bool closed,
@@ -253,7 +269,7 @@ int tangentDSL(FreemanCodeIter freemanCodesBegin,
         // result is valid, store:
         dsl = tangent;
         ++dist;
-        
+
         ++forwardIter;
         if(forwardIter == freemanCodesEnd)
         {
