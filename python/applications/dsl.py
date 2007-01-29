@@ -234,6 +234,16 @@ class PyDigitalStraightLine(object):
 
         #print "->", self
         return True
+
+    def mirrorX(self):
+        self.a = -self.a
+    
+    def mirrorY(self):
+        self.mirrorX()
+        self.mirrorXY()
+    
+    def mirrorXY(self):
+        self.pos = 1-self.width()-self.pos
     
     def convertToFourConnected(self):
         assert self.is8Connected, "DSL should not be converted twice"
@@ -249,14 +259,20 @@ def DigitalStraightLine_plotItems(self):
             Gnuplot.Func(self.plotEquation(LeaningType.LowerLeaningLine), title = "lower leaning line"),
             Gnuplot.Func(self.plotEquation(LeaningType.UpperLeaningLine), title = "upper leaning line")]
 
-def DigitalStraightLine__repr__(self):
+def DigitalStraightLine8__repr__(self):
     return "DigitalStraightLine8(%d, %d, %d)" % (self.a, self.b, self.pos)
 
-hourglass.DigitalStraightLine8.plotEquation = DigitalStraightLine_plotEquation
-hourglass.DigitalStraightLine8.plotItems = DigitalStraightLine_plotItems
-hourglass.DigitalStraightLine8.__repr__ = DigitalStraightLine__repr__
+def DigitalStraightLine4__repr__(self):
+    return "DigitalStraightLine4(%d, %d, %d)" % (self.a, self.b, self.pos)
 
 import hourglass
+hourglass.DigitalStraightLine8.plotEquation = DigitalStraightLine_plotEquation
+hourglass.DigitalStraightLine8.plotItems = DigitalStraightLine_plotItems
+hourglass.DigitalStraightLine8.__repr__ = DigitalStraightLine8__repr__
+hourglass.DigitalStraightLine4.plotEquation = DigitalStraightLine_plotEquation
+hourglass.DigitalStraightLine4.plotItems = DigitalStraightLine_plotItems
+hourglass.DigitalStraightLine4.__repr__ = DigitalStraightLine4__repr__
+
 DigitalStraightLine = hourglass.DigitalStraightLine8
 #DigitalStraightLine = PyDigitalStraightLine
 
@@ -345,6 +361,29 @@ def offset(freemanCodes, index, closed = True):
     else:
         return Vector2( alpha,  alpha)
 
+def offset2(freemanCodes, index, closed = True):
+    dsl, ofs = hourglass.tangentDSL(freemanCodes, index, closed)
+    dsl = dsl.convertToFourConnected()
+
+    fc1 = freemanCodes[index - ofs]
+    for i in range(index - ofs + 1, index + ofs):
+        fc2 = freemanCodes[i]
+        if fc2 != fc1:
+            break
+
+    q = quadrant(fc1, fc2)
+    if q == 0:
+        pass
+    elif q == 1:
+        dsl.mirrorX()
+    elif q == 2:
+        dsl.mirrorXY()
+    else:
+        dsl.mirrorY()
+
+    cp = Rational(2*dsl.pos+dsl.width()-1, 2*(math.sq(dsl.a) + math.sq(dsl.b)))
+    return Vector2(float(dsl.a*cp), float(-dsl.b*cp))
+
 import Gnuplot
 
 class DSLExperiment(object):
@@ -408,7 +447,9 @@ if __name__ == "__main__":
 
     ep = [p + offset(fc, i) for i, p in enumerate(list(crackPoly)[:-1])]
     ep.append(ep[0])
-    g.plot(gpLine(crackPoly), gpLine(ep))
+    ep2 = [p + offset2(fc, i) for i, p in enumerate(list(crackPoly)[:-1])]
+    ep2.append(ep2[0])
+    g.plot(gpLine(crackPoly), gpLine(ep), gpLine(ep2))
 
 #     tangents = [tangentDSL(fc, i, True)[0] for i in range(len(fc))]
 #     g.plot(gpLine(tangentList(ep, 1), "lp"),
@@ -428,7 +469,7 @@ if __name__ == "__main__":
 #     g.set_range("yrange", (-10, 10))
 #     g.plot(gpLine(crackPoly + (-crackPoly[index])),
 #            Polygon(list(crackPoly)[index-ofs:index+ofs+1]) + (-crackPoly[index]),
-#            *dsl.plotItems())
+#            *(dsl.convertToFourConnected()).plotItems())
 
 #   import mapdisplay
 #   d = mapdisplay.MapDisplay(cem, gimg)
