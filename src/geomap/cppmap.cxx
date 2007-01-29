@@ -1,5 +1,4 @@
 #include "cppmap.hxx"
-#include <boost/python/detail/api_placeholder.hpp>
 #include <vigra/tinyvector.hxx>
 #include <vigra/pythonimage.hxx>
 #include <vigra/pythonutil.hxx>
@@ -13,8 +12,6 @@
 template <class T>
 inline bool isnan(T t) { return _isnan(t); }
 #endif
-
-namespace bp = boost::python;
 
 template<class Container>
 void removeAll(Container &container,
@@ -920,8 +917,7 @@ inline GeoMap::Dart GeoMap::Node::anchor() const
     return Dart(map_, darts_[0]);
 }
 
-GeoMap::GeoMap(bp::list nodePositions,
-               bp::list edgeTuples, vigra::Size2D imageSize)
+GeoMap::GeoMap(vigra::Size2D imageSize)
 : nodeCount_(0),
   edgeCount_(0),
   faceCount_(0),
@@ -929,37 +925,7 @@ GeoMap::GeoMap(bp::list nodePositions,
   labelImage_(NULL),
   edgesSorted_(false)
 {
-    for(int i = 0; i < len(nodePositions); ++i)
-    {
-        bp::extract<Vector2> ve(nodePositions[i]);
-        if(ve.check())
-            addNode(ve());
-        else
-            nodes_.push_back(NULL_PTR(Node));
-    }
-
     edges_.push_back(NULL_PTR(Edge));
-    if(edgeTuples)
-        vigra_precondition(edgeTuples[0] == bp::object(),
-            "GeoMap.__init__: edgeTuples[0] must be None (valid labels start at 1)");
-    for(int i = 1; i < len(edgeTuples); ++i)
-    {
-        bp::extract<bp::tuple> ete(edgeTuples[i]);
-        if(ete.check())
-        {
-            bp::tuple edgeTuple(ete());
-            // FIXME: check length of tuple
-            bp::extract<Vector2Array> pe(edgeTuple[2]);
-            if(!pe.check())
-                bp::throw_type_error(
-                    "GeoMap.__init__: edge geometry not convertable to Vector2Array");
-            CellLabel startNodeLabel = bp::extract<CellLabel>(edgeTuple[0])();
-            CellLabel endNodeLabel   = bp::extract<CellLabel>(edgeTuple[1])();
-            addEdge(startNodeLabel, endNodeLabel, pe());
-        }
-        else
-            edges_.push_back(NULL_PTR(Edge));
-    }
 }
 
 GeoMap::~GeoMap()
@@ -1004,6 +970,15 @@ CELL_PTR(GeoMap::Face) GeoMap::faceAt(const vigra::Vector2 &position)
 CELL_PTR(GeoMap::Node) GeoMap::addNode(
     const vigra::Vector2 &position)
 {
+    GeoMap::Node *result = new GeoMap::Node(this, position);
+    return node(result->label());
+}
+
+CELL_PTR(GeoMap::Node) GeoMap::addNode(
+    const vigra::Vector2 &position, CellLabel label)
+{
+    if(label > nodes_.size())
+        nodes_.resize(label, NULL_PTR(GeoMap::Node));
     GeoMap::Node *result = new GeoMap::Node(this, position);
     return node(result->label());
 }
@@ -2554,6 +2529,14 @@ GeoMap::Face &GeoMap::mergeFaces(GeoMap::Dart &dart)
 }
 
 /********************************************************************/
+/*                                                                  */
+/*                Python export code & API wrappers                 */
+/*                                                                  */
+/********************************************************************/
+
+#include <boost/python.hpp>
+#include <boost/python/detail/api_placeholder.hpp>
+namespace bp = boost::python;
 
 bool removeIsolatedNode(GeoMap::Node &node)
 {
@@ -2741,6 +2724,15 @@ struct RangeIterAdapter
 
     Iterator iter_, end_;
 };
+
+#ifdef USE_INSECURE_CELL_PTRS
+// This is quite dangerous, *but*: The real lifetime of
+// the referenced objects / cells are unknown, since any Euler
+// operation might invalidate them.
+#  define CELL_RETURN_POLICY bp::return_value_policy<reference_existing_object>
+#else
+#  define CELL_RETURN_POLICY bp::default_call_policies
+#endif
 
 template<class Iterator>
 struct RangeIterWrapper
@@ -3043,6 +3035,44 @@ addAssociatePixelsCallback(GeoMap *geomap,
 
 using namespace boost::python;
 
+std::auto_ptr<GeoMap>
+createGeoMap(bp::list nodePositions,
+             bp::list edgeTuples,
+             vigra::Size2D imageSize)
+{
+    std::auto_ptr<GeoMap> result(new GeoMap(imageSize));
+
+    for(int i = 0; i < len(nodePositions); ++i)
+    {
+        bp::extract<Vector2> ve(nodePositions[i]);
+        if(ve.check())
+            result->addNode(ve(), i);
+    }
+
+    if(edgeTuples)
+        vigra_precondition(edgeTuples[0] == bp::object(),
+            "GeoMap.__init__: edgeTuples[0] must be None (valid labels start at 1)");
+
+    for(int i = 1; i < len(edgeTuples); ++i)
+    {
+        bp::extract<bp::tuple> ete(edgeTuples[i]);
+        if(ete.check())
+        {
+            bp::tuple edgeTuple(ete());
+            // FIXME: check length of tuple
+            bp::extract<Vector2Array> pe(edgeTuple[2]);
+            if(!pe.check())
+                bp::throw_type_error(
+                    "GeoMap.__init__: edge geometry not convertable to Vector2Array");
+            CellLabel startNodeLabel = bp::extract<CellLabel>(edgeTuple[0])();
+            CellLabel endNodeLabel   = bp::extract<CellLabel>(edgeTuple[1])();
+            result->addEdge(startNodeLabel, endNodeLabel, pe(), i);
+        }
+    }
+
+    return result;
+}
+
 GeoMap::FaceIterator faceIter(GeoMap &geomap, bool skipInfinite)
 {
     GeoMap::FaceIterator result(geomap.facesBegin());
@@ -3221,10 +3251,12 @@ void defMap()
     {
         scope geoMap(
             class_<GeoMap, boost::noncopyable>(
-                "GeoMap", init<bp::list, bp::list, vigra::Size2D>(
-                    (arg("nodePositions") = bp::list(),
-                     arg("edgeTuples") = bp::list(),
-                     arg("imageSize") = vigra::Size2D(0, 0))))
+                "GeoMap", init<vigra::Size2D>(arg("imageSize")))
+            .def("__init__", make_constructor(
+                     &createGeoMap, default_call_policies(),
+                     (arg("nodePositions") = bp::list(),
+                      arg("edgeTuples") = bp::list(),
+                      arg("imageSize") = vigra::Size2D(0, 0))))
             .def("node", &GeoMap::node, crp)
             .def("nodeIter", &GeoMap::nodesBegin)
             .def("edge", &GeoMap::edge, crp)
@@ -3247,8 +3279,8 @@ void defMap()
                  "Actually, this is the max. face label + 1, so that you can use it as LUT size.")
             .def("imageSize", &GeoMap::imageSize,
                  return_value_policy<copy_const_reference>())
-            .def("addNode", &GeoMap::addNode, crp,
-                 args("position"))
+            .def("addNode", (CELL_PTR(GeoMap::Node) (GeoMap::*)(const vigra::Vector2 &))&GeoMap::addNode, crp, args("position"))
+            .def("addNode", (CELL_PTR(GeoMap::Node) (GeoMap::*)(const vigra::Vector2 &, CellLabel))&GeoMap::addNode, crp, args("position", "label"))
             .def("addEdge", (CELL_PTR(GeoMap::Edge)(GeoMap::*)(CellLabel, CellLabel, const Vector2Array &, CellLabel))&GeoMap::addEdge, crp,
                  (arg("startNodeLabel"), arg("endNodeLabel"), arg("points"),
                   arg("label") = 0))
