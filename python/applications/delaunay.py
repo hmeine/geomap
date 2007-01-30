@@ -9,7 +9,7 @@ from vigra import Vector2, Vector, dot
 
 try:
     import triangle
-except ImportError, e:
+except ImportError:
     triangle = None
 
 def isContourEdge(edge, maxNodeLabel = None):
