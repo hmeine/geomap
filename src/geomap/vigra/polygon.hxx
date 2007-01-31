@@ -550,7 +550,7 @@ class BBoxPolygon : public Polygon<POINT>
         if(!boundingBoxValid_)
         {
             boundingBox_ = BoundingBox();
-            for(unsigned int i = 1; i < this->points_.size(); ++i)
+            for(unsigned int i = 0; i < this->points_.size(); ++i)
                 boundingBox_ |= this->points_[i];
             boundingBoxValid_ = true;
         }
