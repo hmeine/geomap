@@ -3337,6 +3337,8 @@ void defMap()
             .def("dart", &GeoMap::Edge::dart)
             .def("isBridge", &GeoMap::Edge::isBridge)
             .def("isLoop", &GeoMap::Edge::isLoop)
+            .def("scanLines", &GeoMap::Edge::scanLines,
+                 return_value_policy<copy_const_reference>())
             .def("protection", &GeoMap::Edge::protection)
             .def("protect", &GeoMap::Edge::protect,
                  (arg("flag"), arg("onoff") = true))
