@@ -291,7 +291,7 @@ class Polygon : public PointArray<POINT>
                 above = now;
             }
         }
-        return result % 2;
+        return (result % 2) != 0;
     }
 
     void push_back(const_reference v)
