@@ -9,8 +9,7 @@
 #include "exporthelpers.hxx"
 
 #ifdef _MSC_VER
-template <class T>
-inline bool isnan(T t) { return _isnan(t); }
+inline int isnan(double t) { return _isnan(t); }
 #endif
 
 template<class Container>
