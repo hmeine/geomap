@@ -160,7 +160,7 @@ def thresholdMergeCost(map, mergeCostFunctor, maxCost, costs = None, q = None):
                                   mergeCostFunctor(dart))
         if survivor:
             result += 1
-            if costs:
+            if costs != None:
                 costs.append(cost)
     
     return result, q
