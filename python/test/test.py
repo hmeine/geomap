@@ -17,12 +17,12 @@ assert checkLabelConsistency(map), "map.labelImage() inconsistent"
 assert len(map.history) == 0
 
 # merge faces so that survivor has a hole:
-mergeFaces(map.dart(218))
-mergeFaces(map.dart(-19))
-mergeFaces(map.dart(-28))
-mergeFaces(map.dart(-33))
-mergeFaces(map.dart(-229))
-face = removeBridge(map.dart(-31))
+map.mergeFaces(map.dart(218))
+map.mergeFaces(map.dart(-19))
+map.mergeFaces(map.dart(-28))
+map.mergeFaces(map.dart(-33))
+map.mergeFaces(map.dart(-229))
+face = map.removeBridge(map.dart(-31))
 
 assert len(face.contours()) > 1 # should have hole
 assert face.contains(Vector2(5,12)) # in region, but not within hole
@@ -144,7 +144,7 @@ try:
             print "removing node %d via %s" % (nodeLabel, dart)
             history += "mergeEdges(map.dart(%d))\n" % (dart.label(), )
             mergePos = dart[0]
-            survivor = mergeEdges(dart)
+            survivor = map.mergeEdges(dart)
             if survivor:
                 assert mergePos in [survivor[i] for i in survivor.mergeIndices], \
                        "mergeIndices do not point to merge position!"
@@ -161,7 +161,7 @@ try:
             dart = map.dart(dartLabel)
             print "removing bridge via %s" % (dart, )
             history += "removeBridge(map.dart(%d))\n" % (dartLabel, )
-            if removeBridge(dart):
+            if map.removeBridge(dart):
                 changed = True
 
     if operation == 2:
@@ -175,7 +175,7 @@ try:
             dart = map.dart(dartLabel)
             print "removing edge via %s" % (dart, )
             history += "mergeFaces(map.dart(%d))\n" % (dartLabel, )
-            if mergeFaces(dart):
+            if map.mergeFaces(dart):
                 changed = True
 
 except Exception, e:
