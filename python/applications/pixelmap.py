@@ -2,7 +2,7 @@ from vigra import *
 addPathFromHere('../cellimage')
 import cellimage, hourglass
 from cellimage import CellType
-import map as spmap # for BORDER_PROTECTION only ;-)
+from maputils import BORDER_PROTECTION
 #from map import GeoMap
 from hourglass import GeoMap
 
@@ -81,7 +81,7 @@ def pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0),
     # border edges manually:
     for edge in result.edgeIter():
         if not edge.leftFaceLabel() or not edge.rightFaceLabel():
-            edge.protect(spmap.BORDER_PROTECTION)
+            edge.protect(BORDER_PROTECTION)
 
     return result
 

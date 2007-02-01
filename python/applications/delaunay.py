@@ -4,7 +4,7 @@ _cvsVersion = "$Id$" \
 
 import math, sys
 from hourglass import Polygon, simplifyPolygon, delaunay
-from map import GeoMap, contourPoly, mergeFaces, removeBridge
+from map import GeoMap, contourPoly
 from vigra import Vector2, Vector, dot
 
 try:
@@ -175,7 +175,7 @@ def cleanOuter(map):
                 mergeDart = dart.clone().prevSigma()
                 if mergeDart.edge().isContourEdge:
                     break
-                mergeFaces(mergeDart).isOutside = True
+                map.mergeFaces(mergeDart).isOutside = True
                 sys.stdout.write(".")
                 sys.stdout.flush()
     print
@@ -346,7 +346,8 @@ def _pruneBarbsInternal(skel):
         if edge.isBarb:
             print "pruning", edge
             count += 1
-            removeBridge(edge.dart())
+            dart = edge.dart()
+            dart.map().removeBridge(dart)
         else:
             del edge.isBarb
     return count
@@ -419,11 +420,7 @@ def pruneBarbsByDist(skel, maxDist):
 
     result += _pruneBarbsInternal(skel)
 
-    #return result
-
-#             pruneDart = dart.clone()
-#             dart.nextPhi()
-#             removeBridge(pruneDart)
+    return result
 
 def pruneBarbs(skel):
     for edge in skel.edgeIter():
