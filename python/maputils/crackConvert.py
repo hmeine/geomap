@@ -77,7 +77,7 @@ simplifyStraight = False
 
 def followEdge(crackConnectionImage, pos, direction):
     pos = Point2D(*pos)
-    dirName = ["right", "up", "left", "down"]
+# 	dirName = ["right", "up", "left", "down"]
 # 	sys.stderr.write("following crack edge from %s in '%s'-direction.." % (
 # 		pos, dirName[direction]))
     vPos = Vector2(*pos) - Vector2(0.5, 0.5)
