@@ -245,12 +245,13 @@ class GeoMap
 
   public:
     bool removeIsolatedNode(Node &node);
-    Edge &mergeEdges(Dart &dart);
-    Edge &splitEdge(Edge &edge, unsigned int segmentIndex);
-    Edge &splitEdge(Edge &edge, unsigned int segmentIndex,
-                    const vigra::Vector2 &newPoint, bool insertPoint = true);
-    Face &removeBridge(Dart &dart);
-    Face &mergeFaces(Dart &dart);
+    CELL_PTR(Edge) mergeEdges(Dart &dart);
+    CELL_PTR(Edge) splitEdge(Edge &edge, unsigned int segmentIndex);
+    CELL_PTR(Edge) splitEdge(Edge &edge, unsigned int segmentIndex,
+                             const vigra::Vector2 &newPoint,
+                             bool insertPoint = true);
+    CELL_PTR(Face) removeBridge(Dart &dart);
+    CELL_PTR(Face) mergeFaces(Dart &dart);
 
         // callbacks using libsigc++ <http://libsigc.sourceforge.net/>:
     sigc::signal<bool, Node &>::accumulated<interruptable_accumulator>

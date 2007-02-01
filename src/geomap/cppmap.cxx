@@ -131,8 +131,8 @@ class GeoMap::Edge
     mutable std::auto_ptr<vigra::Scanlines> scanLines_;
 
     friend class Dart; // allow setLeftFaceLabel
-    friend GeoMap::Edge &GeoMap::mergeEdges(Dart &);
-    friend GeoMap::Edge &GeoMap::splitEdge(
+    friend CELL_PTR(GeoMap::Edge) GeoMap::mergeEdges(Dart &);
+    friend CELL_PTR(GeoMap::Edge) GeoMap::splitEdge(
         Edge &, unsigned int, const vigra::Vector2 &, bool);
     friend void GeoMap::splitParallelEdges();
 
@@ -368,7 +368,7 @@ class GeoMap::Dart
     }
 
     friend class Face; // allow setLeftFaceLabel in Face constructor
-    friend GeoMap::Face &GeoMap::mergeFaces(Dart &);
+    friend CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(Dart &);
 
     Dart &turnSigma(int times)
     {
@@ -1581,15 +1581,15 @@ void GeoMap::splitParallelEdges()
     for(PlannedSplits::iterator it = splitInfo_->begin();
         it != splitInfo_->end(); ++it)
     {
-        Edge &newEdge(splitEdge(
-                          *edge(abs(it->dartLabel)),
-                          it->segmentIndex, it->position));
+        CELL_PTR(Edge) newEdge(splitEdge(
+                                   *edge(abs(it->dartLabel)),
+                                   it->segmentIndex, it->position));
 
         PlannedSplits::difference_type &pos(
             groupPositions[it->splitGroup]);
 
         mergeDarts[pos] =
-            MergeDart((int)newEdge.label(), it->dartLabel > 0, it->sigmaPos);
+            MergeDart((int)newEdge->label(), it->dartLabel > 0, it->sigmaPos);
 
         ++pos;
     }
@@ -2046,30 +2046,10 @@ bool GeoMap::checkConsistency()
 
 /********************************************************************/
 
-// FIXME: better API?  (e.g. like in Python/global funcs?)
-// exception thrown when pre-operation hooks return false
-class CancelOperation : public std::exception
-{
-    std::string what_;
-
-  public:
-    CancelOperation(std::string what)
-    : what_(what)
-    {}
-
-    ~CancelOperation() throw()
-    {}
-
-    virtual const char * what() const throw()
-    {
-        return what_.c_str();
-    }
-};
-
 bool GeoMap::removeIsolatedNode(GeoMap::Node &node)
 {
-    vigra_precondition(removeNodeHook(node),
-                       "removeIsolatedNode() cancelled by removeNode hook");
+    if(!removeNodeHook(node))
+        return false;
 
     node.uninitialize();
     return true;
@@ -2171,7 +2151,7 @@ void removeEdgeFromLabelImage(
     }
 }
 
-GeoMap::Edge &GeoMap::mergeEdges(GeoMap::Dart &dart)
+CELL_PTR(GeoMap::Edge) GeoMap::mergeEdges(GeoMap::Dart &dart)
 {
     vigra_precondition(dart.edge(),
                        "mergeEdges called on removed dart!");
@@ -2212,9 +2192,9 @@ GeoMap::Edge &GeoMap::mergeEdges(GeoMap::Dart &dart)
     GeoMap::Edge &mergedEdge(*d2.edge());
 
     if(!preMergeEdgesHook(d1))
-        throw CancelOperation("mergeEdges() cancelled by mergeEdges hook");
+        return NULL_PTR(GeoMap::Edge);
     if(!removeNodeHook(mergedNode))
-        throw CancelOperation("mergeEdges() cancelled by removeNode hook");
+        return NULL_PTR(GeoMap::Edge);
 
     // TODO: history append?
 
@@ -2264,16 +2244,18 @@ GeoMap::Edge &GeoMap::mergeEdges(GeoMap::Dart &dart)
 
     postMergeEdgesHook(survivor);
 
-    return survivor;
+    return this->edge(survivor.label());
 }
 
-GeoMap::Edge &GeoMap::splitEdge(GeoMap::Edge &edge, unsigned int segmentIndex)
+CELL_PTR(GeoMap::Edge) GeoMap::splitEdge(
+    GeoMap::Edge &edge, unsigned int segmentIndex)
 {
     return splitEdge(edge, segmentIndex, edge[0], false);
 }
 
-GeoMap::Edge &GeoMap::splitEdge(GeoMap::Edge &edge, unsigned int segmentIndex,
-                                const vigra::Vector2 &newPoint, bool insertPoint)
+CELL_PTR(GeoMap::Edge) GeoMap::splitEdge(
+    GeoMap::Edge &edge, unsigned int segmentIndex,
+    const vigra::Vector2 &newPoint, bool insertPoint)
 {
     vigra_precondition(segmentIndex < edge.size() - 1,
                        "splitEdge: invalid segmentIndex");
@@ -2317,7 +2299,7 @@ GeoMap::Edge &GeoMap::splitEdge(GeoMap::Edge &edge, unsigned int segmentIndex,
 
     postSplitEdgeHook(edge, *result);
 
-    return *result;
+    return this->edge(result->label());
 }
 
 unsigned int GeoMap::Face::findComponentAnchor(const GeoMap::Dart &dart)
@@ -2346,7 +2328,7 @@ void GeoMap::associatePixels(GeoMap::Face &face, const PixelList &pixels)
     associatePixelsHook(face, pixels);
 }
 
-GeoMap::Face &GeoMap::removeBridge(GeoMap::Dart &dart)
+CELL_PTR(GeoMap::Face) GeoMap::removeBridge(GeoMap::Dart &dart)
 {
     vigra_precondition(dart.edge(),
                        "removeBridge called on removed dart!");
@@ -2361,7 +2343,7 @@ GeoMap::Face &GeoMap::removeBridge(GeoMap::Dart &dart)
                        "Inconsistent map: bridge to be removed is also a self-loop!?");
 
     if(!preRemoveBridgeHook(dart))
-        throw CancelOperation("removeBridge() cancelled by hook");
+        return NULL_PTR(GeoMap::Face);
 
     // TODO: history append?
 
@@ -2409,10 +2391,10 @@ GeoMap::Face &GeoMap::removeBridge(GeoMap::Dart &dart)
     if(associatedPixels.size())
         associatePixels(face, associatedPixels);
 
-    return face;
+    return this->face(face.label());
 }
 
-GeoMap::Face &GeoMap::mergeFaces(GeoMap::Dart &dart)
+CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(GeoMap::Dart &dart)
 {
     vigra_precondition(dart.edge(),
                        "mergeFaces called on removed dart!");
@@ -2438,7 +2420,7 @@ GeoMap::Face &GeoMap::mergeFaces(GeoMap::Dart &dart)
         GeoMap::Dart(removedDart).nextAlpha());
 
     if(!preMergeFacesHook(dart))
-        throw CancelOperation("mergeFaces() cancelled by hook");
+        return NULL_PTR(GeoMap::Face);
 
     // TODO: history append?
 
@@ -2525,7 +2507,7 @@ GeoMap::Face &GeoMap::mergeFaces(GeoMap::Dart &dart)
     if(associatedPixels.size())
         associatePixels(survivor, associatedPixels);
 
-    return survivor;
+    return this->face(survivor.label());
 }
 
 /********************************************************************/
@@ -2538,64 +2520,14 @@ GeoMap::Face &GeoMap::mergeFaces(GeoMap::Dart &dart)
 #include <boost/python/detail/api_placeholder.hpp>
 namespace bp = boost::python;
 
-bool removeIsolatedNode(GeoMap::Node &node)
-{
-    try
-    {
-        return node.map()->removeIsolatedNode(node);
-    }
-    catch(CancelOperation)
-    {}
-    return false;
-}
-
-CELL_PTR(GeoMap::Edge) mergeEdges(GeoMap::Dart &dart)
-{
-    try
-    {
-        GeoMap::Edge &survivor(dart.map()->mergeEdges(dart));
-        return dart.map()->edge(survivor.label());
-    }
-    catch(CancelOperation)
-    {}
-    return NULL_PTR(GeoMap::Edge);
-}
-
-CELL_PTR(GeoMap::Face) removeBridge(GeoMap::Dart &dart)
-{
-    try
-    {
-        GeoMap::Face &survivor(dart.map()->removeBridge(dart));
-        return dart.map()->face(survivor.label());
-    }
-    catch(CancelOperation)
-    {}
-    return NULL_PTR(GeoMap::Face);
-}
-
-CELL_PTR(GeoMap::Face) mergeFaces(GeoMap::Dart &dart)
-{
-    try
-    {
-        GeoMap::Face &survivor(dart.map()->mergeFaces(dart));
-        return dart.map()->face(survivor.label());
-    }
-    catch(CancelOperation)
-    {}
-    return NULL_PTR(GeoMap::Face);
-}
-
 CELL_PTR(GeoMap::Edge) pySplitEdge(
     GeoMap &geomap, GeoMap::Edge &edge, unsigned int segmentIndex,
     bp::object newPoint)
 {
     bp::extract<vigra::Vector2> insertPoint(newPoint);
-    CellLabel newEdgeLabel(0);
     if(insertPoint.check())
-        newEdgeLabel = geomap.splitEdge(edge, segmentIndex, insertPoint()).label();
-    else
-        newEdgeLabel = geomap.splitEdge(edge, segmentIndex).label();
-    return geomap.edge(newEdgeLabel);
+        return geomap.splitEdge(edge, segmentIndex, insertPoint());
+    return geomap.splitEdge(edge, segmentIndex);
 }
 
 /********************************************************************/
@@ -3254,8 +3186,8 @@ void defMap()
                 "GeoMap", init<vigra::Size2D>(arg("imageSize")))
             .def("__init__", make_constructor(
                      &createGeoMap, default_call_policies(),
-                     (arg("nodePositions") = bp::list(),
-                      arg("edgeTuples") = bp::list(),
+                     (arg("nodePositions") = list(),
+                      arg("edgeTuples") = list(),
                       arg("imageSize") = vigra::Size2D(0, 0))))
             .def("node", &GeoMap::node, crp)
             .def("nodeIter", &GeoMap::nodesBegin)
@@ -3288,7 +3220,12 @@ void defMap()
                  (arg("startNeighbor"), arg("endNeighbor"), arg("points")))
             .def("removeEdge", &GeoMap::removeEdge, crp)
             .def("splitEdge", &pySplitEdge,
-                 (arg("edge"), arg("segmentIndex"), arg("newPoint") = bp::object()))
+                 (arg("edge"), arg("segmentIndex"), arg("newPoint") = object()))
+
+            .def("removeIsolatedNode", &GeoMap::removeIsolatedNode, arg("dart"))
+            .def("mergeEdges", &GeoMap::mergeEdges, arg("dart"), crp)
+            .def("removeBridge", &GeoMap::removeBridge, arg("dart"), crp)
+            .def("mergeFaces", &GeoMap::mergeFaces, arg("dart"), crp)
             .def("sortEdgesDirectly", &GeoMap::sortEdgesDirectly)
             .def("sortEdgesEventually", &GeoMap_sortEdgesEventually,
                  (arg("stepDist"), arg("minDist"), arg("splitEdges") = true))
@@ -3376,7 +3313,7 @@ void defMap()
             .def("clone", &GeoMap::Dart::clone)
             .def("label", &GeoMap::Dart::label)
             .def("map", &GeoMap::Dart::map,
-                 bp::return_value_policy<bp::reference_existing_object>())
+                 return_value_policy<reference_existing_object>())
             .def("edgeLabel", &GeoMap::Dart::edgeLabel)
             .def("edge", &GeoMap::Dart::edge, crp)
             .def("guaranteedEdge", &GeoMap::Dart::guaranteedEdge, crp)
@@ -3430,11 +3367,6 @@ void defMap()
         def("addAssociatePixelsCallback", &addAssociatePixelsCallback);
         register_ptr_to_python< std::auto_ptr<SimpleCallback> >();
     }
-
-    def("removeIsolatedNode", &removeIsolatedNode);
-    def("mergeEdges", &mergeEdges, crp);
-    def("removeBridge", &removeBridge, crp);
-    def("mergeFaces", &mergeFaces, crp);
 
     RangeIterWrapper<ContourPointIter>("ContourPointIter")
         .def(init<GeoMap::Dart, bool>((arg("dart"), arg("firstTwice") = false)));
