@@ -2,9 +2,10 @@
 _cvsVersion = "$Id$" \
               .split(" ")[2:-2]
 
-import math, sys
-from hourglass import Polygon, simplifyPolygon, delaunay
-from map import GeoMap, contourPoly
+import math, sys, vigra, hourglass
+from hourglass import Polygon, simplifyPolygon
+#from map import GeoMap, contourPoly
+from hourglass import GeoMap, contourPoly
 from vigra import Vector2, Vector, dot
 
 try:
@@ -12,73 +13,78 @@ try:
 except ImportError:
     triangle = None
 
-def isContourEdge(edge, maxNodeLabel = None):
-    "helper function for delaunayMap()"
+CONTOUR_PROTECTION = 2
 
-    dist = abs(edge.startNodeLabel() - edge.endNodeLabel())
-    if dist == 1:
-        return True
-    if maxNodeLabel == None:
-        map = edge._map()
-        maxNodeLabel = len(map.nodes)-1
-        while not map.nodes[maxNodeLabel]:
-            maxNodeLabel -= 1
-    return (dist == maxNodeLabel - 1)
-
-def constrainedDelaunayMap(points, jumpPoints, imageSize,
-                           markContour = True, performCleaning = True,
-                           boundaryProtection = None):
-    print "- performing Constrained Delaunay Triangulation (%d points)..." % len(points)
-    if markContour:
-        segments = [(i-1, i) for i in range(len(points)+1)]
-        for i, jp in enumerate(jumpPoints[:-1]):
-            segments[jp] = (jumpPoints[i+1]-1, jumpPoints[i])
-        del segments[-1]
-
-        nodePositions, edgeData = triangle.constrainedDelaunay(
-            points, segments, performCleaning)
-    else:
-        nodePositions, edgeData = triangle.delaunay(points)
-
-    #assert nodePositions == points
-
+def _delaunayMapFromData(nodePositions, edgeData, imageSize, sigmaOrbits = None):
+    if sigmaOrbits:
+        sys.stderr.write(
+            "TODO: re-use Delaunay sigma orbits instead of re-sorting!\n")
     edges = [startEnd and
              (startEnd[0], startEnd[1],
               [nodePositions[startEnd[0]], nodePositions[startEnd[1]]])
              for startEnd in edgeData]
-
     result = GeoMap(nodePositions, edges, imageSize)
     result.initializeMap(initLabelImage = False)
+    return result    
 
-    if not markContour:
-        return result
+def constrainedDelaunayMap(points, jumpPoints, imageSize,
+                           contourProtection = CONTOUR_PROTECTION,
+                           onlyInner = True):
+
+    assert triangle, """For correct CDT, you need to compile the
+    triangle module (vigra/experiments/triangle).  You might want to
+    try the home-made fakedConstrainedDelaunayMap instead, which will
+    also give a correct result if possible, and just throws an
+    exception if it has to give up."""
+    
+    print "- performing Constrained Delaunay Triangulation (%d points)..." % len(points)
+    segments = [(i-1, i) for i in range(len(points)+1)]
+    for i, jp in enumerate(jumpPoints[:-1]):
+        segments[jp] = (jumpPoints[i+1]-1, jumpPoints[i])
+    del segments[-1]
+
+    nodePositions, edgeData = triangle.constrainedDelaunay(
+        points, segments, onlyInner)
+
+    print "- storing result in a GeoMap..."
+    result = _delaunayMapFromData(nodePositions, edgeData, imageSize)
 
     for edge in result.edgeIter():
-        edge.isContourEdge = edgeData[edge.label()][2]
-
-    if boundaryProtection:
-        for edge in result.edgeIter():
-            if edge.isContourEdge:
-                edge.protect(boundaryProtection)
+        if edgeData[edge.label()][2]:
+            edge.protect(contourProtection)
 
     return result
 
-def fakeConstrainedDelaunayMap(points, jumpPoints, imageSize,
-                               markContour = True, performCleaning = True):
+def delaunayMap(points, imageSize):
+    """delaunayMap(points, imageSize)
+
+    Returns a GeoMap containing a Delaunay Triangulation of the given
+    points."""
+    
+    if triangle:
+        nodePositions, edges = triangle.delaunay(points)
+        sigma = None
+    else:
+        nodePositions, edges, sigma = hourglass.delaunay(points)
+    result = _delaunayMapFromData(nodePositions, edges, imageSize,
+                                  sigma)
+
+def fakedConstrainedDelaunayMap(points, jumpPoints, imageSize,
+                                contourProtection = CONTOUR_PROTECTION,
+                                onlyInner = True):
     print "- performing Delaunay Triangulation (%d points)..." % len(points)
-    nodePositions, edges, sigma = delaunay(points)
+    nodePositions, edges, sigma = hourglass.delaunay(points)
     
     print "- storing result in a GeoMap..."
-    result = GeoMap(nodePositions, edges, imageSize)
-    result.initializeMap(initLabelImage = False)
+    result = _delaunayMapFromData(nodePositions, edges, imageSize, sigma)
 
-    if not markContour:
+    if not contourProtection:
         return result
 
     print "- ex-post marking of contour edges for faked CDT..."
     print "  (keep your fingers crossed that no segment is missing!)"
-    for edge in result.edgeIter():
-        edge.isContourEdge = False
+
+    edgeSourceDarts = [None] * result.maxEdgeLabel()
 
     i = 0
     while i < len(jumpPoints) - 1:
@@ -91,23 +97,40 @@ def fakeConstrainedDelaunayMap(points, jumpPoints, imageSize,
                 dart.nextSigma()
                 j -= 1
             assert j > 0, "Original contour fragment missing in Delauny map!"
-            dart.edge().isContourEdge = dart.label()
+            dart.edge().protect(contourProtection)
+            edgeSourceDarts[dart.edgeLabel()] = dart.label()
             dart.nextAlpha()
         j = dart.startNode().degree() + 1
         while dart.endNodeLabel() != contourStartLabel and j > 0:
             dart.nextSigma()
             j -= 1
         assert j > 0, "Original contour fragment missing in Delauny map!"
-        dart.edge().isContourEdge = dart.label()
+        dart.edge().protect(contourProtection)
+        edgeSourceDarts[dart.edgeLabel()] = dart.label()
         i += 1
 
-    if performCleaning:
-        cleanOuter(result)
+    if onlyInner:
+        sys.stdout.write("- reducing delaunay triangulation to inner part...")
+        outerFace = [False] * result.maxFaceLabel()
+        for edge in result.edgeIter():
+            if edge.protection() & contourProtection:
+                dart = result.dart(edgeSourceDarts[edge.label()])
+                assert dart.edgeLabel() == edge.label(), str(edge)
+                while True:
+                    mergeDart = dart.clone().prevSigma()
+                    if mergeDart.edge().protection() & contourProtection:
+                        break
+                    outerFace[result.mergeFaces(mergeDart).label()] = True
+                    sys.stdout.write(".")
+                    sys.stdout.flush()
+        sys.stdout.write("\n")
+    
     return result
 
-def delaunayMap(face, imageSize, simplifyEpsilon = None,
-                markContour = True, performCleaning = True):
-    """USAGE: dlm = delaunayMap(face, mapSize)
+def faceCDTMap(face, imageSize, simplifyEpsilon = None,
+                contourProtection = CONTOUR_PROTECTION,
+                onlyInner = True):
+    """USAGE: dlm = faceCDTMap(face, mapSize)
 
     `face` should be a GeoMap.Face object, and all its contours will be
     extracted.  (If a list of points or a Polygon is passed as `face`,
@@ -128,7 +151,7 @@ def delaunayMap(face, imageSize, simplifyEpsilon = None,
       missing). A `jumpPoints` list is used to mark multiple
       contours.
 
-    performCleaning
+    onlyInner
       If True(default), all edges outside (left) of the marked contour
       are removed in a post-processing step.  (This has no effect if
       `markContour` is False.)"""
@@ -160,25 +183,10 @@ def delaunayMap(face, imageSize, simplifyEpsilon = None,
 
     if triangle:
         return constrainedDelaunayMap(
-            points, jumpPoints, imageSize, markContour, performCleaning)
+            points, jumpPoints, imageSize, contourProtection, onlyInner)
     else:
-        return fakeConstrainedDelaunayMap(
-            points, jumpPoints, imageSize, markContour, performCleaning)
-
-def cleanOuter(map):
-    sys.stdout.write("- reducing delaunay triangulation to inner part")
-    for edge in map.edgeIter():
-        if edge.isContourEdge:
-            dart = map.dart(edge.isContourEdge)
-            assert dart.edgeLabel() == edge.label(), str(edge)
-            while True:
-                mergeDart = dart.clone().prevSigma()
-                if mergeDart.edge().isContourEdge:
-                    break
-                map.mergeFaces(mergeDart).isOutside = True
-                sys.stdout.write(".")
-                sys.stdout.flush()
-    print
+        return fakedConstrainedDelaunayMap(
+            points, jumpPoints, imageSize, contourProtection, onlyInner)
 
 def middlePoint(twoPointEdge):
     return (twoPointEdge[0] + twoPointEdge[1])/2
