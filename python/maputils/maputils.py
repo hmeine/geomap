@@ -3,6 +3,38 @@ import hourglass
 BORDER_PROTECTION = 1
 
 # --------------------------------------------------------------------
+
+def showMapStats(map):
+    """showMapStats(map)
+    Dumps number of cells and points to stdout (returns nothing.)"""
+    pointCount = 0
+    totalLength = 0.0
+    for edge in map.edgeIter():
+        pointCount += len(edge)
+        totalLength += edge.length()
+
+    if map.edgeCount == 0:
+        print "empty map!"
+        return
+
+    print ("%d nodes, %d edges, and %d faces with a total of %d points\n  " + \
+          "(mean p/edge: %.2f, mean dist.: %.2f, density: %.2f p/px)") % (
+        map.nodeCount, map.edgeCount, map.faceCount, pointCount,
+        float(pointCount) / map.edgeCount,
+        totalLength / (pointCount - map.edgeCount),
+        float(pointCount)/map.imageSize().area())
+    
+    if hasattr(map, "deleted") and map.deleted:
+        print "%d edges were deleted (e.g. at image border)." % (
+            len(map.deleted), )
+    if hasattr(map, "unsortable") and map.unsortable:
+        print "%d unsortable groups of edges occured." % (
+            len(map.unsortable), )
+    if hasattr(map, "unembeddableContours") and map.unembeddableContours:
+        print "%d outer contours could not be embedded into " \
+              "their surrounding faces!" % (len(map.unembeddableContours), )
+
+# --------------------------------------------------------------------
 #                             simple proxies
 # --------------------------------------------------------------------
 
