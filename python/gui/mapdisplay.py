@@ -33,13 +33,12 @@ class MapEdges(object):
         self.colors = None
         self.width = width
         self.useIndividualColors = False
-        self._zoomedEdges = None
         self._zoom = None
         self._attachedHooks = None
 
     def setMap(self, map):
         self._map = ref(map)
-        self._dirty = True
+        self._zoomedEdges = [None] * map.maxEdgeLabel()
 
     def attachHooks(self):
         map = self._map()
@@ -65,7 +64,7 @@ class MapEdges(object):
             return
         c = time.clock()
         self._resizeCount = 0
-        if not self._zoomedEdges or len(self._zoomedEdges) != self._map().maxEdgeLabel():
+        if len(self._zoomedEdges) != self._map().maxEdgeLabel():
             self._zoomedEdges = [None] * self._map().maxEdgeLabel()
         if hasattr(self._map(), "edges"):
             # "secret", internal API available? (not for C++ variant ATM)
@@ -84,19 +83,17 @@ class MapEdges(object):
                     expected += 1
                 self._calculateEdgePoints(label, edge)
                 expected = label + 1
-        sys.stdout.write("MapEdges._calculatePoints(zoom = %s) took %ss "
-                         "(%d undesirable resizes).\n" % (
-            self._zoom, time.clock() - c, self._resizeCount))
-        self._dirty = False
+#         sys.stdout.write("MapEdges._calculatePoints(zoom = %s) took %ss "
+#                          "(%d undesirable resizes).\n" % (
+#             self._zoom, time.clock() - c, self._resizeCount))
 
     def _calculateEdgePoints(self, index, origEdgePoints):
-        qpa = self._zoomedEdges[index]
-
         offset = Vector2(self._zoom / 2.0 - 0.5, self._zoom / 2.0 - 0.5)
         origEdgePoints = (
             simplifyPolygon(origEdgePoints * self._zoom, 0.5)
             + offset).roundToInteger()
 
+        qpa = self._zoomedEdges[index]
         if qpa == None:
             qpa = qt.QPointArray(len(origEdgePoints))
         elif qpa.size() < len(origEdgePoints):
@@ -120,30 +117,32 @@ class MapEdges(object):
             self._resizeCount += 1
 
         self._zoomedEdges[index] = qpa
-
-    def setEdges(self, edges):
-        self.originalEdges = edges
-        self.setZoom(self._zoom)
+        return qpa
 
     def setEdgePoints(self, index, edgePoints):
-        if not self._zoomedEdges:
-            return
-        if index >= len(self._zoomedEdges):
+        if not self._zoomedEdges or index >= len(self._zoomedEdges):
             # FIXME: this happens if new edges were created (e.g. with
             # splitEdge) and we do not know them yet
             return
+
+        if not self.visible:
+            # mark zoomed edge as dirty:
+            self._zoomedEdges[index] = None
+            return
+
         if self._zoomedEdges[index]:
             updateROI = self._zoomedEdges[index].boundingRect()
         else:
             updateROI = qt.QRect()
+
         if edgePoints:
-            self._calculateEdgePoints(index, edgePoints)
-            updateROI |= self._zoomedEdges[index].boundingRect()
+            qpa = self._calculateEdgePoints(index, edgePoints)
+            updateROI |= qpa.boundingRect()
         else:
             self._zoomedEdges[index] = None
-        if self.visible:
-            updateROI.moveBy(self.viewer.x, self.viewer.y)
-            self.viewer.update(updateROI)
+
+        updateROI.moveBy(self.viewer.x, self.viewer.y)
+        self.viewer.update(updateROI)
 
     def preRemoveEdgeHook(self, dart):
         self.setEdgePoints(dart.edgeLabel(), None)
@@ -165,43 +164,48 @@ class MapEdges(object):
         if self._zoom != zoom:
             self._zoom = zoom
             self._dirty = True
+            self._zoomedEdges = [None] * len(self._zoomedEdges)
 
+    def _getZoomedEdge(self, edge):
+        index = edge.label()
+        result = self._zoomedEdges[index]
+        if result == None:
+            result = self._calculateEdgePoints(index, edge)
+        return result
+    
     def draw(self, p):
         if not self._map():
             return
-        if self._dirty:
-            self._calculatePoints()
-        r = p.clipRegion()
-        r.translate(-self.viewer.x, -self.viewer.y)
+        r = p.clipRegion().boundingRect()
+        r.moveBy(-self.viewer.x, -self.viewer.y)
+        bbox = BoundingBox(Vector2(r.left() / self._zoom - 0.5,
+                                   r.top() / self._zoom - 0.5),
+                           Vector2(r.right() / self._zoom + 0.5,
+                                   r.bottom() / self._zoom + 0.5))
         map = self._map()
         if self.colors:
-            for i, zoomedEdge in enumerate(self._zoomedEdges):
-                if not (zoomedEdge and (r.isNull() or
-                                        r.contains(zoomedEdge.boundingRect()))):
-                    continue
-                try:
-                    edgeColor = self.colors[i]
+            try:
+                for e in map.edgeIter():
+                    if bbox.intersects(e.boundingBox()):
+                        edgeColor = self.colors[e.label()]
+                        if edgeColor:
+                            p.setPen(qt.QPen(edgeColor, self.width))
+                            p.drawPolyline(self._getZoomedEdge(e))
+            except IndexError, e:
+                print e #"IndexError: %d > %d (maxEdgeLabel: %d)!" % (
+                    #i, len(self.colors), map.maxEdgeLabel())
+        elif self.useIndividualColors:
+            for e in map.edgeIter():
+                if bbox.intersects(e.boundingBox()):
+                    edgeColor = hasattr(e, "color") and e.color
                     if edgeColor:
                         p.setPen(qt.QPen(edgeColor, self.width))
-                        p.drawPolyline(zoomedEdge)
-                except IndexError, e:
-                    print "IndexError: %d > %d (maxEdgeLabel: %d)!" % (
-                        i, len(self.colors), map.maxEdgeLabel())
-        elif self.useIndividualColors:
-            for i, zoomedEdge in enumerate(self._zoomedEdges):
-                if not (zoomedEdge and (r.isNull() or
-                                        r.contains(zoomedEdge.boundingRect()))):
-                    continue
-                edge = map.edge(i)
-                edgeColor = hasattr(edge, "color") and edge.color
-                if edgeColor:
-                    p.setPen(qt.QPen(edgeColor, self.width))
-                    p.drawPolyline(zoomedEdge)
+                        p.drawPolyline(self._getZoomedEdge(e))
         else:
             p.setPen(qt.QPen(self.color, self.width))
-            for e in self._zoomedEdges:
-                if e and (r.contains(e.boundingRect()) or r.isNull()):
-                    p.drawPolyline(e)
+            for e in map.edgeIter():
+                if bbox.intersects(e.boundingBox()):
+                    p.drawPolyline(self._getZoomedEdge(e))
 
 class MapNodes(object):
     def __init__(self, map, color,
@@ -247,8 +251,8 @@ class MapNodes(object):
         for node in self._map().nodeIter():
             ip = intPos(node.position() * self._zoom + d0)
             self._qpointlist[node.label()] = qt.QPoint(ip[0], ip[1])
-        sys.stdout.write("MapNodes._calculatePoints(zoom = %s) took %ss.\n" % (
-            self._zoom, time.clock() - c))
+#         sys.stdout.write("MapNodes._calculatePoints(zoom = %s) took %ss.\n" % (
+#             self._zoom, time.clock() - c))
 
     def removeNode(self, node):
         if self._qpointlist:
@@ -338,8 +342,7 @@ class DartHighlighter(object):
             darts = dartObjects
 
         if self.eo != None:
-            self._viewer.removeOverlay(self.eo)
-            self._viewer.removeOverlay(self.no)
+            self._viewer.removeOverlay(self)
             self.eo = None
             self.no = None
 
@@ -347,10 +350,21 @@ class DartHighlighter(object):
             return
 
         self.eo = EdgeOverlay([dart.edge() for dart in darts], color)
+        self.eo.width = 2
         self.no = PointOverlay(
-            [dart.startNode().position() for dart in darts], color, 2)
-        self._viewer.addOverlay(self.eo)
-        self._viewer.addOverlay(self.no)
+            [dart.startNode().position() for dart in darts], color, 3)
+        self.color = color # used in the viewer's RMB menu
+        self._viewer.addOverlay(self)
+
+    def setZoom(self, zoom):
+        self.eo.viewer = self.viewer
+        self.eo.setZoom(zoom)
+        self.no.viewer = self.viewer
+        self.no.setZoom(zoom)
+
+    def draw(self, p):
+        self.eo.draw(p)
+        self.no.draw(p)
 
 # --------------------------------------------------------------------
 #                             MapDisplay
