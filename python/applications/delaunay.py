@@ -13,6 +13,14 @@ try:
 except ImportError:
     triangle = None
 
+# --------------------------------------------------------------------
+#                                 TODO:
+# --------------------------------------------------------------------
+# * how to pass "outer faces" to the triangle module?
+# * how to mark "outer faces" of the CDT maps?
+#   (needed by the CAT)
+# --------------------------------------------------------------------
+
 CONTOUR_PROTECTION = 2
 
 def _delaunayMapFromData(nodePositions, edgeData, imageSize, sigmaOrbits = None):
@@ -25,11 +33,19 @@ def _delaunayMapFromData(nodePositions, edgeData, imageSize, sigmaOrbits = None)
              for startEnd in edgeData]
     result = GeoMap(nodePositions, edges, imageSize)
     result.initializeMap(initLabelImage = False)
-    return result    
+    return result
 
 def constrainedDelaunayMap(points, jumpPoints, imageSize,
                            contourProtection = CONTOUR_PROTECTION,
                            onlyInner = True):
+    """constrainedDelaunayMap(points, jumpPoints, imageSize,
+                           contourProtection = CONTOUR_PROTECTION,
+                           onlyInner = True)
+
+    Returns a new GeoMap containing a Constrained Delaunay
+    Triangulation of the given points, where jumpPoints determines
+    which successive points are not to be connected by constraining
+    segments. FIXME: Fix this API. ;-)"""
 
     assert triangle, """For correct CDT, you need to compile the
     triangle module (vigra/experiments/triangle).  You might want to
@@ -72,6 +88,12 @@ def delaunayMap(points, imageSize):
 def fakedConstrainedDelaunayMap(points, jumpPoints, imageSize,
                                 contourProtection = CONTOUR_PROTECTION,
                                 onlyInner = True):
+
+    """See constrainedDelaunayMap, this calculates a DT and throws
+    away outer edges retroactively.  This may fail when the DT does
+    not contain all constrained segments, which is checked in this
+    function and leads to an AssertionError."""
+    
     print "- performing Delaunay Triangulation (%d points)..." % len(points)
     nodePositions, edges, sigma = hourglass.delaunay(points)
     
@@ -96,7 +118,9 @@ def fakedConstrainedDelaunayMap(points, jumpPoints, imageSize,
             while dart.endNodeLabel() != nodeLabel and j > 0:
                 dart.nextSigma()
                 j -= 1
-            assert j > 0, "Original contour fragment missing in Delauny map!"
+            assert j > 0, """Original contour fragment missing in Delauny map!
+            (This is a problem of the fakedConstrainedDelaunayMap, try compiling
+            the triangle module and using the real constrainedDelaunayMap instead.)"""
             dart.edge().protect(contourProtection)
             edgeSourceDarts[dart.edgeLabel()] = dart.label()
             dart.nextAlpha()
@@ -132,10 +156,9 @@ def faceCDTMap(face, imageSize, simplifyEpsilon = None,
                 onlyInner = True):
     """USAGE: dlm = faceCDTMap(face, mapSize)
 
-    `face` should be a GeoMap.Face object, and all its contours will be
-    extracted.  (If a list of points or a Polygon is passed as `face`,
-    it is assumed to contain exactly one contour.)  `mapSize` is used
-    to initialize the GeoMap with the resulting edges.
+    `face` should be a GeoMap.Face object, and all its contours will
+    be extracted.  `mapSize` is used to initialize the GeoMap with the
+    resulting edges.
       
     Optional keyword parameters:
 
@@ -187,6 +210,8 @@ def faceCDTMap(face, imageSize, simplifyEpsilon = None,
     else:
         return fakedConstrainedDelaunayMap(
             points, jumpPoints, imageSize, contourProtection, onlyInner)
+
+# --------------------------------------------------------------------
 
 def middlePoint(twoPointEdge):
     return (twoPointEdge[0] + twoPointEdge[1])/2
@@ -367,7 +392,7 @@ def pruneBarbsByLength(skel, minLength):
                       edge.length() < minLength
     return _pruneBarbsInternal(skel)
 
-def leaveCircle(points, dir, center, radius):
+def _leaveCircle(points, dir, center, radius):
     r2 = radius * radius
     i = dir
     try:
@@ -416,13 +441,13 @@ def pruneBarbsByDist(skel, maxDist):
             barbNodeLabel, endPos = edge.barbNodeLabel
             if barbNodeLabel == edge.startNodeLabel():
                 #i, p = arcLength2Pos(shortenLength, edge)
-                i = leaveCircle(edge, 1, endPos, shortenLength)
+                i = _leaveCircle(edge, 1, endPos, shortenLength)
                 if i < len(edge)-1:
                     splitEdge(edge, i).isBarb = False
                     edge.isBarb = True
             else:
                 #i, p = arcLength2Pos(edge.length()-shortenLength, dart)
-                i = leaveCircle(edge, -1, endPos, shortenLength)
+                i = _leaveCircle(edge, -1, endPos, shortenLength)
                 if i < len(edge)-1:
                     newEdge = splitEdge(edge, i).isBarb = True
 
@@ -476,8 +501,7 @@ def pruneByMorphologicalSignificance(skel, ratio = 0.1):
 def calculateTriangleCircumcircles(delaunayMap):
     import Numeric, LinearAlgebra
 
-    it = delaunayMap.faceIter(); it.next() # skip infinite face
-    for triangle in it:
+    for triangle in delaunayMap.faceIter(skipInfinite = True):
         if hasattr(triangle, "isOutside"):
             continue
 
