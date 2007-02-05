@@ -2948,18 +2948,23 @@ addAssociatePixelsCallback(GeoMap *geomap,
 // template<class OriginalImage>
 // class FaceColorStatistics
 // {
-//     FaceColorStatistics(GeoMap &map, const OriginalImage &originalImage);
+//     template<int SplineOrder>
+//     FaceColorStatistics(GeoMap &map, const OriginalImage &originalImage,
+//                         int minSampleCount = 1);
 
 //     GeoMap &map_;
 //     const OriginalImage &originalImage_;
 // };
 
 // template<class OriginalImage>
-// FaceColorStatistics::FaceColorStatistics(
-//     GeoMap &map, const OriginalImage &originalImage)
+// template<int SplineOrder>
+// FaceColorStatistics<OriginalImage>::FaceColorStatistics(
+//     GeoMap &map, const OriginalImage &originalImage,
+//     int minSampleCount)
 // : map_(map),
 //   originalImage_(originalImage)
 // {
+
 // }
 
 /********************************************************************/
@@ -3024,6 +3029,11 @@ ContourRangeIterator
 faceHoleContours(const GeoMap::Face &face)
 {
     return ContourRangeIterator(face.holesBegin(), face.contoursEnd());
+}
+
+unsigned int faceHoleCount(const GeoMap::Face &face)
+{
+    return face.contoursEnd() - face.holesBegin();
 }
 
 bp::object
@@ -3296,6 +3306,7 @@ void defMap()
                  arg("index") = 0)
             .def("contours", &faceContours)
             .def("holeContours", &faceHoleContours)
+            .def("holeCount", &faceHoleCount)
             .def(self == self)
             .def(self != self)
             .def("__repr__", &Face__repr__)
