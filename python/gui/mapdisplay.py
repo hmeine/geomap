@@ -422,7 +422,7 @@ class MapDisplay(DisplaySettings):
                      #self.statusBar(), qt.SLOT("message(const QString&)"))
 
         self.setCaption("Map Display (map.py Version %s)" % (
-            sys.modules["map"]._cvsVersion[0], ))
+            sys.modules["map"]._cvsVersion[0][1], ))
 
         self.edgeOverlay = MapEdges(map, qt.Qt.red)
         self.nodeOverlay = MapNodes(map, qt.Qt.blue, 1)
