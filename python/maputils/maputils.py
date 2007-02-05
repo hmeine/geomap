@@ -90,7 +90,7 @@ def mergeFacesCompletely(dart, doRemoveDegree2Nodes = True):
     commonEdgeList = []
     for contourIt in dart.phiOrbit():
         if contourIt.rightFaceLabel() == rightLabel:
-            if contourIt.edge().protection():
+            if contourIt.edge().flags():
                 return None
             commonEdgeList.append(contourIt)
 
@@ -101,7 +101,7 @@ def mergeFacesCompletely(dart, doRemoveDegree2Nodes = True):
     for dart in commonEdgeList:
         affectedNodes.append(dart.startNodeLabel())
         affectedNodes.append(dart.endNodeLabel())
-        assert dart.edge().protection() == 0
+        assert dart.edge().flags() == 0
         if survivor == None:
             survivor = map.mergeFaces(dart) # first common edge
         else:
@@ -178,7 +178,7 @@ def thresholdMergeCost(map, mergeCostFunctor, maxCost, costs = None, q = None):
             break
 
         edge = map.edge(edgeLabel)
-        if not edge or edge.protection():
+        if not edge or edge.flags():
             continue
         d = edge.dart()
         if edge.isBridge():

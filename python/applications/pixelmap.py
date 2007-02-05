@@ -81,7 +81,7 @@ def pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0),
     # border edges manually:
     for edge in result.edgeIter():
         if not edge.leftFaceLabel() or not edge.rightFaceLabel():
-            edge.protect(BORDER_PROTECTION)
+            edge.setFlag(BORDER_PROTECTION)
 
     return result
 

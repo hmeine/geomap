@@ -35,7 +35,7 @@ def extractMapPoints(map, includeNodes = True):
     else:
         result = [node.position() for node in map.nodeIter()]
     for edge in map.edgeIter():
-        if not edge.protection() & BORDER_PROTECTION:
+        if not edge.flags() & BORDER_PROTECTION:
             result.extend(list(edge)[1:-1])
     return result
 
@@ -50,7 +50,7 @@ def samplingPoints(img, threshold = 128):
 def maxSegmentLength(map):
     result = 0.0
     for edge in map.edgeIter():
-        if not edge.protection() & BORDER_PROTECTION:
+        if not edge.flags() & BORDER_PROTECTION:
             result = max(result, max(
                 [(edge[i+1]-edge[i]).magnitude() for i in range(len(edge)-1)]))
     return result
@@ -197,7 +197,7 @@ def markAlphaShapes(delaunayMap, alpha, beta = 0.0):
 
 def removeUnmarkedEdges(map, removeInterior = False):
     for edge in map.edgeIter():
-        if edge.protection():
+        if edge.flags():
             continue
         if not edge.mark:
             removeEdge(edge.dart())

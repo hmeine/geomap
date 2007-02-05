@@ -67,7 +67,7 @@ def constrainedDelaunayMap(points, jumpPoints, imageSize,
 
     for edge in result.edgeIter():
         if edgeData[edge.label()][2]:
-            edge.protect(contourProtection)
+            edge.setFlag(contourProtection)
 
     return result
 
@@ -121,7 +121,7 @@ def fakedConstrainedDelaunayMap(points, jumpPoints, imageSize,
             assert j > 0, """Original contour fragment missing in Delauny map!
             (This is a problem of the fakedConstrainedDelaunayMap, try compiling
             the triangle module and using the real constrainedDelaunayMap instead.)"""
-            dart.edge().protect(contourProtection)
+            dart.edge().setFlag(contourProtection)
             edgeSourceDarts[dart.edgeLabel()] = dart.label()
             dart.nextAlpha()
         j = dart.startNode().degree() + 1
@@ -129,7 +129,7 @@ def fakedConstrainedDelaunayMap(points, jumpPoints, imageSize,
             dart.nextSigma()
             j -= 1
         assert j > 0, "Original contour fragment missing in Delauny map!"
-        dart.edge().protect(contourProtection)
+        dart.edge().setFlag(contourProtection)
         edgeSourceDarts[dart.edgeLabel()] = dart.label()
         i += 1
 
@@ -137,12 +137,12 @@ def fakedConstrainedDelaunayMap(points, jumpPoints, imageSize,
         sys.stdout.write("- reducing delaunay triangulation to inner part...")
         outerFace = [False] * result.maxFaceLabel()
         for edge in result.edgeIter():
-            if edge.protection() & contourProtection:
+            if edge.flags() & contourProtection:
                 dart = result.dart(edgeSourceDarts[edge.label()])
                 assert dart.edgeLabel() == edge.label(), str(edge)
                 while True:
                     mergeDart = dart.clone().prevSigma()
-                    if mergeDart.edge().protection() & contourProtection:
+                    if mergeDart.edge().flags() & contourProtection:
                         break
                     outerFace[result.mergeFaces(mergeDart).label()] = True
                     sys.stdout.write(".")
@@ -250,15 +250,15 @@ def catMap(delaunayMap,
         # count number of edges in common with polygon contour:
         contourCount = 0
         innerDarts[triangle.label()] = []
-        if edge1.protection() & CONTOUR_PROTECTION:
+        if edge1.flags() & CONTOUR_PROTECTION:
             contourCount += 1
         else:
             innerDarts[triangle.label()].append(dart1)
-        if edge2.protection() & CONTOUR_PROTECTION:
+        if edge2.flags() & CONTOUR_PROTECTION:
             contourCount += 1
         else:
             innerDarts[triangle.label()].append(dart2)
-        if edge3.protection() & CONTOUR_PROTECTION:
+        if edge3.flags() & CONTOUR_PROTECTION:
             contourCount += 1
         else:
             innerDarts[triangle.label()].append(dart3)

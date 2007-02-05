@@ -125,7 +125,7 @@ class GeoMap::Edge
     CellLabel    label_;
     CellLabel    startNodeLabel_, endNodeLabel_;
     CellLabel    leftFaceLabel_, rightFaceLabel_;
-    unsigned int protection_;
+    unsigned int flags_;
 
     mutable std::auto_ptr<vigra::Scanlines> scanLines_;
 
@@ -146,7 +146,7 @@ class GeoMap::Edge
       endNodeLabel_(endNodeLabel),
       leftFaceLabel_(UNINITIALIZED_CELL_LABEL),
       rightFaceLabel_(UNINITIALIZED_CELL_LABEL),
-      protection_(0),
+      flags_(0),
       scanLines_(NULL)
     {
         map_->edges_.push_back(GeoMap::Edges::value_type(this));
@@ -238,17 +238,17 @@ class GeoMap::Edge
         return !operator==(other);
     }
 
-    unsigned int protection() const
+    unsigned int flags() const
     {
-        return protection_;
+        return flags_;
     }
 
-    void protect(unsigned int flag, bool onoff)
+    void setFlag(unsigned int flag, bool onoff)
     {
         if(onoff)
-            protection_ |= flag;
+            flags_ |= flag;
         else
-            protection_ &= ~flag;
+            flags_ &= ~flag;
     }
 
     GeoMap *map() const
@@ -2277,7 +2277,7 @@ CELL_PTR(GeoMap::Edge) GeoMap::splitEdge(
         this, newNode->label(), edge.endNodeLabel(), edge.split(segmentIndex));
     result->leftFaceLabel_ = edge.leftFaceLabel_;
     result->rightFaceLabel_ = edge.rightFaceLabel_;
-    result->protection_ = edge.protection_;
+    result->flags_ = edge.flags_;
 
     newNode->darts_.push_back(-(int)edge.label());
     newNode->darts_.push_back( (int)result->label());
@@ -3285,8 +3285,8 @@ void defMap()
             .def("isLoop", &GeoMap::Edge::isLoop)
             .def("scanLines", &GeoMap::Edge::scanLines,
                  return_value_policy<copy_const_reference>())
-            .def("protection", &GeoMap::Edge::protection)
-            .def("protect", &GeoMap::Edge::protect,
+            .def("flags", &GeoMap::Edge::flags)
+            .def("setFlag", &GeoMap::Edge::setFlag,
                  (arg("flag"), arg("onoff") = true))
             .def(self == self)
             .def(self != self)
