@@ -243,6 +243,11 @@ class GeoMap::Edge
         return flags_;
     }
 
+    unsigned int flag(unsigned int which) const
+    {
+        return flags_ & which;
+    }
+
     void setFlag(unsigned int flag, bool onoff)
     {
         if(onoff)
@@ -714,6 +719,7 @@ class GeoMap::Face
     GeoMap             *map_;
     CellLabel           label_;
     std::vector<Dart>   anchors_;
+    unsigned int        flags_;
     mutable BoundingBox boundingBox_;
     mutable bool        boundingBoxValid_;
     mutable double      area_;
@@ -728,6 +734,7 @@ class GeoMap::Face
     Face(GeoMap *map, Dart anchor)
     : map_(map),
       label_(map->faces_.size()),
+      flags_(0),
       boundingBoxValid_(false),
       areaValid_(false),
       pixelArea_(0)
@@ -875,6 +882,24 @@ class GeoMap::Face
     inline bool operator!=(const GeoMap::Face &other)
     {
         return !operator==(other);
+    }
+
+    unsigned int flags() const
+    {
+        return flags_;
+    }
+
+    unsigned int flag(unsigned int which) const
+    {
+        return flags_ & which;
+    }
+
+    void setFlag(unsigned int flag, bool onoff)
+    {
+        if(onoff)
+            flags_ |= flag;
+        else
+            flags_ &= ~flag;
     }
 
     GeoMap *map() const
@@ -3286,6 +3311,7 @@ void defMap()
             .def("scanLines", &GeoMap::Edge::scanLines,
                  return_value_policy<copy_const_reference>())
             .def("flags", &GeoMap::Edge::flags)
+            .def("flag", &GeoMap::Edge::flag, arg("which"))
             .def("setFlag", &GeoMap::Edge::setFlag,
                  (arg("flag"), arg("onoff") = true))
             .def(self == self)
@@ -3307,6 +3333,10 @@ void defMap()
             .def("contours", &faceContours)
             .def("holeContours", &faceHoleContours)
             .def("holeCount", &faceHoleCount)
+            .def("flags", &GeoMap::Face::flags)
+            .def("flag", &GeoMap::Face::flag, arg("which"))
+            .def("setFlag", &GeoMap::Face::setFlag,
+                 (arg("flag"), arg("onoff") = true))
             .def(self == self)
             .def(self != self)
             .def("__repr__", &Face__repr__)
