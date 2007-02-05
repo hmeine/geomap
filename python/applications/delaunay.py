@@ -229,15 +229,18 @@ def catMap(delaunayMap,
     sigmaOrbits = [None]
     originalDarts = [None]
 
-    for triangle in delaunayMap.faceIter():
+    triangleType = [None] * delaunayMap.maxFaceLabel()
+    innerDarts = [None] * delaunayMap.maxFaceLabel()
+    nodeLabel = [None] * delaunayMap.maxFaceLabel()
+
+    for triangle in delaunayMap.faceIter(skipInfinite = True):
         if hasattr(triangle, "isOutside"):
             continue
 
-        c = triangle.contours()
-        assert len(c) == 1
-        assert len(list(c[0].phiOrbit())) == 3
+        assert triangle.holeCount() == 0
+        assert len(list(triangle.contour().phiOrbit())) == 3
 
-        dart1 = triangle.contour().clone()
+        dart1 = triangle.contour()
         dart2 = dart1.clone().nextPhi()
         dart3 = dart2.clone().nextPhi()
         edge1 = dart1.edge()
@@ -246,34 +249,34 @@ def catMap(delaunayMap,
 
         # count number of edges in common with polygon contour:
         contourCount = 0
-        triangle.innerDarts = []
-        if edge1.isContourEdge:
+        innerDarts[triangle.label()] = []
+        if edge1.protection() & CONTOUR_PROTECTION:
             contourCount += 1
         else:
-            triangle.innerDarts.append(dart1)
-        if edge2.isContourEdge:
+            innerDarts[triangle.label()].append(dart1)
+        if edge2.protection() & CONTOUR_PROTECTION:
             contourCount += 1
         else:
-            triangle.innerDarts.append(dart2)
-        if edge3.isContourEdge:
+            innerDarts[triangle.label()].append(dart2)
+        if edge3.protection() & CONTOUR_PROTECTION:
             contourCount += 1
         else:
-            triangle.innerDarts.append(dart3)
+            innerDarts[triangle.label()].append(dart3)
 
         # classify into sleeve, joint, and terminal triangles:
         if contourCount == 1:
-            triangle.type = "S"
+            triangleType[triangle.label()] = "S"
         elif contourCount == 0:
-            triangle.type = "J"
+            triangleType[triangle.label()] = "J"
         elif contourCount == 2:
-            triangle.type = "T"
+            triangleType[triangle.label()] = "T"
         else:
-            triangle.type = "T?"
+            triangleType[triangle.label()] = "T?"
 
-        if triangle.type != "S":
-            triangle.nodeLabel = len(nodePositions)
+        if triangleType[triangle.label()] != "S":
+            nodeLabel[triangle.label()] = len(nodePositions)
             nodePos = (dart1[0]+dart2[0]+dart3[0])/3
-            if triangle.type == "J":
+            if triangleType[triangle.label()] == "J":
                 a = (dart2[0]-dart1[0]).magnitude()
                 b = (dart3[0]-dart2[0]).magnitude()
                 c = (dart1[0]-dart3[0]).magnitude()
@@ -290,17 +293,18 @@ def catMap(delaunayMap,
                         nodePos = (dart1[0]+dart3[0])/2
             nodePositions.append(nodePos)
 
-            originalDarts.append([d.label() for d in triangle.innerDarts])
-            sigmaOrbits.append([None]*len(triangle.innerDarts))
+            originalDarts.append([d.label() for d in innerDarts[triangle.label()]])
+            sigmaOrbits.append([None]*len(innerDarts[triangle.label()]))
 
     edgeTriples = [None]
 
-    for triangle in delaunayMap.faceIter():
+    for triangle in delaunayMap.faceIter(skipInfinite = True):
         if hasattr(triangle, "isOutside"):
             continue
-        if triangle.type != "S":
-            #print triangle.type + "-triangle", triangle.label(), originalDarts[triangle.nodeLabel]
-            for dart in triangle.innerDarts:
+        
+        if triangleType[triangle.label()] != "S":
+            #print triangleType[triangle.label()] + "-triangle", triangle.label(), originalDarts[nodeLabel[triangle.label()]]
+            for dart in innerDarts[triangle.label()]:
                 #print "following limb starting with", dart
 
                 # remember triangle side we started from for later
@@ -308,62 +312,59 @@ def catMap(delaunayMap,
                 startSide = dart[0], dart[1]
 
                 edgeLabel = len(edgeTriples)
-                sigmaOrbits[triangle.nodeLabel][
-                    originalDarts[triangle.nodeLabel].index(dart.label())] \
+                sigmaOrbits[nodeLabel[triangle.label()]][
+                    originalDarts[nodeLabel[triangle.label()]].index(dart.label())] \
                     = edgeLabel
 
                 edgePoints = []
-                if triangle.type == "T":
+                if triangleType[triangle.label()] == "T":
                     if not includeTerminalPositions:
                         # correct node position onto this triangle side:
-                        nodePositions[triangle.nodeLabel] = middlePoint(dart)
+                        nodePositions[nodeLabel[triangle.label()]] = middlePoint(dart)
                     else:
                         # include opposite position
-                        nodePositions[triangle.nodeLabel] = (
+                        nodePositions[nodeLabel[triangle.label()]] = (
                             dart.clone().nextPhi())[-1]
-                        edgePoints.append(nodePositions[triangle.nodeLabel])
+                        edgePoints.append(nodePositions[nodeLabel[triangle.label()]])
                 else:
                     # node position != side -> include in edge geometry
-                    edgePoints.append(nodePositions[triangle.nodeLabel])
+                    edgePoints.append(nodePositions[nodeLabel[triangle.label()]])
 
                 while True:
                     edgePoints.append(middlePoint(dart))
                     dart.nextAlpha()
                     nextTriangle = dart.leftFace()
-                    if nextTriangle.type == "S":
-                        if dart == nextTriangle.innerDarts[0]:
-                            dart = nextTriangle.innerDarts[1]
+                    if triangleType[nextTriangle.label()] == "S":
+                        if dart == innerDarts[nextTriangle.label()][0]:
+                            dart = innerDarts[nextTriangle.label()][1]
                         else:
-                            dart = nextTriangle.innerDarts[0]
-                        del nextTriangle.innerDarts
+                            dart = innerDarts[nextTriangle.label()][0]
                     else:
-                        nextTriangle.innerDarts.remove(dart)
+                        innerDarts[nextTriangle.label()].remove(dart)
                         break
 
-                if nextTriangle.type == "T":
+                if triangleType[nextTriangle.label()] == "T":
                     if not includeTerminalPositions:
                         # correct node position onto this triangle side:
-                        nodePositions[nextTriangle.nodeLabel] = middlePoint(dart)
+                        nodePositions[nodeLabel[nextTriangle.label()]] = middlePoint(dart)
                     else:
                         # include opposite position
-                        nodePositions[nextTriangle.nodeLabel] = (
+                        nodePositions[nodeLabel[nextTriangle.label()]] = (
                             dart.clone().nextPhi())[-1]
-                        edgePoints.append(nodePositions[nextTriangle.nodeLabel])
+                        edgePoints.append(nodePositions[nodeLabel[nextTriangle.label()]])
                 else:
-                    edgePoints.append(nodePositions[nextTriangle.nodeLabel])
+                    edgePoints.append(nodePositions[nodeLabel[nextTriangle.label()]])
 
-                sigmaOrbits[nextTriangle.nodeLabel][
-                    originalDarts[nextTriangle.nodeLabel].index(dart.label())] \
+                sigmaOrbits[nodeLabel[nextTriangle.label()]][
+                    originalDarts[nodeLabel[nextTriangle.label()]].index(dart.label())] \
                     = -edgeLabel
 
                 # see above, for later pruning:
                 endSide = dart[0], dart[1]
 
                 edgeTriples.append((
-                    triangle.nodeLabel, nextTriangle.nodeLabel, edgePoints,
+                    nodeLabel[triangle.label()], nodeLabel[nextTriangle.label()], edgePoints,
                     startSide, endSide))
-
-            del triangle.innerDarts
 
     result = GeoMap(nodePositions, edgeTriples, delaunayMap.imageSize())
     result.initializeMap(initLabelImage = False)
