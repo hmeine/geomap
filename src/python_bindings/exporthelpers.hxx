@@ -86,4 +86,33 @@ class STLIterWrapper
     Iterator begin_, end_;
 };
 
+template<class Iterator,
+         class CallPolicies = boost::python::default_call_policies>
+struct RangeIterWrapper
+: boost::python::class_<Iterator>
+{
+    RangeIterWrapper(const char *name, CallPolicies cp = CallPolicies())
+    : boost::python::class_<Iterator>(name, boost::python::no_init)
+    {
+        def("__iter__", (Iterator &(*)(Iterator &))&returnSelf,
+            boost::python::return_internal_reference<>());
+        def("next", &nextIterPos, cp);
+    }
+
+    static Iterator &returnSelf(Iterator &v)
+    {
+        return v;
+    }
+
+    static typename Iterator::value_type nextIterPos(Iterator &v)
+    {
+        if(!v.inRange())
+        {
+            PyErr_SetString(PyExc_StopIteration, "cells iterator exhausted");
+            boost::python::throw_error_already_set();
+        }
+        return *v++;
+    }
+};
+
 #endif // EXPORTHELPERS_HXX
