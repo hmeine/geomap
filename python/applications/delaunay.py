@@ -21,7 +21,8 @@ except ImportError:
 #   (needed by the CAT)
 # --------------------------------------------------------------------
 
-CONTOUR_PROTECTION = 2
+CONTOUR_SEGMENT = 2
+OUTER_FACE = 1
 
 def _delaunayMapFromData(nodePositions, edgeData, imageSize, sigmaOrbits = None):
     if sigmaOrbits:
@@ -35,17 +36,37 @@ def _delaunayMapFromData(nodePositions, edgeData, imageSize, sigmaOrbits = None)
     result.initializeMap(initLabelImage = False)
     return result
 
-def constrainedDelaunayMap(points, jumpPoints, imageSize,
-                           contourProtection = CONTOUR_PROTECTION,
+from Numeric import arange
+
+def _pointInHole(polygon, level = 2):
+    result = []
+    bbox = polygon.boundingBox()
+    midPoint = (bbox.begin() + bbox.end())/2
+    xRange = arange(bbox.begin()[0], bbox.end()[0], 1.0/level)
+    for y in arange(bbox.begin()[1], bbox.end()[1], 1.0/level):
+        for x in xRange:
+            p = Vector2(x, y)
+            if polygon.contains(p):
+                result.append(((p-midPoint).squaredMagnitude(), p))
+    if not result:
+        return _pointInHole(polygon, level+1)
+    result.sort()
+    return result[0][1]
+
+def constrainedDelaunayMap(polygons, imageSize, extraPoints = [],
                            onlyInner = True):
-    """constrainedDelaunayMap(points, jumpPoints, imageSize,
-                           contourProtection = CONTOUR_PROTECTION,
+    """constrainedDelaunayMap(polygons, imageSize, extraPoints = [],
                            onlyInner = True)
 
     Returns a new GeoMap containing a Constrained Delaunay
-    Triangulation of the given points, where jumpPoints determines
-    which successive points are not to be connected by constraining
-    segments. FIXME: Fix this API. ;-)"""
+    Triangulation of all points of the polygons plus the extraPoints
+    if given.  The segments of the polygons will be constrained
+    segments of the CDT.
+
+    If the optional onlyInner parameter is True (default), then all
+    edge segments in the 'outside' will be removed.  (This assumes
+    that all closed polygons with a negative partialArea() are
+    holes.)"""
 
     assert triangle, """For correct CDT, you need to compile the
     triangle module (vigra/experiments/triangle).  You might want to
@@ -53,21 +74,36 @@ def constrainedDelaunayMap(points, jumpPoints, imageSize,
     also give a correct result if possible, and just throws an
     exception if it has to give up."""
     
-    print "- performing Constrained Delaunay Triangulation (%d points)..." % len(points)
-    segments = [(i-1, i) for i in range(len(points)+1)]
-    for i, jp in enumerate(jumpPoints[:-1]):
-        segments[jp] = (jumpPoints[i+1]-1, jumpPoints[i])
-    del segments[-1]
+    points = []
+    segments = []
+    holes = []
+    for polygon in polygons:
+        l = len(points)
+        partPoints = list(polygon)
+        if polygon[-1] == polygon[0]:
+            del partPoints[-1]
+            segments.append((l+len(partPoints)-1, l))
+            if onlyInner and polygon.partialArea() < 0:
+                holes.append(_pointInHole(polygon))
+        points.extend(partPoints)
+        segments.extend([(l+i, l+i+1) for i in range(len(partPoints)-1)])
 
+    print "- performing Constrained Delaunay Triangulation..."
+    print "  (%d points, %s segments, %d holes)" % (
+        len(points), len(segments), len(holes))
     nodePositions, edgeData = triangle.constrainedDelaunay(
-        points, segments, onlyInner)
+        points, segments, onlyInner, holes)
 
     print "- storing result in a GeoMap..."
     result = _delaunayMapFromData(nodePositions, edgeData, imageSize)
 
     for edge in result.edgeIter():
         if edgeData[edge.label()][2]:
-            edge.setFlag(contourProtection)
+            edge.setFlag(CONTOUR_SEGMENT)
+
+    result.face(0).setFlag(OUTER_FACE)
+    for holePoint in holes:
+        result.faceAt(holePoint).setFlag(OUTER_FACE)
 
     return result
 
@@ -86,7 +122,6 @@ def delaunayMap(points, imageSize):
                                   sigma)
 
 def fakedConstrainedDelaunayMap(points, jumpPoints, imageSize,
-                                contourProtection = CONTOUR_PROTECTION,
                                 onlyInner = True):
 
     """See constrainedDelaunayMap, this calculates a DT and throws
@@ -100,7 +135,7 @@ def fakedConstrainedDelaunayMap(points, jumpPoints, imageSize,
     print "- storing result in a GeoMap..."
     result = _delaunayMapFromData(nodePositions, edges, imageSize, sigma)
 
-    if not contourProtection:
+    if not onlyInner:
         return result
 
     print "- ex-post marking of contour edges for faked CDT..."
@@ -121,7 +156,7 @@ def fakedConstrainedDelaunayMap(points, jumpPoints, imageSize,
             assert j > 0, """Original contour fragment missing in Delauny map!
             (This is a problem of the fakedConstrainedDelaunayMap, try compiling
             the triangle module and using the real constrainedDelaunayMap instead.)"""
-            dart.edge().setFlag(contourProtection)
+            dart.edge().setFlag(CONTOUR_SEGMENT)
             edgeSourceDarts[dart.edgeLabel()] = dart.label()
             dart.nextAlpha()
         j = dart.startNode().degree() + 1
@@ -129,7 +164,7 @@ def fakedConstrainedDelaunayMap(points, jumpPoints, imageSize,
             dart.nextSigma()
             j -= 1
         assert j > 0, "Original contour fragment missing in Delauny map!"
-        dart.edge().setFlag(contourProtection)
+        dart.edge().setFlag(CONTOUR_SEGMENT)
         edgeSourceDarts[dart.edgeLabel()] = dart.label()
         i += 1
 
@@ -137,12 +172,12 @@ def fakedConstrainedDelaunayMap(points, jumpPoints, imageSize,
         sys.stdout.write("- reducing delaunay triangulation to inner part...")
         outerFace = [False] * result.maxFaceLabel()
         for edge in result.edgeIter():
-            if edge.flags() & contourProtection:
+            if edge.flag(CONTOUR_SEGMENT):
                 dart = result.dart(edgeSourceDarts[edge.label()])
                 assert dart.edgeLabel() == edge.label(), str(edge)
                 while True:
                     mergeDart = dart.clone().prevSigma()
-                    if mergeDart.edge().flags() & contourProtection:
+                    if mergeDart.edge().flag(CONTOUR_SEGMENT):
                         break
                     outerFace[result.mergeFaces(mergeDart).label()] = True
                     sys.stdout.write(".")
@@ -152,7 +187,6 @@ def fakedConstrainedDelaunayMap(points, jumpPoints, imageSize,
     return result
 
 def faceCDTMap(face, imageSize, simplifyEpsilon = None,
-                contourProtection = CONTOUR_PROTECTION,
                 onlyInner = True):
     """USAGE: dlm = faceCDTMap(face, mapSize)
 
@@ -179,37 +213,15 @@ def faceCDTMap(face, imageSize, simplifyEpsilon = None,
       are removed in a post-processing step.  (This has no effect if
       `markContour` is False.)"""
 
-    if type(face) == tuple:
-        points, jumpPoints = face
-    elif type(face) in (list, Polygon):
-        points = Polygon(face)
-        if points[-1] == points[0]:
-            del points[-1]
-        jumpPoints = [0, len(points)]
-    else:
-        jumpPoints = [0]
-
-        points = contourPoly(face.contour())
-        if simplifyEpsilon != None:
-            points = simplifyPolygon(points, simplifyEpsilon, simplifyEpsilon)
-        del points[-1]
-        jumpPoints.append(len(points))
-
-        for anchor in face.holeContours():
-            innerContour = contourPoly(anchor)
-            if simplifyEpsilon != None:
-                innerContour = simplifyPolygon(
-                    innerContour, simplifyEpsilon, simplifyEpsilon)
-            points.extend(innerContour)
-            del points[-1]
-            jumpPoints.append(len(points))
+    polygons = [contourPoly(c) for c in face.contours()]
+    if simplifyEpsilon != None:
+        polygons = [simplifyPolygon(p, simplifyEpsilon, simplifyEpsilon)
+                    for p in polygons]
 
     if triangle:
-        return constrainedDelaunayMap(
-            points, jumpPoints, imageSize, contourProtection, onlyInner)
+        return constrainedDelaunayMap(polygons, imageSize)
     else:
-        return fakedConstrainedDelaunayMap(
-            points, jumpPoints, imageSize, contourProtection, onlyInner)
+        return fakedConstrainedDelaunayMap(polygons, imageSize)
 
 # --------------------------------------------------------------------
 
@@ -234,7 +246,7 @@ def catMap(delaunayMap,
     nodeLabel = [None] * delaunayMap.maxFaceLabel()
 
     for triangle in delaunayMap.faceIter(skipInfinite = True):
-        if hasattr(triangle, "isOutside"):
+        if triangle.flag(OUTER_FACE):
             continue
 
         assert triangle.holeCount() == 0
@@ -250,15 +262,15 @@ def catMap(delaunayMap,
         # count number of edges in common with polygon contour:
         contourCount = 0
         innerDarts[triangle.label()] = []
-        if edge1.flags() & CONTOUR_PROTECTION:
+        if edge1.flag(CONTOUR_SEGMENT):
             contourCount += 1
         else:
             innerDarts[triangle.label()].append(dart1)
-        if edge2.flags() & CONTOUR_PROTECTION:
+        if edge2.flag(CONTOUR_SEGMENT):
             contourCount += 1
         else:
             innerDarts[triangle.label()].append(dart2)
-        if edge3.flags() & CONTOUR_PROTECTION:
+        if edge3.flag(CONTOUR_SEGMENT):
             contourCount += 1
         else:
             innerDarts[triangle.label()].append(dart3)
@@ -299,7 +311,7 @@ def catMap(delaunayMap,
     edgeTriples = [None]
 
     for triangle in delaunayMap.faceIter(skipInfinite = True):
-        if hasattr(triangle, "isOutside"):
+        if triangle.flag(OUTER_FACE):
             continue
         
         if triangleType[triangle.label()] != "S":
@@ -503,7 +515,7 @@ def calculateTriangleCircumcircles(delaunayMap):
     import Numeric, LinearAlgebra
 
     for triangle in delaunayMap.faceIter(skipInfinite = True):
-        if hasattr(triangle, "isOutside"):
+        if triangle.flag(OUTER_FACE):
             continue
 
         contours = triangle.contours()
