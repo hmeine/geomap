@@ -13,15 +13,7 @@ try:
 except ImportError:
     triangle = None
 
-# --------------------------------------------------------------------
-#                                 TODO:
-# --------------------------------------------------------------------
-# * how to pass "outer faces" to the triangle module?
-# * how to mark "outer faces" of the CDT maps?
-#   (needed by the CAT)
-# --------------------------------------------------------------------
-
-CONTOUR_SEGMENT = 2
+CONTOUR_SEGMENT = 256
 OUTER_FACE = 1
 
 def _delaunayMapFromData(nodePositions, edgeData, imageSize, sigmaOrbits = None):
@@ -121,13 +113,20 @@ def delaunayMap(points, imageSize):
     result = _delaunayMapFromData(nodePositions, edges, imageSize,
                                   sigma)
 
-def fakedConstrainedDelaunayMap(points, jumpPoints, imageSize,
+def fakedConstrainedDelaunayMap(polygons, imageSize, extraPoints = [],
                                 onlyInner = True):
 
     """See constrainedDelaunayMap, this calculates a DT and throws
     away outer edges retroactively.  This may fail when the DT does
     not contain all constrained segments, which is checked in this
     function and leads to an AssertionError."""
+
+    points = []
+    jumpPoints = [0]
+    for polygon in polygons:
+        points.extend(list(polygon))
+        del points[-1]
+        jumpPoints.append(len(points))
     
     print "- performing Delaunay Triangulation (%d points)..." % len(points)
     nodePositions, edges, sigma = hourglass.delaunay(points)
@@ -180,8 +179,8 @@ def fakedConstrainedDelaunayMap(points, jumpPoints, imageSize,
                     if mergeDart.edge().flag(CONTOUR_SEGMENT):
                         break
                     outerFace[result.mergeFaces(mergeDart).label()] = True
-                    sys.stdout.write(".")
-                    sys.stdout.flush()
+                    #sys.stdout.write(".")
+                    #sys.stdout.flush()
         sys.stdout.write("\n")
     
     return result
