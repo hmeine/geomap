@@ -224,8 +224,41 @@ def faceCDTMap(face, imageSize, simplifyEpsilon = None,
 def middlePoint(twoPointEdge):
     return (twoPointEdge[0] + twoPointEdge[1])/2
 
+def baryCenter(*points):
+    return sum(points) / len(points)
+
+def oldJunctionNodePosition(p1, p2, p3):
+    a = (p2-p1).magnitude()
+    b = (p3-p2).magnitude()
+    c = (p1-p3).magnitude()
+    sv = Vector(a, b, c)
+    sv /= sv.magnitude()
+    if dot(sv, Vector(1, 1, 1)) < joinMiddleThreshold:
+        s = [a,b,c]
+        s.sort()
+        if s[2] == a:
+            nodePos = (p2+p1)/2
+        elif s[2] == b:
+            nodePos = (p3+p2)/2
+        else:
+            nodePos = (p1+p3)/2
+
+def middleOfLongestSide(p1, p2, p3):
+    s = [((p2-p1).squaredMagnitude(), (p2+p1)),
+         ((p3-p2).squaredMagnitude(), (p3+p2)),
+         ((p1-p3).squaredMagnitude(), (p1+p3))]
+    s.sort()
+    return s[2][1] / 2
+
 def junctionNodePosition(triangle):
-    pass
+    c = triangle.contour()
+    p1 = c[0]
+    p2 = c[1]
+    p3 = c.nextPhi()[1]
+    circumCenter, circumRadius = circumCircle(p1, p2, p3)
+    if triangle.contains(circumCenter):
+        return circumCenter
+    return middleOfLongestSide(p1, p2, p3)
 
 def catMap(delaunayMap,
            includeTerminalPositions = False,
@@ -284,22 +317,11 @@ def catMap(delaunayMap,
 
         # add nodes for non-sleeve triangles:
         if triangleType[triangle.label()] != "S":
-            nodePos = (dart1[0]+dart2[0]+dart3[0])/3
             if triangleType[triangle.label()] == "J":
-                a = (dart2[0]-dart1[0]).magnitude()
-                b = (dart3[0]-dart2[0]).magnitude()
-                c = (dart1[0]-dart3[0]).magnitude()
-                sv = Vector(a, b, c)
-                sv /= sv.magnitude()
-                if dot(sv, Vector(1, 1, 1)) < joinMiddleThreshold:
-                    s = [a,b,c]
-                    s.sort()
-                    if s[2] == a:
-                        nodePos = (dart2[0]+dart1[0])/2
-                    elif s[2] == b:
-                        nodePos = (dart3[0]+dart2[0])/2
-                    else:
-                        nodePos = (dart1[0]+dart3[0])/2
+                nodePos = junctionNodePosition(triangle)
+            else:
+                # we don't know better yet for terminals:
+                nodePos = (dart1[0]+dart2[0]+dart3[0])/3
             nodeLabel[triangle.label()] = result.addNode(nodePos).label()
 
     edgeTriples = [None]
@@ -485,52 +507,56 @@ def pruneByMorphologicalSignificance(skel, ratio = 0.1):
 
     return _pruneBarbsInternal(skel)
 
-def calculateTriangleCircumcircles(delaunayMap):
-    import Numeric, LinearAlgebra
+import Numeric, LinearAlgebra
 
+def circumCircle(p1, p2, p3):
+    p1sm = p1.squaredMagnitude()
+    x1 = p1[0]
+    y1 = p1[1]
+    p2sm = p2.squaredMagnitude()
+    x2 = p2[0]
+    y2 = p2[1]
+    p3sm = p3.squaredMagnitude()
+    x3 = p3[0]
+    y3 = p3[1]
+    a = LinearAlgebra.determinant(
+        Numeric.array([[x1, y1, 1],
+                       [x2, y2, 1],
+                       [x3, y3, 1]]))
+    d = LinearAlgebra.determinant(
+        -Numeric.array([[p1sm, y1, 1],
+                        [p2sm, y2, 1],
+                        [p3sm, y3, 1]]))
+    e = LinearAlgebra.determinant(
+        Numeric.array([[p1sm, x1, 1],
+                       [p2sm, x2, 1],
+                       [p3sm, x3, 1]]))
+    f = LinearAlgebra.determinant(
+        -Numeric.array([[p1sm, x1, y1],
+                        [p2sm, x2, y2],
+                        [p3sm, x3, y3]]))
+    circumCenter = Vector2(-d/(2*a), -e/(2*a))
+    try: # FIXME: HACK (DAGM deadline approaching)!!!
+        circumRadius = math.sqrt((math.sq(d)+math.sq(e))/(4*math.sq(a))-f/a)
+    except ValueError:
+        sys.stderr.write("WARNING: Could not calculate triangle circumcircle!\n")
+        lengths = [dart.edge().length()
+                   for dart in contours[0].phiOrbit()]
+        lengths.sort()
+        circumRadius = (lengths[1] + lengths[2]) / 4.0
+        sys.stderr.write("  Side lengths are %s -> improvised radius = %s\n"
+                         % (lengths, triangle.radius))
+    return circumCenter, circumRadius
+
+def calculateTriangleCircumcircles(delaunayMap):
+    result = [None] * delaunayMap.maxFaceLabel()
     for triangle in delaunayMap.faceIter(skipInfinite = True):
         if triangle.flag(OUTER_FACE):
             continue
 
-        contours = triangle.contours()
-        assert len(contours) == 1, "delaunay triangles should not have holes (face %d)" % triangle.label()
-        points = [dart.startNode().position()
-                  for dart in contours[0].phiOrbit()]
+        assert triangle.holeCount() == 0, "delaunay triangles should not have holes (face %d)" % triangle.label()
+        points = [dart[0] for dart in triangle.contour().phiOrbit()]
         assert len(points) == 3, "triangles should have three points"
-        # calculate radius r (formulas from MathWorld):
-        p1sm = points[0].squaredMagnitude()
-        x1 = points[0][0]
-        y1 = points[0][1]
-        p2sm = points[1].squaredMagnitude()
-        x2 = points[1][0]
-        y2 = points[1][1]
-        p3sm = points[2].squaredMagnitude()
-        x3 = points[2][0]
-        y3 = points[2][1]
-        a = LinearAlgebra.determinant(
-            Numeric.array([[x1, y1, 1],
-                           [x2, y2, 1],
-                           [x3, y3, 1]]))
-        d = LinearAlgebra.determinant(
-            -Numeric.array([[p1sm, y1, 1],
-                            [p2sm, y2, 1],
-                            [p3sm, y3, 1]]))
-        e = LinearAlgebra.determinant(
-            Numeric.array([[p1sm, x1, 1],
-                           [p2sm, x2, 1],
-                           [p3sm, x3, 1]]))
-        f = LinearAlgebra.determinant(
-            -Numeric.array([[p1sm, x1, y1],
-                            [p2sm, x2, y2],
-                            [p3sm, x3, y3]]))
-        triangle.circleCenter = Vector2(-d/(2*a), -e/(2*a))
-        try: # FIXME: HACK (DAGM deadline approaching)!!!
-            triangle.radius = math.sqrt((math.sq(d)+math.sq(e))/(4*math.sq(a))-f/a)
-        except ValueError:
-            sys.stderr.write("WARNING: Could not calculate triangle circumcircle!\n")
-            lengths = [dart.edge().length()
-                       for dart in contours[0].phiOrbit()]
-            lengths.sort()
-            triangle.radius = (lengths[1] + lengths[2]) / 4.0
-            sys.stderr.write("  Side lengths are %s -> improvised radius = %s\n"
-                             % (lengths, triangle.radius))
+        result[triangle.label()] = circumCircle(*points)
+    return result
+
