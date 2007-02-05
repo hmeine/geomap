@@ -2018,9 +2018,15 @@ CELL_PTR(GeoMap::Node) GeoMap::nearestNode(
 bool GeoMap::checkConsistency()
 {
     bool result = true;
+    bool skipFaces = !mapInitialized();
+
+    unsigned int actualNodeCount = 0, actualEdgeCount = 0, actualFaceCount = 0;
+
     //std::cerr << "GeoMap[" << this << "].checkConsistency()\n";
     for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
     {
+        ++actualNodeCount;
+
         if((*it)->map() != this)
         {
             std::cerr << "  Node " << (*it)->label() << " has wrong map()!\n";
@@ -2028,17 +2034,89 @@ bool GeoMap::checkConsistency()
             break;
         }
     }
+    if(actualNodeCount != nodeCount())
+    {
+        std::cerr << "  Node count wrong (" << nodeCount()
+                  << ", should be " << actualNodeCount << ")!\n";
+            result = false;
+    }
+
     for(EdgeIterator it = edgesBegin(); it.inRange(); ++it)
     {
+        ++actualEdgeCount;
+
         if((*it)->map() != this)
         {
             std::cerr << "  Edge " << (*it)->label() << " has wrong map()!\n";
             result = false;
             break;
         }
+
+        if(!skipFaces)
+        {
+            if((*it)->isBridge() && (*it)->isLoop())
+            {
+                std::cerr << "  Edge " << (*it)->label()
+                          << " is both loop and bridge!?\n";
+                result = false;
+            }
+
+            if(!(*it)->leftFace() || !(*it)->rightFace())
+            {
+                std::cerr << "  Edge " << (*it)->label() << " has invalid faces:\n";
+                if(!(*it)->leftFace())
+                    std::cerr << "     left face (" << (*it)->leftFaceLabel()
+                              << ") does not exist!\n";
+                if(!(*it)->rightFace())
+                    std::cerr << "    right face (" << (*it)->rightFaceLabel()
+                              << ") does not exist!\n";
+                result = false;
+                continue; // no need to check geometry
+            }
+        }
+
+        if((*it)->size() < 2)
+        {
+            std::cerr << "  Edge " << (*it)->label() << " is too short ("
+                      << (*it)->size() << " points)!\n";
+            result = false;
+        }
+        else
+        {
+            if((**it)[0] != (*it)->startNode()->position() ||
+                (**it)[(*it)->size()-1] != (*it)->endNode()->position())
+            {
+                std::cerr << "  Edge " << (*it)->label()
+                          << " has non-matching end positions:\n"
+
+                          << "    start node " << (*it)->startNodeLabel() << " at "
+                          << (*it)->startNode()->position() << " is "
+                          << ((**it)[0] - (*it)->startNode()->position()).magnitude()
+                          << " pixels from " << (**it)[0] << "\n"
+
+                          << "    end node " << (*it)->endNodeLabel() << " at "
+                          << (*it)->endNode()->position() << " is "
+                          << ((**it)[(*it)->size()-1]
+                              - (*it)->endNode()->position()).magnitude()
+                          << " pixels from " << (**it)[(*it)->size()-1] << "\n";
+                result = false;
+            }
+        }
     }
+    if(actualEdgeCount != edgeCount())
+    {
+        std::cerr << "  Edge count wrong (" << edgeCount()
+                  << ", should be " << actualEdgeCount << ")!\n";
+            result = false;
+    }
+
+    if(skipFaces)
+        return result;
+
     for(FaceIterator it = facesBegin(); it.inRange(); ++it)
     {
+        ++actualFaceCount;
+
         GeoMap::Face &face(**it);
         if(face.map() != this)
         {
@@ -2047,9 +2125,15 @@ bool GeoMap::checkConsistency()
             break;
         }
 
+        typedef std::map<int, unsigned int> SeenAnchors;
+        SeenAnchors seenAnchors;
+
+        bool outerContour = face.label() > 0;
         for(GeoMap::Face::ContourIterator ci = face.contoursBegin();
-            ci != face.contoursEnd(); ++ci)
+            ci != face.contoursEnd(); ++ci, outerContour = false)
         {
+            double area = 0.0;
+            int canonicalAnchor(ci->label());
             Dart anchor(*ci), dart(anchor);
             do
             {
@@ -2061,10 +2145,50 @@ bool GeoMap::checkConsistency()
                     result = false;
                     break;
                 }
+
+                if(!dart.edge()->isBridge())
+                    area += dart.partialArea();
+
+                if(ci->label() < canonicalAnchor)
+                    canonicalAnchor = ci->label();
             }
             while(dart.nextPhi() != anchor);
+
+            if(dart != anchor)
+                continue; // loop canceled, area not valid
+
+            if((area <= 0) == outerContour)
+            {
+                std::cerr << "  Face " << face.label() << " contains an "
+                          << (outerContour
+                              ? "outer anchor with negative area"
+                              : "inner anchor with positive area")
+                          << ":\n  contour from dart " << ci->label()
+                          << " has area " << area << "!\n";
+                result = false;
+            }
+
+            std::pair<SeenAnchors::iterator, bool>
+                seenAnchor(seenAnchors.insert(
+                               std::make_pair(canonicalAnchor,
+                                              ci - face.contoursBegin())));
+            if(!seenAnchor.second)
+            {
+                std::cerr << "  Face " << face.label()
+                          << " contains duplicate anchors at (contour indices "
+                          << (ci - face.contoursBegin()) << " and "
+                          << seenAnchor.first->second << ")!\n";
+                result = false;
+            }
         }
     }
+    if(actualFaceCount != faceCount())
+    {
+        std::cerr << "  Face count wrong (" << faceCount()
+                  << ", should be " << actualFaceCount << ")!\n";
+            result = false;
+    }
+
     return result;
 }
 
@@ -2690,34 +2814,6 @@ struct RangeIterAdapter
 #  define CELL_RETURN_POLICY bp::default_call_policies
 #endif
 
-template<class Iterator>
-struct RangeIterWrapper
-: bp::class_<Iterator>
-{
-    RangeIterWrapper(const char *name)
-    : bp::class_<Iterator>(name, bp::no_init)
-    {
-        def("__iter__", (Iterator &(*)(Iterator &))&returnSelf,
-            bp::return_internal_reference<>());
-        def("next", &nextIterPos, CELL_RETURN_POLICY());
-    }
-
-    static Iterator &returnSelf(Iterator &v)
-    {
-        return v;
-    }
-
-    static typename Iterator::value_type nextIterPos(Iterator &v)
-    {
-        if(!v.inRange())
-        {
-            PyErr_SetString(PyExc_StopIteration, "cells iterator exhausted");
-            bp::throw_error_already_set();
-        }
-        return *v++;
-    }
-};
-
 /********************************************************************/
 
 class SimpleCallback
@@ -3276,9 +3372,9 @@ void defMap()
             .def_pickle(GeoMapPickleSuite())
             );
 
-        RangeIterWrapper<GeoMap::NodeIterator>("NodeIterator");
-        RangeIterWrapper<GeoMap::EdgeIterator>("EdgeIterator");
-        RangeIterWrapper<GeoMap::FaceIterator>("FaceIterator");
+        RangeIterWrapper<GeoMap::NodeIterator, CELL_RETURN_POLICY>("NodeIterator");
+        RangeIterWrapper<GeoMap::EdgeIterator, CELL_RETURN_POLICY>("EdgeIterator");
+        RangeIterWrapper<GeoMap::FaceIterator, CELL_RETURN_POLICY>("FaceIterator");
 
         class_<GeoMap::Node, boost::noncopyable>("Node", init<GeoMap *, const vigra::Vector2 &>())
             .def("initialized", &GeoMap::Node::initialized)
@@ -3328,7 +3424,7 @@ void defMap()
             .def("area", &GeoMap::Face::area)
             .def("pixelArea", &GeoMap::Face::pixelArea)
             .def("contour", &GeoMap::Face::contour,
-                 return_internal_reference<>(),
+                 return_value_policy<copy_const_reference>(),
                  arg("index") = 0)
             .def("contours", &faceContours)
             .def("holeContours", &faceHoleContours)
