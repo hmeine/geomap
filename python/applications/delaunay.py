@@ -134,9 +134,6 @@ def fakedConstrainedDelaunayMap(polygons, imageSize, extraPoints = [],
     print "- storing result in a GeoMap..."
     result = _delaunayMapFromData(nodePositions, edges, imageSize, sigma)
 
-    if not onlyInner:
-        return result
-
     print "- ex-post marking of contour edges for faked CDT..."
     print "  (keep your fingers crossed that no segment is missing!)"
 
@@ -227,6 +224,9 @@ def faceCDTMap(face, imageSize, simplifyEpsilon = None,
 def middlePoint(twoPointEdge):
     return (twoPointEdge[0] + twoPointEdge[1])/2
 
+def junctionNodePosition(triangle):
+    pass
+
 def catMap(delaunayMap,
            includeTerminalPositions = False,
            joinMiddleThreshold = 1.61):
@@ -236,9 +236,7 @@ def catMap(delaunayMap,
     regions are triangles (such a GeoMap is returned by
     delaunayMap())."""
 
-    nodePositions = [None]
-    sigmaOrbits = [None]
-    originalDarts = [None]
+    result = GeoMap(delaunayMap.imageSize())
 
     triangleType = [None] * delaunayMap.maxFaceLabel()
     innerDarts = [None] * delaunayMap.maxFaceLabel()
@@ -284,8 +282,8 @@ def catMap(delaunayMap,
         else:
             triangleType[triangle.label()] = "T?"
 
+        # add nodes for non-sleeve triangles:
         if triangleType[triangle.label()] != "S":
-            nodeLabel[triangle.label()] = len(nodePositions)
             nodePos = (dart1[0]+dart2[0]+dart3[0])/3
             if triangleType[triangle.label()] == "J":
                 a = (dart2[0]-dart1[0]).magnitude()
@@ -302,10 +300,7 @@ def catMap(delaunayMap,
                         nodePos = (dart3[0]+dart2[0])/2
                     else:
                         nodePos = (dart1[0]+dart3[0])/2
-            nodePositions.append(nodePos)
-
-            originalDarts.append([d.label() for d in innerDarts[triangle.label()]])
-            sigmaOrbits.append([None]*len(innerDarts[triangle.label()]))
+            nodeLabel[triangle.label()] = result.addNode(nodePos).label()
 
     edgeTriples = [None]
 
@@ -314,32 +309,24 @@ def catMap(delaunayMap,
             continue
         
         if triangleType[triangle.label()] != "S":
-            #print triangleType[triangle.label()] + "-triangle", triangle.label(), originalDarts[nodeLabel[triangle.label()]]
+            #print triangleType[triangle.label()] + "-triangle", triangle.label()
             for dart in innerDarts[triangle.label()]:
                 #print "following limb starting with", dart
 
-                # remember triangle side we started from for later
-                # pruning by "morphological ratio":
-                startSide = dart[0], dart[1]
-
-                edgeLabel = len(edgeTriples)
-                sigmaOrbits[nodeLabel[triangle.label()]][
-                    originalDarts[nodeLabel[triangle.label()]].index(dart.label())] \
-                    = edgeLabel
+                startNode = result.node(nodeLabel[triangle.label()])
 
                 edgePoints = []
                 if triangleType[triangle.label()] == "T":
                     if not includeTerminalPositions:
                         # correct node position onto this triangle side:
-                        nodePositions[nodeLabel[triangle.label()]] = middlePoint(dart)
+                        startNode.setPosition(middlePoint(dart))
                     else:
                         # include opposite position
-                        nodePositions[nodeLabel[triangle.label()]] = (
-                            dart.clone().nextPhi())[-1]
-                        edgePoints.append(nodePositions[nodeLabel[triangle.label()]])
+                        startNode.setPosition((dart.clone().nextPhi())[-1])
+                        edgePoints.append(startNode.position())
                 else:
-                    # node position != side -> include in edge geometry
-                    edgePoints.append(nodePositions[nodeLabel[triangle.label()]])
+                    # junction position != side -> include in edge geometry
+                    edgePoints.append(startNode.position())
 
                 while True:
                     edgePoints.append(middlePoint(dart))
@@ -354,36 +341,24 @@ def catMap(delaunayMap,
                         innerDarts[nextTriangle.label()].remove(dart)
                         break
 
+                endNode = result.node(nodeLabel[nextTriangle.label()])
+
                 if triangleType[nextTriangle.label()] == "T":
                     if not includeTerminalPositions:
-                        # correct node position onto this triangle side:
-                        nodePositions[nodeLabel[nextTriangle.label()]] = middlePoint(dart)
+                        endNode.setPosition(middlePoint(dart))
                     else:
-                        # include opposite position
-                        nodePositions[nodeLabel[nextTriangle.label()]] = (
-                            dart.clone().nextPhi())[-1]
-                        edgePoints.append(nodePositions[nodeLabel[nextTriangle.label()]])
+                        endNode.setPosition((dart.clone().nextPhi())[-1])
+                        edgePoints.append(endNode.position())
                 else:
-                    edgePoints.append(nodePositions[nodeLabel[nextTriangle.label()]])
+                    edgePoints.append(endNode.position())
 
-                sigmaOrbits[nodeLabel[nextTriangle.label()]][
-                    originalDarts[nodeLabel[nextTriangle.label()]].index(dart.label())] \
-                    = -edgeLabel
+                result.addEdge(startNode.label(), endNode.label(), edgePoints)
 
-                # see above, for later pruning:
-                endSide = dart[0], dart[1]
-
-                edgeTriples.append((
-                    nodeLabel[triangle.label()], nodeLabel[nextTriangle.label()], edgePoints,
-                    startSide, endSide))
-
-    result = GeoMap(nodePositions, edgeTriples, delaunayMap.imageSize())
     result.initializeMap(initLabelImage = False)
-    # FIXME: re-use above sigmaOrbits
-    for edge in result.edgeIter():
-        edge.startSide = edgeTriples[edge.label()][3]
-        edge.endSide = edgeTriples[edge.label()][4]
+
     return result
+
+# --------------------------------------------------------------------
 
 def _pruneBarbsInternal(skel):
     count = 0
