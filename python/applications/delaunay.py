@@ -2,8 +2,8 @@
 _cvsVersion = "$Id$" \
               .split(" ")[2:-2]
 
-import math, sys, vigra, hourglass
-from hourglass import Polygon, simplifyPolygon
+import math, sys, vigra, hourglass, numpy
+from hourglass import Polygon, simplifyPolygon, resamplePolygon
 #from map import GeoMap, contourPoly
 from hourglass import GeoMap, contourPoly
 from vigra import Vector2, Vector, dot
@@ -28,14 +28,12 @@ def _delaunayMapFromData(nodePositions, edgeData, imageSize, sigmaOrbits = None)
     result.initializeMap(initLabelImage = False)
     return result
 
-from Numeric import arange
-
 def _pointInHole(polygon, level = 2):
     result = []
     bbox = polygon.boundingBox()
     midPoint = (bbox.begin() + bbox.end())/2
-    xRange = arange(bbox.begin()[0], bbox.end()[0], 1.0/level)
-    for y in arange(bbox.begin()[1], bbox.end()[1], 1.0/level):
+    xRange = numpy.arange(bbox.begin()[0], bbox.end()[0], 1.0/level)
+    for y in numpy.arange(bbox.begin()[1], bbox.end()[1], 1.0/level):
         for x in xRange:
             p = Vector2(x, y)
             if polygon.contains(p):
@@ -182,8 +180,10 @@ def fakedConstrainedDelaunayMap(polygons, imageSize, extraPoints = [],
     
     return result
 
-def faceCDTMap(face, imageSize, simplifyEpsilon = None,
-                onlyInner = True):
+def faceCDTMap(face, imageSize,
+               simplifyEpsilon = None,
+               resample = None,
+               onlyInner = True):
     """USAGE: dlm = faceCDTMap(face, mapSize)
 
     `face` should be a GeoMap.Face object, and all its contours will
@@ -210,14 +210,71 @@ def faceCDTMap(face, imageSize, simplifyEpsilon = None,
       `markContour` is False.)"""
 
     polygons = [contourPoly(c) for c in face.contours()]
+    if resample:
+        polygons = [resamplePolygon(p, resample) for p in polygons]
     if simplifyEpsilon != None:
-        polygons = [simplifyPolygon(p, simplifyEpsilon, simplifyEpsilon)
-                    for p in polygons]
+        polygons = [simplifyPolygon(p, simplifyEpsilon) for p in polygons]
 
     if triangle:
-        return constrainedDelaunayMap(polygons, imageSize)
+        result = constrainedDelaunayMap(polygons, imageSize)
     else:
-        return fakedConstrainedDelaunayMap(polygons, imageSize)
+        result = fakedConstrainedDelaunayMap(polygons, imageSize)
+
+    return result
+
+# --------------------------------------------------------------------
+
+def _oppositeAngle(p1, p2, p3):
+    """_oppositeAngle(p1, p2, p3)
+    Given the triangle (p1, p2, p3), returns angle at p3 (in radians)"""
+    a = p1 - p3
+    b = p2 - p3
+    return math.acos(
+        dot(a, b) /
+        math.sqrt(a.squaredMagnitude()*b.squaredMagnitude()))
+
+def chordStrength(edge):
+    p1 = edge[0]
+    p2 = edge[1]
+    d = edge.dart()
+    p3 = d.nextPhi()[1]
+    assert d.nextPhi().endNodeLabel() == edge.startNodeLabel(), \
+           "chordStrength: expects Faces to the left and right to be triangles!"
+    d = edge.dart().nextAlpha()
+    p4 = d.nextPhi()[1]
+    assert d.nextPhi().endNodeLabel() == edge.endNodeLabel(), \
+           "chordStrength: expects Faces to the left and right to be triangles!"
+    return 1 - (_oppositeAngle(p1, p2, p3) + _oppositeAngle(p1, p2, p4)) / math.pi
+
+def calculateChordStrengths(delaunayMap):
+    result = [None] * delaunayMap.maxEdgeLabel()
+    for edge in delaunayMap.edgeIter():
+        if edge.flag(CONTOUR_SEGMENT):
+            continue
+        result[edge.label()] = chordStrength(edge)
+    return result
+
+def chordStrengthProfile(delaunayMap, startIndex = 1, cs = None):
+    if not cs:
+        cs = calculateChordStrengths(delaunayMap)
+
+    startDart = delaunayMap.node(startIndex).anchor()
+    while startDart.endNodeLabel() != 2:
+        startDart.nextSigma()
+    assert startDart.edge().flag(CONTOUR_SEGMENT), \
+           "expecting contour segment between consecutive nodes"
+
+    dart = startDart.clone()
+    result = []
+    while True:
+        #print dart
+        while not dart.nextSigma().edge().flag(CONTOUR_SEGMENT):
+            #print "-", dart
+            result.append(cs[dart.edgeLabel()])
+        if dart.nextAlpha() == startDart:
+            #print "AT BEGIN (%s)" % dart.label()
+            break
+    return result
 
 # --------------------------------------------------------------------
 
@@ -507,7 +564,7 @@ def pruneByMorphologicalSignificance(skel, ratio = 0.1):
 
     return _pruneBarbsInternal(skel)
 
-import Numeric, LinearAlgebra
+# --------------------------------------------------------------------
 
 def circumCircle(p1, p2, p3):
     p1sm = p1.squaredMagnitude()
@@ -519,22 +576,22 @@ def circumCircle(p1, p2, p3):
     p3sm = p3.squaredMagnitude()
     x3 = p3[0]
     y3 = p3[1]
-    a = LinearAlgebra.determinant(
-        Numeric.array([[x1, y1, 1],
-                       [x2, y2, 1],
-                       [x3, y3, 1]]))
-    d = LinearAlgebra.determinant(
-        -Numeric.array([[p1sm, y1, 1],
-                        [p2sm, y2, 1],
-                        [p3sm, y3, 1]]))
-    e = LinearAlgebra.determinant(
-        Numeric.array([[p1sm, x1, 1],
-                       [p2sm, x2, 1],
-                       [p3sm, x3, 1]]))
-    f = LinearAlgebra.determinant(
-        -Numeric.array([[p1sm, x1, y1],
-                        [p2sm, x2, y2],
-                        [p3sm, x3, y3]]))
+    a = numpy.linalg.det(
+        numpy.array([[x1, y1, 1],
+                     [x2, y2, 1],
+                     [x3, y3, 1]]))
+    d = numpy.linalg.det(
+        -numpy.array([[p1sm, y1, 1],
+                      [p2sm, y2, 1],
+                      [p3sm, y3, 1]]))
+    e = numpy.linalg.det(
+        numpy.array([[p1sm, x1, 1],
+                     [p2sm, x2, 1],
+                     [p3sm, x3, 1]]))
+    f = numpy.linalg.det(
+        -numpy.array([[p1sm, x1, y1],
+                      [p2sm, x2, y2],
+                      [p3sm, x3, y3]]))
     circumCenter = Vector2(-d/(2*a), -e/(2*a))
     try: # FIXME: HACK (DAGM deadline approaching)!!!
         circumRadius = math.sqrt((math.sq(d)+math.sq(e))/(4*math.sq(a))-f/a)
