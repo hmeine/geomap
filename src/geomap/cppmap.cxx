@@ -248,7 +248,7 @@ class GeoMap::Edge
         return flags_ & which;
     }
 
-    void setFlag(unsigned int flag, bool onoff)
+    void setFlag(unsigned int flag, bool onoff = true)
     {
         if(onoff)
             flags_ |= flag;
@@ -894,7 +894,7 @@ class GeoMap::Face
         return flags_ & which;
     }
 
-    void setFlag(unsigned int flag, bool onoff)
+    void setFlag(unsigned int flag, bool onoff = true)
     {
         if(onoff)
             flags_ |= flag;
@@ -3228,11 +3228,26 @@ struct GeoMapPickleSuite : bp::pickle_suite
         {
             pySigmaMapping.append(*it);
         }
+
+        list edgeFlags;
+        for(GeoMap::EdgeIterator it = map.edgesBegin(); it.inRange(); ++it)
+        {
+            edgeFlags.append((*it)->flags());
+        }
+
+        list faceFlags;
+        for(GeoMap::FaceIterator it = map.facesBegin(); it.inRange(); ++it)
+        {
+            faceFlags.append((*it)->flags());
+        }
+        
         return bp::make_tuple(
             pySigmaMapping,
             map.edgesSorted(),
             map.mapInitialized(),
-            map.hasLabelImage());
+            map.hasLabelImage(),
+            edgeFlags,
+            faceFlags);
     }
 
     static void setstate(GeoMap &map, bp::tuple state)
@@ -3242,6 +3257,8 @@ struct GeoMapPickleSuite : bp::pickle_suite
         bool edgesSorted = bp::extract<bool>(state[1])();
         bool mapInitialized = bp::extract<bool>(state[2])();
         bool initLabelImage = bp::extract<bool>(state[3])();
+        list edgeFlags = bp::extract<list>(state[4])();
+        list faceFlags = bp::extract<list>(state[5])();
 
         GeoMap::SigmaMapping sigmaMapping(bp::len(pySigmaMapping));
         unsigned int i = 0;
@@ -3254,6 +3271,18 @@ struct GeoMapPickleSuite : bp::pickle_suite
         map.setSigmaMapping(sigmaMapping, edgesSorted);
         if(mapInitialized)
             map.initializeMap(initLabelImage);
+
+        i = 0;
+        for(GeoMap::EdgeIterator it = map.edgesBegin(); it.inRange(); ++it, ++i)
+        {
+            (*it)->setFlag(bp::extract<unsigned int>(edgeFlags[i])());
+        }
+
+        i = 0;
+        for(GeoMap::FaceIterator it = map.facesBegin(); it.inRange(); ++it, ++i)
+        {
+            (*it)->setFlag(bp::extract<unsigned int>(faceFlags[i])());
+        }
     }
 };
 
