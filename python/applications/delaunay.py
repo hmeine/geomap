@@ -14,6 +14,7 @@ except ImportError:
     triangle = None
 
 CONTOUR_SEGMENT = 256
+WEAK_CHORD = 512
 OUTER_FACE = 1
 
 def _delaunayMapFromData(nodePositions, edgeData, imageSize, sigmaOrbits = None):
@@ -270,10 +271,40 @@ def chordStrengthProfile(delaunayMap, startIndex = 1, cs = None):
         #print dart
         while not dart.nextSigma().edge().flag(CONTOUR_SEGMENT):
             #print "-", dart
-            result.append(cs[dart.edgeLabel()])
+            result.append((cs[dart.edgeLabel()], dart.label()))
         if dart.nextAlpha() == startDart:
             #print "AT BEGIN (%s)" % dart.label()
             break
+    return result
+
+def markWeakChords(delaunayMap, csp = None):
+    if csp == None:
+        csp = chordStrengthProfile(delaunayMap)
+    for _, dartLabel in csp:
+        delaunayMap.edge(abs(dartLabel)).setFlag(WEAK_CHORD)
+    for i in range(len(csp)):
+        c1 = cmp(csp[i][0], csp[i-1][0])
+        c2 = cmp(csp[i][0], csp[(i+1)%len(csp)][0])
+        if c1 + c2 >= 1:
+            delaunayMap.edge(abs(csp[i][1])).setFlag(WEAK_CHORD, False)
+
+def removeWeakChords(delaunayMap, csp = None):
+    result = 0
+    markWeakChords(delaunayMap, csp)
+    for edge in delaunayMap.edgeIter():
+        if edge.flag(WEAK_CHORD):
+            delaunayMap.mergeFaces(edge.dart())
+            result += 1
+    return result
+
+import qt
+def chordColors(delaunayMap):
+    result = [qt.Qt.red] * delaunayMap.maxEdgeLabel()
+    for edge in delaunayMap.edgeIter():
+        if edge.flag(CONTOUR_SEGMENT):
+            result[edge.label()] = qt.Qt.cyan
+        elif edge.flag(WEAK_CHORD):
+            result[edge.label()] = qt.Qt.blue
     return result
 
 # --------------------------------------------------------------------
@@ -284,7 +315,9 @@ def middlePoint(twoPointEdge):
 def baryCenter(*points):
     return sum(points) / len(points)
 
-def oldJunctionNodePosition(p1, p2, p3):
+def oldJunctionNodePosition(p1, p2, p3,
+                            joinMiddleThreshold = 1.61):
+    "Old, deprecated junction node position defition (ignore this)"
     a = (p2-p1).magnitude()
     b = (p3-p2).magnitude()
     c = (p1-p3).magnitude()
@@ -300,135 +333,157 @@ def oldJunctionNodePosition(p1, p2, p3):
         else:
             nodePos = (p1+p3)/2
 
-def middleOfLongestSide(p1, p2, p3):
+def _middleOfLongestSide(p1, p2, p3):
     s = [((p2-p1).squaredMagnitude(), (p2+p1)),
          ((p3-p2).squaredMagnitude(), (p3+p2)),
          ((p1-p3).squaredMagnitude(), (p1+p3))]
     s.sort()
     return s[2][1] / 2
 
-def junctionNodePosition(triangle):
-    c = triangle.contour()
-    p1 = c[0]
-    p2 = c[1]
-    p3 = c.nextPhi()[1]
+def junctionNodePosition(triangle, chords):
+    """Defition of node position for junction triangles from original
+    CAT article (works only for triangles, uses circumcenter if
+    possible).  Use this if possible."""
+    p1 = chords[0][0]
+    p2 = chords[1][0]
+    p3 = chords[2][0]
     circumCenter, circumRadius = circumCircle(p1, p2, p3)
     if triangle.contains(circumCenter):
         return circumCenter
-    return middleOfLongestSide(p1, p2, p3)
+    return _middleOfLongestSide(p1, p2, p3)
+
+def rectifiedJunctionNodePosition(triangle, chords):
+    """Defition of node position for junction triangles from rectified
+    CAT article.  Not as good as the original definition for
+    triangles, but works for other polygons, too."""
+    totalWeights = 0.0
+    result = Vector2(0, 0)
+    for chord in chords:
+        weight = chord.edge().length()
+        result += middlePoint(chord) * weight
+        totalWeights += weight
+    return result / totalWeights
 
 def catMap(delaunayMap,
-           includeTerminalPositions = False,
-           joinMiddleThreshold = 1.61):
-    """Extract a CAT (chordal axis transform) from a GeoMap object
-    containing a Delaunay Triangulation.
-    Assumes that all edges have only two points and that all finite
-    regions are triangles (such a GeoMap is returned by
-    delaunayMap())."""
+           rectified = True,
+           includeTerminalPositions = False):
+    """catMap(delaunayMap,
+           rectified = True,
+           includeTerminalPositions = False)
+
+    Extract a CAT (chordal axis transform) from a GeoMap object
+    containing a Delaunay Triangulation.  Implements the rectified
+    version (from L.Prasad's DGCI'05 article), which also works for
+    GeoMaps with non-triangular Faces.
+
+    Expects outer faces of the delaunayMap to be marked with the
+    OUTER_FACE flag (in order to skip these faces and work only on the
+    inner parts of the shapes), and edges which belong to the
+    constrained segments of the CDT to be marked with the
+    CONTOUR_SEGMENT flag (i.e. an edge is a chord iff
+    'not edge.flag(CONTOUR_SEGMENT)')
+
+    Usually, you will do sth. along:
+
+    >>> del1 = delaunay.faceCDTMap(map1.face(173), map1.imageSize())
+    >>> cat1 = delaunay.catMap(del1, rectified = False)
+
+    The optional parameter 'rectified' has been set to False here to
+    use the original definition of junction node positions (using the
+    circumcenter if possible) which works only for triangulations (and
+    is therefore disabled by default).
+
+    For triangulations, it is also possible to include the opposite
+    vertex of the terminal triangles into the skeleton by setting
+    includeTerminalPositions to True.
+
+    If you want to use the rectified CAT (with weak chords being
+    suppressed), you would use removeWeakChords before calling catMap:
+    
+    >>> del2 = copy.copy(del1) # don't modify original
+    >>> removeWeakChords(del2)
+    >>> rcat2 = delaunay.catMap(del2)
+    """
+
+    if rectified:
+        junctionPos = rectifiedJunctionNodePosition
+        assert not includeTerminalPositions, \
+               "includeTerminalPositions is not supported for the rectified CAT!"
+    else:
+        junctionPos = junctionNodePosition
 
     result = GeoMap(delaunayMap.imageSize())
 
-    triangleType = [None] * delaunayMap.maxFaceLabel()
+    faceType = [None] * delaunayMap.maxFaceLabel()
     innerDarts = [None] * delaunayMap.maxFaceLabel()
     nodeLabel = [None] * delaunayMap.maxFaceLabel()
 
-    for triangle in delaunayMap.faceIter(skipInfinite = True):
-        if triangle.flag(OUTER_FACE):
+    for face in delaunayMap.faceIter(skipInfinite = True):
+        if face.flag(OUTER_FACE):
             continue
 
-        assert triangle.holeCount() == 0
-        assert len(list(triangle.contour().phiOrbit())) == 3
+        assert face.holeCount() == 0
 
-        dart1 = triangle.contour()
-        dart2 = dart1.clone().nextPhi()
-        dart3 = dart2.clone().nextPhi()
-        edge1 = dart1.edge()
-        edge2 = dart2.edge()
-        edge3 = dart3.edge()
+        chords = []
+        for dart in face.contour().phiOrbit():
+            if not dart.edge().flag(CONTOUR_SEGMENT):
+                chords.append(dart)
 
-        # count number of edges in common with polygon contour:
-        contourCount = 0
-        innerDarts[triangle.label()] = []
-        if edge1.flag(CONTOUR_SEGMENT):
-            contourCount += 1
+        innerDarts[face.label()] = chords
+        # classify into terminal, sleeve, and junction triangles:
+        if len(chords) < 2:
+            faceType[face.label()] = "T"
+            nodePos = middlePoint(chords[0]) # (may be changed later)
+        elif len(chords) == 2:
+            faceType[face.label()] = "S"
         else:
-            innerDarts[triangle.label()].append(dart1)
-        if edge2.flag(CONTOUR_SEGMENT):
-            contourCount += 1
-        else:
-            innerDarts[triangle.label()].append(dart2)
-        if edge3.flag(CONTOUR_SEGMENT):
-            contourCount += 1
-        else:
-            innerDarts[triangle.label()].append(dart3)
-
-        # classify into sleeve, joint, and terminal triangles:
-        if contourCount == 1:
-            triangleType[triangle.label()] = "S"
-        elif contourCount == 0:
-            triangleType[triangle.label()] = "J"
-        elif contourCount == 2:
-            triangleType[triangle.label()] = "T"
-        else:
-            triangleType[triangle.label()] = "T?"
+            faceType[face.label()] = "J"
+            nodePos = junctionPos(face, chords)
 
         # add nodes for non-sleeve triangles:
-        if triangleType[triangle.label()] != "S":
-            if triangleType[triangle.label()] == "J":
-                nodePos = junctionNodePosition(triangle)
-            else:
-                # we don't know better yet for terminals:
-                nodePos = (dart1[0]+dart2[0]+dart3[0])/3
-            nodeLabel[triangle.label()] = result.addNode(nodePos).label()
+        if faceType[face.label()] != "S":
+            nodeLabel[face.label()] = result.addNode(nodePos).label()
 
-    edgeTriples = [None]
-
-    for triangle in delaunayMap.faceIter(skipInfinite = True):
-        if triangle.flag(OUTER_FACE):
+    for face in delaunayMap.faceIter(skipInfinite = True):
+        if face.flag(OUTER_FACE):
             continue
         
-        if triangleType[triangle.label()] != "S":
-            #print triangleType[triangle.label()] + "-triangle", triangle.label()
-            for dart in innerDarts[triangle.label()]:
+        if faceType[face.label()] != "S":
+            #print faceType[face.label()] + "-triangle", face.label()
+            for dart in innerDarts[face.label()]:
                 #print "following limb starting with", dart
 
-                startNode = result.node(nodeLabel[triangle.label()])
-
+                startNode = result.node(nodeLabel[face.label()])
                 edgePoints = []
-                if triangleType[triangle.label()] == "T":
-                    if not includeTerminalPositions:
-                        # correct node position onto this triangle side:
-                        startNode.setPosition(middlePoint(dart))
-                    else:
+
+                if faceType[face.label()] == "T":
+                    if includeTerminalPositions:
                         # include opposite position
                         startNode.setPosition((dart.clone().nextPhi())[-1])
-                        edgePoints.append(startNode.position())
-                else:
-                    # junction position != side -> include in edge geometry
-                    edgePoints.append(startNode.position())
 
                 while True:
                     edgePoints.append(middlePoint(dart))
                     dart.nextAlpha()
-                    nextTriangle = dart.leftFace()
-                    if triangleType[nextTriangle.label()] == "S":
-                        if dart == innerDarts[nextTriangle.label()][0]:
-                            dart = innerDarts[nextTriangle.label()][1]
+                    nextFace = dart.leftFace()
+                    if faceType[nextFace.label()] == "S":
+                        # continue with opposite dart:
+                        if dart == innerDarts[nextFace.label()][0]:
+                            dart = innerDarts[nextFace.label()][1]
                         else:
-                            dart = innerDarts[nextTriangle.label()][0]
+                            dart = innerDarts[nextFace.label()][0]
                     else:
-                        innerDarts[nextTriangle.label()].remove(dart)
+                        innerDarts[nextFace.label()].remove(dart)
                         break
 
-                endNode = result.node(nodeLabel[nextTriangle.label()])
+                endNode = result.node(nodeLabel[nextFace.label()])
 
-                if triangleType[nextTriangle.label()] == "T":
-                    if not includeTerminalPositions:
-                        endNode.setPosition(middlePoint(dart))
-                    else:
+                if faceType[nextFace.label()] == "T":
+                    if includeTerminalPositions:
                         endNode.setPosition((dart.clone().nextPhi())[-1])
-                        edgePoints.append(endNode.position())
-                else:
+
+                if not edgePoints or edgePoints[0] != startNode.position():
+                    edgePoints.insert(0, startNode.position())
+                if edgePoints[-1] != endNode.position():
                     edgePoints.append(endNode.position())
 
                 result.addEdge(startNode.label(), endNode.label(), edgePoints)
@@ -567,6 +622,11 @@ def pruneByMorphologicalSignificance(skel, ratio = 0.1):
 # --------------------------------------------------------------------
 
 def circumCircle(p1, p2, p3):
+    """circumCircle(p1, p2, p3) -> (Vector2, float)
+
+    Returns the center and radius of the circumcircle of the given
+    three points."""
+    
     p1sm = p1.squaredMagnitude()
     x1 = p1[0]
     y1 = p1[1]
@@ -602,10 +662,16 @@ def circumCircle(p1, p2, p3):
         lengths.sort()
         circumRadius = (lengths[1] + lengths[2]) / 4.0
         sys.stderr.write("  Side lengths are %s -> improvised radius = %s\n"
-                         % (lengths, triangle.radius))
+                         % (lengths, circumRadius))
     return circumCenter, circumRadius
 
 def calculateTriangleCircumcircles(delaunayMap):
+    """calculateTriangleCircumcircles(delaunayMap)
+
+    Returns a list of circumcircles for each face in the delaunayMap
+    (with the face labels as indices).  Entries for faces marked with
+    the OUTER_FACE flag are set to None."""
+    
     result = [None] * delaunayMap.maxFaceLabel()
     for triangle in delaunayMap.faceIter(skipInfinite = True):
         if triangle.flag(OUTER_FACE):
