@@ -61,18 +61,18 @@ public:
 		squareSum_ -= sqr(value);
 	}
 
-	RealPromoteType avg() const
+	RealPromoteType average() const
     {
         return (RealPromoteType)sum_/(double)count_;
     }
 
-	RealPromoteType var() const
+	RealPromoteType variance() const
     {
-        return (RealPromoteType)squareSum_/(double)count_ - sqr(avg());
+        return (RealPromoteType)squareSum_/(double)count_ - sqr(average());
     }
 
 	RealPromoteType stdDev() const {
-        return sqrt(var());
+        return sqrt(variance());
     }
 
 	long        count_;
