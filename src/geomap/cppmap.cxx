@@ -798,9 +798,13 @@ class GeoMap::Face
         vigra_precondition(initialized(), "contains() of uninitialized face!");
         if(map_->labelImage_)
         {
-            int l = (*map_->labelImage_)[intVPos(point)];
-            if(l > 0 && (map_->faceLabelLUT_[l] == label_))
-                return true;
+            IVector2 iPos(intVPos(point));
+            if(map_->labelImage_->isInside(iPos))
+            {
+                int l = (*map_->labelImage_)[iPos];
+                if(l > 0 && (map_->faceLabelLUT_[l] == label_))
+                    return true;
+            }
         }
         unsigned int i = 0;
         if(label_)
@@ -3240,7 +3244,7 @@ struct GeoMapPickleSuite : bp::pickle_suite
         {
             faceFlags.append((*it)->flags());
         }
-        
+
         return bp::make_tuple(
             pySigmaMapping,
             map.edgesSorted(),
