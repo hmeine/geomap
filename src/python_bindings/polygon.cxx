@@ -1810,7 +1810,6 @@ void defPolygon()
         //.def("__init__", make_constructor(&createPolygon<Vector2Array>))
         .def("reverse", &Vector2Array::reverse)
         .def("interpolate", &Vector2Array::interpolate)
-        .def("arcLengthList", &arcLengthList<Vector2Array>)
         .def("__len__", &Vector2Array::size)
         .def("__getitem__", &Array__getitem__<Vector2Array>)
         .def("__setitem__", &Array__setitem__<Vector2Array>)
@@ -1858,6 +1857,7 @@ void defPolygon()
         .def("reverse", &PythonPolygon::reverse)
         .def("nearestPoint", &PythonPolygon::nearestPoint)
         .def("invalidateProperties", &PythonPolygon::invalidateProperties)
+        .def("arcLengthList", &arcLengthList<PythonPolygon>)
         .def_pickle(ArrayPickleSuite<PythonPolygon>())
     ;
     PolygonFromPython<PythonPolygon>();
@@ -1947,32 +1947,17 @@ void defPolygon()
         args("points", "connectivity");
 
     def("resamplePolygon",
-        (Vector2Array (*)(const Vector2Array &,double))&resamplePolygon,
-        args("points", "desiredPointDistance"));
-    def("resamplePolygon",
         (PythonPolygon (*)(const PythonPolygon &,double))&resamplePolygon,
         args("polygon", "desiredPointDistance"));
-    def("resamplePolygonLinearInterpolation",
-        (Vector2Array (*)(const Vector2Array &,double))&resamplePolygonLinearInterpolation,
-        args("points", "desiredPointDistance"));
     def("resamplePolygonLinearInterpolation",
         (PythonPolygon (*)(const PythonPolygon &,double))&resamplePolygonLinearInterpolation,
         args("polygon", "desiredPointDistance"));
     def("resamplePolygonExponentialFilter",
-        (Vector2Array (*)(const Vector2Array &,double,double))&resamplePolygonExponentialFilter,
-        args("points", "scale", "desiredPointDistance"));
-    def("resamplePolygonExponentialFilter",
         (PythonPolygon (*)(const PythonPolygon &,double,double))&resamplePolygonExponentialFilter,
         args("polygon", "scale", "desiredPointDistance"));
     def("resamplePolygonGaussianFilter",
-        (Vector2Array (*)(const Vector2Array &,double,double))&resamplePolygonGaussianFilter,
-        args("points", "scale", "desiredPointDistance"));
-    def("resamplePolygonGaussianFilter",
         (PythonPolygon (*)(const PythonPolygon &,double,double))&resamplePolygonGaussianFilter,
         args("polygon", "scale", "desiredPointDistance"));
-    def("polygonSplineControlPoints",
-        (Vector2Array (*)(const Vector2Array &,int))&polygonSplineControlPoints,
-        args("points", "segmentCount"));
     def("polygonSplineControlPoints",
         (PythonPolygon (*)(const PythonPolygon &,int))&polygonSplineControlPoints,
         args("polygon", "segmentCount"));

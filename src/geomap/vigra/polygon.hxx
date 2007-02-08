@@ -165,18 +165,6 @@ class PointArray
         return result;
     }
 
-    template <class Sequence>
-    void arcLengthList(Sequence & arcLengths) const
-    {
-        double length = 0.0;
-        arcLengths.push_back(0.0);
-        for(unsigned int i = 1; i < points_.size(); ++i)
-        {
-            length += (points_[i] - points_[i-1]).magnitude();
-            arcLengths.push_back(length);
-        }
-    }
-
   protected:
     InternalVector points_;
 };
@@ -620,6 +608,18 @@ class BBoxPolygon : public Polygon<POINT>
         static_cast<Base &>(result).swap(base);
         result.boundingBoxValid_ = boundingBoxValid_ = false;
         return result;
+    }
+
+    template <class Sequence>
+    void arcLengthList(Sequence & arcLengths) const
+    {
+        double length = 0.0;
+        arcLengths.push_back(0.0);
+        for(unsigned int i = 1; i < this->size(); ++i)
+        {
+            length += (this->points_[i] - this->points_[i-1]).magnitude();
+            arcLengths.push_back(length);
+        }
     }
 
     void swap(BBoxPolygon &rhs)
