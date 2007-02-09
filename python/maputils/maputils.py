@@ -35,6 +35,72 @@ def showMapStats(map):
               "their surrounding faces!" % (len(map.unembeddableContours), )
 
 # --------------------------------------------------------------------
+# 					 basic map cleanup operations
+# --------------------------------------------------------------------
+
+def removeCruft(map, what = 3, doChecks = False):
+    """removeCruft(map, what = 3, doChecks = False)
+    
+    what is a bit-combination of
+    1: for the removal of degree 0-nodes (default)
+    2: removal of degree 2-nodes (default)
+    4: removal of bridges
+    8: removal of edges (i.e. all non-protected)
+
+    if doChecks is True, consistency checks are performed after every
+    operation.  As soon as that fails, removeCruft returns False.
+
+    After normal operation, removeCruft returns the number of
+    operations performed."""
+
+    class OperationCounter(object):
+        def __init__(self):
+            self.count = 0
+
+        def perform(self, op, dart):
+            if op(dart):
+                self.count += 1
+            return True
+
+    class CarefulCounter(OperationCounter):
+        def perform(self, op, dart):
+            OperationCounter.perform(self, op, dart)
+            return checkConsistency(map)
+
+    if doChecks:
+        result = CarefulCounter()
+    else:
+        result = OperationCounter()
+
+    if what & 8:
+        for edge in map.edgeIter():
+            if edge.leftFaceLabel() != edge.rightFaceLabel():
+                if not result.perform(map.mergeFaces, edge.dart()):
+                    return False
+
+    if what & 4:
+        for edge in map.edgeIter():
+            if edge.leftFaceLabel() == edge.rightFaceLabel():
+                if not result.perform(map.removeBridge, edge.dart()):
+                    return False
+
+    if what & 2:
+        for node in map.nodeIter():
+            if node.degree() == 2 and \
+                   (node.anchor().endNode() != node):
+                if not result.perform(map.mergeEdges, node.anchor()):
+                    return False
+
+    if what & 1:
+        for node in map.nodeIter():
+            if node.degree() == 0:
+                if not result.perform(map.removeIsolatedNode, node):
+                    return False
+
+    print "removeCruft(): %d operations performed." % result.count
+    return result.count
+
+# --------------------------------------------------------------------
 #                             simple proxies
 # --------------------------------------------------------------------
 

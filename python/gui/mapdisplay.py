@@ -5,7 +5,7 @@ import fig, figexport, qt, sys, os, time, tools
 from vigra import BYTE, NBYTE, Point2D, Rect2D, Vector2, GrayImage
 from vigrapyqt import ImageWindow, EdgeOverlay, PointOverlay
 from hourglass import simplifyPolygon, intPos, BoundingBox
-from map import removeCruft, mergeZeroPixelFaces
+from maputils import removeCruft
 from weakref import ref
 
 # ui-generated base classes:
