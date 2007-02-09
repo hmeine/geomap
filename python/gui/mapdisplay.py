@@ -63,7 +63,6 @@ class MapEdges(object):
         if not self._map():
             return
         c = time.clock()
-        self._resizeCount = 0
         if len(self._zoomedEdges) != self._map().maxEdgeLabel():
             self._zoomedEdges = [None] * self._map().maxEdgeLabel()
         if hasattr(self._map(), "edges"):
@@ -83,9 +82,8 @@ class MapEdges(object):
                     expected += 1
                 self._calculateEdgePoints(label, edge)
                 expected = label + 1
-#         sys.stdout.write("MapEdges._calculatePoints(zoom = %s) took %ss "
-#                          "(%d undesirable resizes).\n" % (
-#             self._zoom, time.clock() - c, self._resizeCount))
+#         sys.stdout.write("MapEdges._calculatePoints(zoom = %s) took %ss.\n" % (
+#             self._zoom, time.clock() - c, ))
 
     def _calculateEdgePoints(self, index, origEdgePoints):
         offset = Vector2(self._zoom / 2.0 - 0.5, self._zoom / 2.0 - 0.5)
@@ -114,7 +112,6 @@ class MapEdges(object):
         # is not available here:
         if qpaIndex != qpa.size():
             qpa.resize(qpaIndex)
-            self._resizeCount += 1
 
         self._zoomedEdges[index] = qpa
         return qpa
