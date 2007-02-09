@@ -251,6 +251,9 @@ class PyDigitalStraightLine(object):
         self.is8Connected = False
         return self
 
+import hourglass
+from hourglass import LeaningType
+
 def DigitalStraightLine_plotEquation(self, leaningType = LeaningType.CenterLine):
     return ("%s*x + (%s)" % (self.slope(), self.axisIntercept(leaningType))).replace("/", "./")
 
@@ -265,7 +268,6 @@ def DigitalStraightLine8__repr__(self):
 def DigitalStraightLine4__repr__(self):
     return "DigitalStraightLine4(%d, %d, %d)" % (self.a, self.b, self.pos)
 
-import hourglass
 hourglass.DigitalStraightLine8.plotEquation = DigitalStraightLine_plotEquation
 hourglass.DigitalStraightLine8.plotItems = DigitalStraightLine_plotItems
 hourglass.DigitalStraightLine8.__repr__ = DigitalStraightLine8__repr__
