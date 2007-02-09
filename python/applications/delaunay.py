@@ -6,6 +6,7 @@ import math, sys, vigra, hourglass, numpy
 from hourglass import Polygon, simplifyPolygon, resamplePolygon
 #from map import GeoMap, contourPoly
 from hourglass import GeoMap, contourPoly
+from maputils import removeEdge
 from vigra import Vector2, Vector, dot
 
 try:
@@ -400,7 +401,7 @@ def catMap(delaunayMap,
     If you want to use the rectified CAT (with weak chords being
     suppressed), you would use removeWeakChords before calling catMap:
     
-    >>> del2 = copy.copy(del1) # don't modify original
+    >>> del2 = copy.copy(del1) # if you want to keep the original
     >>> removeWeakChords(del2)
     >>> rcat2 = delaunay.catMap(del2)
     """
@@ -413,9 +414,12 @@ def catMap(delaunayMap,
         junctionPos = junctionNodePosition
 
     result = GeoMap(delaunayMap.imageSize())
+    result.subtendedLengths = [0] # unused Edge 0
+    result.nodeChordLabels = []
 
+    faceChords = [None] * delaunayMap.maxFaceLabel()
+    boundaryLength = [None] * delaunayMap.maxFaceLabel()
     faceType = [None] * delaunayMap.maxFaceLabel()
-    innerDarts = [None] * delaunayMap.maxFaceLabel()
     nodeLabel = [None] * delaunayMap.maxFaceLabel()
 
     for face in delaunayMap.faceIter(skipInfinite = True):
@@ -425,11 +429,16 @@ def catMap(delaunayMap,
         assert face.holeCount() == 0
 
         chords = []
+        bl = 0.0
         for dart in face.contour().phiOrbit():
             if not dart.edge().flag(CONTOUR_SEGMENT):
                 chords.append(dart)
-
-        innerDarts[face.label()] = chords
+            else:
+                bl += dart.edge().length()
+        
+        boundaryLength[face.label()] = bl
+        faceChords[face.label()] = chords
+        
         # classify into terminal, sleeve, and junction triangles:
         if len(chords) < 2:
             faceType[face.label()] = "T"
@@ -443,6 +452,7 @@ def catMap(delaunayMap,
         # add nodes for non-sleeve triangles:
         if faceType[face.label()] != "S":
             nodeLabel[face.label()] = result.addNode(nodePos).label()
+            result.nodeChordLabels.append([chord.label() for chord in chords])
 
     for face in delaunayMap.faceIter(skipInfinite = True):
         if face.flag(OUTER_FACE):
@@ -450,13 +460,15 @@ def catMap(delaunayMap,
         
         if faceType[face.label()] != "S":
             #print faceType[face.label()] + "-triangle", face.label()
-            for dart in innerDarts[face.label()]:
+            for dart in faceChords[face.label()]:
                 #print "following limb starting with", dart
 
                 startNode = result.node(nodeLabel[face.label()])
                 edgePoints = []
+                subtendedBoundaryLength = 0.0
 
                 if faceType[face.label()] == "T":
+                    subtendedBoundaryLength += boundaryLength[face.label()]
                     if includeTerminalPositions:
                         # include opposite position
                         startNode.setPosition((dart.clone().nextPhi())[-1])
@@ -466,18 +478,20 @@ def catMap(delaunayMap,
                     dart.nextAlpha()
                     nextFace = dart.leftFace()
                     if faceType[nextFace.label()] == "S":
+                        subtendedBoundaryLength += boundaryLength[nextFace.label()]
                         # continue with opposite dart:
-                        if dart == innerDarts[nextFace.label()][0]:
-                            dart = innerDarts[nextFace.label()][1]
+                        if dart == faceChords[nextFace.label()][0]:
+                            dart = faceChords[nextFace.label()][1]
                         else:
-                            dart = innerDarts[nextFace.label()][0]
+                            dart = faceChords[nextFace.label()][0]
                     else:
-                        innerDarts[nextFace.label()].remove(dart)
+                        faceChords[nextFace.label()].remove(dart)
                         break
 
                 endNode = result.node(nodeLabel[nextFace.label()])
 
                 if faceType[nextFace.label()] == "T":
+                    subtendedBoundaryLength += boundaryLength[nextFace.label()]
                     if includeTerminalPositions:
                         endNode.setPosition((dart.clone().nextPhi())[-1])
 
@@ -487,6 +501,7 @@ def catMap(delaunayMap,
                     edgePoints.append(endNode.position())
 
                 result.addEdge(startNode.label(), endNode.label(), edgePoints)
+                result.subtendedLengths.append(subtendedBoundaryLength)
 
     result.initializeMap(initLabelImage = False)
 
@@ -494,23 +509,25 @@ def catMap(delaunayMap,
 
 # --------------------------------------------------------------------
 
+IS_BARB = 1024
+
 def _pruneBarbsInternal(skel):
     count = 0
     for edge in skel.edgeIter():
-        if edge.isBarb:
+        if edge.flag(IS_BARB):
             print "pruning", edge
             count += 1
             dart = edge.dart()
-            dart.map().removeBridge(dart)
+            removeEdge(dart)
         else:
-            del edge.isBarb
+            edge.setFlag(IS_BARB, False)
     return count
 
 def pruneBarbsByLength(skel, minLength):
     for edge in skel.edgeIter():
-        edge.isBarb = (edge.startNode().degree() == 1 or \
-                       edge.endNode().degree() == 1) and \
-                      edge.length() < minLength
+        edge.setFlag(IS_BARB,
+                     (edge.startNode().degree() == 1 or edge.endNode().degree() == 1)
+                     and edge.length() < minLength)
     return _pruneBarbsInternal(skel)
 
 def _leaveCircle(points, dir, center, radius):
@@ -525,9 +542,10 @@ def _leaveCircle(points, dir, center, radius):
 
 def pruneBarbsByDist(skel, maxDist):
     for edge in skel.edgeIter():
-        edge.isBarb = False
+        edge.setFlag(IS_BARB, False)
 
     maxCutLength = maxDist * math.pi # ;-)
+    barbNodeLabels = [None] * skel.maxEdgeLabel()
 
     for node in skel.nodeIter():
         if node.degree() != 1:
@@ -538,15 +556,15 @@ def pruneBarbsByDist(skel, maxDist):
         dart = node.anchor()
         while True:
             if (dart[0] - p).magnitude() < maxDist:
-                dart.edge().isBarb = True
+                dart.edge().setFlag(IS_BARB, True)
                 if (dart[-1] - p).magnitude() > maxCutLength:
-                    dart.edge().isBarb = False
-                    dart.edge().barbNodeLabel = (dart.startNodeLabel(), p)
+                    dart.edge().setFlag(IS_BARB, False)
+                    barbNodeLabels[dart.edgeLabel()] = (dart.startNodeLabel(), p)
             elif (dart[-1] - p).magnitude() < maxDist:
-                dart.edge().isBarb = True
+                dart.edge().setFlag(IS_BARB, True)
                 if (dart[0] - p).magnitude() > maxCutLength:
-                    dart.edge().isBarb = False
-                    dart.edge().barbNodeLabel = (dart.endNodeLabel(), p)
+                    dart.edge().setFlag(IS_BARB, False)
+                    barbNodeLabels[dart.edgeLabel()] = (dart.endNodeLabel(), p)
             if dart.nextPhi() == node.anchor():
                 break
 
@@ -556,21 +574,23 @@ def pruneBarbsByDist(skel, maxDist):
     shortenLength = maxCutLength * 2 / 3
 
     for edge in skel.edgeIter():
-        edge.isBarb = False
-        if hasattr(edge, "barbNodeLabel"):
+        if barbNodeLabels[edge.label()]:
             print "shortening", edge
-            barbNodeLabel, endPos = edge.barbNodeLabel
+            barbNodeLabel, endPos = barbNodeLabels[edge.label()]
             if barbNodeLabel == edge.startNodeLabel():
                 #i, p = arcLength2Pos(shortenLength, edge)
                 i = _leaveCircle(edge, 1, endPos, shortenLength)
                 if i < len(edge)-1:
-                    splitEdge(edge, i).isBarb = False
-                    edge.isBarb = True
+                    skel.splitEdge(edge, i).setFlag(IS_BARB, False)
+                    edge.setFlag(IS_BARB, True)
             else:
                 #i, p = arcLength2Pos(edge.length()-shortenLength, dart)
                 i = _leaveCircle(edge, -1, endPos, shortenLength)
+                if i < 0:
+                    i += len(edge)
                 if i < len(edge)-1:
-                    newEdge = splitEdge(edge, i).isBarb = True
+                    newEdge = skel.splitEdge(edge, i).setFlag(IS_BARB, True)
+                    edge.setFlag(IS_BARB, False)
 
     result += _pruneBarbsInternal(skel)
 
@@ -578,16 +598,16 @@ def pruneBarbsByDist(skel, maxDist):
 
 def pruneBarbs(skel):
     for edge in skel.edgeIter():
-        edge.isBarb = edge.startNode().degree() == 1 or \
-                      edge.endNode().degree() == 1
+        edge.setFlag(IS_BARB, edge.startNode().degree() == 1 or \
+                      edge.endNode().degree() == 1)
     return _pruneBarbsInternal(skel)
 
 def pruneByMorphologicalSignificance(skel, ratio = 0.1):
     for edge in skel.edgeIter():
-        edge.isBarb = False
+        edge.setFlag(IS_BARB, False)
 
         if edge.startNode().degree() == 1:
-            edge.isBarb = True
+            edge.setFlag(IS_BARB, True)
 
             endSide = edge.endSide[0]-edge.endSide[1]
             minDist = ratio * endSide.magnitude()
@@ -597,14 +617,14 @@ def pruneByMorphologicalSignificance(skel, ratio = 0.1):
 
             for p in edge:
                 if abs(dot(p - edge[-1], endNormal)) > minDist:
-                    edge.isBarb = False
+                    edge.setFlag(IS_BARB, False)
                     break
 
-            if edge.isBarb:
+            if edge.flag(IS_BARB):
                 continue # no need to test other side
 
         if edge.endNode().degree() == 1:
-            edge.isBarb = True
+            edge.setFlag(IS_BARB, True)
 
             startSide = edge.startSide[0]-edge.startSide[1]
             minDist = ratio * max(1.0, startSide.magnitude())
@@ -614,10 +634,23 @@ def pruneByMorphologicalSignificance(skel, ratio = 0.1):
 
             for p in edge:
                 if abs(dot(p - edge[0], startNormal)) > minDist:
-                    edge.isBarb = False
+                    edge.setFlag(IS_BARB, False)
                     break
 
     return _pruneBarbsInternal(skel)
+
+def pruneBySubtendedLength(skel, delaunayMap, ratio = 0.01):
+    changed = True
+
+    for edge in skel.edgeIter():
+        edge.setFlag(IS_BARB, edge.startNode().degree() == 1 or \
+                      edge.endNode().degree() == 1)
+
+    totalBL = sum(cm.subtendedLengths)
+    for edge in skel.edgeIter():
+        if edge.flag(IS_BARB) and \
+               cm.subtendedLengths[edge.label()] / totalBL >= ratio:
+            edge.setFlag(IS_BARB, False)
 
 # --------------------------------------------------------------------
 
