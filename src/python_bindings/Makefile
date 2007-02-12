@@ -22,13 +22,11 @@ OBJS = \
 	delaunay.lo \
 	cppmap.lo \
 	dsl.lo \
-# Ulli added the following to OBJS, uncomment if you need this:
-#    $(INT2BUILDDIR)/src/vigracmodule/.libs/pythonimage.o
 
 IMPEX_LIB = `vigra-config --impex_lib`
 
 $(TARGET): $(OBJS)
-	$(LINKCXXMODULE) -o $(TARGET) $(OBJS) $(BOOST_PYTHON_LIB) $(dynmoddir)/vigracmodule.la `pkg-config --libs sigc++-2.0`
+	$(LINKCXXMODULE) -o $(TARGET) $(OBJS) $(BOOST_PYTHON_LIB) `pkg-config --libs sigc++-2.0` `vigra-interactive-config --pythonimage-lib`
 	test -s $(MODULE) || ln -s .libs/$(MODULE) .
 
 install: $(TARGET)
