@@ -119,12 +119,13 @@ cppmap = hourglass.GeoMap(*amap.__getstate__()[:3])
 #          run the following from within ../subpixelWatersheds
 # --------------------------------------------------------------------
 
-from map import Map, addFlowLinesToMap
+import map as spmap, maputils
 
 print "\n- creating Map from maxima2/flowlines2..."
 execfile("testSPWS")
-pythonMap = Map(maxima2, flowlines2, Size2D(39, 39),
-                performEdgeSplits = False, performBorderClosing = False)
+pythonMap = spmap.GeoMap(maxima2, flowlines2, Size2D(39, 39))
+pythonMap.sortEdgesEventually(0.2, 0.05)
+pythonMap.initializeMap()
 
 if pythonMap.unsortable:
     sys.stderr.write("### UNSORTABLE HANDLING NOT DONE IN C++ YET, SKIPPING...\n")
@@ -132,10 +133,9 @@ else:
     cppmap = hourglass.GeoMap([], [], Size2D(39, 39))
     cppnodes = [node and cppmap.addNode(node) for node in maxima2]
     assert cppnodes[-1].label() == len(maxima2)-1, "Oops, label shift :-("
-    addFlowLinesToMap(flowlines2, cppmap)
+    maputils.addFlowLinesToMap(flowlines2, cppmap)
     cppmap.sortEdgesEventually(0.2, 0.05)
-    cppmap.initContours()
-    cppmap.embedFaces()
+    cppmap.initializeMap()
 
 # --------------------------------------------------------------------
 
