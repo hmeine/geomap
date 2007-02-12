@@ -341,7 +341,7 @@ def _middleOfLongestSide(p1, p2, p3):
     s.sort()
     return s[2][1] / 2
 
-def junctionNodePosition(triangle, chords):
+def junctionNodePosition(chords):
     """Defition of node position for junction triangles from original
     CAT article (works only for triangles, uses circumcenter if
     possible).  Use this if possible."""
@@ -349,11 +349,11 @@ def junctionNodePosition(triangle, chords):
     p2 = chords[1][0]
     p3 = chords[2][0]
     circumCenter, circumRadius = circumCircle(p1, p2, p3)
-    if triangle.contains(circumCenter):
+    if chords[0].leftFace().contains(circumCenter):
         return circumCenter
     return _middleOfLongestSide(p1, p2, p3)
 
-def rectifiedJunctionNodePosition(triangle, chords):
+def rectifiedJunctionNodePosition(chords):
     """Defition of node position for junction triangles from rectified
     CAT article.  Not as good as the original definition for
     triangles, but works for other polygons, too."""
@@ -447,12 +447,12 @@ def catMap(delaunayMap,
             faceType[face.label()] = "S"
         else:
             faceType[face.label()] = "J"
-            nodePos = junctionPos(face, chords)
+            nodePos = junctionPos(chords)
 
         # add nodes for non-sleeve triangles:
         if faceType[face.label()] != "S":
             nodeLabel[face.label()] = result.addNode(nodePos).label()
-            result.nodeChordLabels.append([chord.label() for chord in chords])
+            result.nodeChordLabels.append([])
 
     for face in delaunayMap.faceIter(skipInfinite = True):
         if face.flag(OUTER_FACE):
@@ -464,6 +464,7 @@ def catMap(delaunayMap,
                 #print "following limb starting with", dart
 
                 startNode = result.node(nodeLabel[face.label()])
+                startDart = dart.clone()
                 edgePoints = []
                 subtendedBoundaryLength = 0.0
 
@@ -500,8 +501,16 @@ def catMap(delaunayMap,
                 if edgePoints[-1] != endNode.position():
                     edgePoints.append(endNode.position())
 
-                result.addEdge(startNode.label(), endNode.label(), edgePoints)
+                sleeve = result.addEdge(
+                    startNode.label(), endNode.label(), edgePoints)
+
                 result.subtendedLengths.append(subtendedBoundaryLength)
+                if faceType[face.label()] == "J":
+                    result.nodeChordLabels[startNode.label()].append(
+                        (sleeve.label(), startDart.label()))
+                if faceType[nextFace.label()] == "J":
+                    result.nodeChordLabels[endNode.label()].append(
+                        (sleeve.label(), dart.label()))
 
     result.initializeMap(initLabelImage = False)
 
@@ -639,18 +648,45 @@ def pruneByMorphologicalSignificance(skel, ratio = 0.1):
 
     return _pruneBarbsInternal(skel)
 
-def pruneBySubtendedLength(skel, delaunayMap, ratio = 0.01):
+def pruneBySubtendedLength(skel, delaunayMap, ratio = 0.01,
+                           rectified = True):
     changed = True
+    result = 0
 
-    for edge in skel.edgeIter():
-        edge.setFlag(IS_BARB, edge.startNode().degree() == 1 or \
-                      edge.endNode().degree() == 1)
+    while changed:
+        changed = False
 
-    totalBL = sum(cm.subtendedLengths)
-    for edge in skel.edgeIter():
-        if edge.flag(IS_BARB) and \
-               cm.subtendedLengths[edge.label()] / totalBL >= ratio:
-            edge.setFlag(IS_BARB, False)
+        totalBL = sum(skel.subtendedLengths)
+        for edge in skel.edgeIter():
+            subtendedBoundaryLength = skel.subtendedLengths[edge.label()]
+            if subtendedBoundaryLength / totalBL >= ratio:
+                continue
+            
+            dart = edge.dart()
+            if dart.startNode().degree() > 1:
+                dart.nextAlpha()
+            if dart.startNode().degree() > 1:
+                continue # no barb (yet?)
+
+            neighbor = dart.clone().nextPhi()
+            skel.subtendedLengths[neighbor.edgeLabel()] += subtendedBoundaryLength
+
+            # correct junction node position when cutting off sleeve:
+            if rectified and dart.endNode().degree() > 1:
+                chordLabels = skel.nodeChordLabels[dart.endNodeLabel()]
+                for i, (sleeve, _) in enumerate(chordLabels):
+                    if sleeve == dart.edgeLabel():
+                        del chordLabels[i]
+                        dart.endNode().setPosition(
+                            rectifiedJunctionNodePosition(
+                            [delaunayMap.dart(dl) for _, dl in chordLabels]))
+                        break
+
+            skel.removeEdge(dart)
+            changed = True
+            result += 1
+
+    return result
 
 # --------------------------------------------------------------------
 
