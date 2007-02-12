@@ -28,7 +28,7 @@ install: $(CELLIMAGE_TARGET)
 	$(LIBINSTALL) $(CELLIMAGE_TARGET) $(dynmoddir)
 
 $(CELLIMAGE_TARGET): $(CELLIMAGE_OBJS)
-	$(LINKCXXMODULE) -o $(CELLIMAGE_TARGET) $(CELLIMAGE_OBJS) $(BOOST_PYTHON_LIB) $(dynmoddir)/vigracmodule.la
+	$(LINKCXXMODULE) -o $(CELLIMAGE_TARGET) $(CELLIMAGE_OBJS) $(BOOST_PYTHON_LIB)  `vigra-interactive-config --pythonimage-lib`
 
 testfoureight: testfoureight.o foureightsegmentation.o
 	$(CXX) -o testfoureight testfoureight.o foureightsegmentation.o `vigra-config --impex-lib`
