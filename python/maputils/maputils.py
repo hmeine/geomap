@@ -3,6 +3,174 @@ import hourglass
 BORDER_PROTECTION = 1
 
 # --------------------------------------------------------------------
+# 						 map creation helpers
+# --------------------------------------------------------------------
+
+def addFlowLinesToMap(edges, map):
+    # Node 0 conflicts with our special handling of 0 values:
+    assert not map.node(0), \
+           "addFlowLinesToMap: Node with label zero should not exist!"
+
+    result = []
+    for edgeLabel, edgeTriple in enumerate(edges):
+        if not edgeTriple:
+            continue
+        startNodeLabel = edgeTriple[0]
+        endNodeLabel = edgeTriple[1]
+        points = Polygon(edgeTriple[2]) # don't modify original flowlines
+
+        assert len(points) >= 2, "edges need to have at least two (end-)points"
+
+        # FIXME: now, we allow jumping back, replacing the last edge
+        # point with the node position.  For this, a distance of 0.25
+        # could be too much - remove more points?
+
+        # if flowlines do not end in a maximum (their end labels
+        # are negative), we assign end nodes to them:
+        if startNodeLabel <= 0:
+            pos = points[0]
+            nearestNode = map.nearestNode(pos, 0.25)
+            # if there is already a node nearby and in the right
+            # direction (prevents loops), attach edge to it:
+            if nearestNode:
+                diff = nearestNode.position() - pos
+                # we are not interested in creating short, unsortable self-loops:
+                if nearestNode.label() != endNodeLabel:
+                    startNodeLabel = nearestNode.label()
+                    if dot(diff, pos - points[1]) >= 0: # don't jump back
+                        if diff.squaredMagnitude():
+                            # include node position if not present
+                            points.insert(0, nearestNode.position())
+                    else:
+                        points[0] = nearestNode.position()
+            else: # no suitable Node found -> add one
+                startNodeLabel = map.addNode(pos).label()
+
+        # ..handle Edge end the same as the start:
+        if endNodeLabel <= 0:
+            pos = points[-1]
+            nearestNode = map.nearestNode(pos, 0.25)
+            if nearestNode:
+                diff = nearestNode.position() - pos
+                if nearestNode.label() != startNodeLabel:
+                    endNodeLabel = nearestNode.label()
+                    if dot(diff, pos - points[-2]) >= 0:
+                        if diff.squaredMagnitude():
+                            points.append(nearestNode.position())
+                    else:
+                        points[-1] = nearestNode.position()
+            else:
+                endNodeLabel = map.addNode(pos).label()
+
+        if len(points) == 2 and points[0] == points[1]:
+            # don't add self-loops with area zero
+            continue
+        if startNodeLabel > 0 and endNodeLabel > 0:
+            map.addEdge(startNodeLabel, endNodeLabel, points, edgeLabel)
+        else:
+            result.append((startNodeLabel, endNodeLabel, points))
+
+    return result
+
+def connectBorderNodes(map, epsilon,
+                       samePosEpsilon = 1e-6, aroundPixels = False):
+    dist = aroundPixels and 0.5 or 0.0
+    x1, y1 = -dist, -dist
+    x2, y2 = map.imageSize()[0] - 1 + dist, map.imageSize()[1] - 1 + dist
+
+    left = []
+    right = []
+    top = []
+    bottom = []
+    for node in map.nodeIter():
+        p = node.position()
+        if   p[0] > x2 - epsilon:
+            right.append(node)
+        elif p[0] < x1 + epsilon:
+            left.append(node)
+        elif p[1] > y2 - epsilon:
+            bottom.append(node)
+        elif p[1] < y1 + epsilon:
+            top.append(node)
+
+    def XPosCompare(node1, node2):
+        return cmp(node1.position()[0], node2.position()[0])
+
+    def YPosCompare(node1, node2):
+        return cmp(node1.position()[1], node2.position()[1])
+
+    left.sort(YPosCompare); left.reverse()
+    right.sort(YPosCompare)
+    top.sort(XPosCompare)
+    bottom.sort(XPosCompare); bottom.reverse()
+
+    borderEdges = []
+    lastNode = None
+
+    lastPoints = [Vector2(x1, y1)]
+    for node in top:
+        thisPoints = []
+        if node.position()[1] > y1 + samePosEpsilon:
+            thisPoints.append(Vector2(node.position()[0], y1))
+        thisPoints.append(node.position())
+        lastPoints.extend(thisPoints)
+        borderEdges.append((lastPoints, node))
+        thisPoints.reverse()
+        lastPoints = thisPoints
+        lastNode = node
+
+    lastPoints.append(Vector2(x2, y1))
+    for node in right:
+        thisPoints = []
+        if node.position()[0] < x2 - samePosEpsilon:
+            thisPoints.append(Vector2(x2, node.position()[1]))
+        thisPoints.append(node.position())
+        lastPoints.extend(thisPoints)
+        borderEdges.append((lastPoints, node))
+        thisPoints.reverse()
+        lastPoints = thisPoints
+        lastNode = node
+
+    lastPoints.append(Vector2(x2, y2))
+    for node in bottom:
+        thisPoints = []
+        if node.position()[1] < y2 - samePosEpsilon:
+            thisPoints.append(Vector2(node.position()[0], y2))
+        thisPoints.append(node.position())
+        lastPoints.extend(thisPoints)
+        borderEdges.append((lastPoints, node))
+        thisPoints.reverse()
+        lastPoints = thisPoints
+        lastNode = node
+
+    lastPoints.append(Vector2(x1, y2))
+    for node in left:
+        thisPoints = []
+        if node.position()[0] > x1 + samePosEpsilon:
+            thisPoints.append(Vector2(x1, node.position()[1]))
+        thisPoints.append(node.position())
+        lastPoints.extend(thisPoints)
+        borderEdges.append((lastPoints, node))
+        thisPoints.reverse()
+        lastPoints = thisPoints
+        lastNode = node
+
+    if not borderEdges:
+        return
+
+    lastPoints.extend(borderEdges[0][0])
+    borderEdges[0] = (lastPoints, borderEdges[0][1])
+
+    from maputils import BORDER_PROTECTION
+
+    endNodeLabel = lastNode.label()
+    for points, node in borderEdges:
+        startNodeLabel = endNodeLabel
+        endNodeLabel = node.label()
+        map.addEdge(startNodeLabel, endNodeLabel, points) \
+                        .setFlag(BORDER_PROTECTION)
+
+# --------------------------------------------------------------------
 
 def showMapStats(map):
     """showMapStats(map)

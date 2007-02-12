@@ -1,6 +1,6 @@
 import copy, sys, time
 from hourglass import GeoMap
-from map import connectBorderNodes
+from maputils import connectBorderNodes
 
 # --------------------------------------------------------------------
 #                              FRONTEND
