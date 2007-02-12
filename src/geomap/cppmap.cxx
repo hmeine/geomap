@@ -925,13 +925,13 @@ void GeoMap::Node::setPosition(const vigra::Vector2 &p)
     position_ = p;
     for(unsigned int i = 0; i < darts_.size(); ++i)
     {
-        if(i > 0)
+        if(darts_[i] > 0)
         {
-            (*map_->edge( i))[ 0] = p;
+            (*map_->edge(darts_[i]))[ 0] = p;
         }
         else
         {
-            GeoMap::Edge &edge(*map_->edge(-(int)i));
+            GeoMap::Edge &edge(*map_->edge(-darts_[i]));
             edge[edge.size()-1] = p;
         }
     }
