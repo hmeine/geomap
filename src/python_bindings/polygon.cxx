@@ -42,6 +42,12 @@ Box *createBoxFromRect2D(const Rect2D &r)
 }
 
 template<class Box>
+inline Rect2D intPos_Box(const Box &b)
+{
+    return Rect2D(intPos(b.begin()), intPos(b.end())+Size2D(1,1));
+}
+
+template<class Box>
 PyObject * Box__repr__(Box const & b)
 {
     std::stringstream s;
@@ -1788,7 +1794,6 @@ tuple delaunay(const PointArray<Vector2> &points)
 
 void defPolygon()
 {
-    def("intPos", &intPos);
     def("angleTheta", &angleTheta,
         "angleTheta(dy, dx)\n"
         "  calculates an efficient substitute value with the same sorting behavior\n"
@@ -2111,4 +2116,7 @@ void defPolygon()
                       "the number of values included in the fit")
     ;
     def("delaunay", &delaunay);
+
+    def("intPos", &intPos);
+    def("intPos", &intPos_Box<BoundingBox>);
 }
