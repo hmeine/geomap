@@ -70,6 +70,7 @@ class GeoMap::Node
             map_->nodeMap_.nearest(PositionedNodeLabel(position_, label_),
                                    vigra::NumericTraits<double>::epsilon()));
         RESET_PTR(map_->nodes_[label_]); // may have effect like "delete this;"
+        map_ = NULL;
 #ifdef USE_INSECURE_CELL_PTRS
         delete this;
 #endif
@@ -162,6 +163,7 @@ class GeoMap::Edge
     {
         --map_->edgeCount_;
         RESET_PTR(map_->edges_[label_]); // may have effect like "delete this;"
+        map_ = NULL;
 #ifdef USE_INSECURE_CELL_PTRS
         delete this;
 #endif
@@ -765,6 +767,7 @@ class GeoMap::Face
     {
         --map_->faceCount_;
         RESET_PTR(map_->faces_[label_]); // may have effect like "delete this;"
+        map_ = NULL;
 #ifdef USE_INSECURE_CELL_PTRS
         delete this;
 #endif
