@@ -532,13 +532,6 @@ def _pruneBarbsInternal(skel):
             edge.setFlag(IS_BARB, False)
     return count
 
-def pruneBarbsByLength(skel, minLength):
-    for edge in skel.edgeIter():
-        edge.setFlag(IS_BARB,
-                     (edge.startNode().degree() == 1 or edge.endNode().degree() == 1)
-                     and edge.length() < minLength)
-    return _pruneBarbsInternal(skel)
-
 def _leaveCircle(points, dir, center, radius):
     r2 = radius * radius
     i = dir
@@ -648,18 +641,43 @@ def pruneByMorphologicalSignificance(skel, ratio = 0.1):
 
     return _pruneBarbsInternal(skel)
 
-def pruneBySubtendedLength(skel, delaunayMap, ratio = 0.01,
-                           rectified = True):
+def pruneBySubtendedLength(skelMap, delaunayMap = None,
+                           minLength = None,
+                           ratio = None):
+    """pruneBySubtendedLength(skelMap, ...)
+
+    Prunes CAT skeletons by thresholding the boundary length subtended
+    by each terminal sleeve.  You can pass either of the following two
+    arguments to determine the threshold:
+
+    minLength: minimal boundary length in pixels
+
+    ratio: fraction of total boundary length (default: 0.01 == 1%)
+
+    Also, you can pass the delaunayMap which the skelMap has been
+    extracted from as second argument; this allows this function to
+    re-calculate the junction node positions from the remaining
+    chords.  (Very useful if and only if using the rectified CAT.)
+
+    Examples:
+
+    pruneBySubtendedLength(catMap, delMap, minLength = 3)
+    pruneBySubtendedLength(catMap, delMap, ratio = 0.02)
+    pruneBySubtendedLength(catMap) # use default: 1%"""
+    
     changed = True
     result = 0
+
+    if minLength == None:
+        totalBL = sum(skelMap.subtendedLengths)
+        minLength = (ratio or 0.01) * totalBL
 
     while changed:
         changed = False
 
-        totalBL = sum(skel.subtendedLengths)
-        for edge in skel.edgeIter():
-            subtendedBoundaryLength = skel.subtendedLengths[edge.label()]
-            if subtendedBoundaryLength / totalBL >= ratio:
+        for edge in skelMap.edgeIter():
+            subtendedBoundaryLength = skelMap.subtendedLengths[edge.label()]
+            if subtendedBoundaryLength >= minLength:
                 continue
             
             dart = edge.dart()
@@ -669,11 +687,12 @@ def pruneBySubtendedLength(skel, delaunayMap, ratio = 0.01,
                 continue # no barb (yet?)
 
             neighbor = dart.clone().nextPhi()
-            skel.subtendedLengths[neighbor.edgeLabel()] += subtendedBoundaryLength
+            skelMap.subtendedLengths[neighbor.edgeLabel()] \
+                += subtendedBoundaryLength
 
             # correct junction node position when cutting off sleeve:
-            if rectified and dart.endNode().degree() > 1:
-                chordLabels = skel.nodeChordLabels[dart.endNodeLabel()]
+            if delaunayMap and dart.endNode().degree() > 1:
+                chordLabels = skelMap.nodeChordLabels[dart.endNodeLabel()]
                 for i, (sleeve, _) in enumerate(chordLabels):
                     if sleeve == dart.edgeLabel():
                         del chordLabels[i]
@@ -682,7 +701,7 @@ def pruneBySubtendedLength(skel, delaunayMap, ratio = 0.01,
                             [delaunayMap.dart(dl) for _, dl in chordLabels]))
                         break
 
-            skel.removeEdge(dart)
+            skelMap.removeEdge(dart)
             changed = True
             result += 1
 
