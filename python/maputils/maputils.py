@@ -204,7 +204,7 @@ def connectBorderNodes(map, epsilon,
                         .setFlag(BORDER_PROTECTION)
 
 # --------------------------------------------------------------------
-# 						  consistency checks
+#                         consistency checks
 # --------------------------------------------------------------------
 
 class _CLCFaceLookup(object):
@@ -527,9 +527,27 @@ def thresholdMergeCost(map, mergeCostFunctor, maxCost, costs = None, q = None):
     return result, q
 
 # --------------------------------------------------------------------
+#                   topological utility functions
+# --------------------------------------------------------------------
+
+def neighbors(face, unique = True):
+    """neighbors(face, unique = True) -> list
+
+    Returns a list of adjacent faces, by default without duplicates
+    (in case of multiple common edges)."""
+    
+    result = []
+    for anchor in face.contours():
+        for dart in anchor.phiOrbit():
+            result.append(dart.rightFace())
+    if unique:
+        result = dict.fromkeys(result).keys()
+    return result
 
 def holeComponent(dart, includeExterior = False):
-    """Returns list of all faces of the connected combinatorial map of
+    """holeComponent(dart, includeExterior = False) -> list
+
+    Returns list of all faces of the connected combinatorial map of
     the given dart.  If includeExterior is True, the first element of
     the result is dart.leftFace() (which is expected to be the face
     the above map is embedded in).  By default, this face is not
