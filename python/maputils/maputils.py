@@ -1,12 +1,27 @@
-import hourglass
+import hourglass, sys
+from vigra import * # FIXME?
 
 BORDER_PROTECTION = 1
 
 # --------------------------------------------------------------------
-# 						 map creation helpers
+#                        map creation helpers
 # --------------------------------------------------------------------
 
 def addFlowLinesToMap(edges, map):
+    """addFlowLinesToMap(edges, map)
+
+    This function expects `edges` to be a list of
+    SubPixelWatersheds.edge() return values and adds edges for each
+    flowline.  It contains some special handling of flowlines:
+
+    * Additional Nodes may be added for flowlines that did not end in
+      a maximum - extra care is taken not to insert multiple Nodes at
+      (nearly) the same position.
+
+    * Self-loops with area zero are not added.
+
+    Returns edgeTriples that could not be added to the GeoMap."""
+    
     # Node 0 conflicts with our special handling of 0 values:
     assert not map.node(0), \
            "addFlowLinesToMap: Node with label zero should not exist!"
@@ -17,7 +32,7 @@ def addFlowLinesToMap(edges, map):
             continue
         startNodeLabel = edgeTriple[0]
         endNodeLabel = edgeTriple[1]
-        points = Polygon(edgeTriple[2]) # don't modify original flowlines
+        points = hourglass.Polygon(edgeTriple[2]) # don't modify original flowlines
 
         assert len(points) >= 2, "edges need to have at least two (end-)points"
 
@@ -64,7 +79,9 @@ def addFlowLinesToMap(edges, map):
 
         if len(points) == 2 and points[0] == points[1]:
             # don't add self-loops with area zero
+            result.append((startNodeLabel, endNodeLabel, points))
             continue
+        
         if startNodeLabel > 0 and endNodeLabel > 0:
             map.addEdge(startNodeLabel, endNodeLabel, points, edgeLabel)
         else:
@@ -74,6 +91,22 @@ def addFlowLinesToMap(edges, map):
 
 def connectBorderNodes(map, epsilon,
                        samePosEpsilon = 1e-6, aroundPixels = False):
+    """connectBorderNodes(map, epsilon,
+                       samePosEpsilon = 1e-6, aroundPixels = False)
+
+    Inserts border edges around (see below for details) the image into
+    `map`; all Nodes which are less than `epsilon` pixels away from
+    that border are connected to it.  If the distance is larger than
+    samePosEpsilon, an extra perpendicular edge is used for the
+    connection, otherwise the border will run through the existing
+    node.
+
+    The optional parameter aroundPixels determines the position of the
+    border: If it is set to False (default), the border will run
+    through the pixel centers, i.e. from 0/0 to w-1/h-1 (where w,h =
+    map.imageSize()).  Otherwise, the border will run around the pixel
+    facets, i.e. be 0.5 larger in each direction."""
+    
     dist = aroundPixels and 0.5 or 0.0
     x1, y1 = -dist, -dist
     x2, y2 = map.imageSize()[0] - 1 + dist, map.imageSize()[1] - 1 + dist
@@ -171,6 +204,52 @@ def connectBorderNodes(map, epsilon,
                         .setFlag(BORDER_PROTECTION)
 
 # --------------------------------------------------------------------
+# 						  consistency checks
+# --------------------------------------------------------------------
+
+class _CLCFaceLookup(object):
+    def __init__(self, map):
+        self._map = map
+        self.errorCount = 0
+        self.errorLabels = []
+        self.pixelAreas = [0] * map.maxFaceLabel()
+
+    def __call__(self, faceLabel):
+        if faceLabel < 0:
+            return
+        faceLabel = int(faceLabel)
+        self.pixelAreas[faceLabel] += 1
+        try:
+            assert self._map.face(faceLabel) != None
+        except:
+            self.errorCount += 1
+            if not faceLabel in self.errorLabels:
+                self.errorLabels.append(faceLabel)
+
+def checkLabelConsistency(map):
+    """Checks that no unknown positive/face labels occur in the
+    labelimage, and that each face's pixelArea() is correct."""
+    fl = _CLCFaceLookup(map)
+    labelImage = map.labelImage()
+    inspectImage(labelImage, fl)
+    if fl.errorCount:
+        sys.stderr.write("labelImage contains %d pixels with unknown faces!\n" % (
+            fl.errorCount, ))
+        sys.stderr.write("  unknown face labels found: %s\n" % (fl.errorLabels, ))
+        if fl.errorCount < 40:
+            for p in labelImage.size():
+                if int(labelImage[p]) in fl.errorLabels:
+                    print "   label %d at %s" % (int(labelImage[p]), p)
+    result = (fl.errorCount == 0)
+    for face in map.faceIter(skipInfinite = True):
+        if face.pixelArea() != fl.pixelAreas[face.label()]:
+            sys.stderr.write(
+                "pixel area of Face %d is wrong (%d, should be %d)\n" %
+                (face.label(), face.pixelArea(), fl.pixelAreas[face.label()]))
+            result = False
+    return result
+
+# --------------------------------------------------------------------
 
 def showMapStats(map):
     """showMapStats(map)
@@ -202,8 +281,11 @@ def showMapStats(map):
         print "%d outer contours could not be embedded into " \
               "their surrounding faces!" % (len(map.unembeddableContours), )
 
+def degree2Nodes(map):
+    return [node for node in map.nodeIter() if node.degree() == 2]
+
 # --------------------------------------------------------------------
-# 					 basic map cleanup operations
+#                    basic map cleanup operations
 # --------------------------------------------------------------------
 
 def removeCruft(map, what = 3, doChecks = False):
@@ -267,6 +349,19 @@ def removeCruft(map, what = 3, doChecks = False):
 
     print "removeCruft(): %d operations performed." % result.count
     return result.count
+
+def removeSmallRegions(map, minArea):
+    result = 0
+    for face in map.faceIter(skipInfinite = True):
+        if face.area() < minArea:
+            po = list(face.contour().phiOrbit())
+            if len(po) > 1:
+                sys.stderr.write("WARNING: removeSmallRegions() has to decide about neighbor\n  which %s is to be merged into!\n" % face)
+            for dart in po:
+                if mergeFacesCompletely(dart):
+                    result += 1
+                    break
+    return result
 
 # --------------------------------------------------------------------
 #                             simple proxies
