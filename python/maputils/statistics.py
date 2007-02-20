@@ -5,7 +5,7 @@ import math, string, copy
 from weakref import ref
 from vigra import *
 from hourglass import PositionedMap, EdgeStatistics, \
-     spatialStabilityImage, tangentList
+     spatialStabilityImage, tangentList, resamplePolygon
 import sivtools
 from map import arcLengthIter
 
@@ -78,7 +78,7 @@ class DynamicFaceStatistics(DetachableStatistics):
             map.addMergeFacesCallbacks(self.preMergeFaces, self.postMergeFaces),
             map.addAssociatePixelsCallback(self.associatePixels))
 
-from Numeric import arange
+from numpy import arange
 
 # new API: does not touch the Face objects themselves
 class FaceColorStatistics(DynamicFaceStatistics):
@@ -202,9 +202,12 @@ class FaceColorStatistics(DynamicFaceStatistics):
 
     def faceMeanDiff(self, dart):
         f = self._functors
+#         if (dart.leftFaceLabel() & 1) ^ (dart.rightFaceLabel() & 1):
+#             return 0.5
+#         return 0.05
         m1 = f[dart.leftFaceLabel()].average()
         m2 = f[dart.rightFaceLabel()].average()
-        return norm(m1 - m2) / self._diffNorm
+        return (m1 - m2).norm() / self._diffNorm
 
     def facePoissonLikelyhoodRatio(self, dart):
         f1 = self.faceMeanFunctor(dart.leftFaceLabel())
@@ -452,37 +455,53 @@ def _makeAttrName(someStr):
     return someStr.translate(attrTrans)
 
 class BoundaryIndicatorStatistics(DynamicEdgeStatistics):
-    def __init__(self, map, attrName):
-        self.attrName = _makeAttrName(attrName)
+    def __init__(self, map):
+        self._functors = [None] * map.maxEdgeLabel()
 
     def preMergeEdges(self, dart):
-        self.mergedStats = copy.copy(getattr(dart.edge(), self.attrName))
+        self.mergedStats = copy.copy(self._functors[dart.edgeLabel()])
         self.mergedStats.merge(
-            getattr(dart.clone().nextSigma().edge(), self.attrName))
+            self._functors[dart.clone().nextSigma().edgeLabel()])
         return True
 
+    def __getitem__(self, index):
+#         if hasattr(index, "label"):
+#             index = index.label()
+        return self._functors[index]
+
     def postMergeEdges(self, survivor):
-        setattr(survivor, self.attrName, self.mergedStats)
+        self._functors[survivor.label()] = self.mergedStats
 
 class EdgeGradientStatistics(BoundaryIndicatorStatistics):
-    def __init__(self, map, bi):
-        BoundaryIndicatorStatistics.__init__(self, map, "mag_" + bi.name)
+    def __init__(self, map, gmSiv, resample = None):
+        BoundaryIndicatorStatistics.__init__(self, map)
         for edge in map.edgeIter():
-            setattr(edge, self.attrName, EdgeStatistics(edge, bi.gm.siv))
+            poly = resample and resamplePolygon(edge, resample) or edge
+            self._functors[edge.label()] = EdgeStatistics(poly, gmSiv)
         self.attach(map)
 
+    def minGradient(self, dart):
+        return self._functors[dart.edgeLabel()].quantile(0.0)
+
+    def maxGradient(self, dart):
+        return self._functors[dart.edgeLabel()].quantile(1.0)
+
+    def quantile(self, q):
+        def specificQuantile(dart, q = q, egs = self):
+            return self._functors[dart.edgeLabel()].quantile(1)
+        return specificQuantile
+
 # USAGE:
-# >>> boundaryIndicator = ...
-# >>> boundaryIndicator.name = 'grad_1.4'
-# >>> EdgeGradientStatistics(map, boundaryIndicator)
-# >>> map.edge(100).mag_grad_1_4.average()
+# >>> boundaryIndicator = SplineImageView5(...)
+# >>> egs = EdgeGradientStatistics(map, boundaryIndicator)
+# >>> egs[100].average()
 # 1.178475851870056
-# >>> map.edge(100).mag_grad_1_4.quantile(0.4)
+# >>> egs[100].quantile(0.4)
 # 1.1785515546798706
 
 class EdgeGradDirDotStatistics(BoundaryIndicatorStatistics):
     def __init__(self, map, bi):
-        BoundaryIndicatorStatistics.__init__(self, map, "dirdot_" + bi.name)
+        BoundaryIndicatorStatistics.__init__(self, map)
 
         assert hasattr(map.edgeIter().next(), "tangents"), \
                """Edge does not have 'tangents' attribute!
@@ -513,7 +532,7 @@ class EdgeGradDirDotStatistics(BoundaryIndicatorStatistics):
                 segment = Vector2(math.cos(theta), math.sin(theta))
                 stats(1.0 - abs(dot(gradDir, segment)), 1.0)
 
-            setattr(edge, self.attrName, stats)
+            self._functors[edge.label()] = stats
 
         self.attach(map)
 
