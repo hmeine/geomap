@@ -718,15 +718,16 @@ class GeoMap::Face
     typedef Contours::const_iterator ContourIterator;
 
   protected:
-    GeoMap             *map_;
-    CellLabel           label_;
-    std::vector<Dart>   anchors_;
-    unsigned int        flags_;
-    mutable BoundingBox boundingBox_;
-    mutable bool        boundingBoxValid_;
-    mutable double      area_;
-    mutable bool        areaValid_;
-    unsigned int        pixelArea_;
+    GeoMap              *map_;
+    CellLabel            label_;
+    std::vector<Dart>    anchors_;
+    mutable unsigned int flags_;
+    mutable BoundingBox  boundingBox_;
+    mutable double       area_;
+    unsigned int         pixelArea_;
+
+    static const unsigned int BOUNDING_BOX_VALID = 0x8000000;
+    static const unsigned int AREA_VALID         = 0x4000000;
 
     friend class GeoMap; // give access to pixelArea_ and anchors_ (Euler ops...)
 
@@ -737,8 +738,6 @@ class GeoMap::Face
     : map_(map),
       label_(map->faces_.size()),
       flags_(0),
-      boundingBoxValid_(false),
-      areaValid_(false),
       pixelArea_(0)
     {
         map_->faces_.push_back(GeoMap::Faces::value_type(this));
@@ -782,7 +781,7 @@ class GeoMap::Face
     {
         vigra_precondition(label_, "infinite face has no boundingBox()!");
 
-        if(!boundingBoxValid_)
+        if(!flag(BOUNDING_BOX_VALID))
         {
             boundingBox_ = BoundingBox();
             Dart anchor(anchors_[0]), dart(anchor);
@@ -791,7 +790,7 @@ class GeoMap::Face
                 boundingBox_ |= dart.edge()->boundingBox();
             }
             while(dart.nextPhi() != anchor);
-            boundingBoxValid_ = true;
+            flags_ |= BOUNDING_BOX_VALID;
         }
         return boundingBox_;
     }
@@ -826,14 +825,14 @@ class GeoMap::Face
 
     double area() const
     {
-        if(!areaValid_)
+        if(!flag(AREA_VALID))
         {
             area_ = 0.0;
             for(unsigned int i = 0; i < anchors_.size(); ++i)
             {
                 area_ += contourArea(anchors_[i]);
             }
-            areaValid_ = true;
+            flags_ |= AREA_VALID;
         }
         return area_;
     }
@@ -874,7 +873,7 @@ class GeoMap::Face
         for(; dart.leftFaceLabel() != label_; dart.nextPhi())
             dart.setLeftFaceLabel(label_);
 
-        if(areaValid_)
+        if(flag(AREA_VALID))
             area_ += contourArea(dart);
 
         vigra_postcondition(dart == anchor,
@@ -2581,7 +2580,7 @@ CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(GeoMap::Dart &dart)
 
     // remember bounding box of merged face for later updating
     GeoMap::Face::BoundingBox mergedBBox;
-    if(survivor.boundingBoxValid_)
+    if(survivor.flag(GeoMap::Face::BOUNDING_BOX_VALID))
         mergedBBox = mergedFace.boundingBox();
 
     // relabel contour's leftFaceLabel
@@ -2647,11 +2646,11 @@ CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(GeoMap::Dart &dart)
     if(removeNode1)
         removeIsolatedNode(node1);
 
-    if(survivor.areaValid_)
+    if(survivor.flag(GeoMap::Face::AREA_VALID))
         survivor.area_ += mergedFace.area();
     survivor.pixelArea_ += mergedFace.pixelArea_;
 
-    if(survivor.boundingBoxValid_)
+    if(survivor.flag(GeoMap::Face::BOUNDING_BOX_VALID))
         survivor.boundingBox_ |= mergedBBox;
 
     mergedEdge.uninitialize();
