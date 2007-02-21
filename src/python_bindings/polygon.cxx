@@ -387,7 +387,14 @@ list tangentList(const Array &p, int dx = 5, unsigned int skip = 0)
     if(p.size() < 2*dx + 2*skip)
     {
         PyErr_SetString(PyExc_ValueError,
-            "tangentList: polygon too small (less than 2*dx + 2*skip points).");
+            "tangentList: polygon too small (less than 2*dx + 2*skip points)");
+        throw_error_already_set();
+    }
+
+    if(dx < 1)
+    {
+        PyErr_SetString(PyExc_ValueError,
+            "tangentList: dx too small (must be >= 1)");
         throw_error_already_set();
     }
 
