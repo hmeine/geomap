@@ -6,7 +6,8 @@ INT2BUILDDIR = ../../interactive2/build-$(PLATFORM)
 include $(INT2BUILDDIR)/config/Makefile.include
 
 CXXFLAGS = -Wall -Wno-deprecated -O2 -DNDEBUG
-CPPFLAGS += `vigra-interactive-config --cppflags` -I../../test/include # -I.
+CPPFLAGS += `vigra-interactive-config --cppflags` \
+	-I../../current/test/include
 
 CELLIMAGE_OBJS = \
 	cellimage_module.lo \
