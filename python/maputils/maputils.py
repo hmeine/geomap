@@ -1,7 +1,32 @@
 import hourglass, sys
 from vigra import * # FIXME?
 
+# --------------------------------------------------------------------
+#                            edge protection
+# --------------------------------------------------------------------
+
 BORDER_PROTECTION = 1
+SCISSOR_PROTECTION = 2
+
+class EdgeProtection(object):
+    def __init__(self, map):
+        self._attachedHooks = (
+            map.addMergeFacesCallbacks(self.preRemoveEdge, None),
+            map.addRemoveBridgeCallbacks(self.preRemoveEdge, None),
+            map.addMergeEdgesCallbacks(self.preMergeEdges, None))
+
+    def detachHooks(self):
+        for cb in self._attachedHooks:
+            cb.disconnect()
+
+    def preRemoveEdge(self, dart):
+        "do not allow removal of protected edges"
+        return not dart.edge().flags()
+
+    def preMergeEdges(self, dart):
+        "only allow edge merging if the edges carry the same flags"
+        return (dart.edge().flags() ==
+                dart.clone().nextSigma().edge().flags())
 
 # --------------------------------------------------------------------
 #                        map creation helpers
