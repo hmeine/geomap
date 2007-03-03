@@ -528,8 +528,6 @@ def _pruneBarbsInternal(skel):
             count += 1
             dart = edge.dart()
             removeEdge(dart)
-        else:
-            edge.setFlag(IS_BARB, False)
     return count
 
 def _leaveCircle(points, dir, center, radius):
