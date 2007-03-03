@@ -101,6 +101,10 @@ class FaceColorStatistics(DynamicFaceStatistics):
             self._functors[face.label()] = FaceMeanFunctor(defaultValue)
         self._defaultValue = defaultValue
         self._diffNorm = 255.*math.sqrt(self.bands())
+        if originalImage.bands() > 1:
+            self.faceMeanDiff = self.faceMeanDiffColor
+        else:
+            self.faceMeanDiff = self.faceMeanDiffGray
 
         class MeansInitFunctor(object):
             def __init__(self, functors):
@@ -200,11 +204,14 @@ class FaceColorStatistics(DynamicFaceStatistics):
         mlf = MeanLookupFunctor(self, zeroPixel)
         return transformImage(labelImage, mlf)
 
-    def faceMeanDiff(self, dart):
+    def faceMeanDiffGray(self, dart):
         f = self._functors
-#         if (dart.leftFaceLabel() & 1) ^ (dart.rightFaceLabel() & 1):
-#             return 0.5
-#         return 0.05
+        m1 = f[dart.leftFaceLabel()].average()
+        m2 = f[dart.rightFaceLabel()].average()
+        return abs(m1 - m2) / self._diffNorm
+
+    def faceMeanDiffColor(self, dart):
+        f = self._functors
         m1 = f[dart.leftFaceLabel()].average()
         m2 = f[dart.rightFaceLabel()].average()
         return (m1 - m2).norm() / self._diffNorm
