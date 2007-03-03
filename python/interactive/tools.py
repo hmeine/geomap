@@ -275,7 +275,7 @@ class LiveWire(object):
         while nl != self._startNodeLabel:
             dart = self._map.dart(-self._nodePaths[nl][1])
             yield dart
-            nl = dart._endNodeLabel()
+            nl = dart.endNodeLabel()
 
     def totalCost(self, endNodeLabel = None):
         if endNodeLabel == None:
