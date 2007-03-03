@@ -163,11 +163,12 @@ def crackEdgeMap(labelImage, midCracks = True):
         geomap, 0.5, labelImageSize = (geomap.cellImage.size()-Size2D(3,3))/2,
         skipEverySecond = True) # source image had explicit cracks
     if midCracks:
+        print "  (converting cracks to mid-cracks...)"
         crackEdges2MidCracks(result)
     return result
 
-def pixelWatershedMap(biImage, crackEdges = 4, midCracks = True):
-    """pixelWatershedMap(biImage, crackEdges = 4, midCracks = True)
+def pixelWatershedMap(biImage, crackEdges = 4, midCracks = False):
+    """pixelWatershedMap(biImage, crackEdges = 4, midCracks = False)
 
     Performs a watershed segmentation on biImage and returns a
     subpixel-GeoMap containing the resulting contours.  The type of
@@ -178,7 +179,7 @@ def pixelWatershedMap(biImage, crackEdges = 4, midCracks = True):
     8: crack edges between 8-connected watershed regions
        (8-connected regions will be separated in the result ATM)
 
-    If midCracks is True(default), the resulting edges consist of the
+    If midCracks is True, the resulting edges consist of the
     connected midpoints of the cracks, not of the crack segments
     themselves (this parameter is ignored if crackEdges == 0)."""
     
