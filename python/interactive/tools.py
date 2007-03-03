@@ -2,6 +2,7 @@
 
 You will find three tool classes:
 * MapSearcher
+* ManualClassifier
 * ActivePaintbrush
 * IntelligentScissors
 
@@ -35,11 +36,12 @@ _cvsVersion = "$Id$" \
               .split(" ")[2:-2]
 
 import sys, qt, math
-from maputils import mergeFacesByLabel
+from maputils import mergeFacesByLabel, SCISSOR_PROTECTION
 from vigrapyqt import EdgeOverlay, PointOverlay
 from vigra import *
 
-__all__ = ["MapSearcher", "ActivePaintbrush", "IntelligentScissors",
+__all__ = ["MapSearcher", "ManualClassifier", "ActivePaintbrush",
+           "IntelligentScissors",
            "LiveWire", "SimplePathCostMeasure", "ESPathCostMeasure"]
 
 # --------------------------------------------------------------------
@@ -49,7 +51,7 @@ __all__ = ["MapSearcher", "ActivePaintbrush", "IntelligentScissors",
 class MapSearcher(qt.QObject):
     def __init__(self, map, display, name = None):
         qt.QObject.__init__(self, display, name)
-        self.map = map
+        self._map = map
         self.display = display
         self.connect(display.viewer, qt.PYSIGNAL("mousePressed"),
                      self.search)
@@ -59,7 +61,7 @@ class MapSearcher(qt.QObject):
             return
         nearestNode = None
         minDist = None
-        for node in self.map.nodeIter():
+        for node in self._map.nodeIter():
             dx, dy = abs(node.position()[0]-x), abs(node.position()[1]-y)
             dist = dx*dx + dy*dy
             if minDist == None or minDist > dist:
@@ -78,7 +80,7 @@ class ManualClassifier(qt.QObject):
 
     def __init__(self, map, foreground, parent = None, name = None):
         qt.QObject.__init__(self, parent, name)
-        self.map = map
+        self._map = map
         viewer = parent.viewer
         self.connect(viewer, qt.PYSIGNAL("mousePressed"),
                      self.mousePressed)
@@ -88,7 +90,7 @@ class ManualClassifier(qt.QObject):
     def mousePressed(self, x, y, button):
         if button != qt.Qt.LeftButton:
             return
-        face = self.map.faceAt(Vector2(x, y))
+        face = self._map.faceAt(Vector2(x, y))
         oldClass = self.foreground[face.label()]
         newClass = self.classes[(self.classes.index(oldClass) + 1) % 3]
         self.foreground[face.label()] = newClass
@@ -104,12 +106,12 @@ class ManualClassifier(qt.QObject):
 class ActivePaintbrush(qt.QObject):
     def __init__(self, map, parent = None, name = None):
         qt.QObject.__init__(self, parent, name)
-        self.map = map
-        self.painting = False
-        self.currentLabel = None
-        self.changed = None
+        self._map = map
+        self._painting = False
+        self._currentLabel = None
+        self._changed = None
         s = map.imageSize()
-        self.mapArea = s.width * s.height
+        self._mapArea = s.width * s.height
 
         viewer = parent.viewer
         self.connect(viewer, qt.PYSIGNAL("mousePressed"),
@@ -122,46 +124,43 @@ class ActivePaintbrush(qt.QObject):
     def mousePressed(self, x, y, button):
         if button != qt.Qt.LeftButton:
             return
-        self.currentLabel = None
-        self.painting = True
-        self.changed = False
+        self._currentLabel = None
+        self._painting = True
+        self._changed = False
         self.mouseMoved(x, y)
 
     def mouseMoved(self, x, y):
-        if not self.painting: return # comment out to get mouse-over face output
+        if not self._painting: return # comment out to get mouse-over face output
 
-        map = self.map
+        map = self._map
         otherLabel = map.faceAt(Vector2(x, y)).label()
-        if otherLabel == 0 and map.face(0).area() < -self.mapArea + 1:
+        if otherLabel == 0 and map.face(0).area() < -self._mapArea + 1:
             currentLabel = None
             return
-        if self.currentLabel == None:
-            self.currentLabel = otherLabel
-        if self.currentLabel == otherLabel:
+        if self._currentLabel == None:
+            self._currentLabel = otherLabel
+        if self._currentLabel == otherLabel:
             return
 
-        if not self.painting:
+        if not self._painting:
             print "mouse moved into", map.face(otherLabel)
-            self.currentLabel = otherLabel
+            self._currentLabel = otherLabel
             return
 
         try:
-            survivor = mergeFacesByLabel(map, self.currentLabel, otherLabel)
+            survivor = mergeFacesByLabel(map, self._currentLabel, otherLabel)
             if survivor:
-                self.changed = True
-                self.currentLabel = survivor.label()
+                self._changed = True
+                self._currentLabel = survivor.label()
             else:
-                self.currentLabel = otherLabel
+                self._currentLabel = otherLabel
         except Exception, e:
             sys.stderr.write("Paintbrush: Merge operation failed. Cancelling paint mode.\n")
-            self.painting = False
+            self._painting = False
             raise
 
     def mouseReleased(self, x, y):
-        self.painting = False
-#         if self.changed:
-#             self.parent().nodeOverlay._calculatePoints()
-#             self.parent().viewer.update()
+        self._painting = False
 
     def disconnectViewer(self):
         viewer = self.parent().viewer
@@ -283,14 +282,15 @@ class LiveWire(object):
         return self._nodePaths[endNodeLabel][0]
 
 class IntelligentScissors(qt.QObject):
-    def __init__(self, map, parent = None, name = None):
+    def __init__(self, map, edgeColors, parent = None, name = None):
         qt.QObject.__init__(self, parent, name)
-        self.map = map
+        self._map = map
 
-        self.liveWire = None
-        self.startNodeLabel = None
-        self.expandTimer = qt.QTimer(self, "expandTimer")
-        self.connect(self.expandTimer, qt.SIGNAL("timeout()"),
+        self._liveWire = None
+        self._startNodeLabel = None
+        self._expandTimer = qt.QTimer(self, "expandTimer")
+        self._edgeColors = edgeColors
+        self.connect(self._expandTimer, qt.SIGNAL("timeout()"),
                      self._expandBorder)
 
         # connect viewer
@@ -307,36 +307,35 @@ class IntelligentScissors(qt.QObject):
             PointOverlay([], qt.Qt.green, 1))
 
     def disconnectViewer(self):
-        viewer = self.parent().viewer
-        self.disconnect(viewer, qt.PYSIGNAL("mousePressed"),
+        self.disconnect(self.viewer, qt.PYSIGNAL("mousePressed"),
                         self.mousePressed)
-        self.disconnect(viewer, qt.PYSIGNAL("mousePosition"),
+        self.disconnect(self.viewer, qt.PYSIGNAL("mousePosition"),
                         self.mouseMoved)
-        self.disconnect(viewer, qt.PYSIGNAL("mouseReleased"),
+        self.disconnect(self.viewer, qt.PYSIGNAL("mouseReleased"),
                         self.mouseReleased)
         self.disconnect(self.viewer, qt.PYSIGNAL("mouseDoubleClicked"),
                         self.mouseDoubleClicked)
         self.viewer.removeOverlay(self.overlayIndex)
 
     def startSearch(self):
-        """Starts a search at self.startNodeLabel.  Initialized the
+        """Starts a search at self._startNodeLabel.  Initialized the
         search and starts a QTimer repeatedly calling
         _expandBorder()."""
 
-        if not self.liveWire or \
-               self.liveWire.startNodeLabel() != self.startNodeLabel:
-            self.liveWire = LiveWire(
-                self.map, activePathMeasure, self.startNodeLabel)
+        if not self._liveWire or \
+               self._liveWire.startNodeLabel() != self._startNodeLabel:
+            self._liveWire = LiveWire(
+                self._map, activePathMeasure, self._startNodeLabel)
 
-        self.expandTimer.start(0)
+        self._expandTimer.start(0)
 
     def stopSearch(self):
         """Stops the current search (i.e., the QTimer)."""
 
-        self.expandTimer.stop()
+        self._expandTimer.stop()
 
     def _expandBorder(self):
-        if not self.liveWire.expandBorder():
+        if not self._liveWire.expandBorder():
             self.stopSearch()
             return
 
@@ -344,14 +343,14 @@ class IntelligentScissors(qt.QObject):
         """With left mouse button, the live wire is started, with the
         middle mouse button it can be cancelled."""
 
-        if button == qt.Qt.MidButton and self.liveWire:
+        if button == qt.Qt.MidButton and self._liveWire:
             self.stopSearch()
             #updateViewer(self.currentPathBounds)
-            self.startNodeLabel = self.liveWire.endNodeLabel()
-            self.liveWire = None
+            self._startNodeLabel = self._liveWire.endNodeLabel()
+            self._liveWire = None
             return
 
-        if button == qt.Qt.LeftButton and not self.liveWire:
+        if button == qt.Qt.LeftButton and not self._liveWire:
             self.startSearch()
 
     def mouseMoved(self, x, y):
@@ -360,17 +359,17 @@ class IntelligentScissors(qt.QObject):
         nearest node is chosen as start node and highlighted."""
 
         p = Vector2(x, y)
-        node = self.map.nearestNode(p)
-        if not self.liveWire:
-            if node.label() != self.startNodeLabel:
-                self.startNodeLabel = node.label()
+        node = self._map.nearestNode(p)
+        if not self._liveWire:
+            if node.label() != self._startNodeLabel:
+                self._startNodeLabel = node.label()
                 self.viewer.replaceOverlay(
                     PointOverlay([node.position()], qt.Qt.green, 1),
                     self.overlayIndex)
         else:
-            if node.label() != self.liveWire.endNodeLabel():
-                if self.liveWire.setEndNodeLabel(node.label()): # TODO: else... (delayed)
-                    pathEdges = [dart.edge() for dart in self.liveWire.pathDarts()]
+            if node.label() != self._liveWire.endNodeLabel():
+                if self._liveWire.setEndNodeLabel(node.label()): # TODO: else... (delayed)
+                    pathEdges = [dart.edge() for dart in self._liveWire.pathDarts()]
 
                     self.viewer.replaceOverlay(
                         EdgeOverlay(pathEdges, qt.Qt.yellow), self.overlayIndex)
@@ -379,18 +378,19 @@ class IntelligentScissors(qt.QObject):
         """With each left click, fix the current live wire and start a
         new one."""
 
-        if button != qt.Qt.LeftButton or not self.liveWire:
+        if button != qt.Qt.LeftButton or not self._liveWire:
             return
 
         self.stopSearch()
 
-        for dart in self.liveWire.pathDarts():
-            dart.edge().color = qt.Qt.green
+        for dart in self._liveWire.pathDarts():
+            dart.edge().setFlag(SCISSOR_PROTECTION)
+            self._edgeColors[dart.edgeLabel()] = qt.Qt.green
         self.viewer.update()
         self.viewer.replaceOverlay(
             EdgeOverlay([], qt.Qt.yellow), self.overlayIndex)
 
-        self.startNodeLabel = self.liveWire.endNodeLabel()
+        self._startNodeLabel = self._liveWire.endNodeLabel()
 
         if button == qt.Qt.LeftButton:
             self.startSearch()
@@ -401,8 +401,8 @@ class IntelligentScissors(qt.QObject):
 
         if button == qt.Qt.LeftButton:
             self.stopSearch()
-            self.startNodeLabel = self.liveWire.endNodeLabel()
-            self.liveWire = None
+            self._startNodeLabel = self._liveWire.endNodeLabel()
+            self._liveWire = None
 
 # --------------------------------------------------------------------
 
