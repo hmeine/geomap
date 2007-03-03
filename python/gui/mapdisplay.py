@@ -32,7 +32,6 @@ class MapEdges(object):
         self.color = color
         self.colors = None
         self.width = width
-        self.useIndividualColors = False
         self._zoom = None
         self._attachedHooks = None
 
@@ -191,13 +190,6 @@ class MapEdges(object):
             except IndexError, e:
                 print e #"IndexError: %d > %d (maxEdgeLabel: %d)!" % (
                     #i, len(self.colors), map.maxEdgeLabel())
-        elif self.useIndividualColors:
-            for e in map.edgeIter():
-                if bbox.intersects(e.boundingBox()):
-                    edgeColor = hasattr(e, "color") and e.color
-                    if edgeColor:
-                        p.setPen(qt.QPen(edgeColor, self.width))
-                        p.drawPolyline(self._getZoomedEdge(e))
         else:
             p.setPen(qt.QPen(self.color, self.width))
             for e in map.edgeIter():
@@ -209,7 +201,6 @@ class MapNodes(object):
                  radius = 1, relativeRadius = False):
         self.setMap(map)
         self.color = color
-        #self.useIndividualColors = False
         self.setRadius(radius, relativeRadius)
         self._zoom = None
         self._attachedHook = None
@@ -522,17 +513,19 @@ class MapDisplay(DisplaySettings):
         self.nodeOverlay._calculatePoints()
         self.viewer.update()
 
-    def showMarkedEdges(self, colorMarked = qt.Qt.green, colorUnmarked = None, markAttr = "mark"):
-        self.edgeOverlay.useIndividualColors = True
+    def showMarkedEdges(self, colorMarked = qt.Qt.green, colorUnmarked = None,
+                        markAttr = "mark"):
+        edgeColors = [None] * self.map.maxEdgeLabel()
         for edge in self.map.edgeIter():
             if getattr(edge, markAttr, False):
-                edge.color = colorMarked
+                edgeColors[edge.label()] = colorMarked
             else:
-                edge.color = colorUnmarked
+                edgeColors[edge.label()] = colorUnmarked
+        self.edgeOverlay.colors = edgeColors
         self.viewer.update()
 
     def showAllEdges(self):
-        self.edgeOverlay.useIndividualColors = False
+        self.edgeOverlay.colors = None
         self.viewer.update()
 
     def setTool(self, tool):
@@ -555,11 +548,12 @@ class MapDisplay(DisplaySettings):
         elif tool == 2:
             self.tool = tools.ActivePaintbrush(self.map, self)
         elif tool == 3:
-            self.tool = tools.IntelligentScissors(self.map, self)
-            for edge in self.map.edgeIter():
-                if not hasattr(edge, "color"):
-                    edge.color = qt.Qt.black
-            self.edgeOverlay.useIndividualColors = True
+            if not self.edgeOverlay.colors:
+                self.edgeOverlay.colors = [qt.Qt.black] * self.map.maxEdgeLabel()
+            self.tool = tools.IntelligentScissors(
+                self.map, self.edgeOverlay.colors, self)
+            tools.activePathMeasure = \
+                tools.SimplePathCostMeasure(self.faceMeans.faceMeanDiff)
             self.nodeOverlay.visible = False
         elif hasattr(tool, "disconnectViewer"):
             self.tool = tool
@@ -707,7 +701,7 @@ class MapDisplay(DisplaySettings):
                                    fillColor = color, lineWidth = 0, depth = depth)
                 else:
                     attr = {"depth" : depth}
-                    if not (overlay.useIndividualColors or overlay.colors):
+                    if not overlay.colors:
                         attr["penColor"] = qtColor2figColor(overlay.color, fe.f)
                     if overlay.width:
                         attr["lineWidth"] = overlay.width
