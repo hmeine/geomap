@@ -10,7 +10,7 @@ It can be assigned any object which returns a path cost when called
 with two arguments:
 
 * The first argument will be a LiveWire object
-  containing the beginning of a path, and
+  representing the beginning of a path, and
 
 * the second argument will be a Dart object (whose startNode is the
   liveWire's end node) which could potentially be added to the path.
@@ -180,79 +180,107 @@ class LiveWire(object):
     """The LiveWire class does not only represent a single live wire
     path, but also performs the complete path search in a dynamic
     programming fashion, i.e. finding the optimal paths to all
-    reachable nodes."""
+    reachable nodes.  You can then immediately switch between desired
+    end nodes by calling setEndNodeLabel()."""
     
-    def __init__(self, map, measure, startNodeLabel):
-        self.map = map
-        self.measure = measure
-        self.startNodeLabel = startNodeLabel
-        self.endNodeLabel = startNodeLabel
+    def __init__(self, map, pathCostMeasure, startNodeLabel):
+        self._map = map
+        self._pathCostMeasure = pathCostMeasure
+        self._startNodeLabel = startNodeLabel
+        self._endNodeLabel = startNodeLabel
 
-        self.nodePaths = [None] * (self.map.maxNodeLabel() + 1)
-        self.nodePaths[self.startNodeLabel] = (0.0, None)
+        self._nodePaths = [None] * (self._map.maxNodeLabel() + 1)
+        self._nodePaths[self._startNodeLabel] = (0.0, None)
 
-        self.searchBorder = []
-        self.expandNode(self.startNodeLabel)
+        self._searchBorder = []
+        self._expandNode(self._startNodeLabel)
+
+    def startNodeLabel(self):
+        """liveWire.startNodeLabel() -> int
+
+        Returns label of the Node at the beginning of the current live
+        wire's path."""
+
+        return self._startNodeLabel
+
+    def endNodeLabel(self):
+        """liveWire.endNodeLabel() -> int
+
+        Returns label of the Node at the beginning of the current live
+        wire's path."""
+
+        return self._endNodeLabel
 
     def expandBorder(self):
-        """Pick cheapest path from searchBorder, and if no path to its
-        end node is known yet, store it and call expandNode() to
-        proceed with its neighbor nodes."""
+        """liveWire.expandBorder()
 
-        if not len(self.searchBorder):
+        Performs a single step of the dynamic programming for finding
+        all optimal paths from the start node.  Returns False iff the
+        process finished.  Call this e.g. from an idle loop as long as
+        it returns True.
+
+        Internally, picks cheapest path from searchBorder, and if no
+        path to its end node is known yet, stores it and calls
+        _expandNode() to proceed with its neighbor nodes."""
+
+        if not len(self._searchBorder):
             return False
 
-        path = heappop(self.searchBorder)
-        endNodeLabel = self.map.dart(path[1]).endNodeLabel()
-        if not self.nodePaths[endNodeLabel]: # or self.nodePaths[endNodeLabel][0] > path[0]
-            self.nodePaths[endNodeLabel] = path
-            self.expandNode(endNodeLabel)
+        path = heappop(self._searchBorder)
+        endNodeLabel = self._map.dart(path[1]).endNodeLabel()
+        if not self._nodePaths[endNodeLabel]: # or self._nodePaths[endNodeLabel][0] > path[0]
+            self._nodePaths[endNodeLabel] = path
+            self._expandNode(endNodeLabel)
 
         return True
 
-    def expandNode(self, nodeLabel):
+    def _expandNode(self, nodeLabel):
         """Add all neighbors of the given node to the searchBorder."""
 
-        prevPath = self.nodePaths[nodeLabel]
+        prevPath = self._nodePaths[nodeLabel]
         if prevPath[1]:
             comingFrom = -prevPath[1]
-            anchor = self.map.dart(comingFrom)
+            anchor = self._map.dart(comingFrom)
         else:
             comingFrom = None
-            anchor = self.map.node(nodeLabel).anchor()
+            anchor = self._map.node(nodeLabel).anchor()
 
         for dart in anchor.sigmaOrbit():
             if dart.label() == comingFrom:
                 continue
-            heappush(self.searchBorder, (self.measure(self, dart), dart.label()))
+            heappush(self._searchBorder, (
+                self._pathCostMeasure(self, dart), dart.label()))
 
-    def setEnd(self, nodeLabel):
+    def setEndNodeLabel(self, nodeLabel):
         """Try to set the live wire's end node to the given one.
         Returns True iff successful, i.e. a path to that node is
         already known.  You can then call pathDarts() to query the
-        darts belonging to that path."""
+        darts belonging to that path or totalCost() to get the cost
+        of that path.."""
 
-        if self.nodePaths[nodeLabel]:
-            self.endNodeLabel = nodeLabel
+        if self._nodePaths[nodeLabel]:
+            self._endNodeLabel = nodeLabel
             return True
 
     def pathDarts(self, endNodeLabel = None):
-        """Generator function returning all darts along the current
-        live wire path (ordered and pointing from end node to start
-        node)."""
+        """liveWire.pathDarts()
+
+        Generator function returning all darts along the current live
+        wire path, ordered and pointing back from the current
+        endNodeLabel() to startNodeLabel()."""
 
         nl = endNodeLabel
         if nl == None:
-            nl = self.endNodeLabel
-        while nl != self.startNodeLabel:
-            dart = self.map.dart(-self.nodePaths[nl][1])
+            nl = self._endNodeLabel
+        while nl != self._startNodeLabel:
+            dart = self._map.dart(-self._nodePaths[nl][1])
             yield dart
-            nl = dart.endNodeLabel()
+            nl = dart._endNodeLabel()
 
     def totalCost(self, endNodeLabel = None):
         if endNodeLabel == None:
-            endNodeLabel = self.endNodeLabel
-        return self.nodePaths[endNodeLabel][0]
+            endNodeLabel = self._endNodeLabel
+        return self._nodePaths[endNodeLabel][0]
 
 class IntelligentScissors(qt.QObject):
     def __init__(self, map, parent = None, name = None):
@@ -295,8 +323,10 @@ class IntelligentScissors(qt.QObject):
         search and starts a QTimer repeatedly calling
         _expandBorder()."""
 
-        if not self.liveWire or self.liveWire.startNodeLabel != self.startNodeLabel:
-            self.liveWire = LiveWire(self.map, activePathMeasure, self.startNodeLabel)
+        if not self.liveWire or \
+               self.liveWire.startNodeLabel() != self.startNodeLabel:
+            self.liveWire = LiveWire(
+                self.map, activePathMeasure, self.startNodeLabel)
 
         self.expandTimer.start(0)
 
@@ -317,7 +347,7 @@ class IntelligentScissors(qt.QObject):
         if button == qt.Qt.MidButton and self.liveWire:
             self.stopSearch()
             #updateViewer(self.currentPathBounds)
-            self.startNodeLabel = self.liveWire.endNodeLabel
+            self.startNodeLabel = self.liveWire.endNodeLabel()
             self.liveWire = None
             return
 
@@ -338,8 +368,8 @@ class IntelligentScissors(qt.QObject):
                     PointOverlay([node.position()], qt.Qt.green, 1),
                     self.overlayIndex)
         else:
-            if node.label() != self.liveWire.endNodeLabel:
-                if self.liveWire.setEnd(node.label()): # TODO: else... (delayed)
+            if node.label() != self.liveWire.endNodeLabel():
+                if self.liveWire.setEndNodeLabel(node.label()): # TODO: else... (delayed)
                     pathEdges = [dart.edge() for dart in self.liveWire.pathDarts()]
 
                     self.viewer.replaceOverlay(
@@ -360,7 +390,7 @@ class IntelligentScissors(qt.QObject):
         self.viewer.replaceOverlay(
             EdgeOverlay([], qt.Qt.yellow), self.overlayIndex)
 
-        self.startNodeLabel = self.liveWire.endNodeLabel
+        self.startNodeLabel = self.liveWire.endNodeLabel()
 
         if button == qt.Qt.LeftButton:
             self.startSearch()
@@ -371,7 +401,7 @@ class IntelligentScissors(qt.QObject):
 
         if button == qt.Qt.LeftButton:
             self.stopSearch()
-            self.startNodeLabel = self.liveWire.endNodeLabel
+            self.startNodeLabel = self.liveWire.endNodeLabel()
             self.liveWire = None
 
 # --------------------------------------------------------------------
