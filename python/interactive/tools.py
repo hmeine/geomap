@@ -377,8 +377,7 @@ class IntelligentScissors(qt.QObject):
 # --------------------------------------------------------------------
 
 from hourglass import composeTangentLists
-from statistics import dartTangents, minEdgeGradCost
-from saliency import fitParabola
+import statistics, saliency
 
 class SimplePathCostMeasure(object):
     """SimplePathCostMeasure: Cost measure for a (e.g. livewire) path;
@@ -400,15 +399,15 @@ class ESPathCostMeasure(object):
     def __call__(self, liveWire, newDart):
         previousEndNodeLabel = newDart.startNodeLabel()
         
-        allTangents = [dartTangents(newDart.clone().nextAlpha())]
+        allTangents = [statistics.dartTangents(newDart.clone().nextAlpha())]
         for dart in liveWire.pathDarts(previousEndNodeLabel):
-            allTangents.append(dartTangents(dart))
+            allTangents.append(statistics.dartTangents(dart))
         allTangents = composeTangentLists(allTangents)
 
         # this is really slow (at least with many support points).. :-(
         #allTangents = gaussianConvolveByArcLength(allTangents, 0.25)
         
-        error = fitParabola(allTangents)
+        error = saliency.fitParabola(allTangents)
 
         # Don't know what exact formula to use here (tried some
         # without luck); the value should increase with every dart
@@ -420,4 +419,4 @@ class ESPathCostMeasure(object):
         #return liveWire.totalCost(previousEndNodeLabel) + error
         # ... + math.exp(-error)
 
-activePathMeasure = SimplePathCostMeasure(minEdgeGradCost)
+activePathMeasure = SimplePathCostMeasure(statistics.minEdgeGradCost)
