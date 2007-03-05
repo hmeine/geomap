@@ -65,12 +65,13 @@ class GeoMap::Node
 
     void uninitialize()
     {
-        --map_->nodeCount_;
-        map_->nodeMap_.erase(
-            map_->nodeMap_.nearest(PositionedNodeLabel(position_, label_),
+        GeoMap *map = map_;
+        map_ = NULL; // DON'T MESS WITH THIS!
+        --map->nodeCount_;
+        map->nodeMap_.erase(
+            map->nodeMap_.nearest(PositionedNodeLabel(position_, label_),
                                    vigra::NumericTraits<double>::epsilon()));
-        RESET_PTR(map_->nodes_[label_]); // may have effect like "delete this;"
-        map_ = NULL;
+        RESET_PTR(map->nodes_[label_]); // may have effect like "delete this;"!
 #ifdef USE_INSECURE_CELL_PTRS
         delete this;
 #endif
@@ -161,9 +162,10 @@ class GeoMap::Edge
 
     void uninitialize()
     {
-        --map_->edgeCount_;
-        RESET_PTR(map_->edges_[label_]); // may have effect like "delete this;"
+        GeoMap *map = map_;
         map_ = NULL;
+        --map->edgeCount_;
+        RESET_PTR(map->edges_[label_]); // may have effect like "delete this;"
 #ifdef USE_INSECURE_CELL_PTRS
         delete this;
 #endif
@@ -764,9 +766,10 @@ class GeoMap::Face
 
     void uninitialize()
     {
-        --map_->faceCount_;
-        RESET_PTR(map_->faces_[label_]); // may have effect like "delete this;"
+        GeoMap *map = map_;
         map_ = NULL;
+        --map->faceCount_;
+        RESET_PTR(map->faces_[label_]); // may have effect like "delete this;"
 #ifdef USE_INSECURE_CELL_PTRS
         delete this;
 #endif
