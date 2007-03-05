@@ -1,7 +1,7 @@
 _cvsVersion = "$Id$" \
               .split(" ")[2:-2]
 
-import fig, figexport, qt, sys, os, time, tools
+import fig, figexport, maputils, flag_constants, qt, sys, os, time, tools
 from vigra import BYTE, NBYTE, Point2D, Rect2D, Vector2, GrayImage
 from vigrapyqt import ImageWindow, EdgeOverlay, PointOverlay
 from hourglass import simplifyPolygon, intPos, BoundingBox
@@ -514,10 +514,10 @@ class MapDisplay(DisplaySettings):
         self.viewer.update()
 
     def showMarkedEdges(self, colorMarked = qt.Qt.green, colorUnmarked = None,
-                        markAttr = "mark"):
+                        markFlags = flag_constants.ALL_PROTECTION):
         edgeColors = [None] * self.map.maxEdgeLabel()
         for edge in self.map.edgeIter():
-            if getattr(edge, markAttr, False):
+            if edge.flag(markFlags):
                 edgeColors[edge.label()] = colorMarked
             else:
                 edgeColors[edge.label()] = colorUnmarked
@@ -549,7 +549,7 @@ class MapDisplay(DisplaySettings):
             self.tool = tools.ActivePaintbrush(self.map, self)
         elif tool == 3:
             if not self.edgeOverlay.colors:
-                self.edgeOverlay.colors = [qt.Qt.black] * self.map.maxEdgeLabel()
+                self.showMarkedEdges(colorUnmarked = qt.Qt.black)
             self.tool = tools.IntelligentScissors(
                 self.map, self.edgeOverlay.colors, self)
             tools.activePathMeasure = \
