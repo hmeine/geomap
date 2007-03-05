@@ -5,9 +5,6 @@ from vigra import * # FIXME?
 #                            edge protection
 # --------------------------------------------------------------------
 
-BORDER_PROTECTION = 1
-SCISSOR_PROTECTION = 2
-
 class EdgeProtection(object):
     def __init__(self, map):
         self._attachedHooks = (
@@ -219,7 +216,7 @@ def connectBorderNodes(map, epsilon,
     lastPoints.extend(borderEdges[0][0])
     borderEdges[0] = (lastPoints, borderEdges[0][1])
 
-    from maputils import BORDER_PROTECTION
+    from flag_constants import BORDER_PROTECTION
 
     endNodeLabel = lastNode.label()
     for points, node in borderEdges:
@@ -540,10 +537,9 @@ def thresholdMergeCost(map, mergeCostFunctor, maxCost, costs = None, q = None):
         else:
             survivor = mergeFacesCompletely(d)
             if survivor:
-                for anchor in survivor.contours():
-                    for dart in anchor.phiOrbit():
-                        q.setCost(dart.edgeLabel(),
-                                  mergeCostFunctor(dart))
+                for dart in contourDarts(survivor):
+                    q.setCost(dart.edgeLabel(),
+                              mergeCostFunctor(dart))
         if survivor:
             result += 1
             if costs != None:
@@ -555,6 +551,25 @@ def thresholdMergeCost(map, mergeCostFunctor, maxCost, costs = None, q = None):
 #                   topological utility functions
 # --------------------------------------------------------------------
 
+def contourDarts(face):
+    """contourDarts(face)
+
+    Generator function which iterates over all darts within all
+    contours, i.e. substitues the following standard loop construct:
+
+      for anchor in face.contours():
+          for dart in anchor.phiOrbit():
+              doSth(dart)
+
+    Thus, you can now write:
+
+      for dart in contourDarts(face):
+          doSth(dart)"""
+
+    for anchor in face.contours():
+        for dart in anchor.phiOrbit():
+            yield dart
+
 def neighbors(face, unique = True):
     """neighbors(face, unique = True) -> list
 
@@ -562,9 +577,8 @@ def neighbors(face, unique = True):
     (in case of multiple common edges)."""
     
     result = []
-    for anchor in face.contours():
-        for dart in anchor.phiOrbit():
-            result.append(dart.rightFace())
+    for dart in contourDarts(face):
+        result.append(dart.rightFace())
     if unique:
         result = dict.fromkeys(result).keys()
     return result
@@ -609,3 +623,167 @@ def showHomotopyTree(face, indentation = ""):
     for anchor in face.holeContours():
         for hole in holeComponent(anchor):
             showHomotopyTree(hole, indentation + "  ")
+
+# --------------------------------------------------------------------
+
+from heapq import heappush, heappop
+
+def minimumSpanningTree(map, edgeCosts):
+    """minimumSpanningTree(map, edgeCosts)
+
+    Given a cost associated with each edge of the map, this function
+    finds the minimum spanning tree of the map's boundary graph (None
+    in edgeCosts is allowed and is handled as if the corresponding
+    edge was missing).  The result is a modified copy of the edgeCosts
+    list, with all non-MST-edges set to None.  This can be used for
+    the waterfall algorithm by Meyer and Beucher, see waterfall().
+
+    The complexity is O(edgeCount*faceCount), but the performance
+    could be improved a little."""
+
+    faceLabels = [None] * map.maxFaceLabel()
+    for face in map.faceIter():
+        faceLabels[face.label()] = face.label()
+
+    print "- initializing priority queue for MST..."
+    heap = []
+    for edge in map.edgeIter():
+        edgeLabel = edge.label()
+        cost = edgeCosts[edgeLabel]
+        if cost != None:
+            heappush(heap, (cost, edgeLabel))
+
+    print "- building MST..."
+    result = list(edgeCosts)
+    while heap:
+        _, edgeLabel = heappop(heap)
+        edge = map.edge(edgeLabel)
+        lfl = faceLabels[edge.leftFaceLabel()]
+        rfl = faceLabels[edge.rightFaceLabel()]
+        if lfl != rfl:
+            for i in range(len(faceLabels)): # this could be optimized
+                if faceLabels[i] == rfl:
+                    faceLabels[i] = lfl
+        else:
+            result[edgeLabel] = None
+
+    return result
+
+def seededRegionGrowingStatic(map, faceLabels, edgeCosts):
+    """seededRegionGrowingStatic(map, faceLabels, edgeCosts)
+
+    Given a set of seed labels != None, extend labels to neighbor
+    faces via edges with costs != None.  Stop when no more such
+    growing is possible and return the resulting faceLabels.
+
+    The 'static' postfix indicates that the edgeCosts do not change
+    during the process."""
+
+    faceLabels = list(faceLabels)
+
+    heap = []
+    for face in map.faceIter():
+        if not faceLabels[face.label()]:
+            continue
+        for dart in contourDarts(face):
+            if not faceLabels[dart.rightFaceLabel()]:
+                cost = edgeCosts[dart.edgeLabel()]
+                if cost != None:
+                    heappush(heap, (cost, dart.label()))
+    while heap:
+        _, dartLabel = heappop(heap)
+        dart = map.dart(dartLabel)
+        if faceLabels[dart.rightFaceLabel()]:
+            continue # labelled in the meantime
+        faceLabels[dart.rightFaceLabel()] = faceLabels[dart.leftFaceLabel()]
+        for dart in contourDarts(dart.rightFace()):
+            if not faceLabels[dart.rightFaceLabel()]:
+                cost = edgeCosts[dart.edgeLabel()]
+                if cost != None:
+                    heappush(heap, (cost, dart.label()))
+    return faceLabels
+
+def regionalMinima(map, mst):
+    """regionalMinima(map, mst)
+
+    Returns an array with face labels, where only 'regional minima' of
+    the given MSt are labelled.  See the article 'Fast Implementation
+    of Waterfall Based on Graphs' by Marcotegui and Beucher."""
+
+    faceLabels = [None] * map.maxFaceLabel()
+    for edge in map.edgeIter():
+        edgeCost = mst[edge.label()]
+        if edgeCost == None:
+            continue
+        isMinimum = True
+        for start in edge.dart().alphaOrbit():
+            for dart in contourDarts(face):
+#               if dart == start: # not needed for strict comparison below
+#                   continue
+                otherCost = mst[dart.edgeLabel()]
+                if otherCost != None and otherCost < edgeCost:
+                    isMinimum = False
+                    break
+            if not isMinimum:
+                break
+        if isMinimum:
+            faceLabels[edge.leftFaceLabel()] = edge.label()
+            faceLabels[edge.rightFaceLabel()] = edge.label()
+    return faceLabels
+
+def waterfallLabels(map, edgeCosts, mst = None):
+    """waterfallLabels(map, edgeCosts, mst = None)
+
+    Perform a single iteration of the waterfall algorithm by
+    Marcotegui and Beucher and return an array with face labels."""
+
+    if not mst:
+        mst = minimumSpanningTree(map, edgeCosts)
+
+    print "- finding regional minima..."
+    faceLabels = regionalMinima(map, mst)
+
+    print "- extending faceLabels via MST..."
+    return seededRegionGrowingStatic(map, faceLabels, mst)
+
+def waterfall(map, edgeCosts, mst = None):
+    """waterfall(map, edgeCosts, mst = None)
+
+    Perform a single iteration of the waterfall algorithm by
+    Marcotegui and Beucher and perform the face merging in the given
+    map."""
+
+    c = time.clock()
+    faceLabels = waterfallLabels(map, edgeCosts, mst)
+    print "- merging regions according to labelling..."
+    for edge in map.edgeIter():
+        if edge.flags():
+            continue
+        if edge.isBridge():
+            print "ERROR: waterfall should not be called on maps with bridges!"
+            removeBridge(edge.dart())
+            continue
+        lfl = faceLabels[edge.leftFaceLabel()]
+        rfl = faceLabels[edge.rightFaceLabel()]
+        if lfl == rfl:
+            mergeFacesCompletely(edge.dart())
+    print "  total waterfall() time: %ss." % (time.clock() - c, )
+
+def mst2map(mst, map):
+    """Visualize a minimumSpanningTree() result as a GeoMap.  Note
+    that the nodes are put in the bbox centers, which is wildly
+    inaccurate, especially without edge splitting."""
+    nodePositions = [None] * map.maxFaceLabel()
+    for face in map.faceIter(skipInfinite = True):
+        bbox = face.boundingBox()
+        nodePositions[face.label()] = bbox.begin() + bbox.size() / 2
+    edgeTuples = [None]
+    for edgeLabel in mst:
+        edge = map.edge(edgeLabel)
+        snl = edge.leftFaceLabel()
+        enl = edge.rightFaceLabel()
+        edgeTuples.append((snl, enl, [nodePositions[snl], nodePositions[enl]]))
+    result = hourglass.GeoMap(nodePositions, edgeTuples, map.imageSize())
+    result.initializeMap(False)
+    return result
+
