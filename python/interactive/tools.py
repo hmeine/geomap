@@ -36,7 +36,8 @@ _cvsVersion = "$Id$" \
               .split(" ")[2:-2]
 
 import sys, qt, math
-from maputils import mergeFacesByLabel, SCISSOR_PROTECTION
+from maputils import mergeFacesByLabel, contourDarts
+from flag_constants import *
 from vigrapyqt import EdgeOverlay, PointOverlay
 from vigra import *
 
@@ -120,6 +121,8 @@ class ActivePaintbrush(qt.QObject):
                      self.mouseMoved)
         self.connect(viewer, qt.PYSIGNAL("mouseReleased"),
                      self.mouseReleased)
+        self.connect(viewer, qt.PYSIGNAL("mouseDoubleClicked"),
+                     self.mouseDoubleClicked)
 
     def mousePressed(self, x, y, button):
         if button != qt.Qt.LeftButton:
@@ -130,7 +133,8 @@ class ActivePaintbrush(qt.QObject):
         self.mouseMoved(x, y)
 
     def mouseMoved(self, x, y):
-        if not self._painting: return # comment out to get mouse-over face output
+        if not self._painting:
+            return
 
         map = self._map
         otherLabel = map.faceAt(Vector2(x, y)).label()
@@ -140,11 +144,6 @@ class ActivePaintbrush(qt.QObject):
         if self._currentLabel == None:
             self._currentLabel = otherLabel
         if self._currentLabel == otherLabel:
-            return
-
-        if not self._painting:
-            print "mouse moved into", map.face(otherLabel)
-            self._currentLabel = otherLabel
             return
 
         try:
@@ -162,6 +161,14 @@ class ActivePaintbrush(qt.QObject):
     def mouseReleased(self, x, y):
         self._painting = False
 
+    def mouseDoubleClicked(self, x, y):
+        face = self._map.faceAt(Vector2(x, y))
+        prot = not face.flag(PROTECTED_FACE)
+        face.setFlag(PROTECTED_FACE, prot)
+        for dart in contourDarts(face):
+            dart.edge().setFlag(CONTOUR_PROTECTION,
+                                prot or dart.rightFace().flag(PROTECTED_FACE))
+
     def disconnectViewer(self):
         viewer = self.parent().viewer
         self.disconnect(viewer, qt.PYSIGNAL("mousePressed"),
@@ -170,6 +177,8 @@ class ActivePaintbrush(qt.QObject):
                         self.mouseMoved)
         self.disconnect(viewer, qt.PYSIGNAL("mouseReleased"),
                         self.mouseReleased)
+        self.disconnect(viewer, qt.PYSIGNAL("mouseDoubleClicked"),
+                        self.mouseDoubleClicked)
 
 # --------------------------------------------------------------------
 
@@ -245,7 +254,7 @@ class LiveWire(object):
             anchor = self._map.node(nodeLabel).anchor()
 
         for dart in anchor.sigmaOrbit():
-            if dart.label() == comingFrom:
+            if dart.label() == comingFrom or dart.edge().flag(CURRENT_CONTOUR):
                 continue
             heappush(self._searchBorder, (
                 self._pathCostMeasure(self, dart), dart.label()))
@@ -288,6 +297,7 @@ class IntelligentScissors(qt.QObject):
 
         self._liveWire = None
         self._startNodeLabel = None
+        self._allEdges = []
         self._expandTimer = qt.QTimer(self, "expandTimer")
         self._edgeColors = edgeColors
         self.connect(self._expandTimer, qt.SIGNAL("timeout()"),
@@ -344,11 +354,7 @@ class IntelligentScissors(qt.QObject):
         middle mouse button it can be cancelled."""
 
         if button == qt.Qt.MidButton and self._liveWire:
-            self.stopSearch()
-            #updateViewer(self.currentPathBounds)
-            self._startNodeLabel = self._liveWire.endNodeLabel()
-            self._liveWire = None
-            return
+            return self.stopCurrentContour()
 
         if button == qt.Qt.LeftButton and not self._liveWire:
             self.startSearch()
@@ -369,10 +375,11 @@ class IntelligentScissors(qt.QObject):
         else:
             if node.label() != self._liveWire.endNodeLabel():
                 if self._liveWire.setEndNodeLabel(node.label()): # TODO: else... (delayed)
-                    pathEdges = [dart.edge() for dart in self._liveWire.pathDarts()]
-
+                    pathEdges = [dart.edge()
+                                 for dart in self._liveWire.pathDarts()]
                     self.viewer.replaceOverlay(
-                        EdgeOverlay(pathEdges, qt.Qt.yellow), self.overlayIndex)
+                        EdgeOverlay(pathEdges, qt.Qt.yellow, 2),
+                        self.overlayIndex)
 
     def mouseReleased(self, x, y, button):
         """With each left click, fix the current live wire and start a
@@ -383,26 +390,34 @@ class IntelligentScissors(qt.QObject):
 
         self.stopSearch()
 
-        for dart in self._liveWire.pathDarts():
-            dart.edge().setFlag(SCISSOR_PROTECTION)
-            self._edgeColors[dart.edgeLabel()] = qt.Qt.green
-        self.viewer.update()
+        pathEdges = [dart.edge()
+                     for dart in self._liveWire.pathDarts()]
+        for edge in pathEdges:
+            edge.setFlag(SCISSOR_PROTECTION | CURRENT_CONTOUR)
+            self._edgeColors[edge.label()] = qt.Qt.green
+        self._allEdges.extend(pathEdges)
+
         self.viewer.replaceOverlay(
-            EdgeOverlay([], qt.Qt.yellow), self.overlayIndex)
+            EdgeOverlay([], qt.Qt.yellow, 2), self.overlayIndex)
 
         self._startNodeLabel = self._liveWire.endNodeLabel()
 
-        if button == qt.Qt.LeftButton:
-            self.startSearch()
+        self.startSearch()
 
     def mouseDoubleClicked(self, x, y, button):
         """With a double left click, the current live wire is fixed
         (by mouseReleased) and becomes inactive."""
 
         if button == qt.Qt.LeftButton:
-            self.stopSearch()
-            self._startNodeLabel = self._liveWire.endNodeLabel()
-            self._liveWire = None
+            self.stopCurrentContour()
+
+    def stopCurrentContour(self):
+        self.stopSearch()
+        #updateViewer(self.currentPathBounds)
+        self._startNodeLabel = self._liveWire.endNodeLabel()
+        self._liveWire = None
+        for edge in self._allEdges:
+            edge.setFlag(CURRENT_CONTOUR, False)
 
 # --------------------------------------------------------------------
 
