@@ -2,7 +2,7 @@ from vigra import *
 addPathFromHere('../cellimage')
 import cellimage, hourglass
 from cellimage import CellType
-from maputils import BORDER_PROTECTION
+from flag_constants import BORDER_PROTECTION
 #from map import GeoMap
 from hourglass import GeoMap
 

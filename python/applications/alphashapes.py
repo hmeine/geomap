@@ -3,7 +3,8 @@ _cvsVersion = "$Id$" \
 
 import fig, delaunay, sys, math, vigra
 from hourglass import Polygon
-from maputils import BORDER_PROTECTION
+from flag_constants import BORDER_PROTECTION
+
 from math import *
 
 __all__ = ["delaunayMap", "extractMapPoints", "midCrackPoints", "samplingPoints",

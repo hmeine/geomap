@@ -8,15 +8,12 @@ from hourglass import Polygon, simplifyPolygon, resamplePolygon
 from hourglass import GeoMap, contourPoly
 from maputils import removeEdge
 from vigra import Vector2, Vector, dot
+from flag_constants import *
 
 try:
     import triangle
 except ImportError:
     triangle = None
-
-CONTOUR_SEGMENT = 256
-WEAK_CHORD = 512
-OUTER_FACE = 1
 
 def _delaunayMapFromData(nodePositions, edgeData, imageSize, sigmaOrbits = None):
     if sigmaOrbits:
@@ -517,8 +514,6 @@ def catMap(delaunayMap,
     return result
 
 # --------------------------------------------------------------------
-
-IS_BARB = 1024
 
 def _pruneBarbsInternal(skel):
     count = 0
