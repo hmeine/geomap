@@ -49,9 +49,17 @@ class Path(list):
     def __getslice__(self, *args):
         return self.__class__(list.__getslice__(self, *args))
 
-class Contour(Path):
-    def __init__(self, startDart):
-        Path.__init__(self, startDart.phiOrbit())
+def contour(anchor):
+    """contour(anchor) -> Path
+
+    Returns a Path object representing the contour starting with the
+    Dart anchor.  (syntactic sugar for 'Path(anchor.phiOrbit())')"""
+
+    return Path(anchor.phiOrbit())
+
+# --------------------------------------------------------------------
+#                          Path comparison
+# --------------------------------------------------------------------
 
 def _pathString(path):
     """encodes a dart sequence as unicode string (see _pathDecode)"""
@@ -79,7 +87,45 @@ def pathCompare(p1, p2):
     """Uses difflib.SequenceMatcher to return the differences between two paths"""
     sm = difflib.SequenceMatcher(None, _pathString(p1), _pathString(p2))
     return sm.get_opcodes()
+
 #     result = []
 #     for tag, i1, i2, j1, j2 in sm.get_opcodes():
 #         result.append((tag, p1[i1:i2], p2[j1:j2]))
 #     return result
+
+# --------------------------------------------------------------------
+#                            path enumeration
+# --------------------------------------------------------------------
+
+def allContinuations(startStart, length):
+    """allContinuations(startStart, length)
+
+    Returns a list of Path objects representing all possible paths of
+    the given length (number of darts) starting with the given dart that
+    
+    * do not contain an edge with BORDER_PROTECTION and
+    
+    * do not contain a direct pair of opposite darts
+      (i.e. loops are allowed, but no"U-turns")."""
+
+    assert length >= 1, "allContinuations: length must be >= 1 (each Path must at least contain the given startStart)"
+
+    result = []
+    _fillContinuations(startStart, length, [], result)
+    return result
+
+from flag_constants import BORDER_PROTECTION
+
+def _fillContinuations(prefix, dart, length, allPaths):
+    currentPath = Path(prefix)
+    currentPath.append(dart.clone())
+
+    if length == 1:
+        allPaths.append(currentPath)
+        return
+
+    comingFrom = dart.clone().nextAlpha()
+    it = comingFrom.sigmaOrbit(); it.next()
+    for neighbor in it:
+        if not neighbor.edge().flag(BORDER_PROTECTION):
+            _fillContinuations(currentPath, neighbor, length-1, allPaths)
