@@ -61,6 +61,18 @@ def contour(anchor):
 #                          Path comparison
 # --------------------------------------------------------------------
 
+import difflib
+
+def pathCompare(p1, p2):
+    """Uses difflib.SequenceMatcher to return the differences between two paths"""
+    sm = difflib.SequenceMatcher(None, _pathString(p1), _pathString(p2))
+    return sm.get_opcodes()
+
+#   result = []
+#   for tag, i1, i2, j1, j2 in sm.get_opcodes():
+#       result.append((tag, p1[i1:i2], p2[j1:j2]))
+#   return result
+
 def _pathString(path):
     """encodes a dart sequence as unicode string (see _pathDecode)"""
     result = []
@@ -81,17 +93,6 @@ def _pathDecode(pathString):
             d -= 0x100000
         result.append(d)
     return result
-
-import difflib
-def pathCompare(p1, p2):
-    """Uses difflib.SequenceMatcher to return the differences between two paths"""
-    sm = difflib.SequenceMatcher(None, _pathString(p1), _pathString(p2))
-    return sm.get_opcodes()
-
-#     result = []
-#     for tag, i1, i2, j1, j2 in sm.get_opcodes():
-#         result.append((tag, p1[i1:i2], p2[j1:j2]))
-#     return result
 
 # --------------------------------------------------------------------
 #                            path enumeration
