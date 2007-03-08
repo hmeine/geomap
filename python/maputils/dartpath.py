@@ -5,27 +5,38 @@ from hourglass import composeTangentLists, Polygon
 from statistics import dartTangents
 
 class Path(list):
+    """Represents a dart path.  In addition to being a list of darts,
+    it offers some methods to derive information on the whole path
+    (tangents(), points(), polygon(), length()) or to modify it
+    (reverse(), which also reverses each dart)."""
+
     def reverse(self):
-        """Reverses a path represented as a list of Dart objects.
-        (list.reverse() is called and all darts are switched with nextAlpha().)"""
+        """path.reverse()
+
+        Reverses a path represented as a list of Dart objects.
+        (list.reverse() is called and all darts are switched with
+        nextAlpha().)"""
         
-        prevNode = None
         for dart in self:
-            if prevNode:
-                assert dart.startNode() == prevNode
-            prevNode = dart.endNode()
             dart.nextAlpha()
-        list.reverse(self)
+        super(Path, self).reverse()
 
     def tangents(self):
-        """Returns a composed tangentList for all darts in the given path."""
+        """path.tangents() -> tangent list
+
+        Returns a composed tangentList for all darts in the given
+        path.  Calls statistics.dartTangents on each dart and uses
+        composeTangentLists to return a single tangent list."""
+
         result = []
         for dart in self:
             result.append(dartTangents(dart))
         return composeTangentLists(result)
 
     def points(self):
-        """Returns an iterator over all points in this path.
+        """path.points() -> generator function
+
+        Returns an iterator over all points in this path.
         (Skipping the first points of all darts except the first,
         since they are supposed to be duplicates.)"""
         
@@ -36,18 +47,42 @@ class Path(list):
                 yield point
 
     def polygon(self):
-        """Returns a polygon containing all points of this path."""
+        """path.polygon() -> Polygon
+
+        Returns a polygon containing all points of this path."""
+
         return Polygon(list(self.points()))
 
     def length(self):
-        """Returns length of this path (sum over edge.length())."""
+        """path.length() -> float
+
+        Returns length of this path (sum over edge.length())."""
+
         result = 0.0
         for dart in self:
             result += dart.edge().length()
         return result
 
+    def boundingBox(self):
+        """path.boundingBox() -> float
+
+        Returns boundingBox of this path (union of all
+        dart.edge().boundingBox()es)."""
+
+        it = iter(self)
+        result = it.next().boundingBox()
+        for dart in it:
+            result |= dart.edge().boundingBox()
+        return result
+
     def __getslice__(self, *args):
-        return self.__class__(list.__getslice__(self, *args))
+        """Re-implement slicing to prevent.. eh.. "slicing". ;-)"""
+        return self.__class__(super(Path, self).__getslice__(*args))
+
+    def __add__(self, dart):
+        result = self.__class__(self)
+        result.append(dart)
+        return result
 
 def contour(anchor):
     """contour(anchor) -> Path
@@ -98,8 +133,8 @@ def _pathDecode(pathString):
 #                            path enumeration
 # --------------------------------------------------------------------
 
-def allContinuations(startStart, length):
-    """allContinuations(startStart, length)
+def allContinuations(startDart, length, klass = Path):
+    """allContinuations(startDart, length, klass = Path)
 
     Returns a list of Path objects representing all possible paths of
     the given length (number of darts) starting with the given dart that
@@ -107,18 +142,22 @@ def allContinuations(startStart, length):
     * do not contain an edge with BORDER_PROTECTION and
     
     * do not contain a direct pair of opposite darts
-      (i.e. loops are allowed, but no"U-turns")."""
+      (i.e. loops are allowed, but no"U-turns").
 
-    assert length >= 1, "allContinuations: length must be >= 1 (each Path must at least contain the given startStart)"
+    You can change the class of the returned paths (default: Path)
+    with the optional 'klass' argument.  (The given type must support
+    copy-construction and append().)"""
+
+    assert length >= 1, "allContinuations: length must be >= 1 (each Path must at least contain the given startDart)"
 
     result = []
-    _fillContinuations(startStart, length, [], result)
+    _fillContinuations(klass(), startDart, length, result)
     return result
 
 from flag_constants import BORDER_PROTECTION
 
 def _fillContinuations(prefix, dart, length, allPaths):
-    currentPath = Path(prefix)
+    currentPath = prefix.__class__(prefix)
     currentPath.append(dart.clone())
 
     if length == 1:
