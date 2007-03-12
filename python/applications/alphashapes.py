@@ -4,6 +4,7 @@ _cvsVersion = "$Id$" \
 import fig, delaunay, sys, math, vigra
 from hourglass import Polygon
 from flag_constants import BORDER_PROTECTION, ALPHA_MARK
+from maputils import removeEdge
 
 from math import *
 
