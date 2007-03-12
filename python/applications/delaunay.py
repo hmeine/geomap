@@ -107,8 +107,8 @@ def delaunayMap(points, imageSize):
         sigma = None
     else:
         nodePositions, edges, sigma = hourglass.delaunay(points)
-    result = _delaunayMapFromData(nodePositions, edges, imageSize,
-                                  sigma)
+    return _delaunayMapFromData(nodePositions, edges, imageSize,
+                                sigma)
 
 def fakedConstrainedDelaunayMap(polygons, imageSize, extraPoints = [],
                                 onlyInner = True):
