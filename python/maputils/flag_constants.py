@@ -1,5 +1,5 @@
 # --------------------------------------------------------------------
-# 							  edge flags
+#                             edge flags
 # --------------------------------------------------------------------
 
 # edge protection:
@@ -16,8 +16,11 @@ IS_BARB         = 1024
 # tools/IntelligentScissors:
 CURRENT_CONTOUR = 2048
 
+# alphashapes:
+ALPHA_MARK = 4096
+
 # --------------------------------------------------------------------
-# 							  face flags
+#                             face flags
 # --------------------------------------------------------------------
 
 # delaunay:
@@ -25,3 +28,6 @@ OUTER_FACE = 1
 
 # tools/ActivePaintbrush:
 PROTECTED_FACE = 2 # flag which leads to CONTOUR_PROTECTION
+
+# alphashapes:
+ALPHA_MARK = 4

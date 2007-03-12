@@ -3,7 +3,7 @@ _cvsVersion = "$Id$" \
 
 import fig, delaunay, sys, math, vigra
 from hourglass import Polygon
-from flag_constants import BORDER_PROTECTION
+from flag_constants import BORDER_PROTECTION, ALPHA_MARK
 
 from math import *
 
@@ -20,15 +20,6 @@ __all__ = ["delaunayMap", "extractMapPoints", "midCrackPoints", "samplingPoints"
            "alphaShapeThinning1", "alphaShapeThinning"]
 
 # --------------------------------------------------------------------
-
-def delaunayMap(points, imageSize):
-    result = delaunay.delaunayMap(points, imageSize, markContour = False)
-    print "  %d Delaunay edges, %d triangles" % (result.edgeCount, result.faceCount)
-
-    print "- reconstructing triangle circumcircles..."
-    delaunay.calculateTriangleCircumcircles(result)
-
-    return result
 
 def extractMapPoints(map, includeNodes = True):
     if not includeNodes:
@@ -61,32 +52,32 @@ def maxSegmentLength(map):
 # --------------------------------------------------------------------
 
 def markAlphaShapes(delaunayMap, alpha, beta = 0.0):
-    if not hasattr(delaunayMap.faceIter(True).next(), "radius"):
+    if not hasattr(delaunayMap, "circumCircles"):
         print "- reconstructing triangle circumcircles..."
-        calculateTriangleCircumcircles(dm)
+        delaunayMap.circumCircles = \
+            delaunay.calculateTriangleCircumcircles(delaunayMap)
 
     # store parameters for convenience:
     delaunayMap.alpha = alpha
     delaunayMap.beta = beta
 
     print "- marking triangles with radii < alpha(%s)..." % (alpha, )
-    it = delaunayMap.faceIter()
-    it.next().mark = False # infinite face
-    for triangle in it:
-        triangle.mark = triangle.radius < alpha
+    for triangle in delaunayMap.faceIter(skipInfinite = True):
+        triangle.setFlag(ALPHA_MARK, delaunayMap.circumCircles[triangle.label()][0] < alpha)
 
     print "- marking edges with empty circle radii < alpha(%s)..." % (alpha, )
     for edge in delaunayMap.edgeIter():
         assert len(edge) == 2, "markAlphaShapes() expects a delaunay map!"
-        edge.mark = edge.leftFace().mark or edge.rightFace().mark
-        if edge.mark:
+        edge.setFlag(ALPHA_MARK, edge.leftFace().flag(ALPHA_MARK) or edge.rightFace().flag(ALPHA_MARK))
+        if edge.flag(ALPHA_MARK):
             continue
+
         p1 = edge.startNode().position()
         p2 = edge.endNode().position()
         midPoint = (p1 + p2)/2
         radius = edge.length()/2
-        edge.mark = radius < alpha
-        if edge.mark:
+        edge.setFlag(ALPHA_MARK, radius < alpha)
+        if edge.flag(ALPHA_MARK):
             empty = True
             radius2 = math.sq(radius)
             it = edge.dart().sigmaOrbit(); it.next()
@@ -118,25 +109,20 @@ def markAlphaShapes(delaunayMap, alpha, beta = 0.0):
             if not empty2:
     #             print "  edge %d's circumcircle contains a point, unmarking.." % (
     #                 edge.label(), )
-                edge.mark = False
+                edge.setFlag(ALPHA_MARK, False)
                 continue
 
     print "  %d/%d edges and %d/%d faces marked." % (
-        sum([edge.mark and 1 or 0 for edge in delaunayMap.edgeIter()]), delaunayMap.edgeCount,
-        sum([face.mark and 1 or 0 for face in delaunayMap.faceIter()]), delaunayMap.faceCount)
+        sum([edge.flag(ALPHA_MARK) and 1 or 0 for edge in delaunayMap.edgeIter()]), delaunayMap.edgeCount,
+        sum([face.flag(ALPHA_MARK) and 1 or 0 for face in delaunayMap.faceIter()]), delaunayMap.faceCount)
 
     print "- finding connected components of unlabelled cells..."
-    for edge in delaunayMap.edgeIter():
-        if not edge.mark:
-            edge.componentLabel = None
-
-    for face in delaunayMap.faceIter():
-        if not face.mark:
-            face.componentLabel = None
+    edgeComponent = [None] * delaunayMap.maxEdgeLabel()
+    faceComponent = [None] * delaunayMap.maxFaceLabel()
 
     componentCount = 0
     for edge in delaunayMap.edgeIter():
-        if edge.mark or edge.componentLabel:
+        if edge.flag(ALPHA_MARK) or edgeComponent[edge.label()]:
             continue
         componentCount += 1
         boundary = [edge]
@@ -145,26 +131,26 @@ def markAlphaShapes(delaunayMap, alpha, beta = 0.0):
             cell = boundary.pop()
             if hasattr(cell, "leftFace"):
                 edge = cell
-                if edge.mark or edge.componentLabel:
+                if edge.flag(ALPHA_MARK) or edgeComponent[edge.label()]:
                     continue
-                edge.componentLabel = componentCount
+                edgeComponent[edge.label()] = componentCount
                 size += 1
                 boundary.append(edge.leftFace())
                 boundary.append(edge.rightFace())
             else:
                 face = cell
-                if face.mark or face.componentLabel:
+                if face.flag(ALPHA_MARK) or edgeComponent[face.label()]:
                     continue
-                face.componentLabel = componentCount
+                edgeComponent[face.label()] = componentCount
                 size += 1
                 for dart in face.contour().phiOrbit():
                     boundary.append(dart.edge())
 
     for face in delaunayMap.faceIter():
-        if face.mark or face.componentLabel:
+        if face.flag(ALPHA_MARK) or edgeComponent[face.label()]:
             continue
         componentCount += 1
-        face.componentLabel = componentCount
+        edgeComponent[face.label()] = componentCount
 
     print "  %s unlabelled components found." % (componentCount, )
 
@@ -175,10 +161,10 @@ def markAlphaShapes(delaunayMap, alpha, beta = 0.0):
 
     badComponent = [True] * (componentCount+1)
     for face in delaunayMap.faceIter(skipInfinite = True):
-        if face.mark:
+        if face.flag(ALPHA_MARK):
             continue
-        if face.radius >= beta:
-            badComponent[face.componentLabel] = False
+        if delaunayMap.circumCircles[face.label()][0] >= beta:
+            badComponent[edgeComponent[face.label()]] = False
 
     for label in range(1, componentCount+1):
         if badComponent[label]:
@@ -186,27 +172,26 @@ def markAlphaShapes(delaunayMap, alpha, beta = 0.0):
                 label, )
             componentCount -= 1
     for edge in delaunayMap.edgeIter():
-        if not edge.mark:
-            edge.mark = badComponent[edge.componentLabel]
+        if not edge.flag(ALPHA_MARK):
+            edge.setFlag(ALPHA_MARK, badComponent[edgeComponent[edge.label()]])
     for face in delaunayMap.faceIter(skipInfinite = True):
-        if not face.mark:
-            face.mark = badComponent[face.componentLabel]
+        if not face.flag(ALPHA_MARK):
+            face.setFlag(ALPHA_MARK, badComponent[edgeComponent[face.label()]])
 
     print "  %s unlabelled components left." % (componentCount, )
-
     return componentCount
 
 def removeUnmarkedEdges(map, removeInterior = False):
     for edge in map.edgeIter():
         if edge.flags():
             continue
-        if not edge.mark:
+        if not edge.flag(ALPHA_MARK):
             removeEdge(edge.dart())
-        elif removeInterior and (edge.leftFace().mark and edge.rightFace().mark):
+        elif removeInterior and (edge.leftFace().flag(ALPHA_MARK) and edge.rightFace().flag(ALPHA_MARK)):
             removeEdge(edge.dart())
 
 def alphaBetaMap(points, imageSize, alpha, beta, removeInteriorEdges = False):
-    dm = delaunayMap(points, imageSize)
+    dm = delaunay.delaunayMap(points, imageSize)
     markAlphaShapes(dm, alpha, beta)
     removeUnmarkedEdges(dm, removeInteriorEdges)
     return dm
@@ -243,7 +228,7 @@ def outputMarkedShapes(delaunayMap, fe, skipInnerEdges = True,
 
     print "- exporting marked regions as filled polygons..."
     for triangle in delaunayMap.faceIter(skipInfinite = True):
-        if not triangle.mark or triangle.output:
+        if not triangle.flag(ALPHA_MARK) or triangle.output:
             continue
         triangle.output = True
         contour = list(triangle.contour().phiOrbit())
@@ -251,7 +236,7 @@ def outputMarkedShapes(delaunayMap, fe, skipInnerEdges = True,
         while i < len(contour):
             contour[i].edge().output = skipInnerEdges
             neighbor = contour[i].rightFace()
-            if neighbor.mark and not neighbor.output:
+            if neighbor.flag(ALPHA_MARK) and not neighbor.output:
                 _ = contour[i].nextAlpha().nextPhi()
                 contour.insert(i+1, contour[i].clone().nextPhi())
                 neighbor.output = True
@@ -279,7 +264,7 @@ def outputMarkedShapes(delaunayMap, fe, skipInnerEdges = True,
     if edgeDepth != None:
         print "- exporting remaining marked edges..."
         for edge in delaunayMap.edgeIter():
-            if not edge.mark or edge.output:
+            if not edge.flag(ALPHA_MARK) or edge.output:
                 continue
 
             dart = edge.dart()
@@ -292,7 +277,7 @@ def outputMarkedShapes(delaunayMap, fe, skipInnerEdges = True,
                 dart.nextAlpha()
                 for next in dart.sigmaOrbit():
                     outputEdge = next.edge()
-                    if not outputEdge.mark or outputEdge.output:
+                    if not outputEdge.flag(ALPHA_MARK) or outputEdge.output:
                         continue
 
                     drawing = True
@@ -317,7 +302,7 @@ def outputMarkedShapes(delaunayMap, fe, skipInnerEdges = True,
                 next = dart.clone()
                 while next.nextSigma() != dart:
                     outputEdge = next.edge()
-                    if not outputEdge.mark or outputEdge.output:
+                    if not outputEdge.flag(ALPHA_MARK) or outputEdge.output:
                         continue
 
                     drawing = True
@@ -372,30 +357,30 @@ def alphaShapeThinning1(dm):
     changed = 0
 
     for edge in dm.edgeIter():
-        if edge.mark == True:
+        if edge.flag(ALPHA_MARK):
             # (at least one adjacent triangle is marked)
             dart = edge.dart()
             # ensure that we have an unmarked face on the left:
-            if dart.leftFace().mark:
+            if dart.leftFace().flag(ALPHA_MARK):
                 dart.nextAlpha()
-            if dart.leftFace().mark or not dart.rightFace().mark:
+            if dart.leftFace().flag(ALPHA_MARK) or not dart.rightFace().flag(ALPHA_MARK):
                 continue # no thinning here
 
             d1 = dart.clone()
-            while not d1.nextSigma().edge().mark:
+            while not d1.nextSigma().edge().flag(ALPHA_MARK):
                 pass
-            if d1.leftFace().mark:
+            if d1.leftFace().flag(ALPHA_MARK):
                 continue # no thinnable config
             
             d2 = dart.clone().nextAlpha()
-            while not d2.prevSigma().edge().mark:
+            while not d2.prevSigma().edge().flag(ALPHA_MARK):
                 pass
-            if d2.rightFace().mark:
+            if d2.rightFace().flag(ALPHA_MARK):
                 continue # no thinnable config
             
-            edge.mark = False
-            assert dart.rightFace().mark
-            dart.rightFace().mark = False
+            edge.setFlag(ALPHA_MARK, False)
+            assert dart.rightFace().flag(ALPHA_MARK)
+            dart.rightFace().setFlag(ALPHA_MARK, False)
             changed += 1
 
     if changed:
@@ -411,7 +396,7 @@ def alphaShapeThinning(dm):
     def isSimple(edge):
         """returns True iff the edge is in the contour of a thick
         alpha shape region"""
-        return edge.leftFace().mark != edge.rightFace().mark
+        return edge.leftFace().flag(ALPHA_MARK) != edge.rightFace().flag(ALPHA_MARK)
 
     changed = 0
     border = []
@@ -426,11 +411,11 @@ def alphaShapeThinning(dm):
             continue
 
         dart = edge.dart()
-        if not dart.leftFace().mark:
+        if not dart.leftFace().flag(ALPHA_MARK):
             dart.nextAlpha()
 
-        dart.leftFace().mark = False
-        edge.mark = False
+        dart.leftFace().setFlag(ALPHA_MARK, False)
+        edge.setFlag(ALPHA_MARK, False)
         changed += 1
 
         dart.nextPhi()
