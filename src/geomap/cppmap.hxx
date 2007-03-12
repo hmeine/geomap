@@ -85,6 +85,8 @@ class GeoMap
     typedef vigra::SafeFilterIterator<Faces::iterator, NotNull<Faces::value_type> >
         FaceIterator;
 
+    typedef std::vector<int> SigmaMapping;
+
     typedef vigra::ConstImageIterator<int> LabelImageIterator;
     struct LabelImageAccessor {
         typedef int value_type;
@@ -119,6 +121,13 @@ class GeoMap
     };
 
   protected:
+    SigmaMapping
+        sigmaMappingArray_,
+        sigmaInverseMappingArray_;
+    SigmaMapping::iterator
+        sigmaMapping_,
+        sigmaInverseMapping_;
+
     Nodes nodes_;
     Edges edges_;
     Faces faces_;
@@ -206,7 +215,6 @@ class GeoMap
                              bool splitEdges);
     void splitParallelEdges();
 
-    typedef std::vector<int> SigmaMapping;
     void setSigmaMapping(SigmaMapping const &sigmaMapping, bool sorted = true);
     std::auto_ptr<SigmaMapping > sigmaMapping();
 
@@ -232,6 +240,9 @@ class GeoMap
   protected:
     void initContours();
     void embedFaces(bool initLabelImage);
+    void resizeSigmaMapping();
+    void insertSigmaPredecessor(int successor, int newPredecessor);
+    void detachDart(int dartLabel);
 
   public:
     CELL_PTR(Node) nearestNode(

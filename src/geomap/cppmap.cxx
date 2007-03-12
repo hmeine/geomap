@@ -37,21 +37,19 @@ const CellLabel UNINITIALIZED_CELL_LABEL =
 class GeoMap::Node
 {
   protected:
-    typedef std::vector<int> DartLabels;
-
     GeoMap        *map_;
     CellLabel      label_;
     vigra::Vector2 position_;
-    DartLabels     darts_;
+    int            anchor_;
 
-    friend class Dart; // give access to darts_
-    friend class GeoMap; // give access to darts_ (add edge, sort edges, Euler..)
+    friend class GeoMap; // give access to anchor_ (add edge, sort edges, Euler..)
 
   public:
     Node(GeoMap *map, const vigra::Vector2 &position)
     : map_(map),
       label_(map->nodes_.size()),
-      position_(position)
+      position_(position),
+      anchor_(0)
     {
         map_->nodes_.push_back(GeoMap::Nodes::value_type(this));
         ++map_->nodeCount_;
@@ -91,10 +89,12 @@ class GeoMap::Node
 
     inline Dart anchor() const;
 
-    unsigned int degree() const
+    bool isIsolated() const
     {
-        return darts_.size();
+        return !anchor_;
     }
+
+    inline unsigned int degree() const;
 
     inline bool operator==(const GeoMap::Node &other)
     {
@@ -378,22 +378,6 @@ class GeoMap::Dart
     friend class Face; // allow setLeftFaceLabel in Face constructor
     friend CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(Dart &);
 
-    Dart &turnSigma(int times)
-    {
-        Node::DartLabels &darts(startNode()->darts_);
-        int i = 0;
-        for(; i < (int)darts.size(); ++i)
-            if(darts[i] == label_)
-                break;
-        vigra_precondition(i < (int)darts.size(),
-                           "Dart not attached to its startnode??");
-        i = (i + times) % (int)darts.size();
-        if(i < 0)
-            i += darts.size();
-        label_ = darts[i];
-        return *this;
-    }
-
   public:
     Dart(GeoMap *map, int label)
     : map_(map),
@@ -538,12 +522,14 @@ class GeoMap::Dart
 
     Dart &nextSigma()
     {
-        return turnSigma(1);
+        label_ = map_->sigmaMapping_[label_];
+        return *this;
     }
 
     Dart &prevSigma()
     {
-        return turnSigma(-1);
+        label_ = map_->sigmaInverseMapping_[label_];
+        return *this;
     }
 
     Dart &nextPhi()
@@ -570,6 +556,21 @@ class GeoMap::Dart
 inline GeoMap::Dart GeoMap::Edge::dart() const
 {
     return map_->dart(label());
+}
+
+inline unsigned int GeoMap::Node::degree() const
+{
+    if(!anchor_)
+        return 0;
+
+    int result = 0;
+    GeoMap::Dart d(map_, anchor_);
+    do
+    {
+        ++result;
+    }
+    while(d.nextSigma().label() != anchor_);
+    return result;
 }
 
 DartPointIter::DartPointIter(GeoMap::Dart const &dart)
@@ -928,30 +929,38 @@ void GeoMap::Node::setPosition(const vigra::Vector2 &p)
         map_->nodeMap_.nearest(PositionedNodeLabel(position_, label_),
                                vigra::NumericTraits<double>::epsilon()));
     position_ = p;
-    for(unsigned int i = 0; i < darts_.size(); ++i)
+
+    GeoMap::Dart d(map_, anchor_);
+    do
     {
-        if(darts_[i] > 0)
+        if(d.label() > 0)
         {
-            (*map_->edge(darts_[i]))[ 0] = p;
+            (*map_->edge(d.label()))[ 0] = p;
         }
         else
         {
-            GeoMap::Edge &edge(*map_->edge(-darts_[i]));
+            GeoMap::Edge &edge(*map_->edge(-d.label()));
             edge[edge.size()-1] = p;
         }
     }
+    while(d.nextSigma().label() != anchor_);
+
     map_->nodeMap_.insert(PositionedNodeLabel(p, label_));
 }
 
 inline GeoMap::Dart GeoMap::Node::anchor() const
 {
     vigra_precondition(initialized(), "anchor() of uninitialized node!");
-    vigra_precondition(degree(), "anchor() of degree 0 node!");
-    return Dart(map_, darts_[0]);
+    vigra_precondition(anchor_ != 0, "anchor() of degree 0 node!");
+    return Dart(map_, anchor_);
 }
 
 GeoMap::GeoMap(vigra::Size2D imageSize)
-: nodeCount_(0),
+: sigmaMappingArray_(101, 0),
+  sigmaInverseMappingArray_(101, 0),
+  sigmaMapping_(sigmaMappingArray_.begin() + 50),
+  sigmaInverseMapping_(sigmaInverseMappingArray_.begin() + 50),
+  nodeCount_(0),
   edgeCount_(0),
   faceCount_(0),
   imageSize_(imageSize),
@@ -1029,8 +1038,12 @@ CELL_PTR(GeoMap::Edge) GeoMap::addEdge(
         startNode && endNode, "addEdge(): invalid start- or endNodeLabel!");
     GeoMap::Edge *result = new GeoMap::Edge(
         this, startNodeLabel, endNodeLabel, points);
-    startNode->darts_.push_back( (int)result->label());
-    endNode  ->darts_.push_back(-(int)result->label());
+    insertSigmaPredecessor(startNode->anchor_, (int)result->label());
+    if(!startNode->anchor_)
+        startNode->anchor_ = (int)result->label();
+    insertSigmaPredecessor(endNode->anchor_,  -(int)result->label());
+    if(!endNode->anchor_)
+        endNode->anchor_ = -(int)result->label();
     return edge(result->label());
 }
 
@@ -1044,13 +1057,8 @@ CELL_PTR(GeoMap::Edge) GeoMap::addEdge(
     GeoMap::Edge *result = new GeoMap::Edge(
         this, startNode->label(), endNode->label(), points);
 
-    GeoMap::Node::DartLabels::iterator
-        pos1(std::find(startNode->darts_.begin(),
-                       startNode->darts_.end(), startNeighbor.label())),
-        pos2(std::find(endNode  ->darts_.begin(),
-                       endNode  ->darts_.end(), endNeighbor  .label()));
-    startNode->darts_.insert(pos1,  result->label());
-    endNode  ->darts_.insert(pos2, -(int)result->label());
+    insertSigmaPredecessor(startNeighbor.label(), (int)result->label());
+    insertSigmaPredecessor(endNeighbor.label(),  -(int)result->label());
     return edge(result->label());
 }
 
@@ -1067,11 +1075,8 @@ void GeoMap::removeEdge(GeoMap::Dart &dart)
     {
         // this is just a graph -> detach from nodes & uninitialize()
 
-        GeoMap::Node &node1(*dart.startNode());
-        GeoMap::Node &node2(*dart.endNode());
-
-        removeOne(node1.darts_,  dart.label());
-        removeOne(node2.darts_, -dart.label());
+        detachDart( dart.label());
+        detachDart(-dart.label());
 
         dart.edge()->uninitialize();
     }
@@ -1083,27 +1088,34 @@ void GeoMap::sortEdgesDirectly()
 
     for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
     {
+        if((*it)->isIsolated())
+            continue;
+
         std::vector<DartAngle> dartAngles;
 
-        GeoMap::Node::DartLabels &dartLabels((*it)->darts_);
-
-        for(unsigned int i = 0; i < dartLabels.size(); ++i)
+        GeoMap::Dart anchor((*it)->anchor()), d(anchor);
+        do
         {
-            GeoMap::Dart d(dart(dartLabels[i]));
             vigra_precondition(
                 d.size() >= 2, "cannot measure angle of darts with < 2 points!");
             dartAngles.push_back(
                 DartAngle(angleTheta(-d[1][1] + d[0][1],
                                       d[1][0] - d[0][0]),
-                          dartLabels[i]));
+                          d.label()));
         }
+        while(d.nextSigma() != anchor);
 
         std::sort(dartAngles.begin(), dartAngles.end());
 
-        for(unsigned int i = 0; i < dartLabels.size(); ++i)
+        int predecessor = dartAngles[0].second;
+        for(unsigned int i = 1; i < dartAngles.size(); ++i)
         {
-            dartLabels[i] = dartAngles[i].second;
+            sigmaMapping_[predecessor] = dartAngles[i].second;
+            sigmaInverseMapping_[dartAngles[i].second] = predecessor;
+            predecessor = dartAngles[i].second;
         }
+        sigmaMapping_[predecessor] = dartAngles[0].second;
+        sigmaInverseMapping_[dartAngles[0].second] = predecessor;
     }
 
     edgesSorted_ = true;
@@ -1551,22 +1563,33 @@ void GeoMap::sortEdgesEventually(double stepDist, double minDist,
 
     for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
     {
-        GeoMap::Node::DartLabels &dartLabels((*it)->darts_);
+        if((*it)->isIsolated())
+            continue;
 
         DartPositionAngles dartPositions;
 
-        for(unsigned int i = 0; i < dartLabels.size(); ++i)
-            dartPositions.push_back(
-                DartPositionAngle(dart(dartLabels[i])));
+        GeoMap::Dart anchor((*it)->anchor()), d(anchor);
+        do
+        {
+            dartPositions.push_back(DartPositionAngle(d));
+        }
+        while(d.nextSigma() != anchor);
 
-        //std::cerr << "sorting darts of node " << (*it)->label() << ":\n";
         sortEdgesInternal((*it)->position(), 0.0,
                           dartPositions.begin(), dartPositions.end(),
                           stepDist2, minAngle,
                           unsortable, splitInfo_.get(), false);
 
-        for(unsigned int i = 0; i < dartLabels.size(); ++i)
-            dartLabels[i] = dartPositions[i].dp.dartLabel();
+        int predecessor = dartPositions[0].dp.dartLabel();
+        for(unsigned int i = 1; i < dartPositions.size(); ++i)
+        {
+            int successor = dartPositions[i].dp.dartLabel();
+            sigmaMapping_[predecessor] = successor;
+            sigmaInverseMapping_[successor] = predecessor;
+            predecessor = successor;
+        }
+        sigmaMapping_[predecessor] = dartPositions[0].dp.dartLabel();
+        sigmaInverseMapping_[dartPositions[0].dp.dartLabel()] = predecessor;
     }
 
     edgesSorted_ = true;
@@ -1614,15 +1637,15 @@ void GeoMap::splitParallelEdges()
     for(PlannedSplits::iterator it = splitInfo_->begin();
         it != splitInfo_->end(); ++it)
     {
-        CELL_PTR(Edge) newEdge(splitEdge(
-                                   *edge(abs(it->dartLabel)),
-                                   it->segmentIndex, it->position));
+        CellLabel newEdgeLabel =
+            splitEdge(*edge(abs(it->dartLabel)),
+                      it->segmentIndex, it->position)->label();
 
         PlannedSplits::difference_type &pos(
             groupPositions[it->splitGroup]);
 
         mergeDarts[pos] =
-            MergeDart((int)newEdge->label(), it->dartLabel > 0, it->sigmaPos);
+            MergeDart((int)newEdgeLabel, it->dartLabel > 0, it->sigmaPos);
 
         ++pos;
     }
@@ -1656,16 +1679,19 @@ void GeoMap::splitParallelEdges()
             GeoMap::Dart d(dart(it->dartLabel));
             vigra::Vector2 nodePos(d.startNode()->position());
 
+            // intersect checkSurvivorDist-circle with dart
             DartPosition dp1(d);
             dp1.leaveCircle(nodePos, checkSurvivorDist2);
             d.nextSigma();
             DartPosition dp2(d);
             dp2.leaveCircle(nodePos, checkSurvivorDist2);
 
+            // determine vectors between node pos. & intersections..
             vigra::Vector2
                 v1(dp1() - nodePos),
                 v2(nodePos - dp2());
 
+            // ..and choose dart with smallest enclosed angle:
             double cont = dot(v1, v2)/(v1.magnitude()*v2.magnitude());
             if(cont > bestContinuationValue)
             {
@@ -1680,11 +1706,8 @@ void GeoMap::splitParallelEdges()
             survivor.nextSigma();
 
         GeoMap::Node &survivingNode(*survivor.startNode());
-        int sigmaNeighborLabel(survivor.clone().nextSigma().label());
-        GeoMap::Node::DartLabels::iterator
-            targetSigmaPos(
-                std::find(survivingNode.darts_.begin(), survivingNode.darts_.end(),
-                          sigmaNeighborLabel));
+        int sigmaCenterLabel(survivor.clone().nextSigma().label()),
+            sigmaNeighborLabel(sigmaCenterLabel);
 
         if(bestContinuationIndex)
         {
@@ -1705,6 +1728,8 @@ void GeoMap::splitParallelEdges()
                 GeoMap::Dart relocateDart(mergeDart);
                 relocateDart.nextSigma();
 
+                checkConsistency(); // no modification should've happened so far
+
                 // re-attach relocateDart to surviving node
                 CELL_PTR(GeoMap::Edge) relocateEdge(relocateDart.edge());
                 if(relocateDart.label() < 0)
@@ -1718,8 +1743,10 @@ void GeoMap::splitParallelEdges()
                     relocateEdge->startNodeLabel_ = survivingNode.label();
                     (*relocateEdge)[0] = survivingNode.position();
                 }
-                targetSigmaPos =
-                    survivingNode.darts_.insert(targetSigmaPos, relocateDart.label());
+
+                detachDart(relocateDart.label());
+                insertSigmaPredecessor(sigmaNeighborLabel, relocateDart.label());
+                sigmaNeighborLabel = relocateDart.label();
 
                 // remove mergeDart and its startNode:
                 GeoMap::Node &mergedNode(*mergeDart.startNode());
@@ -1729,10 +1756,7 @@ void GeoMap::splitParallelEdges()
             while(it != mergeDartsGroupBegin);
         }
 
-        targetSigmaPos = std::find(
-            survivingNode.darts_.begin(), survivingNode.darts_.end(),
-            sigmaNeighborLabel);
-        ++targetSigmaPos;
+        sigmaNeighborLabel = sigmaMapping_[sigmaCenterLabel];
 
         for(MergeDarts::iterator it =
                 mergeDartsGroupBegin + bestContinuationIndex + 1;
@@ -1762,9 +1786,8 @@ void GeoMap::splitParallelEdges()
                 relocateEdge->startNodeLabel_ = survivingNode.label();
                 (*relocateEdge)[0] = survivingNode.position();
             }
-            targetSigmaPos =
-                survivingNode.darts_.insert(targetSigmaPos, relocateDart.label());
-            ++targetSigmaPos;
+            detachDart(relocateDart.label());
+            insertSigmaPredecessor(sigmaNeighborLabel, relocateDart.label());
 
             // remove mergeDart and its startNode:
             GeoMap::Node &mergedNode(*mergeDart.startNode());
@@ -1776,55 +1799,59 @@ void GeoMap::splitParallelEdges()
 
 void GeoMap::setSigmaMapping(SigmaMapping const &sigmaMapping, bool sorted)
 {
-    vigra_precondition(sigmaMapping.size() >= (2*edges_.size() - 1),
-                       "setSigmaMapping: sigmaMapping too small!");
-    SigmaMapping::const_iterator sigma(
-        sigmaMapping.begin() + (sigmaMapping.size() / 2));
+    vigra_fail("not yet implemented"); // FIXME
 
-    for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
-    {
-        if(!(*it)->degree())
-            continue;
+//     vigra_precondition(sigmaMapping.size() >= (2*edges_.size() - 1),
+//                        "setSigmaMapping: sigmaMapping too small!");
+//     SigmaMapping::const_iterator sigma(
+//         sigmaMapping.begin() + (sigmaMapping.size() / 2));
 
-        GeoMap::Node::DartLabels &dartLabels((*it)->darts_);
+//     for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
+//     {
+//         if((*it)->isIsolated())
+//             continue;
 
-        GeoMap::Node::DartLabels singleOrbit;
-        int label = (*it)->anchor().label();
-        do
-        {
-            singleOrbit.push_back(label);
-            label = sigma[label];
-        }
-        while(label != singleOrbit[0]);
+//         GeoMap::Node::DartLabels &dartLabels((*it)->darts_);
 
-        vigra_precondition(singleOrbit.size() == dartLabels.size(),
-                           "setSigmaMapping: sigma orbit has wrong size");
-        std::swap(singleOrbit, dartLabels);
-    }
+//         GeoMap::Node::DartLabels singleOrbit;
+//         int label = (*it)->anchor().label();
+//         do
+//         {
+//             singleOrbit.push_back(label);
+//             label = sigma[label];
+//         }
+//         while(label != singleOrbit[0]);
 
-    edgesSorted_ = sorted;
+//         vigra_precondition(singleOrbit.size() == dartLabels.size(),
+//                            "setSigmaMapping: sigma orbit has wrong size");
+//         std::swap(singleOrbit, dartLabels);
+//     }
+
+//     edgesSorted_ = sorted;
 }
 
 std::auto_ptr<GeoMap::SigmaMapping> GeoMap::sigmaMapping()
 {
+    vigra_fail("not yet implemented"); // FIXME
+
     std::auto_ptr<GeoMap::SigmaMapping> result(
         new GeoMap::SigmaMapping(2*edges_.size() - 1, 0));
-    GeoMap::SigmaMapping::iterator
-        sigma(result->begin() + (result->size() / 2));
+//     GeoMap::SigmaMapping::iterator
+//         sigma(result->begin() + (result->size() / 2));
 
-    for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
-    {
-        if(!(*it)->degree())
-            continue;
+//     for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
+//     {
+//         if((*it)->isIsolated())
+//             continue;
 
-        GeoMap::Dart anchor((*it)->anchor()), d(anchor);
-        do
-        {
-            int dl = d.label();
-            sigma[dl] = d.nextSigma().label();
-        }
-        while(d != anchor);
-    }
+//         GeoMap::Dart anchor((*it)->anchor()), d(anchor);
+//         do
+//         {
+//             int dl = d.label();
+//             sigma[dl] = d.nextSigma().label();
+//         }
+//         while(d != anchor);
+//     }
 
     return result;
 }
@@ -2013,6 +2040,66 @@ void GeoMap::embedFaces(bool initLabelImage)
     }
 }
 
+void GeoMap::resizeSigmaMapping()
+{
+    SigmaMapping::size_type
+        newSize = 2*sigmaMappingArray_.size()-1;
+
+    SigmaMapping
+        newSigma(newSize, 0),
+        newSigmaInverse(newSize, 0);
+    std::copy(sigmaMappingArray_.begin(), sigmaMappingArray_.end(),
+              newSigma.begin() + sigmaMappingArray_.size()/2);
+    std::copy(sigmaInverseMappingArray_.begin(),
+              sigmaInverseMappingArray_.end(),
+              newSigmaInverse.begin() + sigmaMappingArray_.size()/2);
+
+    std::swap(sigmaMappingArray_, newSigma);
+    sigmaMapping_ = sigmaMappingArray_.begin() + newSize/2;
+
+    std::swap(sigmaInverseMappingArray_, newSigmaInverse);
+    sigmaInverseMapping_ = sigmaInverseMappingArray_.begin() + newSize/2;
+}
+
+void GeoMap::insertSigmaPredecessor(int successor, int newPredecessor)
+{
+    if(2*(unsigned)abs(newPredecessor)+1 > sigmaMappingArray_.size())
+        resizeSigmaMapping();
+
+    if(!successor)
+    {
+//         std::cerr << "initializing sigma @ " << newPredecessor << "\n";
+        sigmaMapping_[newPredecessor] = newPredecessor;
+        sigmaInverseMapping_[newPredecessor] = newPredecessor;
+        return;
+    }
+
+    int oldPredecessor = sigmaInverseMapping_[successor];
+    sigmaMapping_[oldPredecessor] = newPredecessor;
+    sigmaMapping_[newPredecessor] = successor;
+    sigmaInverseMapping_[successor] = newPredecessor;
+    sigmaInverseMapping_[newPredecessor] = oldPredecessor;
+}
+
+void GeoMap::detachDart(int dartLabel)
+{
+    GeoMap::Node &node(*dart(dartLabel).startNode());
+
+    int successor = sigmaMapping_[dartLabel];
+    int predecessor = sigmaInverseMapping_[dartLabel];
+
+    sigmaMapping_[predecessor] = successor;
+    sigmaInverseMapping_[successor] = predecessor;
+
+    if(node.anchor_ == dartLabel)
+    {
+        if(successor != dartLabel)
+            node.anchor_ = successor;
+        else
+            node.anchor_ = 0;
+    }
+}
+
 CELL_PTR(GeoMap::Node) GeoMap::nearestNode(
     const vigra::Vector2 &position,
     double maxSquaredDist)
@@ -2026,12 +2113,65 @@ CELL_PTR(GeoMap::Node) GeoMap::nearestNode(
 
 bool GeoMap::checkConsistency()
 {
+    //std::cerr << "GeoMap[" << this << "].checkConsistency()\n";
     bool result = true;
-    bool skipFaces = !mapInitialized();
+
+    if((sigmaMapping_ !=
+        sigmaMappingArray_.begin() + (sigmaMappingArray_.size()-1)/2) ||
+       (sigmaInverseMapping_ !=
+        sigmaInverseMappingArray_.begin() + (sigmaMappingArray_.size()-1)/2) ||
+       !(sigmaMappingArray_.size() & 1) ||
+       (sigmaMappingArray_.size() != sigmaInverseMappingArray_.size()))
+    {
+        std::cerr << "  Sigma mapping arrays not correctly setup!\n";
+        std::cerr << "      sigma: size " << sigmaMappingArray_.size()
+                  << ", center @" << (sigmaMapping_ - sigmaMappingArray_.begin())
+                  << "\n";
+        std::cerr << "    inverse: size " << sigmaInverseMappingArray_.size()
+                  << ", center @" << (
+                      sigmaInverseMapping_ - sigmaInverseMappingArray_.begin())
+                  << "\n";
+        result = false;
+    }
+    else
+    {
+        if(sigmaMappingArray_.size() < maxEdgeLabel()*2-1)
+        {
+            std::cerr << "  Sigma mapping arrays not large enough!\n";
+            result = false;
+        }
+
+        int dist = sigmaMappingArray_.size()/2;
+        for(int label = -dist; label <= dist; ++label)
+        {
+            if((unsigned)abs(sigmaMapping_[label]) >= maxEdgeLabel() ||
+               (unsigned)abs(sigmaInverseMapping_[label]) >= maxEdgeLabel())
+            {
+                std::cerr << "  Sigma mapping arrays contain junk (sigma["
+                          << label << "] = " << sigmaMapping_[label]
+                          << ", sigma^-1[" << label << "] = "
+                          << sigmaInverseMapping_[label] << ")!\n";
+                result = false;
+                continue;
+            }
+            if(sigmaMapping_[label] &&
+               (CellLabel)abs(label) < maxEdgeLabel() &&
+               edges_[abs(label)].get() &&
+               sigmaInverseMapping_[sigmaMapping_[label]] != label)
+            {
+                std::cerr << "  Sigma inverse is not correct ("
+                          << label << " -> " << sigmaMapping_[label]
+                          << " -> " << sigmaInverseMapping_[sigmaMapping_[label]]
+                          << ")!\n";
+                result = false;
+            }
+        }
+        if(!result)
+            return result; // function may not terminate in this state
+    }
 
     unsigned int actualNodeCount = 0, actualEdgeCount = 0, actualFaceCount = 0;
 
-    //std::cerr << "GeoMap[" << this << "].checkConsistency()\n";
     for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
     {
         ++actualNodeCount;
@@ -2042,6 +2182,25 @@ bool GeoMap::checkConsistency()
             result = false;
             break;
         }
+
+        if((*it)->isIsolated())
+            continue;
+
+        Dart anchor((*it)->anchor()), dart(anchor);
+        do
+        {
+            if(dart.startNodeLabel() != (*it)->label())
+            {
+                std::cerr << "  Node " << (*it)->label()
+                          << " has broken sigma orbit:\n"
+                          << "  contains Dart " << dart.label()
+                          << " from node " << dart.startNodeLabel()
+                          << " -> " << dart.endNodeLabel() << "\n";
+                result = false;
+                break;
+            }
+        }
+        while(dart.nextSigma() != anchor);
     }
     if(actualNodeCount != nodeCount())
     {
@@ -2061,7 +2220,7 @@ bool GeoMap::checkConsistency()
             break;
         }
 
-        if(!skipFaces)
+        if(mapInitialized())
         {
             if((*it)->isBridge() && (*it)->isLoop())
             {
@@ -2119,8 +2278,8 @@ bool GeoMap::checkConsistency()
             result = false;
     }
 
-    if(skipFaces)
-        return result;
+    if(!mapInitialized())
+        return result; // cannot test Faces yet (do not exist)
 
     for(FaceIterator it = facesBegin(); it.inRange(); ++it)
     {
@@ -2344,8 +2503,8 @@ CELL_PTR(GeoMap::Edge) GeoMap::mergeEdges(GeoMap::Dart &dart)
         }
     }
 
-    GeoMap::Node &mergedNode(*d1.startNode());
     GeoMap::Edge &survivor(*d1.edge());
+    GeoMap::Node &mergedNode(*d2.startNode());
     GeoMap::Edge &mergedEdge(*d2.edge());
 
     if(!preMergeEdgesHook(d1))
@@ -2355,15 +2514,8 @@ CELL_PTR(GeoMap::Edge) GeoMap::mergeEdges(GeoMap::Dart &dart)
 
     // TODO: history append?
 
-    GeoMap::Dart d(d2);
-    d.nextAlpha();
-    GeoMap::Node &changedEndNode(*d.startNode());
-    unsigned int cenDartIndex = 0;
-    for(; cenDartIndex < changedEndNode.darts_.size(); ++cenDartIndex)
-        if(changedEndNode.darts_[cenDartIndex] == d.label())
-            break;
-    vigra_postcondition(cenDartIndex < changedEndNode.darts_.size(),
-                        "changing dart not found at node");
+    int successor = sigmaMapping_[-d2.label()];
+    int predecessor = sigmaInverseMapping_[-d2.label()];
 
     if(labelImage_)
     {
@@ -2376,7 +2528,7 @@ CELL_PTR(GeoMap::Edge) GeoMap::mergeEdges(GeoMap::Dart &dart)
         if(mergedEdge.startNodeLabel() != mergedNode.label())
             mergedEdge.reverse();
         survivor.extend(mergedEdge);
-        survivor.endNodeLabel_ = changedEndNode.label();
+        survivor.endNodeLabel_ = d2.endNodeLabel();
     }
     else
     {
@@ -2385,10 +2537,15 @@ CELL_PTR(GeoMap::Edge) GeoMap::mergeEdges(GeoMap::Dart &dart)
             mergedEdge.reverse();
         survivor.extend(mergedEdge);
         survivor.reverse();
-        survivor.startNodeLabel_ = changedEndNode.label();
+        survivor.startNodeLabel_ = d2.endNodeLabel();
     }
 
-    changedEndNode.darts_[cenDartIndex] = d1.label();
+    sigmaMapping_[predecessor] = d1.label();
+    sigmaMapping_[d1.label()] = successor;
+    sigmaInverseMapping_[successor] = d1.label();
+    sigmaInverseMapping_[d1.label()] = predecessor;
+    if(d2.endNode()->anchor_ == -d2.label())
+        d2.endNode()->anchor_ = d1.label();
 
     if(labelImage_)
     {
@@ -2419,8 +2576,9 @@ CELL_PTR(GeoMap::Edge) GeoMap::splitEdge(
 
     preSplitEdgeHook(edge, segmentIndex, newPoint, insertPoint);
 
-    CELL_PTR(GeoMap::Node) newNode(
-        addNode(insertPoint ? newPoint : edge[segmentIndex]));
+    GeoMap::Node
+        &newNode(*addNode(insertPoint ? newPoint : edge[segmentIndex])),
+        &changedNode(*edge.endNode());
 
     if(labelImage_)
         rawAddEdgeToLabelImage(edge.scanLines(), *labelImage_, 1);
@@ -2432,20 +2590,43 @@ CELL_PTR(GeoMap::Edge) GeoMap::splitEdge(
     }
 
     GeoMap::Edge *result = new GeoMap::Edge(
-        this, newNode->label(), edge.endNodeLabel(), edge.split(segmentIndex));
+        this, newNode.label(), changedNode.label(), edge.split(segmentIndex));
     result->leftFaceLabel_ = edge.leftFaceLabel_;
     result->rightFaceLabel_ = edge.rightFaceLabel_;
     result->flags_ = edge.flags_;
 
-    newNode->darts_.push_back(-(int)edge.label());
-    newNode->darts_.push_back( (int)result->label());
+    if(sigmaMappingArray_.size() < 2*result->label()+1)
+        resizeSigmaMapping();
 
-    edge.endNodeLabel_ = newNode->label();
+    int successor = sigmaMapping_[-(int)edge.label()];
+    int predecessor = sigmaInverseMapping_[-(int)edge.label()];
 
-    GeoMap::Node &changedNode(*result->endNode());
-    *std::find(changedNode.darts_.begin(),
-               changedNode.darts_.end(), -(int)edge.label())
-        = -(int)result->label();
+    // setup newNode (fixed degree 2)
+    sigmaMapping_[-(int)edge.label()] = (int)result->label();
+    sigmaMapping_[(int)result->label()] = -(int)edge.label();
+    sigmaInverseMapping_[(int)result->label()] = -(int)edge.label();
+    sigmaInverseMapping_[-(int)edge.label()] = (int)result->label();
+    newNode.anchor_ = (int)result->label();
+
+    // edge now ends in newNode
+    edge.endNodeLabel_ = newNode.label();
+
+    if(successor == -(int)edge.label())
+    {
+        // changedNode has degree 1, replace -edgeLabel with -resultLabel
+        sigmaMapping_[-(int)result->label()] = -(int)result->label();
+        sigmaInverseMapping_[-(int)result->label()] = -(int)result->label();
+        changedNode.anchor_ = -(int)result->label();
+    }
+    else
+    {
+        sigmaMapping_[predecessor] = -(int)result->label();
+        sigmaMapping_[-(int)result->label()] = successor;
+        sigmaInverseMapping_[successor] = -(int)result->label();
+        sigmaInverseMapping_[-(int)result->label()] = predecessor;
+        if(changedNode.anchor_ == -(int)edge.label())
+            changedNode.anchor_ = -(int)result->label();
+    }
 
     if(labelImage_)
     {
@@ -2509,8 +2690,9 @@ CELL_PTR(GeoMap::Face) GeoMap::removeBridge(GeoMap::Dart &dart)
     newAnchor2.nextAlpha().prevSigma();
     unsigned int contourIndex = face.findComponentAnchor(dart);
 
-    removeOne(node1.darts_,  dart.label());
-    removeOne(node2.darts_, -dart.label());
+    // remove both darts from both sigma orbits:
+    detachDart( dart.label());
+    detachDart(-dart.label());
 
     if(contourIndex == 0)
     {
@@ -2639,15 +2821,15 @@ CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(GeoMap::Dart &dart)
 //         survivor.pixelBounds_ |= mergedFace.pixelBounds_;
     }
 
-    removeOne(node1.darts_,  removedDart.label());
-    removeOne(node2.darts_, -removedDart.label());
+    // remove both darts from both sigma orbits:
+    detachDart( removedDart.label());
+    detachDart(-removedDart.label());
 
     // remove singular nodes
-    bool removeNode1 = !node1.degree();
-    if(!node2.degree() && node2.label() != node1.label())
-        removeIsolatedNode(node2);
-    if(removeNode1)
+    if(node1.isIsolated() && node2.label() != node1.label())
         removeIsolatedNode(node1);
+    if(node2.isIsolated())
+        removeIsolatedNode(node2);
 
     if(survivor.flag(GeoMap::Face::AREA_VALID))
         survivor.area_ += mergedFace.area();
