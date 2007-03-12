@@ -7,7 +7,7 @@ from flag_constants import BORDER_PROTECTION, ALPHA_MARK
 
 from math import *
 
-__all__ = ["delaunayMap", "extractMapPoints", "midCrackPoints", "samplingPoints",
+__all__ = ["extractMapPoints", "midCrackPoints", "samplingPoints",
            "maxSegmentLength",
            
            "markAlphaShapes", "removeUnmarkedEdges", "alphaBetaMap",
