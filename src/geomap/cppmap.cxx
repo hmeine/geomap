@@ -2147,15 +2147,28 @@ bool GeoMap::checkConsistency()
             continue;
 
         Dart anchor((*it)->anchor()), dart(anchor);
-        if(!anchor.edge().get())
+        do
         {
-            std::cerr << "  Node " << (*it)->label()
-                      << " has broken anchor (" << anchor.label()
-                      << ") whose edge does not exist!\n";
-            result = false;
-        }
-        else do
-        {
+            if(!dart.edge().get())
+            {
+                std::cerr << "  Node " << (*it)->label()
+                          << " has broken sigma orbit: dart "
+                          << dart.label() << " does not exist!\n";
+
+                std::cerr << "    orbit so far: "
+                          << anchor.label() << " (anchor)";
+                Dart d(anchor);
+                while(d != dart)
+                {
+                    d.nextSigma();
+                    std::cerr << " -> " << d.label();
+                }
+                std::cerr << "\n";
+
+                result = false;
+                break;
+            }
+
             if(dart.startNodeLabel() != (*it)->label())
             {
                 std::cerr << "  Node " << (*it)->label()
