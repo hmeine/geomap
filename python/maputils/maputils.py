@@ -1,6 +1,8 @@
 import hourglass, sys
 from vigra import * # FIXME?
 
+import flag_constants
+
 # --------------------------------------------------------------------
 #                            edge protection
 # --------------------------------------------------------------------
@@ -18,7 +20,7 @@ class EdgeProtection(object):
 
     def preRemoveEdge(self, dart):
         "do not allow removal of protected edges"
-        return not dart.edge().flags()
+        return not dart.edge().flag(flag_constants.ALL_PROTECTION)
 
     def preMergeEdges(self, dart):
         "only allow edge merging if the edges carry the same flags"
@@ -216,14 +218,12 @@ def connectBorderNodes(map, epsilon,
     lastPoints.extend(borderEdges[0][0])
     borderEdges[0] = (lastPoints, borderEdges[0][1])
 
-    from flag_constants import BORDER_PROTECTION
-
     endNodeLabel = lastNode.label()
     for points, node in borderEdges:
         startNodeLabel = endNodeLabel
         endNodeLabel = node.label()
         map.addEdge(startNodeLabel, endNodeLabel, points) \
-                        .setFlag(BORDER_PROTECTION)
+                        .setFlag(flag_constants.BORDER_PROTECTION)
 
 # --------------------------------------------------------------------
 #                         consistency checks
@@ -622,8 +622,6 @@ def showHomotopyTree(face, indentation = ""):
     for anchor in face.holeContours():
         for hole in holeComponent(anchor):
             showHomotopyTree(hole, indentation + "  ")
-
-import flag_constants
 
 def edgeAtBorder(edge):
     return edge.flag(flag_constants.BORDER_PROTECTION)
