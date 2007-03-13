@@ -216,7 +216,8 @@ class GeoMap
     void splitParallelEdges();
 
     void setSigmaMapping(SigmaMapping const &sigmaMapping, bool sorted = true);
-    std::auto_ptr<SigmaMapping > sigmaMapping();
+    const SigmaMapping &sigmaMapping()
+        { return sigmaMappingArray_; }
 
     bool edgesSorted() const { return edgesSorted_; }
 
@@ -240,7 +241,7 @@ class GeoMap
   protected:
     void initContours();
     void embedFaces(bool initLabelImage);
-    void resizeSigmaMapping();
+    void resizeSigmaMapping(SigmaMapping::size_type newSize);
     void insertSigmaPredecessor(int successor, int newPredecessor);
     void detachDart(int dartLabel);
 

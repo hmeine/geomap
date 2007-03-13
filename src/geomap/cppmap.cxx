@@ -1799,61 +1799,24 @@ void GeoMap::splitParallelEdges()
 
 void GeoMap::setSigmaMapping(SigmaMapping const &sigmaMapping, bool sorted)
 {
-    vigra_fail("not yet implemented"); // FIXME
+    vigra_precondition(sigmaMapping.size() >= (2*edges_.size() - 1),
+                       "setSigmaMapping: sigmaMapping too small!");
+    SigmaMapping::const_iterator sigma(
+        sigmaMapping.begin() + (sigmaMapping.size() / 2));
 
-//     vigra_precondition(sigmaMapping.size() >= (2*edges_.size() - 1),
-//                        "setSigmaMapping: sigmaMapping too small!");
-//     SigmaMapping::const_iterator sigma(
-//         sigmaMapping.begin() + (sigmaMapping.size() / 2));
+    if(sigmaMappingArray_.size() < 2*edges_.size() - 1)
+        resizeSigmaMapping(2*edges_.size() - 1);
 
-//     for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
-//     {
-//         if((*it)->isIsolated())
-//             continue;
+    std::copy(sigma - (edges_.size() - 1), sigma + edges_.size(),
+              sigmaMapping_ - (edges_.size() - 1));
+    for(EdgeIterator it = edgesBegin(); it.inRange(); ++it)
+    {
+        int label = (int)(*it)->label();
+        sigmaInverseMapping_[sigmaMapping_[ label]] =  label;
+        sigmaInverseMapping_[sigmaMapping_[-label]] = -label;
+    }
 
-//         GeoMap::Node::DartLabels &dartLabels((*it)->darts_);
-
-//         GeoMap::Node::DartLabels singleOrbit;
-//         int label = (*it)->anchor().label();
-//         do
-//         {
-//             singleOrbit.push_back(label);
-//             label = sigma[label];
-//         }
-//         while(label != singleOrbit[0]);
-
-//         vigra_precondition(singleOrbit.size() == dartLabels.size(),
-//                            "setSigmaMapping: sigma orbit has wrong size");
-//         std::swap(singleOrbit, dartLabels);
-//     }
-
-//     edgesSorted_ = sorted;
-}
-
-std::auto_ptr<GeoMap::SigmaMapping> GeoMap::sigmaMapping()
-{
-    vigra_fail("not yet implemented"); // FIXME
-
-    std::auto_ptr<GeoMap::SigmaMapping> result(
-        new GeoMap::SigmaMapping(2*edges_.size() - 1, 0));
-//     GeoMap::SigmaMapping::iterator
-//         sigma(result->begin() + (result->size() / 2));
-
-//     for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
-//     {
-//         if((*it)->isIsolated())
-//             continue;
-
-//         GeoMap::Dart anchor((*it)->anchor()), d(anchor);
-//         do
-//         {
-//             int dl = d.label();
-//             sigma[dl] = d.nextSigma().label();
-//         }
-//         while(d != anchor);
-//     }
-
-    return result;
+    edgesSorted_ = sorted;
 }
 
 void GeoMap::initializeMap(bool initLabelImage)
@@ -2040,11 +2003,8 @@ void GeoMap::embedFaces(bool initLabelImage)
     }
 }
 
-void GeoMap::resizeSigmaMapping()
+void GeoMap::resizeSigmaMapping(SigmaMapping::size_type newSize)
 {
-    SigmaMapping::size_type
-        newSize = 2*sigmaMappingArray_.size()-1;
-
     SigmaMapping
         newSigma(newSize, 0),
         newSigmaInverse(newSize, 0);
@@ -2063,8 +2023,8 @@ void GeoMap::resizeSigmaMapping()
 
 void GeoMap::insertSigmaPredecessor(int successor, int newPredecessor)
 {
-    if(2*(unsigned)abs(newPredecessor)+1 > sigmaMappingArray_.size())
-        resizeSigmaMapping();
+    while(sigmaMappingArray_.size() < 2*(unsigned)abs(newPredecessor)+1)
+        resizeSigmaMapping(2*sigmaMappingArray_.size()-1);
 
     if(!successor)
     {
@@ -2596,7 +2556,7 @@ CELL_PTR(GeoMap::Edge) GeoMap::splitEdge(
     result->flags_ = edge.flags_;
 
     if(sigmaMappingArray_.size() < 2*result->label()+1)
-        resizeSigmaMapping();
+        resizeSigmaMapping(2*sigmaMappingArray_.size()-1);
 
     int successor = sigmaMapping_[-(int)edge.label()];
     int predecessor = sigmaInverseMapping_[-(int)edge.label()];
@@ -3413,9 +3373,9 @@ struct GeoMapPickleSuite : bp::pickle_suite
     static bp::tuple getstate(GeoMap &map)
     {
         bp::list pySigmaMapping;
-        std::auto_ptr<GeoMap::SigmaMapping> sigmaMapping(map.sigmaMapping());
-        for(GeoMap::SigmaMapping::iterator it = sigmaMapping->begin();
-            it != sigmaMapping->end(); ++it)
+        const GeoMap::SigmaMapping &sigmaMapping(map.sigmaMapping());
+        for(GeoMap::SigmaMapping::const_iterator it = sigmaMapping.begin();
+            it != sigmaMapping.end(); ++it)
         {
             pySigmaMapping.append(*it);
         }
