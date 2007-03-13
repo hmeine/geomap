@@ -4,7 +4,7 @@ _cvsVersion = "$Id$" \
 import fig, delaunay, sys, math, vigra
 from hourglass import Polygon
 from flag_constants import BORDER_PROTECTION, ALPHA_MARK
-from maputils import removeEdge
+from maputils import removeEdge, nodeAtBorder
 
 from math import *
 
@@ -200,7 +200,7 @@ def alphaBetaMap(points, imageSize, alpha, beta, removeInteriorEdges = False):
 def findCandidatesForPointCorrection(abm):
     mayMove, dontMove = [], []
     for n in abm.nodeIter():
-        if n.degree() != 2 or n.isAtBorder():
+        if n.degree() != 2 or nodeAtBorder(n):
             dontMove.append(n.position())
         else:
             p = n.position()
@@ -210,7 +210,7 @@ def findCandidatesForPointCorrection(abm):
             p1 = d.endNode().position()
             dx, dy = p1 - p0
             orientation = atan2(dy, dx)
-            mayMove.append(Edgel(p[0], p[1], 1, orientation))
+            mayMove.append(vigra.Edgel(p[0], p[1], 1, orientation))
     return mayMove, dontMove
 
 # --------------------------------------------------------------------
