@@ -64,7 +64,8 @@ def markAlphaShapes(delaunayMap, alpha, beta = 0.0):
 
     print "- marking triangles with radii < alpha(%s)..." % (alpha, )
     for triangle in delaunayMap.faceIter(skipInfinite = True):
-        triangle.setFlag(ALPHA_MARK, delaunayMap.circumCircles[triangle.label()][0] < alpha)
+        triangle.setFlag(
+            ALPHA_MARK, delaunayMap.circumCircles[triangle.label()][1] < alpha)
 
     print "- marking edges with empty circle radii < alpha(%s)..." % (alpha, )
     for edge in delaunayMap.edgeIter():
@@ -140,32 +141,33 @@ def markAlphaShapes(delaunayMap, alpha, beta = 0.0):
                 boundary.append(edge.rightFace())
             else:
                 face = cell
-                if face.flag(ALPHA_MARK) or edgeComponent[face.label()]:
+                if face.flag(ALPHA_MARK) or faceComponent[face.label()]:
                     continue
-                edgeComponent[face.label()] = componentCount
+                faceComponent[face.label()] = componentCount
                 size += 1
                 for dart in face.contour().phiOrbit():
                     boundary.append(dart.edge())
 
     for face in delaunayMap.faceIter():
-        if face.flag(ALPHA_MARK) or edgeComponent[face.label()]:
+        if face.flag(ALPHA_MARK) or faceComponent[face.label()]:
             continue
         componentCount += 1
-        edgeComponent[face.label()] = componentCount
+        faceComponent[face.label()] = componentCount
 
     print "  %s unlabelled components found." % (componentCount, )
 
     if not beta:
-        return componentCount
+        return edgeComponent
 
-    print "- looking for unmarked triangles with radii >= beta (%s)..." % (beta, )
+    print "- looking for unmarked triangles with radii >= beta (%s)..." % (
+        beta, )
 
     badComponent = [True] * (componentCount+1)
     for face in delaunayMap.faceIter(skipInfinite = True):
         if face.flag(ALPHA_MARK):
             continue
-        if delaunayMap.circumCircles[face.label()][0] >= beta:
-            badComponent[edgeComponent[face.label()]] = False
+        if delaunayMap.circumCircles[face.label()][1] >= beta:
+            badComponent[faceComponent[face.label()]] = False
 
     for label in range(1, componentCount+1):
         if badComponent[label]:
@@ -177,7 +179,7 @@ def markAlphaShapes(delaunayMap, alpha, beta = 0.0):
             edge.setFlag(ALPHA_MARK, badComponent[edgeComponent[edge.label()]])
     for face in delaunayMap.faceIter(skipInfinite = True):
         if not face.flag(ALPHA_MARK):
-            face.setFlag(ALPHA_MARK, badComponent[edgeComponent[face.label()]])
+            face.setFlag(ALPHA_MARK, badComponent[faceComponent[face.label()]])
 
     print "  %s unlabelled components left." % (componentCount, )
     return componentCount
