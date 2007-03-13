@@ -627,6 +627,12 @@ def edgeAtBorder(edge):
     return edge.flag(flag_constants.BORDER_PROTECTION)
 
 def nodeAtBorder(node):
+    """nodeAtBorder(node) -> bool
+
+    Returns True iff the Node is adjacent to at least one edge
+    marked with BORDER_PROTECTION."""
+    if node.isIsolated():
+        return False
     for dart in node.anchor().sigmaOrbit():
         if edgeAtBorder(dart.edge()):
             return True
