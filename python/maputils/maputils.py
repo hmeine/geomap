@@ -441,7 +441,7 @@ def mergeFacesCompletely(dart, doRemoveDegree2Nodes = True):
     commonEdgeList = []
     for contourIt in dart.phiOrbit():
         if contourIt.rightFaceLabel() == rightLabel:
-            if contourIt.edge().flags():
+            if contourIt.edge().flag(ALL_PROTECTION):
                 return None
             commonEdgeList.append(contourIt)
 
@@ -452,7 +452,6 @@ def mergeFacesCompletely(dart, doRemoveDegree2Nodes = True):
     for dart in commonEdgeList:
         affectedNodes.append(dart.startNodeLabel())
         affectedNodes.append(dart.endNodeLabel())
-        assert dart.edge().flags() == 0
         if survivor == None:
             survivor = map.mergeFaces(dart) # first common edge
         else:
@@ -529,7 +528,7 @@ def thresholdMergeCost(map, mergeCostFunctor, maxCost, costs = None, q = None):
             break
 
         edge = map.edge(edgeLabel)
-        if not edge or edge.flags():
+        if not edge or edge.flag(ALL_PROTECTION):
             continue
         d = edge.dart()
         if edge.isBridge():
@@ -768,7 +767,7 @@ def waterfall(map, edgeCosts, mst = None):
     faceLabels = waterfallLabels(map, edgeCosts, mst)
     print "- merging regions according to labelling..."
     for edge in map.edgeIter():
-        if edge.flags():
+        if edge.flag(ALL_PROTECTION):
             continue
         if edge.isBridge():
             print "ERROR: waterfall should not be called on maps with bridges!"

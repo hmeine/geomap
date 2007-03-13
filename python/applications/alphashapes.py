@@ -3,7 +3,7 @@ _cvsVersion = "$Id$" \
 
 import fig, delaunay, sys, math, vigra
 from hourglass import Polygon
-from flag_constants import BORDER_PROTECTION, ALPHA_MARK
+from flag_constants import BORDER_PROTECTION, ALL_PROTECTION, ALPHA_MARK
 from maputils import removeEdge, nodeAtBorder
 
 from math import *
@@ -28,7 +28,7 @@ def extractMapPoints(map, includeNodes = True):
     else:
         result = [node.position() for node in map.nodeIter()]
     for edge in map.edgeIter():
-        if not edge.flags() & BORDER_PROTECTION:
+        if not edge.flag(BORDER_PROTECTION):
             result.extend(list(edge)[1:-1])
     return result
 
@@ -43,7 +43,7 @@ def samplingPoints(img, threshold = 128):
 def maxSegmentLength(map):
     result = 0.0
     for edge in map.edgeIter():
-        if not edge.flags() & BORDER_PROTECTION:
+        if not edge.flag(BORDER_PROTECTION):
             result = max(result, max(
                 [(edge[i+1]-edge[i]).magnitude() for i in range(len(edge)-1)]))
     return result
@@ -186,7 +186,7 @@ def markAlphaShapes(delaunayMap, alpha, beta = 0.0):
 
 def removeUnmarkedEdges(map, removeInterior = False):
     for edge in map.edgeIter():
-        if edge.flags():
+        if edge.flag(ALL_PROTECTION):
             continue
         if not edge.flag(ALPHA_MARK):
             removeEdge(edge.dart())
