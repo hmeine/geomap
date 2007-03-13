@@ -2147,7 +2147,14 @@ bool GeoMap::checkConsistency()
             continue;
 
         Dart anchor((*it)->anchor()), dart(anchor);
-        do
+        if(!anchor.edge().get())
+        {
+            std::cerr << "  Node " << (*it)->label()
+                      << " has broken anchor (" << anchor.label()
+                      << ") whose edge does not exist!\n";
+            result = false;
+        }
+        else do
         {
             if(dart.startNodeLabel() != (*it)->label())
             {
@@ -2441,10 +2448,9 @@ CELL_PTR(GeoMap::Edge) GeoMap::mergeEdges(GeoMap::Dart &dart)
     vigra_precondition(d2 == dart,
                        "mergeEdges cannot remove node with degree > 2!");
 
-    vigra_assert(d1.leftFaceLabel() == d2.rightFaceLabel(),
-                 "mergeEdges: broken map");
-    vigra_assert(d2.leftFaceLabel() == d1.rightFaceLabel(),
-                 "mergeEdges: broken map");
+    vigra_assert((d1.leftFaceLabel() == d2.rightFaceLabel()) &&
+                 (d2.leftFaceLabel() == d1.rightFaceLabel()),
+                 "mergeEdges: broken map (left/rightFaceLabel)");
 
     GeoMap::Face *faces[2];
     faces[0] = &(*dart.leftFace());
