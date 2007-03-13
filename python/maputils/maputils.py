@@ -624,6 +624,17 @@ def showHomotopyTree(face, indentation = ""):
         for hole in holeComponent(anchor):
             showHomotopyTree(hole, indentation + "  ")
 
+import flag_constants
+
+def edgeAtBorder(edge):
+    return edge.flag(flag_constants.BORDER_PROTECTION)
+
+def nodeAtBorder(node):
+    for dart in node.anchor().sigmaOrbit():
+        if edgeAtBorder(dart.edge()):
+            return True
+    return False
+
 # --------------------------------------------------------------------
 
 from heapq import heappush, heappop
