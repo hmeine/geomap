@@ -102,6 +102,8 @@ class QuantileStatistics : public PolylineStatistics
     {
         vigra_precondition(segments_.size() > 0, "empty polygon?");
         ensureOrdering();
+        if(quantile == 1.0) // numeric errors may lead to below vigra_fail
+            return segments_[segments_.size()-1].first;
         double partialLength = 0;
         for(unsigned int i = 0; i < segments_.size(); ++i)
         {
