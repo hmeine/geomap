@@ -1,4 +1,4 @@
-import hourglass, sys
+import hourglass, sys, math, time
 from vigra import * # FIXME?
 
 import flag_constants
@@ -30,6 +30,132 @@ class EdgeProtection(object):
 # --------------------------------------------------------------------
 #                        map creation helpers
 # --------------------------------------------------------------------
+
+def filterSaddlePoints(rawSaddles, biSIV, threshold, maxDist):
+    """filterSaddlePoints(rawSaddles, biSIV, threshold, maxDist) -> list
+
+    Filters saddle points first by checking the threshold in the
+    boundary indicator SplineImageView 'biSIV', then by removing
+    duplicates (points which are nearer to previous points than
+    maxDist - IOW: Points that come first win.)
+
+    Returns a list of the remaining points together with their indices
+    in the original array (in enumerate() fashion)."""
+
+    maxSquaredDist = math.sq(maxDist)
+    knownSaddles = hourglass.PositionedMap()
+    result = []
+    for k, saddle in enumerate(rawSaddles):
+        if k == 0:
+            assert not saddle, "rawSaddles[0] expected to be None"
+            continue
+        if threshold and biSIV[saddle] < threshold:
+            continue
+        if not knownSaddles(saddle, maxSquaredDist):
+            result.append((k, saddle))
+            knownSaddles.insert(saddle, saddle)
+    return result
+
+def subpixelWatershedData(spws, biSIV = None, threshold = None,
+                          maxSaddleDist = 0.1,
+                          perpendicularDistEpsilon = 0.1, maxStep = 0.1):
+    """subpixelWatershedData(spws, biSIV, threshold) -> tuple
+
+    Calculates and returns a pair with a list of maxima and a list of
+    edges (composed flowline pairs) from the SubPixelWatersheds object
+    'spws'.  Each edge is represented with a quadrupel of
+    startNodeIndex, endNodeIndex, edge polygon and the index of the
+    original saddle within that polygon.  The first edge is None.
+    That output is suitable and intended for addFlowLinesToMap().
+
+    Gives verbose output during operation and uses filterSaddlePoints
+    to filter out saddle points below the threshold within the
+    SplineImageView 'biSIV' which should contain the boundary
+    indicator and to filter out duplicate saddlepoints (pass the
+    optional argument 'maxSaddleDist' to change the default of 0.1
+    here).
+
+    Each found edge polygon is simplified using simplifyPolygon with
+    perpendicularDistEpsilon = 0.1 and maxStep = 0.1 (use the optional
+    parameters with the same names to change the default)."""
+    
+    sys.stdout.write("- finding critical points..")
+    c = time.clock()
+    rawSaddles = spws.saddles()
+    saddles    = filterSaddlePoints(rawSaddles, biSIV, threshold, maxSaddleDist)
+    maxima     = spws.maxima()
+    sys.stdout.write("done. (%ss, %d maxima, %d saddles, %d filtered)\n" % (
+        time.clock()-c, len(maxima)-1, len(rawSaddles)-1, len(saddles)))
+
+    def calculateEdge(index):
+        flowline = spws.edge(index)
+        if not flowline:
+            return flowline
+        sn, en, poly, saddle = flowline
+        if perpendicularDistEpsilon:
+            poly = hourglass.simplifyPolygon(poly, perpendicularDistEpsilon, maxStep)
+        return (sn, en, poly, saddle)
+
+    prefix = "- following %d edges.." % (len(saddles), )
+    c = time.clock()
+    flowlines = [None]
+    percentGranularity = len(saddles) / 260 + 1
+    for k, _ in saddles:
+        flowlines.append(calculateEdge(k))
+        if k % percentGranularity == 0:
+            sys.stderr.write("%s %d%%\r" % (
+                prefix, 100 * (len(flowlines)-1) / len(saddles), ))
+    print "%s done (%ss)." % (prefix, time.clock()-c)
+
+    print "  (simplified edges with perpendicularDistEpsilon = %s, maxStep = %s)" % (
+        perpendicularDistEpsilon, maxStep)
+
+    return maxima, flowlines
+
+def _handleUnsortable(map, unsortable):
+    # remove unsortable self-loops (most likely flowlines which
+    # did not get far and were connected to the startNode by
+    # addFlowLinesToMap())
+    for group in unsortable:
+        i = 0
+        while i < len(group):
+            dart = map.dart(group[i])
+            if dart.edge().isLoop() and -dart.label() in group:
+                group.remove(dart.label())
+                group.remove(-dart.label())
+            else:
+                i += 1
+    try:
+        while True:
+            unsortable.remove([])
+    except ValueError:
+        pass
+    assert not unsortable, "unhandled unsortable edges occured"
+
+def subpixelWatershedMap(maxima, flowlines, imageSize,
+                         perpendicularDistEpsilon = 0.1, maxStep = 0.1,
+                         borderConnectionDist = 0.1,
+                         ssStepDist = 0.2, ssMinDist = 0.12,
+                         performBorderClosing = True,
+                         performEdgeSplits = True,
+                         Map = hourglass.GeoMap):
+
+    spmap = Map(maxima, [], imageSize)
+    deleted = addFlowLinesToMap(flowlines, spmap)
+    if deleted:
+        print "  skipped %d broken flowlines." % len(deleted)
+    if performBorderClosing:
+        connectBorderNodes(spmap, borderConnectionDist)
+        spmap.edgeProtection = EdgeProtection(spmap)
+    print " ",; removeCruft(spmap, 1) # FIXME: removeIsolatedNodes
+    unsortable = spmap.sortEdgesEventually(
+        ssStepDist, ssMinDist, performEdgeSplits)
+    _handleUnsortable(spmap, unsortable)
+    if performEdgeSplits:
+        spmap.splitParallelEdges()
+    spmap.initializeMap()
+#    spmap.wsStats = WatershedStatistics(spmap, flowlines, spv)
+    return spmap
 
 def addFlowLinesToMap(edges, map):
     """addFlowLinesToMap(edges, map)
@@ -441,7 +567,7 @@ def mergeFacesCompletely(dart, doRemoveDegree2Nodes = True):
     commonEdgeList = []
     for contourIt in dart.phiOrbit():
         if contourIt.rightFaceLabel() == rightLabel:
-            if contourIt.edge().flag(ALL_PROTECTION):
+            if contourIt.edge().flag(flag_constants.ALL_PROTECTION):
                 return None
             commonEdgeList.append(contourIt)
 
@@ -528,7 +654,7 @@ def thresholdMergeCost(map, mergeCostFunctor, maxCost, costs = None, q = None):
             break
 
         edge = map.edge(edgeLabel)
-        if not edge or edge.flag(ALL_PROTECTION):
+        if not edge or edge.flag(flag_constants.ALL_PROTECTION):
             continue
         d = edge.dart()
         if edge.isBridge():
@@ -771,7 +897,7 @@ def waterfall(map, edgeCosts, mst = None):
     faceLabels = waterfallLabels(map, edgeCosts, mst)
     print "- merging regions according to labelling..."
     for edge in map.edgeIter():
-        if edge.flag(ALL_PROTECTION):
+        if edge.flag(flag_constants.ALL_PROTECTION):
             continue
         if edge.isBridge():
             print "ERROR: waterfall should not be called on maps with bridges!"
@@ -801,3 +927,9 @@ def mst2map(mst, map):
     result.initializeMap(False)
     return result
 
+# --------------------------------------------------------------------
+#                               tests
+# --------------------------------------------------------------------
+
+# if __name__ == '__main__':
+    
