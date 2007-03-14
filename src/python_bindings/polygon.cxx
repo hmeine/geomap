@@ -6,6 +6,7 @@
 #include <vigra/gaussians.hxx>
 #include <vigra/pythonimage.hxx>
 #include <vigra/linear_algebra.hxx>
+#include <vigra/regression.hxx>
 #include <cmath>
 #include "delaunay.hxx"
 #include "exporthelpers.hxx"
@@ -1438,6 +1439,29 @@ list composeTangentLists(const list &tangentLists)
     return result;
 }
 
+struct LineFit : public IncrementalFitLine
+{
+    void addPoints(const PointArray<Vector2> &a)
+    {
+        for(unsigned int i = 0; i < a.size(); ++i)
+            addPoint(a[i]);
+    }
+
+    tuple pyComputeImplictEquation() const
+    {
+        double a,b,c;
+        double result = computeImplictEquation(a, b, c);
+        return make_tuple(result, make_tuple(a, b, c));
+    }
+
+    tuple pyComputeParametricEquation() const
+    {
+        Vector2 c, o;
+        double result = computeParametricEquation(c, o);
+        return make_tuple(result, make_tuple(c, o));
+    }
+};
+
 struct ParabolaFit
 {
     ContinuousDirection makeContinuous;
@@ -2095,6 +2119,18 @@ void defPolygon()
         "The length may also be negative, which means that the tangent list is\n"
         "to be reversed (the curve the tangents come from is traversed in the\n"
         "opposite orientation).");
+
+    class_<LineFit>("LineFit")
+        .def(init<LineFit>())
+        .def("addPoint",
+             (void (LineFit::*)(const Vector2 &))&LineFit::addPoint<Vector2>)
+        .def("addPoints",
+             &LineFit::addPoints)
+        .def("computeImplictEquation",
+             &LineFit::pyComputeImplictEquation)
+        .def("computeParametricEquation",
+             &LineFit::pyComputeParametricEquation)
+    ;
 
     class_<ParabolaFit>("ParabolaFit")
         .def(init<ParabolaFit>())
