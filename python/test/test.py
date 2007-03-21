@@ -39,8 +39,43 @@ for p in [(16, 17), (13, 17)]: # in hole
 # test copying / init from map data with disconnected contours:
 import copy
 om = copy.copy(map)
+assert om.__getstate__() == map.__getstate__()
 assert om.checkConsistency(), "map inconsistent"
 assert maputils.checkLabelConsistency(om), "om.labelImage() inconsistent"
+
+# --------------------------------------------------------------------
+
+def extractAllSaddles(map):
+    result = []
+    for edge in map.edgeIter():
+        result.extend(map.wsStats.edgeSaddles(edge))
+    return result
+
+from vigra import readImage, resizeImageSplineInterpolation, transformImage, gaussianGradientAsVector, SplineImageView5
+from hourglass import SubPixelWatersheds5
+
+img = resizeImageSplineInterpolation(readImage("test_blox.png"), Size2D(64, 64))
+img.grad = gaussianGradientAsVector(img, 1.6)
+img.gm = transformImage(img.grad, "\l x: norm(x)", {})
+img.gm.siv = SplineImageView5(img.gm)
+img.spws = SubPixelWatersheds5(img.gm)
+
+import maputils
+maxima, flowlines = maputils.subpixelWatershedData(
+    img.spws,
+    img.gm.siv, 0.7,
+    perpendicularDistEpsilon = None)
+spmap = maputils.subpixelWatershedMap(
+    maxima, flowlines, img.size(),
+
+    wsStatsSpline = img.gm.siv,
+    minima = img.spws.minima())
+
+print "comparing saddles..",
+saddles1 = img.spws.saddles()
+for saddle in extractAllSaddles(spmap):
+    assert saddle in saddles1
+print "all OK"
 
 # --------------------------------------------------------------------
 
@@ -151,7 +186,7 @@ try:
             dart = map.node(nodeLabel).anchor()
             print "removing node %d via %s" % (nodeLabel, dart)
             history += "map.mergeEdges(map.dart(%d))\n" % (dart.label(), )
-            mergePos = dart[0]
+#             mergePos = dart[0]
             survivor = map.mergeEdges(dart)
             if survivor:
 #                 assert mergePos in [survivor[i] for i in survivor.mergeIndices], \
