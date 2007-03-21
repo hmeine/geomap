@@ -2465,9 +2465,12 @@ CELL_PTR(GeoMap::Edge) GeoMap::mergeEdges(GeoMap::Dart &dart)
                  (d2.leftFaceLabel() == d1.rightFaceLabel()),
                  "mergeEdges: broken map (left/rightFaceLabel)");
 
+    if(d1.label() > 0 && d2.label() < 0)
+        std::swap(d1, d2); // minimize number of reverse()s necessary
+
     GeoMap::Face *faces[2];
-    faces[0] = &(*dart.leftFace());
-    faces[1] = &(*dart.rightFace());
+    faces[0] = &(*d2.leftFace());
+    faces[1] = &(*d2.rightFace());
     for(GeoMap::Face **faceIt = faces; faceIt != faces+2; ++faceIt)
     {
         GeoMap::Face::Contours::iterator cEnd = (*faceIt)->anchors_.end();
@@ -3595,6 +3598,7 @@ void defMap()
                  return_value_policy<copy_const_reference>())
             .def("setPosition", &GeoMap::Node::setPosition)
             .def("degree", &GeoMap::Node::degree)
+            .def("isIsolated", &GeoMap::Node::isIsolated)
             .def("anchor", &GeoMap::Node::anchor)
             .def(self == self)
             .def(self != self)
