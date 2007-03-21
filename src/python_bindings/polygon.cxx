@@ -1847,6 +1847,7 @@ void defPolygon()
         .def("reverse", &Vector2Array::reverse)
         .def("interpolate", &Vector2Array::interpolate)
         .def("__len__", &Vector2Array::size)
+        .def("__getitem__", &Array__getitem_slice__<Vector2Array>)
         .def("__getitem__", &Array__getitem__<Vector2Array>)
         .def("__setitem__", &Array__setitem__<Vector2Array>)
         .def("__iter__", &__iter__<Vector2Array>)
@@ -1857,6 +1858,7 @@ void defPolygon()
         .def("roundToInteger", &Vector2Array::roundToInteger)
     ;
     PolygonFromPython<Vector2Array>();
+    register_ptr_to_python< std::auto_ptr<Vector2Array> >();
 
     typedef PointArray<Point2D> Point2DArray;
     typedef STLIterWrapper<Point2DArray::const_iterator>
@@ -1869,12 +1871,14 @@ void defPolygon()
         .def(init<Point2DArray>())
         .def("reverse", &Point2DArray::reverse)
         .def("__len__", &Point2DArray::size)
+        .def("__getitem__", &Array__getitem_slice__<Point2DArray>)
         .def("__getitem__", &Array__getitem__<Point2DArray>)
         .def("__setitem__", &Array__setitem__<Point2DArray>)
         .def("__iter__", &__iter__<Point2DArray>)
         .def("__reviter__", &__reviter__<Point2DArray>)
         .def("insert", &insert<Point2DArray>)
     ;
+    register_ptr_to_python< std::auto_ptr<Point2DArray> >();
 
     class_<PythonPolygon, bases<Vector2Array> >("Polygon")
         .def(init<Vector2Array>())
@@ -1883,6 +1887,8 @@ void defPolygon()
         .def("insert", &insert<PythonPolygon>)
         .def("append", &PythonPolygon::push_back)
         .def("extend", &PythonPolygon::extend)
+        .def("__getitem__", &Array__getitem_slice__<PythonPolygon>)
+        .def("__getitem__", &Array__getitem__<PythonPolygon>)
         .def("__setitem__", &Polygon__setitem__<PythonPolygon>)
         .def("split", &split<PythonPolygon>)
         .def("length", &PythonPolygon::length)
@@ -1897,6 +1903,7 @@ void defPolygon()
         .def_pickle(ArrayPickleSuite<PythonPolygon>())
     ;
     PolygonFromPython<PythonPolygon>();
+    register_ptr_to_python< std::auto_ptr<PythonPolygon> >();
 
     typedef PythonPolygon::BoundingBox BoundingBox;
     class_<BoundingBox>("BoundingBox")

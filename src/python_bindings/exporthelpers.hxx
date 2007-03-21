@@ -2,6 +2,8 @@
 #define EXPORTHELPERS_HXX
 
 #include <boost/python.hpp>
+#include <boost/python/slice.hpp>
+#include <memory>
 
 /*
   I find these very convenient, and would like to add them to
@@ -19,7 +21,7 @@ inline void checkPythonIndex(int &i, unsigned int size)
     if((unsigned int)i >= size)
     {
         PyErr_SetString(PyExc_IndexError,
-            "index out of bounds.");
+                        "index out of bounds.");
         boost::python::throw_error_already_set();
     }
 }
@@ -30,6 +32,23 @@ Array__getitem__(Array const & a, int i)
 {
     checkPythonIndex(i, a.size());
     return a[i];
+}
+
+template<class Array>
+std::auto_ptr<Array>
+Array__getitem_slice__(Array const & a, boost::python::slice sl)
+{
+    boost::python::slice::range<typename Array::const_iterator>
+        bounds = sl.get_indicies<>(a.begin(), a.end());
+
+    if(bounds.step != 1)
+    {
+        PyErr_SetString(PyExc_IndexError,
+                        "No extended slicing supported yet.");
+        boost::python::throw_error_already_set();
+    }
+
+    return std::auto_ptr<Array>(new Array(bounds.start, bounds.stop+1));
 }
 
 template<class Array>
