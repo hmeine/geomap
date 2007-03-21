@@ -28,7 +28,7 @@ class EdgeProtection(object):
                 dart.clone().nextSigma().edge().flags())
 
 # --------------------------------------------------------------------
-#                        map creation helpers
+#                      subpixel watershed functions
 # --------------------------------------------------------------------
 
 def filterSaddlePoints(rawSaddles, biSIV, threshold, maxDist):
@@ -91,10 +91,16 @@ def subpixelWatershedData(spws, biSIV = None, threshold = None,
         flowline = spws.edge(index)
         if not flowline:
             return flowline
-        sn, en, poly, saddle = flowline
+        sn, en, poly, saddleIndex = flowline
         if perpendicularDistEpsilon:
-            poly = hourglass.simplifyPolygon(poly, perpendicularDistEpsilon, maxStep)
-        return (sn, en, poly, saddle)
+            simple = hourglass.simplifyPolygon(
+                poly[:saddleIndex+1], perpendicularDistEpsilon, maxStep)
+            newSaddleIndex = len(simple)-1
+            simple.extend(hourglass.simplifyPolygon(
+                poly[saddleIndex:], perpendicularDistEpsilon, maxStep))
+            poly = simple
+            saddleIndex = newSaddleIndex
+        return (sn, en, poly, saddleIndex)
 
     prefix = "- following %d edges.." % (len(saddles), )
     c = time.clock()
@@ -138,6 +144,8 @@ def subpixelWatershedMap(maxima, flowlines, imageSize,
                          ssStepDist = 0.2, ssMinDist = 0.12,
                          performBorderClosing = True,
                          performEdgeSplits = True,
+                         wsStatsSpline = None,
+                         minima = None,
                          Map = hourglass.GeoMap):
 
     spmap = Map(maxima, [], imageSize)
@@ -151,10 +159,27 @@ def subpixelWatershedMap(maxima, flowlines, imageSize,
     unsortable = spmap.sortEdgesEventually(
         ssStepDist, ssMinDist, performEdgeSplits)
     _handleUnsortable(spmap, unsortable)
+
+    if wsStatsSpline:
+        c = time.clock()
+        print "  initializing watershed statistics...",
+        from statistics import WatershedStatistics
+        spmap.wsStats = WatershedStatistics(
+            spmap, flowlines, wsStatsSpline)
+        print " (%ss)" % (time.clock()-c, )
+
     if performEdgeSplits:
         spmap.splitParallelEdges()
     spmap.initializeMap()
-#    spmap.wsStats = WatershedStatistics(spmap, flowlines, spv)
+
+    if minima:
+        c = time.clock()
+        print "  initializing watershed basin statistics...",
+        from statistics import WatershedBasinStatistics
+        spmap.wsBasinStats = WatershedBasinStatistics(
+            spmap, minima[1:], wsStatsSpline)
+        print " (%ss)" % (time.clock()-c, )
+
     return spmap
 
 def addFlowLinesToMap(edges, map):
@@ -238,6 +263,10 @@ def addFlowLinesToMap(edges, map):
             result.append((startNodeLabel, endNodeLabel, points))
 
     return result
+
+# --------------------------------------------------------------------
+#                        map creation helpers
+# --------------------------------------------------------------------
 
 def connectBorderNodes(map, epsilon,
                        samePosEpsilon = 1e-6, aroundPixels = False):
