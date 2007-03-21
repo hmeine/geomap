@@ -1,60 +1,142 @@
-def tangentDir(s, x0, y0):
-    dx, dy = -s.dy(x0, y0), s.dx(x0, y0)
-    norm = sqrt(sq(dx) + sq(dy))
-    dx /= norm
-    dy /= norm
-    return dx, dy
+import sys, copy
+from vigra import Vector2, polynomialRealRoots
 
-def predictorStep1(s, x0, y0, h):
-    dx, dy = -s.dy(x0, y0), s.dx(x0, y0)
-    norm = sqrt(sq(dx) + sq(dy))
-    dx /= norm
-    dy /= norm
+def findZeroCrossingsOnGrid(siv):
+    result = []
+    # FIXME: why is the order of those loops important?!?
+    for y in range(siv.height()-1):
+        for x in range(siv.width()-1):
+            coeff = siv.coefficients(x, y)
 
-    x1 = x0 + h*dx
-    y1 = y0 + h*dy
-    if not isInside(s, x1, y1):
+            xPoly = [coeff[k,0] for k in range(4)]
+            try:
+                for k in polynomialRealRoots(xPoly):
+                    if k < 0.0 or k >= 1.0:
+                        continue
+                    result.append(Vector2(x+k, y))
+            except Exception, e:
+                sys.stderr.write("WARNING: no convergence in polynomialRealRoots(%s):\n  %s\n" % (xPoly, e))
+
+            yPoly = [coeff[0,k] for k in range(4)]
+            try:
+                for k in polynomialRealRoots(yPoly):
+                    if k < 0.0 or k >= 1.0:
+                        continue
+                    result.append(Vector2(x, y+k))
+            except Exception, e:
+                sys.stderr.write("WARNING: no convergence in polynomialRealRoots(%s):\n  %s\n" % (yPoly, e))
+    
+    return result
+
+# --------------------------------------------------------------------
+
+def gradient(siv, pos):
+    return Vector2(siv.dx(pos[0], pos[1]), siv.dy(pos[0], pos[1]))
+
+def gradientDir(siv, pos):
+    result = gradient(siv, pos)
+    return result / result.magnitude()
+
+def tangentDir(siv, pos):
+    result = Vector2(-siv.dy(pos[0], pos[1]), siv.dx(pos[0], pos[1]))
+    return result / result.magnitude()
+
+def predictorStep(siv, pos, h):
+    """predictorStep(siv, pos, h) -> Vector2
+
+    Step distance h from pos in direction of tangent (perpendicular
+    to gradient).  Returns None if that point is outside the
+    SplineImageView."""
+    
+    result = pos + h*tangentDir(siv, pos)
+    if not siv.isInside(result[0], result[1]):
         return None
-    return [x1, y1]
+    return result
 
-def correctorStep2(s, x0, y0, epsilon = 1e-4, n0 = 3):
-    x, y = x0, y0
+def correctorStep(siv, pos, epsilon = 1e-8, n0 = 3):
+    result = copy.copy(pos) # copy
+
     for k in range(100):
-        value = s(x, y)
+        value = siv(result[0], result[1])
         if abs(value) < epsilon:
-            contraction = float(k) / n0
-            return [x, y], contraction
-        dx, dy = s.dx(x, y), s.dy(x, y)
-        norm2 = sq(dx) + sq(dy)
-        correction = value / norm2
-        x -= dx * correction
-        y -= dy * correction
-        if not isInside(s, x, y):
+            break
+        g = gradient(siv, result)
+        correction = value / g.squaredMagnitude()
+        result -= g * correction
+        if not siv.isInside(result[0], result[1]):
+            return None, None # out of range
+        if (result-pos).squaredMagnitude() > 1.0: # FIXME
             return None, None
-        diff = sqrt(sq(x - x0) + sq(y - y0))
-        if diff > 1.0: # FIXME
-            return None, None
-    return None, None
 
-def predictorCorrectorStep(s, x, y, h, epsilon):
+    # FIXME: find out why this does not always converge to epsilons
+    # around 1e-8, but don't throw away good points (value < 1e-5)!
+#     if abs(value) > max(epsilon, 1e-5):
+#         return None, None
+
+    contraction = float(k) / n0
+    return result, contraction
+
+def predictorCorrectorStep(siv, pos, h, epsilon):
     while abs(h) > 1e-6: # FIXME
-        p1 = predictorStep1(s, x, y, h)
+        p1 = predictorStep(siv, pos, h)
         if not p1:
             h /= 2.0
             continue
-        p2, contraction = correctorStep2(s, p1[0], p1[1], epsilon)
+        p2, contraction = correctorStep(siv, p1, epsilon)
         if not p2:
             h /= 2.0
             continue
-        # use pow(..., 0.5) in connection with predictorStep1(),
-        # use pow(..., 0.33) in connection with predictorStep2(),
         h /= min(2.0, max(0.5, pow(contraction, 0.5)))
         if abs(h) > 0.2:
-            h = 0.2
+            h = h < 0 and -0.2 or 0.2
         break
     else:
         return None, None
     return p2, h
+
+# --------------------------------------------------------------------
+
+def followContour(siv, geomap, nodeLabel, h):
+    pos = geomap.node(nodeLabel).position()
+    x = round(pos[0])
+    y = round(pos[1])
+    poly = [pos]
+    while True:
+        npos, _ = predictorCorrectorStep(siv, pos, h, 1e-6)
+        if not npos:
+            return poly
+        nx = int(npos[0])
+        ny = int(npos[1])
+        if nx != x or ny != y:
+            # determine grid intersection
+            diff = npos - pos
+            if nx != x:
+                intersectionX = round(npos[0])
+                intersectionY = pos[1]+(intersectionX-pos[0])*diff[1]/diff[0]
+            else:
+                intersectionY = round(npos[1])
+                intersectionX = pos[0]+(intersectionY-pos[1])*diff[0]/diff[1]
+            intersection = Vector2(intersectionX, intersectionY)
+
+            # connect to crossed Node
+            node = geomap.nearestNode(intersection, 0.01)
+            if node and node.label() == nodeLabel: # and len(poly) < 2:
+                print "coming from node %d to %d, ignoring crossing, poly len: %d" \
+                      % (nodeLabel, node.label(), len(poly))                    
+                pass
+            elif node:
+                poly.append(node.position())
+                print "added", geomap.addEdge(nodeLabel, node.label(), poly)
+                if not node.degree() % 2:
+                    return
+                poly = [node.position()]
+                nodeLabel = node.label()
+            else:
+                sys.stderr.write("WARNING: level contour crossing grid at %s without intersection Node!\n" % repr(intersection))
+            x = nx
+            y = ny
+        poly.append(npos)
+        pos = npos
 
 def haralickConstraint(z, i, x, y, t):
     if i.g2(x, y) < t:
@@ -226,7 +308,7 @@ def levelEdgesMap(edges, imageSize):
 from vigra import addPathFromHere
 addPathFromHere("../evaluation/")
 import edgedetectors
-from map import removeCruft
+from maputils import removeCruft
 
 def levelSetMap(image, threshold, sigma = None):
     ed = edgedetectors.EdgeDetector(
