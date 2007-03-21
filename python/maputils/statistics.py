@@ -6,7 +6,7 @@ from weakref import ref
 from vigra import *
 from hourglass import PositionedMap, EdgeStatistics, \
      spatialStabilityImage, tangentList, resamplePolygon
-import sivtools
+import sivtools, flag_constants
 from map import arcLengthIter
 
 class DetachableStatistics(object):
@@ -367,72 +367,80 @@ class EdgeMergeTree(DynamicEdgeStatistics):
         return result
 
 class WatershedStatistics(DetachableStatistics):
-    def __init__(self, map, flowlines, minima, gmSiv):
+    def __init__(self, map, flowlines, gmSiv):
         self._passValues = [None] * map.maxEdgeLabel()
         self._saddles = [[] for i in range(map.maxEdgeLabel())]
         for edge in map.edgeIter():
-            saddleIndex = None
-            if hasattr(edge, "isSplitResultOf"): # split result?
-                edgeLabel = abs(edge.isSplitResultOf[0])
-                if edgeLabel < len(flowlines):
-                    saddleIndex = flowlines[edgeLabel][3] \
-                                  - edge.isSplitResultOf[1] # saddle index offset
-            elif edge.label() < len(flowlines): # could be a border edge, too
-                fl = flowlines[edge.label()]
-                if fl:
-                    saddleIndex = fl[3]
+            if edge.flag(flag_constants.BORDER_PROTECTION):
+                continue
             
-            if saddleIndex >= 0 and saddleIndex < len(edge):
-                self._passValues[edge.label()] = gmSiv[edge[saddleIndex]]
-                self._saddles[edge.label()].append(saddleIndex)
-            else:
-                self._passValues[edge.label()] = min(gmSiv[edge[0]], gmSiv[edge[-1]])
+            saddleIndex = flowlines[edge.label()][3]
+            self._passValues[edge.label()] = gmSiv[edge[saddleIndex]]
+            self._saddles[edge.label()].append(saddleIndex)
 
-        self._basinDepth = [None] * map.maxFaceLabel()
-        for mpos in minima:
-            face = map.faceAt(mpos)
-            depth = gmSiv[mpos]
-            fDepth = self._basinDepth[face.label()]
-            if fDepth == None or fDepth > depth:
-                self._basinDepth[face.label()] = depth
-
-        for face in map.faceIter():
-            if self._basinDepth[face.label()] == None:
-                print "Face %d (area %s, anchor %d) contains no minimum!" % (
-                    face.label(), face.area(), face.contour().label())
-                self._basinDepth[face.label()] = 0.0
-        
         self.attach(map)
 
     def attach(self, map):
         self._attachedHooks = (
-            map.addMergeFacesCallbacks(self.preMergeFaces, self.postMergeFaces),
-            map.addMergeEdgesCallbacks(self.preMergeEdges, self.postMergeEdges))
+            map.addMergeEdgesCallbacks(self.preMergeEdges,
+                                       self.postMergeEdges), )
         self._map = ref(map)
 
+    def nonWatershedEdgesAdded(self):
+        """wsStats.nonWatershedEdgesAdded()
+
+        Call e.g. after connectBorderNodes, when new non-watershed
+        edges have been added."""
+
+        mel = self._map().maxEdgeLabel()
+        if len(self._passValues) < mel:
+            self._passValues.extend([None] * (mel - len(self._passValues)))
+            self._saddles.extend([[] for i in
+                                  range(mel - len(self._passValues))])
+
+    def dartIndices(self, dart):
+        edgeIndices = self._saddles[dart.edgeLabel()]
+        if dart.label() > 0:
+            return list(edgeIndices)
+        mi = len(dart)-1
+        return [mi-i for i in edgeIndices]
+
     def preMergeEdges(self, dart):
-        edge1 = dart.edge()
+        # dart belongs to the surviving edge and starts at the merged
+        # node:
+        
+        edge1 = dart.edge()        
         edge2 = dart.clone().nextSigma().edge()
-        # FIXME: this is totally wrong - the indices have to be corrected!!
-        # (alternatively, we could store the saddle positions?)
-        self.mergedSaddles = list(self._saddles[edge1.label()])
-        self.mergedSaddles.extend(self._saddles[edge2.label()])
+
+        # do not allow merging of watersheds with border:
+        if edge1.flag(flag_constants.BORDER_PROTECTION):
+            return edge2.flag(flag_constants.BORDER_PROTECTION)
+        if edge2.flag(flag_constants.BORDER_PROTECTION):
+            return edge1.flag(flag_constants.BORDER_PROTECTION)
+
+        if dart.label() < 0:
+            # dart.edge() will be simply extend()ed
+            self.mergedSaddles = self.dartIndices(dart.clone().nextAlpha())
+            el1 = len(edge1)
+            self.mergedSaddles.extend([
+                el1 + i for i in self.dartIndices(dart.clone().nextSigma())])
+        else:
+            # edge2 will be inserted before dart.edge():
+            self.mergedSaddles = self.dartIndices(
+                dart.clone().nextSigma().nextAlpha())
+            el2 = len(edge2)
+            self.mergedSaddles.extend([
+                el1 + i for i in self.dartIndices(dart)])
+
         self.mergedPV = min(self._passValues[edge1.label()],
                             self._passValues[edge2.label()])
         return True
 
     def postMergeEdges(self, survivor):
-        self._passValues[survivor.label()]
-        self._saddles[survivor.label()]
-
-    def preMergeFaces(self, dart):
-        self.mergedDepth = min(
-            self._basinDepth[dart.leftFaceLabel()],
-            self._basinDepth[dart.rightFaceLabel()])
-        return True
-
-    def postMergeFaces(self, survivor):
-        self._basinDepth[survivor.label()] = self.mergedDepth
+        if survivor.flag(flag_constants.BORDER_PROTECTION):
+            return
+        self._saddles[survivor.label()] = self.mergedSaddles
+        self._passValues[survivor.label()] = self.mergedPV
 
     def edgeSaddles(self, edge):
         if hasattr(edge, "label"):
@@ -447,15 +455,47 @@ class WatershedStatistics(DetachableStatistics):
             edge = edge.label()
         return self._passValues[edge]
 
-    def dynamic(self, edge):
-        if hasattr(edge, "label"):
-            edgeLabel = edge.label()
-        else:
-            edgeLabel = edge
-            edge = self._map().edge(edgeLabel)
-        return self._passValues[edgeLabel] - min(
-            self._basinDepth[edge.leftFaceLabel()],
-            self._basinDepth[edge.rightFaceLabel()])
+#     def dynamic(self, edge):
+#         if hasattr(edge, "label"):
+#             edgeLabel = edge.label()
+#         else:
+#             edgeLabel = edge
+#             edge = self._map().edge(edgeLabel)
+#         return self._passValues[edgeLabel] - min(
+#             self._basinDepth[edge.leftFaceLabel()],
+#             self._basinDepth[edge.rightFaceLabel()])
+
+class WatershedBasinStatistics(DetachableStatistics):
+    def __init__(self, map, minima, gmSiv):
+        self._basinDepth = [None] * map.maxFaceLabel()
+        for mpos in minima:
+            face = map.faceAt(mpos)
+            depth = gmSiv[mpos]
+            fDepth = self._basinDepth[face.label()]
+            if fDepth == None or fDepth > depth:
+                self._basinDepth[face.label()] = depth
+
+        for face in map.faceIter():
+            if self._basinDepth[face.label()] == None:
+                print "Face %d (area %s, anchor %d) contains no minimum!" % (
+                    face.label(), face.area(), face.contour().label())
+                self._basinDepth[face.label()] = 0.0 # FIXME: remove!?!
+
+        self.attach(map)
+
+    def attach(self, map):
+        self._attachedHooks = (
+            map.addMergeFacesCallbacks(self.preMergeFaces,
+                                       self.postMergeFaces), )
+
+    def preMergeFaces(self, dart):
+        self.mergedDepth = min(
+            self._basinDepth[dart.leftFaceLabel()],
+            self._basinDepth[dart.rightFaceLabel()])
+        return True
+
+    def postMergeFaces(self, survivor):
+        self._basinDepth[survivor.label()] = self.mergedDepth
 
 def _makeAttrName(someStr):
     attrTrans = string.maketrans(".+-", "__n")
@@ -928,9 +968,11 @@ def calculateTangentListsGaussianReflective(map, sigma, diff=0.0):
 
 def dartTangents(dart):
     """dartTangents(dart)
+
     Returns (tangents, dirLength) pair, where dirLength is
     negative if dart.label > 0 (the darts are supposed to be
     reversed for composeTangentLists)"""
+
     e = dart.edge()
     if dart.label() > 0:
         return (e.tangents,  e.length())
