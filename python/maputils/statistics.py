@@ -366,37 +366,17 @@ class EdgeMergeTree(DynamicEdgeStatistics):
             edge = merged
         return result
 
-class WatershedStatistics(DetachableStatistics):
-    def __init__(self, map, flowlines, gmSiv):
-        self._passValues = [None] * map.maxEdgeLabel()
-        self._saddles = [[] for i in range(map.maxEdgeLabel())]
-        for edge in map.edgeIter():
-            if edge.flag(flag_constants.BORDER_PROTECTION):
-                continue
-            
-            saddleIndex = flowlines[edge.label()][3]
-            self._passValues[edge.label()] = gmSiv[edge[saddleIndex]]
-            self._saddles[edge.label()].append(saddleIndex)
-
-        self.attach(map)
-
+class DynamicEdgeIndices(DetachableStatistics):
+    def __init__(self, map):
+        self._indices = [[] for i in range(map.maxEdgeLabel())]
+    
     def attach(self, map):
         self._attachedHooks = (
             map.addMergeEdgesCallbacks(self.preMergeEdges,
-                                       self.postMergeEdges), )
+                                       self.postMergeEdges),
+            map.addSplitEdgeCallbacks(self.preSplitEdge,
+                                      self.postSplitEdge))
         self._map = ref(map)
-
-    def nonWatershedEdgesAdded(self):
-        """wsStats.nonWatershedEdgesAdded()
-
-        Call e.g. after connectBorderNodes, when new non-watershed
-        edges have been added."""
-
-        mel = self._map().maxEdgeLabel()
-        if len(self._passValues) < mel:
-            self._passValues.extend([None] * (mel - len(self._passValues)))
-            self._saddles.extend([[] for i in
-                                  range(mel - len(self._passValues))])
 
     def dartIndices(self, dart):
         edgeIndices = self._saddles[dart.edgeLabel()]
@@ -409,7 +389,72 @@ class WatershedStatistics(DetachableStatistics):
         # dart belongs to the surviving edge and starts at the merged
         # node:
         
-        edge1 = dart.edge()        
+        edge1 = dart.edge()
+        edge2 = dart.clone().nextSigma().edge()
+
+        if dart.label() < 0:
+            # dart.edge() will be simply extend()ed
+            el1 = len(edge1)
+            self.mergedIndices = self.dartIndices(dart.clone().nextAlpha())
+            self.mergedIndices.extend([
+                el1 + i for i in self.dartIndices(dart.clone().nextSigma())])
+        else:
+            # edge2 will be inserted before dart.edge():
+            el2 = len(edge2)
+            self.mergedIndices = self.dartIndices(
+                dart.clone().nextSigma().nextAlpha())
+            self.mergedIndices.extend([el1 + i for i in self.dartIndices(dart)])
+
+        return True
+
+    def postMergeEdges(self, survivor):
+        self._indices[survivor.label()] = self.mergedIndices
+
+    def preSplitEdge(self, edge, segmentIndex, newPoint):
+        oldIndices = self._indices[edge.label()]
+
+        self.newIndices1 = [i for i in oldIndices if i <= segmentIndex]
+
+        offset = -segmentIndex
+        if newPoint:
+            segmentIndex += 1
+        self.newIndices2 = [i+offset for i in oldIndices if i >= segmentIndex]
+
+        return True
+
+    def postSplitEdge(self, oldEdge, newEdge):
+        self._indices[oldEdge.label()] = self.newIndices1
+        assert len(self._indices) == newEdge.label()
+        self._indices.append(self.newIndices2)
+
+class WatershedStatistics(DynamicEdgeIndices):
+    def __init__(self, map, flowlines, gmSiv):
+        DynamicEdgeIndices.__init__(self, map)
+        self._passValues = [None] * map.maxEdgeLabel()
+        for edge in map.edgeIter():
+            if edge.flag(flag_constants.BORDER_PROTECTION):
+                continue
+            
+            saddleIndex = flowlines[edge.label()][3]
+            self._passValues[edge.label()] = gmSiv[edge[saddleIndex]]
+            self._indices[edge.label()].append(saddleIndex)
+
+        self.attach(map)
+
+    def nonWatershedEdgesAdded(self):
+        """wsStats.nonWatershedEdgesAdded()
+
+        Call e.g. after connectBorderNodes, when new non-watershed
+        edges have been added."""
+
+        mel = self._map().maxEdgeLabel()
+        if len(self._passValues) < mel:
+            self._passValues.extend([None] * (mel - len(self._passValues)))
+            self._indices.extend([[] for i in
+                                  range(mel - len(self._passValues))])
+
+    def preMergeEdges(self, dart):
+        edge1 = dart.edge()
         edge2 = dart.clone().nextSigma().edge()
 
         # do not allow merging of watersheds with border:
@@ -418,28 +463,17 @@ class WatershedStatistics(DetachableStatistics):
         if edge2.flag(flag_constants.BORDER_PROTECTION):
             return edge1.flag(flag_constants.BORDER_PROTECTION)
 
-        if dart.label() < 0:
-            # dart.edge() will be simply extend()ed
-            self.mergedSaddles = self.dartIndices(dart.clone().nextAlpha())
-            el1 = len(edge1)
-            self.mergedSaddles.extend([
-                el1 + i for i in self.dartIndices(dart.clone().nextSigma())])
-        else:
-            # edge2 will be inserted before dart.edge():
-            self.mergedSaddles = self.dartIndices(
-                dart.clone().nextSigma().nextAlpha())
-            el2 = len(edge2)
-            self.mergedSaddles.extend([
-                el1 + i for i in self.dartIndices(dart)])
-
+        if not DynamicEdgeIndices.preMergeEdges(self, dart):
+            return False
+        
         self.mergedPV = min(self._passValues[edge1.label()],
                             self._passValues[edge2.label()])
+
         return True
 
     def postMergeEdges(self, survivor):
-        if survivor.flag(flag_constants.BORDER_PROTECTION):
-            return
-        self._saddles[survivor.label()] = self.mergedSaddles
+        DynamicEdgeIndices.postMergeEdges(self, survivor)
+
         self._passValues[survivor.label()] = self.mergedPV
 
     def edgeSaddles(self, edge):
@@ -448,7 +482,7 @@ class WatershedStatistics(DetachableStatistics):
         else:
             edgeLabel = edge
             edge = self._map().edge(edgeLabel)
-        return [edge[i] for i in self._saddles[edgeLabel]]
+        return [edge[i] for i in self._indices[edgeLabel]]
 
     def passValue(self, edge):
         if hasattr(edge, "label"):
