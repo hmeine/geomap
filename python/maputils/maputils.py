@@ -43,17 +43,25 @@ def filterSaddlePoints(rawSaddles, biSIV, threshold, maxDist):
     in the original array (in enumerate() fashion)."""
 
     maxSquaredDist = math.sq(maxDist)
-    knownSaddles = hourglass.PositionedMap()
     result = []
+    sorted = []
     for k, saddle in enumerate(rawSaddles):
         if k == 0:
             assert not saddle, "rawSaddles[0] expected to be None"
             continue
-        if threshold and biSIV[saddle] < threshold:
+        v = biSIV[saddle]
+        if threshold and v < threshold:
             continue
+        sorted.append((-v, k, saddle))
+
+    sorted.sort()
+
+    knownSaddles = hourglass.PositionedMap()
+    for _, k, saddle in sorted:
         if not knownSaddles(saddle, maxSquaredDist):
             result.append((k, saddle))
             knownSaddles.insert(saddle, saddle)
+
     return result
 
 def subpixelWatershedData(spws, biSIV = None, threshold = None,
@@ -173,6 +181,8 @@ def subpixelWatershedMap(maxima, flowlines, imageSize,
     spmap.initializeMap()
 
     if minima:
+        assert wsStatsSpline, \
+            "minima given, but basin statistics need a wsStatsSpline, too"
         c = time.clock()
         print "  initializing watershed basin statistics...",
         from statistics import WatershedBasinStatistics
