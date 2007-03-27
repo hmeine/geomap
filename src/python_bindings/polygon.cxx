@@ -2134,9 +2134,21 @@ void defPolygon()
         .def("addPoints",
              &LineFit::addPoints)
         .def("computeImplictEquation",
-             &LineFit::pyComputeImplictEquation)
+             &LineFit::pyComputeImplictEquation,
+             "computeImplictEquation() -> res, (a, b, p)\n\n"
+             "Compute parameters such that\n"
+             "  a * x + b * y + p == 0\n"
+             "for all (x,y) on the line.\n"
+             "'res' is the residual of the estimate, namely\n"
+             "the std.dev. perpendicular to the line.\n")
         .def("computeParametricEquation",
-             &LineFit::pyComputeParametricEquation)
+             &LineFit::pyComputeParametricEquation,
+             "computeParametricEquation() -> res, (center, orientation)\n\n"
+             "Compute center, orientation such that\n"
+             "  (x,y) = center + t * orientation\n"
+             "for all (x,y) on the line.\n"
+             "'res' is the residual of the estimate, namely\n"
+             "the std.dev. perpendicular to the line.\n")
     ;
 
     class_<ParabolaFit>("ParabolaFit")
