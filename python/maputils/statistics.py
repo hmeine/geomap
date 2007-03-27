@@ -80,6 +80,25 @@ class DynamicFaceStatistics(DetachableStatistics):
 
 from numpy import arange
 
+def sampleRegions(map, image, functors):
+    """sampleRegions(map, image, functors)
+
+    For each pixel in the map's labelImage() whose facet belongs
+    completely to one region, calls the corresponding
+    functors[faceLabel] with the corresponding pixel from the given
+    image."""
+
+    class LookupFaceFunctors(object):
+        def __init__(self, functors):
+            self._functors = functors
+
+        def __call__(self, label, value):
+            if label >= 0:
+                self._functors[int(label)](value)
+
+    inspectImage(map.labelImage(), image,
+                 LookupFaceFunctors(functors))
+
 # new API: does not touch the Face objects themselves
 class FaceColorStatistics(DynamicFaceStatistics):
     def __init__(self, map, originalImage,
@@ -106,16 +125,7 @@ class FaceColorStatistics(DynamicFaceStatistics):
         else:
             self.faceMeanDiff = self.faceMeanDiffGray
 
-        class MeansInitFunctor(object):
-            def __init__(self, functors):
-                self._functors = functors
-
-            def __call__(self, label, value):
-                if label >= 0:
-                    self._functors[int(label)](value)
-
-        inspectImage(map.labelImage(), originalImage,
-                     MeansInitFunctor(self._functors))
+        sampleRegions(map, originalImage, self._functors)
 
         self._SIV = SIV # class
         self._origSIV = None # instance, lazily-initialized using self._SIV
