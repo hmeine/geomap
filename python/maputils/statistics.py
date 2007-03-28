@@ -389,7 +389,7 @@ class DynamicEdgeIndices(DetachableStatistics):
         self._map = ref(map)
 
     def dartIndices(self, dart):
-        edgeIndices = self._saddles[dart.edgeLabel()]
+        edgeIndices = self._indices[dart.edgeLabel()]
         if dart.label() > 0:
             return list(edgeIndices)
         mi = len(dart)-1
@@ -404,16 +404,18 @@ class DynamicEdgeIndices(DetachableStatistics):
 
         if dart.label() < 0:
             # dart.edge() will be simply extend()ed
-            el1 = len(edge1)
+            el1 = len(edge1) - 1
             self.mergedIndices = self.dartIndices(dart.clone().nextAlpha())
             self.mergedIndices.extend([
-                el1 + i for i in self.dartIndices(dart.clone().nextSigma())])
+                el1 + i for i in self.dartIndices(dart.clone().nextSigma())
+                if i])
         else:
             # edge2 will be inserted before dart.edge():
-            el2 = len(edge2)
+            el2 = len(edge2) - 1
             self.mergedIndices = self.dartIndices(
                 dart.clone().nextSigma().nextAlpha())
-            self.mergedIndices.extend([el1 + i for i in self.dartIndices(dart)])
+            self.mergedIndices.extend([
+                el2 + i for i in self.dartIndices(dart) if i])
 
         return True
 
@@ -446,9 +448,20 @@ class WatershedStatistics(DynamicEdgeIndices):
                 continue
             
             saddleIndex = flowlines[edge.label()][3]
+
+            # flowline tracing might have stopped, in which case the
+            # polygon can be modified by connecting to the nearest
+            # maximum/node, possibly adding a point and thus shifting
+            # the indices:
+            flowline = flowlines[edge.label()]
+            if len(edge) != len(flowline[2]) and edge[1] == flowline[2][0]:
+                assert flowline[0] == 0
+                saddleIndex += 1
+            
             self._passValues[edge.label()] = gmSiv[edge[saddleIndex]]
             self._indices[edge.label()].append(saddleIndex)
 
+        self._gmSiv = gmSiv
         self.attach(map)
 
     def nonWatershedEdgesAdded(self):
@@ -464,8 +477,12 @@ class WatershedStatistics(DynamicEdgeIndices):
                                   range(mel - len(self._passValues))])
 
     def preMergeEdges(self, dart):
+        DynamicEdgeIndices.preMergeEdges(self, dart)
+
         edge1 = dart.edge()
         edge2 = dart.clone().nextSigma().edge()
+
+        self.mergedPV = None
 
         # do not allow merging of watersheds with border:
         if edge1.flag(flag_constants.BORDER_PROTECTION):
@@ -485,6 +502,22 @@ class WatershedStatistics(DynamicEdgeIndices):
         DynamicEdgeIndices.postMergeEdges(self, survivor)
 
         self._passValues[survivor.label()] = self.mergedPV
+
+    def _resetPassValue(self, edge):
+        ind = self._indices[edge.label()]
+        if ind:
+            self._passValues[edge.label()] = min([
+                self._gmSiv[edge[i]] for i in ind])
+        else:
+            self._passValues[edge.label()] = min(
+                self._gmSiv[edge[0]], self._gmSiv[edge[-1]])
+
+    def postSplitEdge(self, oldEdge, newEdge):
+        DynamicEdgeIndices.postSplitEdge(self, oldEdge, newEdge)
+        
+        self._resetPassValue(oldEdge)
+        self._passValues.append(None)
+        self._resetPassValue(newEdge)
 
     def edgeSaddles(self, edge):
         if hasattr(edge, "label"):
