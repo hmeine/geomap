@@ -90,10 +90,10 @@ def subpixelWatershedData(spws, biSIV = None, threshold = None,
     sys.stdout.write("- finding critical points..")
     c = time.clock()
     rawSaddles = spws.saddles()
-    saddles    = filterSaddlePoints(rawSaddles, biSIV, threshold, maxSaddleDist)
     maxima     = spws.maxima()
-    sys.stdout.write("done. (%ss, %d maxima, %d saddles, %d filtered)\n" % (
-        time.clock()-c, len(maxima)-1, len(rawSaddles)-1, len(saddles)))
+    sys.stdout.write("done. (%ss, %d maxima, %d saddles, %d minima)\n" % (
+        time.clock()-c,
+        len(maxima)-1, len(rawSaddles)-1, len(spws.minima())-1))
 
     def calculateEdge(index):
         flowline = spws.edge(index)
@@ -108,21 +108,29 @@ def subpixelWatershedData(spws, biSIV = None, threshold = None,
                 poly[saddleIndex:], perpendicularDistEpsilon, maxStep))
             poly = simple
             saddleIndex = newSaddleIndex
-        return (sn, en, poly, saddleIndex)
+        return (sn, en, poly, saddleIndex, index)
 
-    prefix = "- following %d edges.." % (len(saddles), )
+    saddles = filterSaddlePoints(rawSaddles, biSIV, threshold, maxSaddleDist)
+    prefix = "- following %d/%d edges.." % (len(saddles), len(rawSaddles))
     c = time.clock()
     flowlines = [None]
     percentGranularity = len(saddles) / 260 + 1
     for k, _ in saddles:
-        flowlines.append(calculateEdge(k))
+        edgeTuple = calculateEdge(k)
+        if edgeTuple:
+            flowlines.append(edgeTuple)
         if k % percentGranularity == 0:
             sys.stderr.write("%s %d%%\r" % (
                 prefix, 100 * (len(flowlines)-1) / len(saddles), ))
     print "%s done (%ss)." % (prefix, time.clock()-c)
 
-    print "  (simplified edges with perpendicularDistEpsilon = %s, maxStep = %s)" % (
-        perpendicularDistEpsilon, maxStep)
+    if len(flowlines)-1 < len(saddles):
+        print "  (%d edges parallel to border removed)" % (
+            len(saddles) - (len(flowlines)-1))
+
+    if perpendicularDistEpsilon:
+        print "  (simplified edges with perpendicularDistEpsilon = %s, maxStep = %s)" % (
+            perpendicularDistEpsilon, maxStep)
 
     return maxima, flowlines
 
@@ -157,12 +165,16 @@ def subpixelWatershedMap(maxima, flowlines, imageSize,
                          Map = hourglass.GeoMap):
 
     spmap = Map(maxima, [], imageSize)
+
     deleted = addFlowLinesToMap(flowlines, spmap)
     if deleted:
         print "  skipped %d broken flowlines." % len(deleted)
+
     if performBorderClosing:
+        print "  adding border edges and EdgeProtection..."
         connectBorderNodes(spmap, borderConnectionDist)
         spmap.edgeProtection = EdgeProtection(spmap)
+
     print " ",; removeCruft(spmap, 1) # FIXME: removeIsolatedNodes
     unsortable = spmap.sortEdgesEventually(
         ssStepDist, ssMinDist, performEdgeSplits)
@@ -177,7 +189,9 @@ def subpixelWatershedMap(maxima, flowlines, imageSize,
         print " (%ss)" % (time.clock()-c, )
 
     if performEdgeSplits:
+        print "  splitting & joining parallel edges..."
         spmap.splitParallelEdges()
+
     spmap.initializeMap()
 
     if minima:
@@ -205,19 +219,24 @@ def addFlowLinesToMap(edges, map):
 
     * Self-loops with area zero are not added.
 
-    Returns edgeTriples that could not be added to the GeoMap."""
+    Returns edgeTuples that could not be added to the GeoMap."""
     
     # Node 0 conflicts with our special handling of 0 values:
     assert not map.node(0), \
            "addFlowLinesToMap: Node with label zero should not exist!"
 
     result = []
-    for edgeLabel, edgeTriple in enumerate(edges):
-        if not edgeTriple:
+    for edgeLabel, edgeTuple in enumerate(edges):
+        if not edgeTuple:
             continue
-        startNodeLabel = edgeTriple[0]
-        endNodeLabel = edgeTriple[1]
-        points = hourglass.Polygon(edgeTriple[2]) # don't modify original flowlines
+
+        startNodeLabel = edgeTuple[0]
+        endNodeLabel = edgeTuple[1]
+        if startNodeLabel == -2 and endNodeLabel == -2:
+            continue # unwanted edge parallel to border
+
+        # be careful not to modify the original 'edges' passed:
+        points = hourglass.Polygon(edgeTuple[2])
 
         assert len(points) >= 2, "edges need to have at least two (end-)points"
 
