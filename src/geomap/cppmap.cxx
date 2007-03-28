@@ -990,6 +990,9 @@ double angleTheta(double dy, double dx); // implemented in polygon.cxx
 
 CELL_PTR(GeoMap::Face) GeoMap::faceAt(const vigra::Vector2 &position)
 {
+    vigra_precondition(mapInitialized(),
+        "faceAt() called on graph (mapInitialized() == false)!");
+
     if(labelImage_)
     {
         GeoMap::LabelImage::difference_type p(intVPos(position));
@@ -1084,6 +1087,9 @@ void GeoMap::removeEdge(GeoMap::Dart &dart)
 
 void GeoMap::sortEdgesDirectly()
 {
+    vigra_precondition(!mapInitialized(),
+        "sigma orbits cannot be changed after initializeMap()");
+
     typedef std::pair<double, int> DartAngle;
 
     for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
@@ -1555,6 +1561,9 @@ void GeoMap::sortEdgesEventually(double stepDist, double minDist,
                                  UnsortableGroups &unsortable,
                                  bool splitEdges)
 {
+    vigra_precondition(!mapInitialized(),
+        "sigma orbits cannot be changed after initializeMap()");
+
     double minAngle = std::atan2(minDist, stepDist),
           stepDist2 = vigra::sq(stepDist);
 
@@ -1799,6 +1808,9 @@ void GeoMap::splitParallelEdges()
 
 void GeoMap::setSigmaMapping(SigmaMapping const &sigmaMapping, bool sorted)
 {
+    vigra_precondition(!mapInitialized(),
+        "sigma orbits cannot be changed after initializeMap()");
+
     vigra_precondition(sigmaMapping.size() >= (2*edges_.size() - 1),
                        "setSigmaMapping: sigmaMapping too small!");
     SigmaMapping::const_iterator sigma(
