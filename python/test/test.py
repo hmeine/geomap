@@ -70,7 +70,6 @@ maxima, flowlines = maputils.subpixelWatershedData(
 
 map = GeoMap(maxima, [], img.size())
 maputils.addFlowLinesToMap(flowlines, map)
-map.sortEdgesEventually(stepDist = 0.2, minDist = 0.05)
 
 def checkSaddles(map, saddles, flowlines = None):
     print "comparing saddles of %d edges.." % (map.edgeCount, ),
@@ -101,6 +100,9 @@ def checkSplittingSaddleHandling(edge, offset):
         assert map.wsStats.edgeSaddles(edge) == saddles
     if offset <= 0:
         assert map.wsStats.edgeSaddles(newEdge) == saddles
+    map.mergeEdges(newEdge.dart())
+    assert map.wsStats.edgeSaddles(edge.label()) == saddles
+    assert map.wsStats._indices[edge.label()][0] == saddleIndex
 
 import statistics
 map.wsStats = statistics.WatershedStatistics(map, flowlines, img.gm.siv)
@@ -125,6 +127,12 @@ print "  OK"
 
 assert checkSaddles(map, img.spws.saddles(), flowlines)
 
+print "sigma sorting & splitting parallel edges..."
+map.sortEdgesEventually(stepDist = 0.2, minDist = 0.05)
+map.splitParallelEdges()
+
+assert checkSaddles(map, img.spws.saddles(), flowlines)
+
 # --------------------------------------------------------------------
 # 			complete subpixel watersheds map + statistics
 # --------------------------------------------------------------------
@@ -134,14 +142,13 @@ spmap = maputils.subpixelWatershedMap(
     wsStatsSpline = img.gm.siv,
     minima = img.spws.minima())
 
-assert checkSaddles(spmap, img.spws.saddles())
 maputils.removeCruft(spmap, 7)
-assert checkSaddles(spmap, img.spws.saddles())
+assert checkSaddles(spmap, img.spws.saddles(), flowlines)
 
 # --------------------------------------------------------------------
 
 import pixelmap
-lab, count = labelImage4(map.labelImage())
+lab, count = labelImage4(spmap.labelImage())
 cm = pixelmap.crackEdgeMap(lab)
 assert cm.faceCount == count + 1
 
