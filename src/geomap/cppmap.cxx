@@ -2480,19 +2480,22 @@ CELL_PTR(GeoMap::Edge) GeoMap::mergeEdges(GeoMap::Dart &dart)
     if(d1.label() > 0 && d2.label() < 0)
         std::swap(d1, d2); // minimize number of reverse()s necessary
 
-    GeoMap::Face *faces[2];
-    faces[0] = &(*d2.leftFace());
-    faces[1] = &(*d2.rightFace());
-    for(GeoMap::Face **faceIt = faces; faceIt != faces+2; ++faceIt)
+    if(mapInitialized())
     {
-        GeoMap::Face::Contours::iterator cEnd = (*faceIt)->anchors_.end();
-        for(GeoMap::Face::Contours::iterator it = (*faceIt)->anchors_.begin();
-            it != cEnd; ++it)
+        GeoMap::Face *faces[2];
+        faces[0] = &(*d2.leftFace());
+        faces[1] = &(*d2.rightFace());
+        for(GeoMap::Face **faceIt = faces; faceIt != faces+2; ++faceIt)
         {
-            if(it->edgeLabel() == d2.edgeLabel())
+            GeoMap::Face::Contours::iterator cEnd = (*faceIt)->anchors_.end();
+            for(GeoMap::Face::Contours::iterator it = (*faceIt)->anchors_.begin();
+                it != cEnd; ++it)
             {
-                it->nextPhi();
-                break;
+                if(it->edgeLabel() == d2.edgeLabel())
+                {
+                    it->nextPhi();
+                    break;
+                }
             }
         }
     }
