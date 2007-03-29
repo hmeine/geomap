@@ -1,8 +1,11 @@
 import copy
 from vigra import Point2D, Vector2, Rational
+from math import sq
 
 def freeman(crackEdge):
-    """Returns freeman codes for each polyline segment in the given
+    """freeman(crackEdge) -> list
+
+    Returns freeman codes for each polyline segment in the given
     crackEdge polygon.  Uses mathematical orientation, i.e. the code
     meaning is:
     
@@ -10,7 +13,9 @@ def freeman(crackEdge):
     1: diff = ( 0,  1)
     2: diff = (-1,  0)
     3: diff = ( 0, -1)
-    """
+
+    Effect unspecified if crackEdge is not a crack edge polygon."""
+    
     result = [None] * (len(crackEdge)-1)
     it = iter(crackEdge)
     prev = it.next()
@@ -30,18 +35,10 @@ def freeman(crackEdge):
         prev = point
     return result
 
-freeman2Diff8Conn    = [Point2D( 1, 0), Point2D( 1,  1)]
-freeman2Diff8ConnNeg = [Point2D(-1, 0), Point2D(-1, -1)]
-freeman2Diff4Conn    = [Point2D( 1, 0), Point2D( 0,  1)]
-
-def quadrant(c1, c2):
-    if c2 < c1:
-        c1, c2 = c2, c1
-    if c1 > 0:
-        return c1
-    if c2 > 1:
-        return 3
-    return 0
+freeman2Diff8ConnFirstQuadrant    = [Point2D( 1, 0), Point2D( 1,  1)]
+freeman2Diff8ConnThirdQuadrant = [Point2D(-1, 0), Point2D(-1, -1)]
+freeman2Diff4Conn    = [Point2D( 1, 0), Point2D( 0,  1),
+                        Point2D(-1, 0), Point2D( 0, -1)]
 
 def forwardIter(list, index, loop):
     i = index
@@ -55,6 +52,8 @@ def forwardIter(list, index, loop):
             i += 1
 
 def backwardIter(list, index, loop):
+    if index < 0:
+        index += len(list)
     i = index
     while i >= 0:
         yield list[i]
@@ -65,9 +64,9 @@ def backwardIter(list, index, loop):
             yield list[i]
             i -= 1
 
-def searchForwardQuadrant(freemanCodes, index, closed = True):
+def searchForwardQuadrant(freemanCodes, pointIndex, closed = True):
     try:
-        it = forwardIter(freemanCodes, index, closed)
+        it = forwardIter(freemanCodes, pointIndex, closed)
         c1 = it.next()
         while True:
             c2 = it.next()
@@ -76,10 +75,9 @@ def searchForwardQuadrant(freemanCodes, index, closed = True):
     except StopIteration:
         return c1
 
-def searchBackwardQuadrant(freemanCodes, index, closed = True):
+def searchBackwardQuadrant(freemanCodes, pointIndex, closed = True):
     try:
-        it = backwardIter(freemanCodes, index, closed)
-        c1 = it.next() # skip first
+        it = backwardIter(freemanCodes, pointIndex-1, closed)
         c1 = it.next()
         while True:
             c2 = it.next()
@@ -280,46 +278,48 @@ DigitalStraightLine = hourglass.DigitalStraightLine8
 
 def originatingPolyIter(freemanIter, allowed, freeman2Diff):
     cur = Point2D(0, 0)
+    count = len(freeman2Diff)
     for fc in freemanIter:
         if not fc in allowed:
             return
-        cur += freeman2Diff[fc % 2]
+        cur += freeman2Diff[fc % count]
         yield copy.copy(cur)
 
-def forwardDSL(freemanCodes, index, closed, allowed = None):
+def forwardDSL(freemanCodes, pointIndex, closed, allowed = None):
+    assert closed or pointIndex < len(freemanCodes)
     if allowed == None:
-        allowed = searchForwardQuadrant(freemanCodes, index, closed)
-    fmi = forwardIter(freemanCodes, index, closed)
-    dsl = DigitalStraightLine(freemanCodes[index] % 2 and 1 or 0, 1, 0)
-    for point in originatingPolyIter(fmi, allowed, freeman2Diff8Conn):
+        allowed = searchForwardQuadrant(freemanCodes, pointIndex, closed)
+    fmi = forwardIter(freemanCodes, pointIndex, closed)
+    dsl = DigitalStraightLine(freemanCodes[pointIndex] % 2 and 1 or 0, 1, 0)
+    for point in originatingPolyIter(fmi, allowed, freeman2Diff8ConnFirstQuadrant):
         if not dsl.addPoint(*point):
             break
-    return dsl, fmi.gi_frame.f_locals["i"]-index
+    return dsl, fmi.gi_frame.f_locals["i"]-pointIndex # FIXME: hack & wrong if closed
 
-def backwardDSL(freemanCodes, index, closed, allowed = None):
+def backwardDSL(freemanCodes, pointIndex, closed, allowed = None):
+    assert closed or pointIndex > 0
     if allowed == None:
-        allowed = searchBackwardQuadrant(freemanCodes, index, closed)
-    fmi = backwardIter(freemanCodes, index, closed)
-    fmi.next()
-    dsl = DigitalStraightLine(freemanCodes[index] % 2 and 1 or 0, 1, 0)
-    for point in originatingPolyIter(fmi, allowed, freeman2Diff8ConnNeg):
+        allowed = searchBackwardQuadrant(freemanCodes, pointIndex, closed)
+    fmi = backwardIter(freemanCodes, pointIndex-1, closed)
+    dsl = DigitalStraightLine(freemanCodes[pointIndex-1] % 2 and 1 or 0, 1, 0)
+    for point in originatingPolyIter(fmi, allowed, freeman2Diff8ConnThirdQuadrant):
         if not dsl.addPoint(*point):
             break
-    return dsl, -(fmi.gi_frame.f_locals["i"]-index)
+    return dsl, -(fmi.gi_frame.f_locals["i"]-pointIndex) # FIXME: hack & wrong if closed
 
-def tangentDSL(freemanCodes, index, closed, allowed = None):
+def tangentDSL(freemanCodes, pointIndex, closed, allowed = None):
+    assert closed or (pointIndex > 0 and pointIndex < len(freemanCodes))
     if allowed == None:
-        allowed = searchTangentQuadrant(freemanCodes, index, closed)
+        allowed = searchTangentQuadrant(freemanCodes, pointIndex, closed)
         if type(allowed) != tuple:
             return DigitalStraightLine(0, 1, 0), None
-    dsl = DigitalStraightLine(freemanCodes[index] % 2 and 1 or 0, 1, 0)
+    dsl = DigitalStraightLine(freemanCodes[pointIndex] % 2 and 1 or 0, 1, 0)
     result = dsl
-    ffmi = forwardIter(freemanCodes, index, closed)
-    bfmi = backwardIter(freemanCodes, index, closed)
-    bfmi.next()
+    ffmi = forwardIter(freemanCodes, pointIndex, closed)
+    bfmi = backwardIter(freemanCodes, pointIndex-1, closed)
     origin = Point2D(0, 0)
-    bopi = originatingPolyIter(bfmi, allowed, freeman2Diff8ConnNeg)
-    for point1 in originatingPolyIter(ffmi, allowed, freeman2Diff8Conn):
+    bopi = originatingPolyIter(bfmi, allowed, freeman2Diff8ConnThirdQuadrant)
+    for point1 in originatingPolyIter(ffmi, allowed, freeman2Diff8ConnFirstQuadrant):
         try:
             point2 = bopi.next()
         except StopIteration:
@@ -341,7 +341,21 @@ def tangentDSL(freemanCodes, index, closed, allowed = None):
         origin = point2
 
         #print "added %s and %s: %s" % (point1, point2, dsl)
-    return result, ffmi.gi_frame.f_locals["i"]-index
+    return result, ffmi.gi_frame.f_locals["i"]-pointIndex # FIXME: hack & wrong if closed
+
+def quadrant(fc1, fc2):
+    """quadrant(fc1, fc2) -> 0..3
+
+    Given the two different freeman codes fc1 and fc2, returns the
+    number of the respective quadrant."""
+    
+    if fc2 < fc1:
+        fc1, fc2 = fc2, fc1
+    if fc1 > 0:
+        return fc1
+    if fc2 > 1:
+        return 3
+    return 0
 
 def offset(freemanCodes, index, closed = True):
     dsl, ofs = hourglass.tangentDSL(freemanCodes, index, closed)
@@ -364,6 +378,12 @@ def offset(freemanCodes, index, closed = True):
         return Vector2( alpha,  alpha)
 
 def offset2(freemanCodes, index, closed = True):
+    """My own derivation of the necessary offset(), perpendicular to
+    the tangent - gives different, but nearly indistinguishable
+    results.  The RMSE of the points' radii in the circle example from
+    __main__ is 0.4 percent lower, so this is the default / used in
+    euclideanPath. ;-)"""
+    
     dsl, ofs = hourglass.tangentDSL(freemanCodes, index, closed)
     dsl = dsl.convertToFourConnected()
 
@@ -383,8 +403,15 @@ def offset2(freemanCodes, index, closed = True):
     else:
         dsl.mirrorY()
 
-    cp = Rational(2*dsl.pos+dsl.width()-1, 2*(math.sq(dsl.a) + math.sq(dsl.b)))
+    cp = Rational(2*dsl.pos+dsl.width()-1, 2*(sq(dsl.a) + sq(dsl.b)))
     return Vector2(float(dsl.a*cp), float(-dsl.b*cp))
+
+from hourglass import Polygon
+
+def euclideanPath(crackPoly):
+    fc = freeman(crackPoly)
+    result = Polygon([p + offset2(fc, i)
+                      for i, p in enumerate(list(crackPoly)[:-1])])
 
 import Gnuplot
 
@@ -399,7 +426,7 @@ class DSLExperiment(object):
         self.points = [self.pos]
         self.code1 = None
         self.code2 = None
-        self.freeman2Diff = reverse and freeman2Diff8ConnNeg or freeman2Diff8Conn
+        self.freeman2Diff = reverse and freeman2Diff8ConnThirdQuadrant or freeman2Diff8ConnFirstQuadrant
     
     def __call__(self, code):
         if self.dsl == None:
@@ -431,8 +458,10 @@ if __name__ == "__main__":
     dsl.addPoint(-1,  0)
     dsl.addPoint(-2, -1)
 
+    from vigra import GrayImage, norm, meshIter
+    
     gimg = GrayImage(50, 50)
-    for p in gimg.size():
+    for p in meshIter(gimg.size()):
         gimg[p] = norm(p - Point2D(25, 25)) < 20 and 255 or 0
 
     import pixelmap
@@ -452,6 +481,10 @@ if __name__ == "__main__":
     ep2 = [p + offset2(fc, i) for i, p in enumerate(list(crackPoly)[:-1])]
     ep2.append(ep2[0])
     g.plot(gpLine(crackPoly), gpLine(ep), gpLine(ep2))
+
+    g2 = Gnuplot.Gnuplot()
+    g2.plot([norm(p-Vector2(25,25))-20 for p in ep],
+            [norm(p-Vector2(25,25))-20 for p in ep2])
 
 #     tangents = [tangentDSL(fc, i, True)[0] for i in range(len(fc))]
 #     g.plot(gpLine(tangentList(ep, 1), "lp"),
