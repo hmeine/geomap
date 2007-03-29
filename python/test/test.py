@@ -104,11 +104,21 @@ def checkSplittingSaddleHandling(edge, offset):
     assert map.wsStats.edgeSaddles(edge.label()) == saddles
     assert map.wsStats._indices[edge.label()][0] == saddleIndex
 
+from flag_constants import BORDER_PROTECTION
+
+def checkPassValues(map, siv):
+    for edge in map.edgeIter():
+        if edge.flag(BORDER_PROTECTION):
+            continue
+        pv = map.wsStats.passValue(edge)
+        actualPV = min([siv[p] for p in edge])
+        assert pv == actualPV # no epsilon needed ;-)
+
 import statistics
 map.wsStats = statistics.WatershedStatistics(map, flowlines, img.gm.siv)
 assert checkSaddles(map, img.spws.saddles(), flowlines)
+checkPassValues(map, img.gm.siv)
 
-from flag_constants import BORDER_PROTECTION
 innerEdges = [edge for edge in map.edgeIter()
               if not edge.flag(BORDER_PROTECTION)]
 longEdges = [edge for edge in innerEdges
@@ -132,6 +142,7 @@ map.sortEdgesEventually(stepDist = 0.2, minDist = 0.05)
 map.splitParallelEdges()
 
 assert checkSaddles(map, img.spws.saddles(), flowlines)
+checkPassValues(map, img.gm.siv)
 
 # --------------------------------------------------------------------
 # 			complete subpixel watersheds map + statistics
@@ -144,6 +155,7 @@ spmap = maputils.subpixelWatershedMap(
 
 maputils.removeCruft(spmap, 7)
 assert checkSaddles(spmap, img.spws.saddles(), flowlines)
+checkPassValues(spmap, img.gm.siv)
 
 # --------------------------------------------------------------------
 
