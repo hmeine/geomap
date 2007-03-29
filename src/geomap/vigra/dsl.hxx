@@ -149,13 +149,13 @@ class DigitalStraightLine
     {
         a_ = -a_;
     }
-    
+
     void mirrorY()
     {
         mirrorX();
         mirrorXY();
     }
-    
+
     void mirrorXY()
     {
         pos_ = 1-width()-pos_;
@@ -176,22 +176,25 @@ class DigitalStraightLine
 template<class Integer, class FreemanCodeIter>
 int tangentDSL(FreemanCodeIter freemanCodesBegin,
                FreemanCodeIter freemanCodesEnd,
-               int index,
+               int pointIndex,
                bool closed,
                DigitalStraightLine<Integer, true> &dsl)
 {
     vigra_precondition(closed ||
-        (index > 0 && index < freemanCodesEnd - freemanCodesBegin - 1),
+        (pointIndex > 0 && pointIndex < freemanCodesEnd - freemanCodesBegin),
         "tangentDSL: cannot find tangent at end of open poly!");
+
+    if(closed)
+        pointIndex %= freemanCodesEnd - freemanCodesBegin;
 
     // FreemanCodes should be integers;
     // freemanCode & 1 must be a valid expression
     typedef typename FreemanCodeIter::value_type FreemanCode;
 
     FreemanCodeIter
-        freemanCodesStart = freemanCodesBegin + index,
+        freemanCodesStart = freemanCodesBegin + pointIndex,
         forwardIter = freemanCodesStart,
-        backwardIter = freemanCodesStart;
+        backwardIter = (pointIndex ? freemanCodesStart : freemanCodesEnd);
     --backwardIter;
 
     FreemanCode
@@ -199,17 +202,19 @@ int tangentDSL(FreemanCodeIter freemanCodesBegin,
         fc2 = *backwardIter;
     while(fc2 == fc1)
     {
+        // advance forwardIter
         ++forwardIter;
         if(forwardIter == freemanCodesEnd)
         {
             if(closed)
-                forwardIter = freemanCodesStart;
+                forwardIter = freemanCodesBegin;
             else
                 return 0;
         }
         else if(forwardIter == freemanCodesStart)
             return 0;
 
+        // advance backwardIter
         if(backwardIter == freemanCodesStart)
         {
             if(closed)
@@ -221,6 +226,7 @@ int tangentDSL(FreemanCodeIter freemanCodesBegin,
         if(backwardIter == freemanCodesStart)
             return 0;
 
+        // check whether we have two different codes now:
         if(*forwardIter != fc2)
         {
             fc2 = *forwardIter;
@@ -232,7 +238,7 @@ int tangentDSL(FreemanCodeIter freemanCodesBegin,
     }
 
     forwardIter = freemanCodesStart;
-    backwardIter = freemanCodesStart;
+    backwardIter = (pointIndex ? freemanCodesStart : freemanCodesEnd);
     --backwardIter;
 
     DigitalStraightLine<Integer, true>
@@ -274,7 +280,7 @@ int tangentDSL(FreemanCodeIter freemanCodesBegin,
         if(forwardIter == freemanCodesEnd)
         {
             if(closed)
-                forwardIter = freemanCodesStart;
+                forwardIter = freemanCodesBegin;
             else
                 break;
         }
