@@ -41,6 +41,8 @@ freeman2Diff4Conn    = [Point2D( 1, 0), Point2D( 0,  1),
                         Point2D(-1, 0), Point2D( 0, -1)]
 
 def forwardIter(list, index, loop):
+    if loop:
+        index = index % len(list)
     i = index
     while i < len(list):
         yield list[i]
@@ -52,6 +54,8 @@ def forwardIter(list, index, loop):
             i += 1
 
 def backwardIter(list, index, loop):
+    if loop:
+        index = index % len(list)
     if index < 0:
         index += len(list)
     i = index
@@ -86,10 +90,10 @@ def searchBackwardQuadrant(freemanCodes, pointIndex, closed = True):
     except StopIteration:
         return c1
 
-def searchTangentQuadrant(freemanCodes, index, closed = True):
+def searchTangentQuadrant(freemanCodes, pointIndex, closed = True):
     try:
-        it1 = forwardIter(freemanCodes, index, closed)
-        it2 = backwardIter(freemanCodes, index, closed)
+        it1 = forwardIter(freemanCodes, pointIndex, closed)
+        it2 = backwardIter(freemanCodes, pointIndex, closed)
         c1 = it2.next()
         while True:
             c2 = it1.next()
@@ -313,6 +317,9 @@ def tangentDSL(freemanCodes, pointIndex, closed, allowed = None):
         allowed = searchTangentQuadrant(freemanCodes, pointIndex, closed)
         if type(allowed) != tuple:
             return DigitalStraightLine(0, 1, 0), None
+        print allowed
+    if closed:
+        pointIndex = pointIndex % len(freemanCodes)
     dsl = DigitalStraightLine(freemanCodes[pointIndex] % 2 and 1 or 0, 1, 0)
     result = dsl
     ffmi = forwardIter(freemanCodes, pointIndex, closed)
@@ -357,12 +364,16 @@ def quadrant(fc1, fc2):
         return 3
     return 0
 
-def offset(freemanCodes, index, closed = True):
-    dsl, ofs = hourglass.tangentDSL(freemanCodes, index, closed)
+def offset(freemanCodes, pointIndex, closed = True):
+    if closed:
+        pointIndex = pointIndex % len(freemanCodes)
 
-    fc1 = freemanCodes[index - ofs]
-    for i in range(index - ofs + 1, index + ofs):
-        fc2 = freemanCodes[i]
+    dsl, ofs = hourglass.tangentDSL(freemanCodes, pointIndex, closed)
+
+    fc1 = freemanCodes[pointIndex - ofs]
+    count = len(freemanCodes)
+    for crackIndex in range(pointIndex - ofs + 1, pointIndex + ofs):
+        fc2 = freemanCodes[crackIndex % count]
         if fc2 != fc1:
             break
 
@@ -377,22 +388,25 @@ def offset(freemanCodes, index, closed = True):
     else:
         return Vector2( alpha,  alpha)
 
-def offset2(freemanCodes, index, closed = True):
+def offset2(freemanCodes, pointIndex, closed = True):
     """My own derivation of the necessary offset(), perpendicular to
     the tangent - gives different, but nearly indistinguishable
     results.  The RMSE of the points' radii in the circle example from
     __main__ is 0.4 percent lower, so this is the default / used in
     euclideanPath. ;-)"""
     
-    dsl, ofs = hourglass.tangentDSL(freemanCodes, index, closed)
+    if closed:
+        pointIndex = pointIndex % len(freemanCodes)
+    dsl, ofs = hourglass.tangentDSL(freemanCodes, pointIndex, closed)
     dsl = dsl.convertToFourConnected()
 
-    fc1 = freemanCodes[index - ofs]
-    for i in range(index - ofs + 1, index + ofs):
-        fc2 = freemanCodes[i]
+    fc1 = freemanCodes[pointIndex - ofs]
+    count = len(freemanCodes)
+    for crackIndex in range(pointIndex - ofs + 1, pointIndex + ofs):
+        fc2 = freemanCodes[crackIndex % count]
         if fc2 != fc1:
             break
-
+    
     q = quadrant(fc1, fc2)
     if q == 0:
         pass
@@ -410,7 +424,8 @@ from hourglass import Polygon
 
 def euclideanPath(crackPoly):
     fc = freeman(crackPoly)
-    result = Polygon([p + offset2(fc, i)
+    closed = crackPoly[-1] == crackPoly[0]
+    result = Polygon([p + offset2(fc, i, closed)
                       for i, p in enumerate(list(crackPoly)[:-1])])
 
 import Gnuplot
