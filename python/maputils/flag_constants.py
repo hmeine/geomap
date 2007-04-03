@@ -23,6 +23,10 @@ ALPHA_MARK = 4096
 #                             face flags
 # --------------------------------------------------------------------
 
+# note that the highest bits are reserved for the C++ code:
+#     static const unsigned int BOUNDING_BOX_VALID = 0x8000000;
+#     static const unsigned int AREA_VALID         = 0x4000000;
+
 # delaunay:
 OUTER_FACE = 1
 
@@ -31,3 +35,7 @@ PROTECTED_FACE = 2 # flag which leads to CONTOUR_PROTECTION
 
 # alphashapes:
 ALPHA_MARK = 4
+
+# maputils:
+SRG_SEED = 8
+SRG_BORDER = 16

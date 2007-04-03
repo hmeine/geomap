@@ -64,8 +64,8 @@ def filterSaddlePoints(rawSaddles, biSIV, threshold, maxDist):
 
     return result
 
-def subpixelWatershedData(spws, biSIV = None, threshold = None,
-                          maxSaddleDist = 0.1,
+def subpixelWatershedData(spws, biSIV = None, threshold = None, mask = None,
+                          maxSaddleDist = 0.12, # sensible: ssMinDist
                           perpendicularDistEpsilon = 0.1, maxStep = 0.1):
     """subpixelWatershedData(spws, biSIV, threshold) -> tuple
 
@@ -89,6 +89,10 @@ def subpixelWatershedData(spws, biSIV = None, threshold = None,
     
     sys.stdout.write("- finding critical points..")
     c = time.clock()
+
+    if mask:
+        spws.findCriticalPoints(mask)
+
     rawSaddles = spws.saddles()
     maxima     = spws.maxima()
     sys.stdout.write("done. (%ss, %d maxima, %d saddles, %d minima)\n" % (
@@ -753,18 +757,18 @@ def contourDarts(face):
         for dart in anchor.phiOrbit():
             yield dart
 
-def neighbors(face, unique = True):
-    """neighbors(face, unique = True) -> list
+def neighborFaces(face):
+    """neighborFaces(face)
 
-    Returns a list of adjacent faces, by default without duplicates
-    (in case of multiple common edges)."""
+    Generator function which yields exactly one dart for each adjacent
+    face (even in case of multiple common edges)."""
     
-    result = []
+    seen = {face.label(): True}
     for dart in contourDarts(face):
-        result.append(dart.rightFace())
-    if unique:
-        result = dict.fromkeys(result).keys()
-    return result
+        fl = dart.rightFaceLabel()
+        if not fl in seen:
+            seen[fl] = True
+            yield dart
 
 def holeComponent(dart, includeExterior = False):
     """holeComponent(dart, includeExterior = False) -> list
@@ -875,7 +879,7 @@ def seededRegionGrowingStatic(map, faceLabels, edgeCosts):
     growing is possible and return the resulting faceLabels.
 
     The 'static' postfix indicates that the edgeCosts do not change
-    during the process."""
+    during the process.  (Furthermore, the GeoMap is not changed.)"""
 
     faceLabels = list(faceLabels)
 
@@ -899,7 +903,46 @@ def seededRegionGrowingStatic(map, faceLabels, edgeCosts):
                 cost = edgeCosts[dart.edgeLabel()]
                 if cost != None:
                     heappush(heap, (cost, dart.label()))
+    
     return faceLabels
+
+def _addNeighborsToHeap(face, heap, mergeCostMeasure):
+    for dart in neighborFaces(face):
+        neighbor = dart.rightFace()
+        if not neighbor.flag(flag_constants.SRG_SEED |
+                             flag_constants.SRG_BORDER):
+            cost = mergeCostMeasure(dart)
+            heappush(heap, (cost, neighbor.label())) # FIXME: cost not updated
+            neighbor.setFlag(flag_constants.SRG_BORDER) # prevents second heappush
+
+def seededRegionGrowing(map, mergeCostMeasure):
+    """seededRegionGrowing(map, mergeCostMeasure)"""
+
+    for face in map.faceIter():
+        face.setFlag(flag_constants.SRG_BORDER, False)
+
+    heap = []
+    for face in map.faceIter():
+        if face.flag(flag_constants.SRG_SEED):
+            _addNeighborsToHeap(face, heap, mergeCostMeasure)
+
+    while heap:
+        _, faceLabel = heappop(heap)
+        face = map.face(faceLabel)
+
+        best = None
+        for dart in neighborFaces(face):
+            neighbor = dart.rightFace()
+            if neighbor.flag(flag_constants.SRG_SEED):
+                cost = mergeCostMeasure(dart)
+                if not best or cost < best[0]:
+                    best = (cost, dart)
+
+        survivor = mergeFacesCompletely(best[1])
+        if survivor:
+            survivor.setFlag(flag_constants.SRG_BORDER, False)
+            survivor.setFlag(flag_constants.SRG_SEED)
+            _addNeighborsToHeap(survivor, heap, mergeCostMeasure)
 
 def regionalMinima(map, mst):
     """regionalMinima(map, mst)
