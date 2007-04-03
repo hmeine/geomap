@@ -36,7 +36,7 @@ _cvsVersion = "$Id$" \
               .split(" ")[2:-2]
 
 import sys, qt, math
-from maputils import mergeFacesByLabel, contourDarts
+from maputils import mergeFacesByLabel, contourDarts, protectFace
 from flag_constants import *
 from vigrapyqt import EdgeOverlay, PointOverlay
 from vigra import *
@@ -163,11 +163,7 @@ class ActivePaintbrush(qt.QObject):
 
     def mouseDoubleClicked(self, x, y):
         face = self._map.faceAt(Vector2(x, y))
-        prot = not face.flag(PROTECTED_FACE)
-        face.setFlag(PROTECTED_FACE, prot)
-        for dart in contourDarts(face):
-            dart.edge().setFlag(CONTOUR_PROTECTION,
-                                prot or dart.rightFace().flag(PROTECTED_FACE))
+        protectFace(face, not face.flag(PROTECTED_FACE))
 
     def disconnectViewer(self):
         viewer = self.parent().viewer

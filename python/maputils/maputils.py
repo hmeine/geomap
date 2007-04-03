@@ -27,6 +27,20 @@ class EdgeProtection(object):
         return (dart.edge().flags() ==
                 dart.clone().nextSigma().edge().flags())
 
+def protectFace(face, protect = True):
+    """protectFace(face, protect = True)
+
+    Sets the PROTECTED_FACE of 'face' according to 'protect'.
+    Subsequently, sets the CONTOUR_PROTECTION of each edge in the
+    contours of 'face' iff either of the adjacent faces is
+    protected."""
+    
+    face.setFlag(flag_constants.PROTECTED_FACE, protect)
+    for dart in contourDarts(face):
+        dart.edge().setFlag(flag_constants.CONTOUR_PROTECTION,
+                            protect or dart.rightFace().flag(
+            flag_constants.PROTECTED_FACE))
+
 # --------------------------------------------------------------------
 #                      subpixel watershed functions
 # --------------------------------------------------------------------
