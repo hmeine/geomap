@@ -16,7 +16,7 @@
 #ifdef USE_INSECURE_CELL_PTRS
 #  define CELL_PTR(Type) Type *
 #  define NULL_PTR(Type) (Type *)NULL
-#  define RESET_PTR(ptr) ptr = NULL
+#  define RESET_PTR(ptr) delete ptr; ptr = NULL
 #else
 #  include <boost/shared_ptr.hpp>
 #  define CELL_PTR(Type) boost::shared_ptr<Type>
@@ -26,13 +26,13 @@
 
 typedef unsigned int CellLabel;
 
-// functor for FilterIterator to skip NULL cells
+// functor for FilterIterator to skip NULL/uninitialized cells
 template<class POINTER>
-struct NotNull
+struct InitializedCell
 {
     bool operator()(const POINTER &p) const
     {
-        return p;
+        return p && p->initialized();
     }
 };
 
@@ -78,11 +78,14 @@ class GeoMap
     typedef std::vector< CELL_PTR(Edge) > Edges;
     typedef std::vector< CELL_PTR(Face) > Faces;
 
-    typedef vigra::SafeFilterIterator<Nodes::iterator, NotNull<Nodes::value_type> >
+    typedef vigra::SafeFilterIterator<Nodes::iterator,
+                                      InitializedCell<Nodes::value_type> >
         NodeIterator;
-    typedef vigra::SafeFilterIterator<Edges::iterator, NotNull<Edges::value_type> >
+    typedef vigra::SafeFilterIterator<Edges::iterator,
+                                      InitializedCell<Edges::value_type> >
         EdgeIterator;
-    typedef vigra::SafeFilterIterator<Faces::iterator, NotNull<Faces::value_type> >
+    typedef vigra::SafeFilterIterator<Faces::iterator,
+                                      InitializedCell<Faces::value_type> >
         FaceIterator;
 
     typedef std::vector<int> SigmaMapping;
