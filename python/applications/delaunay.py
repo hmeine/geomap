@@ -499,7 +499,7 @@ def catMap(delaunayMap,
                     edgePoints.append(endNode.position())
 
                 sleeve = result.addEdge(
-                    startNode.label(), endNode.label(), edgePoints)
+                    startNode, endNode, edgePoints)
 
                 result.subtendedLengths.append(subtendedBoundaryLength)
                 if faceType[face.label()] == "J":

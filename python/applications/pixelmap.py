@@ -71,8 +71,8 @@ def pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0),
         if skipEverySecond:
             points = [points[i] for i in range(0, len(points), 2)]
         result.addEdge(
-            nodes[startNodeLabel].label(),
-            nodes[endNodeLabel].label(),
+            nodes[startNodeLabel],
+            nodes[endNodeLabel],
             points)
 
     result.initializeMap()

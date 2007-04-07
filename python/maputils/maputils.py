@@ -285,7 +285,7 @@ def addFlowLinesToMap(edges, map):
                 diff = nearestNode.position() - pos
                 # we are not interested in creating short, unsortable self-loops:
                 if nearestNode.label() != endNodeLabel:
-                    startNodeLabel = nearestNode.label()
+                    startNode = nearestNode
                     if dot(diff, pos - points[1]) >= 0: # don't jump back
                         if diff.squaredMagnitude():
                             # include node position if not present
@@ -293,7 +293,11 @@ def addFlowLinesToMap(edges, map):
                     else:
                         points[0] = nearestNode.position()
             else: # no suitable Node found -> add one
-                startNodeLabel = map.addNode(pos).label()
+                startNode = map.addNode(pos)
+            startNodeLabel = startNode.label()
+        else:
+            startNode = map.node(startNodeLabel)
+            assert startNode, "invalid startNodeLabel!"
 
         # ..handle Edge end the same as the start:
         if endNodeLabel <= 0:
@@ -302,14 +306,18 @@ def addFlowLinesToMap(edges, map):
             if nearestNode:
                 diff = nearestNode.position() - pos
                 if nearestNode.label() != startNodeLabel:
-                    endNodeLabel = nearestNode.label()
+                    endNode = nearestNode
                     if dot(diff, pos - points[-2]) >= 0:
                         if diff.squaredMagnitude():
                             points.append(nearestNode.position())
                     else:
                         points[-1] = nearestNode.position()
             else:
-                endNodeLabel = map.addNode(pos).label()
+                endNode = map.addNode(pos)
+            endNodeLabel = endNode.label()
+        else:
+            endNode = map.node(endNodeLabel)
+            assert endNode, "invalid endNodeLabel!"
 
         if len(points) == 2 and points[0] == points[1]:
             # don't add self-loops with area zero
@@ -317,7 +325,7 @@ def addFlowLinesToMap(edges, map):
             continue
         
         if startNodeLabel > 0 and endNodeLabel > 0:
-            map.addEdge(startNodeLabel, endNodeLabel, points, edgeLabel)
+            map.addEdge(startNode, endNode, points, edgeLabel)
         else:
             result.append((startNodeLabel, endNodeLabel, points))
 
@@ -432,11 +440,11 @@ def connectBorderNodes(map, epsilon,
     lastPoints.extend(borderEdges[0][0])
     borderEdges[0] = (lastPoints, borderEdges[0][1])
 
-    endNodeLabel = lastNode.label()
+    endNode = lastNode
     for points, node in borderEdges:
-        startNodeLabel = endNodeLabel
-        endNodeLabel = node.label()
-        map.addEdge(startNodeLabel, endNodeLabel, points) \
+        startNode = endNode
+        endNode = node
+        map.addEdge(startNode, endNode, points) \
                         .setFlag(flag_constants.BORDER_PROTECTION)
 
 # --------------------------------------------------------------------
