@@ -204,7 +204,7 @@ class GeoMap
 
     CELL_PTR(Node) addNode(const vigra::Vector2 &position);
     CELL_PTR(Node) addNode(const vigra::Vector2 &position, CellLabel label);
-    CELL_PTR(Edge) addEdge(CellLabel startNodeLabel, CellLabel endNodeLabel,
+    CELL_PTR(Edge) addEdge(Node &startNode, Node &endNode,
                            const Vector2Array &points, CellLabel label = 0);
     CELL_PTR(Edge) addEdge(Dart startNeighbor, Dart endNeighbor,
                            const Vector2Array &points);

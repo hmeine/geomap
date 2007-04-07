@@ -1020,24 +1020,19 @@ CELL_PTR(GeoMap::Node) GeoMap::addNode(
 }
 
 CELL_PTR(GeoMap::Edge) GeoMap::addEdge(
-    CellLabel startNodeLabel, CellLabel endNodeLabel,
+    GeoMap::Node &startNode, GeoMap::Node &endNode,
     const Vector2Array &points, CellLabel label)
 {
     if(label > edges_.size())
         edges_.resize(label, NULL_PTR(GeoMap::Edge));
-    CELL_PTR(GeoMap::Node)
-        startNode = node(startNodeLabel),
-        endNode = node(endNodeLabel);
-    vigra_precondition(
-        startNode && endNode, "addEdge(): invalid start- or endNodeLabel!");
     GeoMap::Edge *result = new GeoMap::Edge(
-        this, startNodeLabel, endNodeLabel, points);
-    insertSigmaPredecessor(startNode->anchor_, (int)result->label());
-    if(!startNode->anchor_)
-        startNode->anchor_ = (int)result->label();
-    insertSigmaPredecessor(endNode->anchor_,  -(int)result->label());
-    if(!endNode->anchor_)
-        endNode->anchor_ = -(int)result->label();
+        this, startNode.label(), endNode.label(), points);
+    insertSigmaPredecessor(startNode.anchor_, (int)result->label());
+    if(!startNode.anchor_)
+        startNode.anchor_ = (int)result->label();
+    insertSigmaPredecessor(endNode.anchor_,  -(int)result->label());
+    if(!endNode.anchor_)
+        endNode.anchor_ = -(int)result->label();
     return edge(result->label());
 }
 
@@ -2031,7 +2026,6 @@ void GeoMap::insertSigmaPredecessor(int successor, int newPredecessor)
 
     if(!successor)
     {
-//         std::cerr << "initializing sigma @ " << newPredecessor << "\n";
         sigmaMapping_[newPredecessor] = newPredecessor;
         sigmaInverseMapping_[newPredecessor] = newPredecessor;
         return;
@@ -3315,7 +3309,11 @@ createGeoMap(bp::list nodePositions,
                     "GeoMap.__init__: edge geometry not convertable to Vector2Array");
             CellLabel startNodeLabel = bp::extract<CellLabel>(edgeTuple[0])();
             CellLabel endNodeLabel   = bp::extract<CellLabel>(edgeTuple[1])();
-            result->addEdge(startNodeLabel, endNodeLabel, pe(), i);
+            CELL_PTR(GeoMap::Node) startNode(result->node(startNodeLabel));
+            CELL_PTR(GeoMap::Node) endNode(result->node(endNodeLabel));
+            vigra_precondition(
+                startNode && endNode, "invalid start- or endNodeLabel!");
+            result->addEdge(*startNode, *endNode, pe(), i);
         }
     }
 
@@ -3574,8 +3572,8 @@ void defMap()
                  return_value_policy<copy_const_reference>())
             .def("addNode", (CELL_PTR(GeoMap::Node) (GeoMap::*)(const vigra::Vector2 &))&GeoMap::addNode, crp, args("position"))
             .def("addNode", (CELL_PTR(GeoMap::Node) (GeoMap::*)(const vigra::Vector2 &, CellLabel))&GeoMap::addNode, crp, args("position", "label"))
-            .def("addEdge", (CELL_PTR(GeoMap::Edge)(GeoMap::*)(CellLabel, CellLabel, const Vector2Array &, CellLabel))&GeoMap::addEdge, crp,
-                 (arg("startNodeLabel"), arg("endNodeLabel"), arg("points"),
+            .def("addEdge", (CELL_PTR(GeoMap::Edge)(GeoMap::*)(GeoMap::Node &, GeoMap::Node &, const Vector2Array &, CellLabel))&GeoMap::addEdge, crp,
+                 (arg("startNode"), arg("endNode"), arg("points"),
                   arg("label") = 0))
             .def("addEdge", (CELL_PTR(GeoMap::Edge)(GeoMap::*)(GeoMap::Dart, GeoMap::Dart, const Vector2Array &))&GeoMap::addEdge, crp,
                  (arg("startNeighbor"), arg("endNeighbor"), arg("points")))

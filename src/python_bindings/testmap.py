@@ -42,7 +42,7 @@ n2 = tm.addNode(points[-1])
 print "- endnodes %d and %d created." % (n1.label(), n2.label())
 
 print "- adding edge..."
-edge = tm.addEdge(n1.label(), n2.label(), points)
+edge = tm.addEdge(n1, n2, points)
 
 print "- testing DartPointIter..."
 dart = tm.dart(-edge.label())
@@ -57,9 +57,9 @@ assert len(closed) == 2*len(list(dart))-1
 assert closed[0] == closed[-1]
 
 print "- testing initContours()..."
-tm.initContours()
+tm.initializeMap()
 try:
-    tm.initContours()
+    tm.initializeMap()
     assert False, "contours must only be initializable once!"
 except RuntimeError:
     pass
@@ -77,15 +77,15 @@ gm = hourglass.GeoMap(points, [], Size2D(11, 11))
 
 showMapStats(gm)
 
-import mapdisplay
-d = mapdisplay.MapDisplay(gm)
+# import mapdisplay
+# d = mapdisplay.MapDisplay(gm)
+
+for i in range(1, len(points)):
+    assert gm.node(i).position() == points[i]
 
 for node in gm.nodeIter():
     if not node.degree():
-        hourglass.removeIsolatedNode(node) # check MapDisplay callbacks
-
-for i in range(len(points)-1):
-    assert gm.node(i+1).position() == points[i+1]
+        gm.removeIsolatedNode(node) # check MapDisplay callbacks
 
 import triangle
 points, edgeData = triangle.delaunay(points[1:])
@@ -153,12 +153,11 @@ def recreateWithCPPMap(pythonMap):
     cppmap = hourglass.GeoMap([], [], pythonMap.imageSize())
     cppnodes = [node and cppmap.addNode(node.position()) for node in pythonMap.nodes]
     for edge in pythonMap.edgeIter():
-        cppmap.addEdge(cppnodes[edge.startNodeLabel()].label(),
-                       cppnodes[edge.endNodeLabel()].label(), edge,
+        cppmap.addEdge(cppnodes[edge.startNodeLabel()],
+                       cppnodes[edge.endNodeLabel()], edge,
                        edge.label())
     cppmap.sortEdgesEventually(0.2, 0.05)
-    cppmap.initContours()
-    cppmap.embedFaces()
+    cppmap.initializeMap()
     return cppmap
 
 print "- creating C++ map from same data...",
