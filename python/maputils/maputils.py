@@ -263,6 +263,7 @@ def addFlowLinesToMap(edges, map):
         startNodeLabel = edgeTuple[0]
         endNodeLabel = edgeTuple[1]
         if startNodeLabel == -2 and endNodeLabel == -2:
+            result.append(edgeTuple)
             continue # unwanted edge parallel to border
 
         # be careful not to modify the original 'edges' passed:
@@ -283,18 +284,15 @@ def addFlowLinesToMap(edges, map):
             # direction (prevents loops), attach edge to it:
             if nearestNode:
                 diff = nearestNode.position() - pos
-                # we are not interested in creating short, unsortable self-loops:
-                if nearestNode.label() != endNodeLabel:
-                    startNode = nearestNode
-                    if dot(diff, pos - points[1]) >= 0: # don't jump back
-                        if diff.squaredMagnitude():
-                            # include node position if not present
-                            points.insert(0, nearestNode.position())
-                    else:
-                        points[0] = nearestNode.position()
+                startNode = nearestNode
+                if dot(diff, pos - points[1]) >= 0: # don't jump back
+                    if diff.squaredMagnitude():
+                        # include node position if not present
+                        points.insert(0, nearestNode.position())
+                else:
+                    points[0] = nearestNode.position()
             else: # no suitable Node found -> add one
                 startNode = map.addNode(pos)
-            startNodeLabel = startNode.label()
         else:
             startNode = map.node(startNodeLabel)
             assert startNode, "invalid startNodeLabel!"
@@ -305,29 +303,28 @@ def addFlowLinesToMap(edges, map):
             nearestNode = map.nearestNode(pos, 0.25)
             if nearestNode:
                 diff = nearestNode.position() - pos
-                if nearestNode.label() != startNodeLabel:
-                    endNode = nearestNode
-                    if dot(diff, pos - points[-2]) >= 0:
-                        if diff.squaredMagnitude():
-                            points.append(nearestNode.position())
-                    else:
-                        points[-1] = nearestNode.position()
+                endNode = nearestNode
+                if dot(diff, pos - points[-2]) >= 0:
+                    if diff.squaredMagnitude():
+                        points.append(nearestNode.position())
+                else:
+                    points[-1] = nearestNode.position()
             else:
                 endNode = map.addNode(pos)
-            endNodeLabel = endNode.label()
         else:
             endNode = map.node(endNodeLabel)
             assert endNode, "invalid endNodeLabel!"
 
-        if len(points) == 2 and points[0] == points[1]:
-            # don't add self-loops with area zero
-            result.append((startNodeLabel, endNodeLabel, points))
+        # we need to avoid creating short, unsortable
+        # self-loops with area zero:
+        if startNode == endNode and (
+            startNodeLabel <= 0 or endNodeLabel <= 0 or
+            len(points) == 2):
+            result.append(edgeTuple)
             continue
         
-        if startNodeLabel > 0 and endNodeLabel > 0:
-            map.addEdge(startNode, endNode, points, edgeLabel)
-        else:
-            result.append((startNodeLabel, endNodeLabel, points))
+        assert startNode and endNode
+        map.addEdge(startNode, endNode, points, edgeLabel)
 
     return result
 
