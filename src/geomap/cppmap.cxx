@@ -3411,8 +3411,10 @@ struct GeoMapPickleSuite : bp::pickle_suite
         return bp::make_tuple(nodePositions, edgeTuples, map.imageSize());
     }
 
-    static bp::tuple getstate(GeoMap &map)
+    static bp::tuple getstate(bp::object pyMap)
     {
+        GeoMap &map((bp::extract<GeoMap &>(pyMap)()));
+        
         bp::list pySigmaMapping;
         const GeoMap::SigmaMapping &sigmaMapping(map.sigmaMapping());
         for(GeoMap::SigmaMapping::const_iterator it = sigmaMapping.begin();
@@ -3439,18 +3441,24 @@ struct GeoMapPickleSuite : bp::pickle_suite
             map.mapInitialized(),
             map.hasLabelImage(),
             edgeFlags,
-            faceFlags);
+            faceFlags,
+            pyMap.attr("__dict__"));
     }
 
-    static void setstate(GeoMap &map, bp::tuple state)
+    static bool getstate_manages_dict() { return true; }
+
+    static void setstate(bp::object pyMap, bp::tuple state)
     {
+        GeoMap &map((bp::extract<GeoMap &>(pyMap)()));
+        
         bp::list pySigmaMapping((
             bp::extract<bp::list>(state[0])()));
         bool edgesSorted = bp::extract<bool>(state[1])();
         bool mapInitialized = bp::extract<bool>(state[2])();
         bool initLabelImage = bp::extract<bool>(state[3])();
-        list edgeFlags = bp::extract<list>(state[4])();
-        list faceFlags = bp::extract<list>(state[5])();
+        bp::list edgeFlags = bp::extract<list>(state[4])();
+        bp::list faceFlags = bp::extract<list>(state[5])();
+        bp::object __dict__ = state[6];
 
         GeoMap::SigmaMapping sigmaMapping(bp::len(pySigmaMapping));
         unsigned int i = 0;
@@ -3475,6 +3483,8 @@ struct GeoMapPickleSuite : bp::pickle_suite
         {
             (*it)->setFlag(bp::extract<unsigned int>(faceFlags[i])());
         }
+
+        pyMap.attr("__dict__") = __dict__;
     }
 };
 
