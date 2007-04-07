@@ -7,8 +7,17 @@ import flag_constants
 #                            edge protection
 # --------------------------------------------------------------------
 
+from weakref import ref
+
 class EdgeProtection(object):
     def __init__(self, map):
+        self._attach(map)
+        # prevent cycles if this is an attribute of the map:
+        self._map = ref(map) # only needed for pickle support
+
+    def _attach(self, map):
+        assert not hasattr(self, "_attachedHooks"), \
+               "trying to attach to more than one GeoMap?!"
         self._attachedHooks = (
             map.addMergeFacesCallbacks(self.preRemoveEdge, None),
             map.addRemoveBridgeCallbacks(self.preRemoveEdge, None),
@@ -26,6 +35,9 @@ class EdgeProtection(object):
         "only allow edge merging if the edges carry the same flags"
         return (dart.edge().flags() ==
                 dart.clone().nextSigma().edge().flags())
+
+    def __getinitargs__(self):
+        return (self._map(), )
 
 def protectFace(face, protect = True):
     """protectFace(face, protect = True)
