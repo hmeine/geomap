@@ -207,7 +207,7 @@ class GeoMap
     CELL_PTR(Edge) addEdge(Node &startNode, Node &endNode,
                            const Vector2Array &points, CellLabel label = 0);
     CELL_PTR(Edge) addEdge(Dart startNeighbor, Dart endNeighbor,
-                           const Vector2Array &points);
+                           const Vector2Array &points, CellLabel label = 0);
     void removeEdge(Dart &dart);
 
     void sortEdgesDirectly();

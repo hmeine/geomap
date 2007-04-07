@@ -1038,8 +1038,10 @@ CELL_PTR(GeoMap::Edge) GeoMap::addEdge(
 
 CELL_PTR(GeoMap::Edge) GeoMap::addEdge(
     GeoMap::Dart startNeighbor, GeoMap::Dart endNeighbor,
-    const Vector2Array &points)
+    const Vector2Array &points, CellLabel label)
 {
+    if(label > edges_.size())
+        edges_.resize(label, NULL_PTR(GeoMap::Edge));
     CELL_PTR(GeoMap::Node)
         startNode = startNeighbor.startNode(),
         endNode = endNeighbor.startNode();
@@ -3320,6 +3322,20 @@ createGeoMap(bp::list nodePositions,
     return result;
 }
 
+CELL_PTR(GeoMap::Edge) addEdgeBackwardCompatibility(
+    GeoMap &geomap, 
+    CellLabel startNodeLabel, CellLabel endNodeLabel,
+    const Vector2Array &points, CellLabel label)
+{
+    std::cerr << "API warning: addEdge() now takes Node objects, not labels!\n";
+    CELL_PTR(GeoMap::Node)
+        startNode(geomap.node(startNodeLabel)),
+        endNode(geomap.node(endNodeLabel));
+    vigra_precondition(
+        startNode && endNode, "invalid start- or endNodeLabel!");
+    return geomap.addEdge(*startNode, *endNode, points, label);
+}
+
 GeoMap::FaceIterator faceIter(GeoMap &geomap, bool skipInfinite)
 {
     GeoMap::FaceIterator result(geomap.facesBegin());
@@ -3572,11 +3588,15 @@ void defMap()
                  return_value_policy<copy_const_reference>())
             .def("addNode", (CELL_PTR(GeoMap::Node) (GeoMap::*)(const vigra::Vector2 &))&GeoMap::addNode, crp, args("position"))
             .def("addNode", (CELL_PTR(GeoMap::Node) (GeoMap::*)(const vigra::Vector2 &, CellLabel))&GeoMap::addNode, crp, args("position", "label"))
+            .def("addEdge", &addEdgeBackwardCompatibility, crp,
+                 (arg("startNodeLabel"), arg("endNodeLabel"),
+                  arg("points"), arg("label") = 0))
             .def("addEdge", (CELL_PTR(GeoMap::Edge)(GeoMap::*)(GeoMap::Node &, GeoMap::Node &, const Vector2Array &, CellLabel))&GeoMap::addEdge, crp,
-                 (arg("startNode"), arg("endNode"), arg("points"),
-                  arg("label") = 0))
-            .def("addEdge", (CELL_PTR(GeoMap::Edge)(GeoMap::*)(GeoMap::Dart, GeoMap::Dart, const Vector2Array &))&GeoMap::addEdge, crp,
-                 (arg("startNeighbor"), arg("endNeighbor"), arg("points")))
+                 (arg("startNode"), arg("endNode"),
+                  arg("points"), arg("label") = 0))
+            .def("addEdge", (CELL_PTR(GeoMap::Edge)(GeoMap::*)(GeoMap::Dart, GeoMap::Dart, const Vector2Array &, CellLabel))&GeoMap::addEdge, crp,
+                 (arg("startNeighbor"), arg("endNeighbor"),
+                  arg("points"), arg("label") = 0))
             .def("removeEdge", &GeoMap::removeEdge, crp)
             .def("splitEdge", &pySplitEdge,
                  (arg("edge"), arg("segmentIndex"), arg("newPoint") = object()))
