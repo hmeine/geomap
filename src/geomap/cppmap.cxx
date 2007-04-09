@@ -34,7 +34,7 @@ void removeOne(Container &container,
 const CellLabel UNINITIALIZED_CELL_LABEL =
     vigra::NumericTraits<CellLabel>::max();
 
-class GeoMap::Node
+class GeoMap::Node : boost::noncopyable
 {
   protected:
     GeoMap        *map_;
@@ -43,6 +43,7 @@ class GeoMap::Node
     int            anchor_;
 
     friend class GeoMap; // give access to anchor_ (add edge, sort edges, Euler..)
+    friend class SigmaAnchor; // give access to anchor_
 
   public:
     Node(GeoMap *map, const vigra::Vector2 &position)
@@ -114,7 +115,7 @@ class GeoMap::Node
 };
 
 class GeoMap::Edge
-: public vigra::BBoxPolygon<vigra::Vector2>
+: public vigra::BBoxPolygon<vigra::Vector2> //, boost::noncopyable
 {
   public:
     typedef vigra::BBoxPolygon<vigra::Vector2> Base;
@@ -707,7 +708,7 @@ inline IVector2 intVPos(const Vector2 &p)
     return IVector2((int)floor(p[0]+0.5), (int)floor(p[1]+0.5));
 }
 
-class GeoMap::Face
+class GeoMap::Face : boost::noncopyable
 {
   public:
     typedef Edge::BoundingBox BoundingBox;
@@ -913,6 +914,49 @@ class GeoMap::Face
     Face &operator=(const Face &) { return *this; }
 };
 
+class GeoMap::SigmaAnchor
+{
+  public:
+    SigmaAnchor(const GeoMap::Node &node)
+    : isSingular_(node.isIsolated()),
+      dartLabel_(node.anchor_),
+      nodeLabel_(node.label()),
+      map_(node.map())
+    {
+        vigra_precondition(isSingular_ || !node.map()->mapInitialized(),
+            "sigma position of initialized GeoMap not fully specified");
+    }
+
+    SigmaAnchor(const GeoMap::Dart &dart)
+    : isSingular_(false),
+      dartLabel_(dart.label()),
+      nodeLabel_(dart.startNodeLabel()),
+      map_(dart.map())
+    {
+    }
+
+    bool isSingular() const
+    {
+        return isSingular_;
+    }
+
+    int dartLabel() const
+    {
+        return dartLabel_;
+    }
+
+    CellLabel nodeLabel() const
+    {
+        return nodeLabel_;
+    }
+
+  private:
+    bool isSingular_;
+    int dartLabel_;
+    CellLabel nodeLabel_;
+    GeoMap *map_;
+};
+
 void GeoMap::Node::setPosition(const vigra::Vector2 &p)
 {
     vigra_precondition(initialized(), "setPosition() of uninitialized node!");
@@ -1020,36 +1064,34 @@ CELL_PTR(GeoMap::Node) GeoMap::addNode(
 }
 
 CELL_PTR(GeoMap::Edge) GeoMap::addEdge(
-    GeoMap::Node &startNode, GeoMap::Node &endNode,
+    const GeoMap::SigmaAnchor &startNeighbor,
+    const GeoMap::SigmaAnchor &endNeighbor,
     const Vector2Array &points, CellLabel label)
 {
+    // ATTENTION: Handle adding self-loops correctly (startNeighbor ==
+    // endNeighbor)
+
     if(label > edges_.size())
         edges_.resize(label, NULL_PTR(GeoMap::Edge));
     GeoMap::Edge *result = new GeoMap::Edge(
-        this, startNode.label(), endNode.label(), points);
-    insertSigmaPredecessor(startNode.anchor_, (int)result->label());
-    if(!startNode.anchor_)
-        startNode.anchor_ = (int)result->label();
-    insertSigmaPredecessor(endNode.anchor_,  -(int)result->label());
-    if(!endNode.anchor_)
-        endNode.anchor_ = -(int)result->label();
-    return edge(result->label());
-}
+        this, startNeighbor.nodeLabel(),  endNeighbor.nodeLabel(), points);
+        
+    if(startNeighbor.isSingular())
+    {
+        insertSigmaPredecessor(result->startNode()->anchor_, (int)result->label());
+        result->startNode()->anchor_ = (int)result->label();
+    }
+    else
+        insertSigmaPredecessor(startNeighbor.dartLabel(), (int)result->label());
 
-CELL_PTR(GeoMap::Edge) GeoMap::addEdge(
-    GeoMap::Dart startNeighbor, GeoMap::Dart endNeighbor,
-    const Vector2Array &points, CellLabel label)
-{
-    if(label > edges_.size())
-        edges_.resize(label, NULL_PTR(GeoMap::Edge));
-    CELL_PTR(GeoMap::Node)
-        startNode = startNeighbor.startNode(),
-        endNode = endNeighbor.startNode();
-    GeoMap::Edge *result = new GeoMap::Edge(
-        this, startNode->label(), endNode->label(), points);
+    if(endNeighbor.isSingular())
+    {
+        insertSigmaPredecessor(result->endNode()->anchor_, -(int)result->label());
+        result->endNode()->anchor_ = -(int)result->label();
+    }
+    else
+        insertSigmaPredecessor(endNeighbor.dartLabel(), -(int)result->label());
 
-    insertSigmaPredecessor(startNeighbor.label(), (int)result->label());
-    insertSigmaPredecessor(endNeighbor.label(),  -(int)result->label());
     return edge(result->label());
 }
 
@@ -3591,10 +3633,7 @@ void defMap()
             .def("addEdge", &addEdgeBackwardCompatibility, crp,
                  (arg("startNodeLabel"), arg("endNodeLabel"),
                   arg("points"), arg("label") = 0))
-            .def("addEdge", (CELL_PTR(GeoMap::Edge)(GeoMap::*)(GeoMap::Node &, GeoMap::Node &, const Vector2Array &, CellLabel))&GeoMap::addEdge, crp,
-                 (arg("startNode"), arg("endNode"),
-                  arg("points"), arg("label") = 0))
-            .def("addEdge", (CELL_PTR(GeoMap::Edge)(GeoMap::*)(GeoMap::Dart, GeoMap::Dart, const Vector2Array &, CellLabel))&GeoMap::addEdge, crp,
+            .def("addEdge", &GeoMap::addEdge, crp,
                  (arg("startNeighbor"), arg("endNeighbor"),
                   arg("points"), arg("label") = 0))
             .def("removeEdge", &GeoMap::removeEdge, crp)
@@ -3785,4 +3824,7 @@ void defMap()
         .def("leaveCircle", &DartPosition::leaveCircle)
         .def("intersectCircle", &DartPosition::intersectCircle)
     ;
+
+    implicitly_convertible<GeoMap::Node, GeoMap::SigmaAnchor>();
+    implicitly_convertible<GeoMap::Dart, GeoMap::SigmaAnchor>();
 }

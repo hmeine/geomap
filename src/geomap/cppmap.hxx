@@ -73,6 +73,7 @@ class GeoMap
     class Edge;
     class Face;
     class Dart;
+    class SigmaAnchor;
 
     typedef std::vector< CELL_PTR(Node) > Nodes;
     typedef std::vector< CELL_PTR(Edge) > Edges;
@@ -204,9 +205,8 @@ class GeoMap
 
     CELL_PTR(Node) addNode(const vigra::Vector2 &position);
     CELL_PTR(Node) addNode(const vigra::Vector2 &position, CellLabel label);
-    CELL_PTR(Edge) addEdge(Node &startNode, Node &endNode,
-                           const Vector2Array &points, CellLabel label = 0);
-    CELL_PTR(Edge) addEdge(Dart startNeighbor, Dart endNeighbor,
+    CELL_PTR(Edge) addEdge(const SigmaAnchor &startNeighbor,
+                           const SigmaAnchor &endNeighbor,
                            const Vector2Array &points, CellLabel label = 0);
     void removeEdge(Dart &dart);
 
