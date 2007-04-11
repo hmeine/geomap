@@ -26,13 +26,13 @@
 
 typedef unsigned int CellLabel;
 
-// functor for FilterIterator to skip NULL/uninitialized cells
+// functor for FilterIterator to skip NULL cells
 template<class POINTER>
-struct InitializedCell
+struct NotNull
 {
     bool operator()(const POINTER &p) const
     {
-        return p && p->initialized();
+        return p;
     }
 };
 
@@ -79,14 +79,11 @@ class GeoMap
     typedef std::vector< CELL_PTR(Edge) > Edges;
     typedef std::vector< CELL_PTR(Face) > Faces;
 
-    typedef vigra::SafeFilterIterator<Nodes::iterator,
-                                      InitializedCell<Nodes::value_type> >
+    typedef vigra::SafeFilterIterator<Nodes::iterator, NotNull<Nodes::value_type> >
         NodeIterator;
-    typedef vigra::SafeFilterIterator<Edges::iterator,
-                                      InitializedCell<Edges::value_type> >
+    typedef vigra::SafeFilterIterator<Edges::iterator, NotNull<Edges::value_type> >
         EdgeIterator;
-    typedef vigra::SafeFilterIterator<Faces::iterator,
-                                      InitializedCell<Faces::value_type> >
+    typedef vigra::SafeFilterIterator<Faces::iterator, NotNull<Faces::value_type> >
         FaceIterator;
 
     typedef std::vector<int> SigmaMapping;
