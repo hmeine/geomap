@@ -332,6 +332,23 @@ def addFlowLinesToMap(edges, map):
 #                        map creation helpers
 # --------------------------------------------------------------------
 
+def mapFromEdges(edges, imageSize, GeoMap = hourglass.GeoMap):
+    # FIXME: comment
+    
+    def getNode(map, position):
+        node = map.nearestNode(position, 0.001)
+        if not node:
+            node = map.addNode(position)
+        return node
+    
+    result = GeoMap([], [], imageSize)
+    for edge in edges:
+        sn = getNode(result, edge[0])
+        en = getNode(result, edge[-1])
+        result.addEdge(sn, en, edge)
+    
+    return result
+
 def connectBorderNodes(map, epsilon,
                        samePosEpsilon = 1e-6, aroundPixels = False):
     """connectBorderNodes(map, epsilon,
