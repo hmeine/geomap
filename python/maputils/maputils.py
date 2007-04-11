@@ -461,6 +461,48 @@ def connectBorderNodes(map, epsilon,
         map.addEdge(startNode, endNode, points) \
                         .setFlag(flag_constants.BORDER_PROTECTION)
 
+def copyMapContents(sourceMap, destMap):
+    """copyMapContents(sourceMap, destMap)
+
+    Adds all nodes and edges of sourceMap to the destMap.  The sigma
+    order is preserved.  Thus, it is an error to copy the contents of
+    a graph - not sourceMap.edgesSorted() - into a map with
+    destMap.edgesSorted()."""
+
+    assert sourceMap.edgesSorted() or not destMap.edgesSorted(), \
+           "refraining from inserting unsorted edges into sorted map!"
+    
+    nodes = [None] * sourceMap.maxNodeLabel()
+    for node in sourceMap.nodeIter():
+        nodes[node.label()] = destMap.addNode(node.position())
+    
+    edges = [None] * sourceMap.maxEdgeLabel()
+    for edge in sourceMap.edgeIter():
+        startNeighbor = nodes[edge.startNodeLabel()]
+        if not startNeighbor.isIsolated():
+            neighbor = edge.dart()
+            while neighbor.nextSigma().edgeLabel() > edge.label():
+                pass
+            assert neighbor.edgeLabel() < edge.label(), \
+                   "since !startNeighbor.isIsolated(), there should be an (already handled) edge with a smaller label in this orbit!"
+            startNeighbor = edges[neighbor.edgeLabel()].dart()
+            if neighbor.label() < 0:
+                startNeighbor.nextAlpha()
+
+        endNeighbor = nodes[edge.endNodeLabel()]
+        if not endNeighbor.isIsolated():
+            neighbor = edge.dart().nextAlpha()
+            while neighbor.nextSigma().edgeLabel() > edge.label():
+                pass
+            assert neighbor.edgeLabel() < edge.label(), \
+                   "since !endNeighbor.isIsolated(), there should be an (already handled) edge with a smaller label in this orbit!"
+            endNeighbor = edges[neighbor.edgeLabel()].dart()
+            if neighbor.label() < 0:
+                endNeighbor.nextAlpha()
+
+        edges[edge.label()] = destMap.addEdge(
+            startNeighbor, endNeighbor, edge)
+
 # --------------------------------------------------------------------
 #                         consistency checks
 # --------------------------------------------------------------------
