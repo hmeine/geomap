@@ -39,7 +39,7 @@ std::auto_ptr<Array>
 Array__getitem_slice__(Array const & a, boost::python::slice sl)
 {
     boost::python::slice::range<typename Array::const_iterator>
-        bounds = sl.get_indicies<>(a.begin(), a.end());
+        bounds = sl.template get_indicies<>(a.begin(), a.end());
 
     if(bounds.step != 1)
     {
