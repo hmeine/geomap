@@ -494,11 +494,43 @@ class MapDisplay(DisplaySettings):
     def attachHooks(self):
         self.nodeOverlay.attachHooks()
         self.edgeOverlay.attachHooks()
+        self._attachedHooks = (
+            self.map.addMergeFacesCallbacks(None, self._postMergeFacesHook),
+            self.map.addRemoveBridgeCallbacks(self._preRemoveBridgeHook,
+                                              self._postRemoveBridgeHook))
 
     def detachHooks(self):
         """Detaches / removes callbacks from the map's hooks.
         Returns True if successful, False if already detached."""
-        return self.nodeOverlay.detachHooks() and self.edgeOverlay.detachHooks()
+        result = self.nodeOverlay.detachHooks() and \
+                 self.edgeOverlay.detachHooks()
+        if result:
+            for h in self._attachedHooks:
+                h.disconnect()
+        return result
+
+    def _redisplayROIImage(self, roi):
+        roiImage = self.map.labelImage().subImage(roi)
+        if self._backgroundMode > 3:
+            roiImage = self.faceMeans.regionImage(roiImage)
+        self.viewer.replaceROI(roiImage.toPNM(BYTE),
+                               qt.QPoint(*roi.upperLeft()))
+
+    def _postMergeFacesHook(self, survivor):
+        if self._backgroundMode < 3:
+            return
+        self._redisplayROIImage(intPos(survivor.boundingBox()))
+
+    def _preRemoveBridgeHook(self, dart):
+        if self._backgroundMode < 3:
+            return
+        self._bridgeROI = intPos(dart.edge().boundingBox())
+        return True
+
+    def _postRemoveBridgeHook(self, dart):
+        if self._backgroundMode < 3:
+            return
+        self._redisplayROIImage(self._bridgeROI)
 
     def showEvent(self, e):
         self.attachHooks()
