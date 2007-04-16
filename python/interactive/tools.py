@@ -91,7 +91,7 @@ class ManualClassifier(qt.QObject):
     def mousePressed(self, x, y, button):
         if button != qt.Qt.LeftButton:
             return
-        face = self._map.faceAt(Vector2(x, y))
+        face = self._map.faceAt((x, y))
         oldClass = self.foreground[face.label()]
         newClass = self.classes[(self.classes.index(oldClass) + 1) % 3]
         self.foreground[face.label()] = newClass
@@ -99,6 +99,25 @@ class ManualClassifier(qt.QObject):
         print "manually changed face %d to %s" % (face.label(), newClass)
         self.emit(qt.PYSIGNAL("classChanged"), (face, ))
 
+    def disconnectViewer(self):
+        viewer = self.parent().viewer
+        self.disconnect(viewer, qt.PYSIGNAL("mousePressed"),
+                        self.mousePressed)
+
+class SeedSelector(qt.QObject):
+    def __init__(self, parent = None, name = None):
+        qt.QObject.__init__(self, parent, name)
+        self.seeds = []
+
+        viewer = parent.viewer
+        self.connect(viewer, qt.PYSIGNAL("mousePressed"),
+                     self.mousePressed)
+
+    def mousePressed(self, x, y, button):
+        if button != qt.Qt.LeftButton:
+            return
+        self.seeds.append((x, y))
+        
     def disconnectViewer(self):
         viewer = self.parent().viewer
         self.disconnect(viewer, qt.PYSIGNAL("mousePressed"),
@@ -137,7 +156,7 @@ class ActivePaintbrush(qt.QObject):
             return
 
         map = self._map
-        otherLabel = map.faceAt(Vector2(x, y)).label()
+        otherLabel = map.faceAt((x, y)).label()
         if otherLabel == 0 and map.face(0).area() < -self._mapArea + 1:
             currentLabel = None
             return
@@ -162,7 +181,7 @@ class ActivePaintbrush(qt.QObject):
         self._painting = False
 
     def mouseDoubleClicked(self, x, y):
-        face = self._map.faceAt(Vector2(x, y))
+        face = self._map.faceAt((x, y))
         protectFace(face, not face.flag(PROTECTED_FACE))
 
     def disconnectViewer(self):
@@ -360,8 +379,7 @@ class IntelligentScissors(qt.QObject):
         nearest node and the display (overlay) is updated. Else, the
         nearest node is chosen as start node and highlighted."""
 
-        p = Vector2(x, y)
-        node = self._map.nearestNode(p)
+        node = self._map.nearestNode((x, y))
         if not self._liveWire:
             if node.label() != self._startNodeLabel:
                 self._startNodeLabel = node.label()
