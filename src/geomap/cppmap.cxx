@@ -115,7 +115,7 @@ class GeoMap::Node : boost::noncopyable
 };
 
 class GeoMap::Edge
-: public vigra::BBoxPolygon<vigra::Vector2> //, boost::noncopyable
+: public vigra::BBoxPolygon<vigra::Vector2>, boost::noncopyable
 {
   public:
     typedef vigra::BBoxPolygon<vigra::Vector2> Base;
@@ -1075,7 +1075,7 @@ CELL_PTR(GeoMap::Edge) GeoMap::addEdge(
         edges_.resize(label, NULL_PTR(GeoMap::Edge));
     GeoMap::Edge *result = new GeoMap::Edge(
         this, startNeighbor.nodeLabel(),  endNeighbor.nodeLabel(), points);
-        
+
     if(startNeighbor.isSingular())
     {
         insertSigmaPredecessor(result->startNode()->anchor_, (int)result->label());
@@ -3365,7 +3365,7 @@ createGeoMap(bp::list nodePositions,
 }
 
 CELL_PTR(GeoMap::Edge) addEdgeBackwardCompatibility(
-    GeoMap &geomap, 
+    GeoMap &geomap,
     CellLabel startNodeLabel, CellLabel endNodeLabel,
     const Vector2Array &points, CellLabel label)
 {
@@ -3470,7 +3470,7 @@ struct GeoMapPickleSuite : bp::pickle_suite
     static bp::tuple getstate(bp::object pyMap)
     {
         GeoMap &map((bp::extract<GeoMap &>(pyMap)()));
-        
+
         bp::list pySigmaMapping;
         const GeoMap::SigmaMapping &sigmaMapping(map.sigmaMapping());
         for(GeoMap::SigmaMapping::const_iterator it = sigmaMapping.begin();
@@ -3506,7 +3506,7 @@ struct GeoMapPickleSuite : bp::pickle_suite
     static void setstate(bp::object pyMap, bp::tuple state)
     {
         GeoMap &map((bp::extract<GeoMap &>(pyMap)()));
-        
+
         bp::list pySigmaMapping((
             bp::extract<bp::list>(state[0])()));
         bool edgesSorted = bp::extract<bool>(state[1])();
@@ -3791,6 +3791,11 @@ void defMap()
         def("addMergeFacesCallbacks", &addMergeFacesCallbacks);
         def("addAssociatePixelsCallback", &addAssociatePixelsCallback);
         register_ptr_to_python< std::auto_ptr<SimpleCallback> >();
+
+        geoMap.attr("BYTES_PER_NODE") = sizeof(GeoMap::Node);
+        geoMap.attr("BYTES_PER_EDGE") = sizeof(GeoMap::Edge);
+        geoMap.attr("BYTES_PER_FACE") = sizeof(GeoMap::Face);
+        geoMap.attr("BYTES_PER_MAP") = sizeof(GeoMap);
     }
 
     RangeIterWrapper<ContourPointIter>("ContourPointIter")
