@@ -996,29 +996,85 @@ def seededRegionGrowingStatic(map, faceLabels, edgeCosts):
     
     return faceLabels
 
-def _addNeighborsToHeap(face, heap, mergeCostMeasure):
+class StandardCostQueue(object):
+    """Wrapper around the standard heappush/pop, implementing the
+    DynamicCostQueue API."""
+    
+    def __init__(self):
+        self.heap = []
+
+    def insert(self, index, cost):
+        heappush(self.heap, (cost, index))
+
+    setCost = insert
+
+    def empty(self):
+        return not self.heap
+
+    def __nonzero__(self):
+        return bool(self.heap)
+
+    def top(self):
+        cost, index = self.heap[0]
+        return index, cost
+
+    def pop(self):
+        cost, index = heappop(self.heap)
+        return index, cost
+
+def _addNeighborsToQueue(face, queue, mergeCostMeasure, neighborSkipFlags):
     for dart in neighborFaces(face):
         neighbor = dart.rightFace()
-        if not neighbor.flag(flag_constants.SRG_SEED |
-                             flag_constants.SRG_BORDER):
+        if not neighbor.flag(neighborSkipFlags):
             cost = mergeCostMeasure(dart)
-            heappush(heap, (cost, neighbor.label())) # FIXME: cost not updated
-            neighbor.setFlag(flag_constants.SRG_BORDER) # prevents second heappush
+            queue.setCost(neighbor.label(), cost)
+            neighbor.setFlag(flag_constants.SRG_BORDER)
 
-def seededRegionGrowing(map, mergeCostMeasure):
-    """seededRegionGrowing(map, mergeCostMeasure)"""
+def seededRegionGrowing(map, mergeCostMeasure, dynamic = False, stupidInit = False):
+    """seededRegionGrowing(map, mergeCostMeasure, dynamic = False, stupidInit = False)
+
+    Implements Seeded Region Growing [Adams, Bischof].  Expects seed
+    faces to be marked with the SRG_SEED flag.  Modifies the map by
+    merging all non-seed faces into the growing seed regions until
+    only these are left (or no more merges are possible, e.g. due to
+    edge protection).
+
+    The optional parameter 'dynamic' decides whether the costs of each
+    possible merge shall be updated in each step.
+
+    If stupidInit is set, the initialization is done exactly as in the
+    original paper - the difference is that a face adjacent to two
+    seeds will be associated the cost of merging it into the neighbor
+    with the lower label (processing order) instead of the minimum of
+    all costs.  Note that this streamlines the algorithm, but is
+    dangerous when using superpixels, which makes the mentioned case
+    happen regularly (instead of being an exception as in the original
+    pixel-based SRG application)."""
 
     for face in map.faceIter():
         face.setFlag(flag_constants.SRG_BORDER, False)
 
-    heap = []
+    neighborSkipFlags = flag_constants.SRG_SEED
+    if dynamic:
+        queue = hourglass.DynamicCostQueue(map.maxFaceLabel())
+    else:
+        queue = StandardCostQueue()
+        if stupidInit:
+            neighborSkipFlags |= flag_constants.SRG_BORDER
+
     for face in map.faceIter():
         if face.flag(flag_constants.SRG_SEED):
-            _addNeighborsToHeap(face, heap, mergeCostMeasure)
+            _addNeighborsToQueue(face, queue, mergeCostMeasure,
+                                 neighborSkipFlags)
 
-    while heap:
-        _, faceLabel = heappop(heap)
+    if not dynamic and not stupidInit:
+        neighborSkipFlags |= flag_constants.SRG_BORDER
+
+    while queue:
+        faceLabel, _ = queue.pop()
         face = map.face(faceLabel)
+        if not face or face.flag(flag_constants.SRG_SEED):
+            continue
 
         best = None
         for dart in neighborFaces(face):
@@ -1032,7 +1088,8 @@ def seededRegionGrowing(map, mergeCostMeasure):
         if survivor:
             survivor.setFlag(flag_constants.SRG_BORDER, False)
             survivor.setFlag(flag_constants.SRG_SEED)
-            _addNeighborsToHeap(survivor, heap, mergeCostMeasure)
+            _addNeighborsToQueue(survivor, queue, mergeCostMeasure,
+                                 neighborSkipFlags)
 
 def regionalMinima(map, mst):
     """regionalMinima(map, mst)
