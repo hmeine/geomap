@@ -522,9 +522,8 @@ class MapDisplay(DisplaySettings):
         self._redisplayROIImage(intPos(survivor.boundingBox()))
 
     def _preRemoveBridgeHook(self, dart):
-        if self._backgroundMode < 3:
-            return
-        self._bridgeROI = intPos(dart.edge().boundingBox())
+        if self._backgroundMode >= 3:
+            self._bridgeROI = intPos(dart.edge().boundingBox())
         return True
 
     def _postRemoveBridgeHook(self, dart):
