@@ -18,7 +18,7 @@ __all__ = ["extractMapPoints", "midCrackPoints", "samplingPoints",
 
            "findChangeByBisection", "findMinAlpha", "findMaxBeta",
 
-           "alphaShapeThinning1", "alphaShapeThinning"]
+           "alphaShapeThinning"]
 
 # --------------------------------------------------------------------
 
@@ -401,7 +401,7 @@ def alphaShapeThinning(dm):
         alpha shape region"""
         return edge.leftFace().flag(ALPHA_MARK) != edge.rightFace().flag(ALPHA_MARK)
 
-    changed = 0
+    changedCount = 0
     border = []
 
     for edge in dm.edgeIter():
@@ -419,7 +419,7 @@ def alphaShapeThinning(dm):
 
         dart.leftFace().setFlag(ALPHA_MARK, False)
         edge.setFlag(ALPHA_MARK, False)
-        changed += 1
+        changedCount += 1
 
         dart.nextPhi()
         if isSimple(dart.edge()):
@@ -429,7 +429,7 @@ def alphaShapeThinning(dm):
         if isSimple(dart.edge()):
             heappush(border, (-dart.edge().length(), dart.edge()))
     
-    return changed
+    return changedCount
 
 # --------------------------------------------------------------------
 
