@@ -60,14 +60,7 @@ class MapSearcher(qt.QObject):
     def search(self, x, y, button):
         if button != qt.Qt.LeftButton:
             return
-        nearestNode = None
-        minDist = None
-        for node in self._map.nodeIter():
-            dx, dy = abs(node.position()[0]-x), abs(node.position()[1]-y)
-            dist = dx*dx + dy*dy
-            if minDist == None or minDist > dist:
-                minDist = dist
-                nearestNode = node
+        nearestNode = self._map.nearestNode((x, y))
         #sys.stdout.write("Node %d is %.2f from %d/%d\n" % (nearestNode.label(), minDist, x, y))
         if nearestNode.degree() > 0:
             self.display.navigate(nearestNode.anchor())
