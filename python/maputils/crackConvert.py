@@ -1,12 +1,13 @@
 import copy, sys, time
 from hourglass import GeoMap
-from maputils import connectBorderNodes
+from vigra import meshIter
+import maputils
 
 # --------------------------------------------------------------------
 #                              FRONTEND
 # --------------------------------------------------------------------
 
-def crackEdgeMap(labelImage):
+def crackEdgeMap(labelImage, initLabelImage = True):
     sys.stdout.write("- looking for local connections..."); c = time.clock()
     cc = crackConnectionImage(labelImage)
     sys.stdout.write("done. (%ss)\n" % (time.clock()-c, ))
@@ -15,18 +16,32 @@ def crackEdgeMap(labelImage):
     nodes, edges = crackConnections(cc)
     sys.stdout.write("done. (%ss)\n" % (time.clock()-c, ))
 
-    sys.stdout.write("- creating GeoMap...\n")
+    sys.stdout.write("- creating GeoMap...\n"); c = time.clock()
     result = GeoMap(nodes, edges, labelImage.size())
-    connectBorderNodes(result, 0.1, aroundPixels = True)
+
+    sys.stdout.write("  adding border..."); c1 = time.clock()
+    maputils.connectBorderNodes(result, 0.1, aroundPixels = True)
+    sys.stdout.write(" (%ss)\n" % (time.clock()-c1, ))
+
+    maputils.mergeDegree2Nodes(result)
+
+    sys.stdout.write("  sorting edges..."); c1 = time.clock()
     result.sortEdgesDirectly()
-    result.initializeMap()
+    sys.stdout.write(" (%ss)\n" % (time.clock()-c1, ))
+
+    sys.stdout.write("  initializing faces..."); c1 = time.clock()
+    result.initializeMap(initLabelImage)
+    sys.stdout.write(" (%ss)\n" % (time.clock()-c1, ))
+    
+    sys.stdout.write("  done. (%ss)\n" % (time.clock()-c, ))
+
     return result
 
 # --------------------------------------------------------------------
 # 						   helper functions
 # --------------------------------------------------------------------
 
-from vigra import GrayImage, Vector2, Point2D, Size2D
+from vigra import GrayImage, Vector2, Point2D, Size2D, Rect2D
 from hourglass import Polygon
 
 CONN_UP = 1
@@ -75,6 +90,10 @@ _turnLeft  = [1, 2, 3, 0]
 # flag whether multiple steps into the same direction should be pruned:
 simplifyStraight = False
 
+# for extracting loops, we add nodes at every upper left corner:
+def isNode(connValue):
+    return degree[connValue] > 2 or connValue == (CONN_RIGHT | CONN_DOWN)
+
 def followEdge(crackConnectionImage, pos, direction):
     pos = Point2D(*pos)
 # 	dirName = ["right", "up", "left", "down"]
@@ -83,6 +102,7 @@ def followEdge(crackConnectionImage, pos, direction):
     vPos = Vector2(*pos) - Vector2(0.5, 0.5)
     result = [copy.copy(vPos)]
     prevDirection = None
+    imageRect = Rect2D(crackConnectionImage.size())
     while True:
         vPos += _dirVector[direction]
         if not simplifyStraight or prevDirection != direction:
@@ -91,11 +111,11 @@ def followEdge(crackConnectionImage, pos, direction):
             result[-1] = copy.copy(vPos)
         #result.append(Vector2(*pos) - Vector2(0.5, 0.5) + 0.5*dirVector[direction])
         pos += _dirOffset[direction]
-        if not pos in crackConnectionImage.size():
+        if not imageRect.contains(pos):
             break
 
         connection = int(crackConnectionImage[pos])
-        if degree[connection] != 2:
+        if isNode(connection):
             break
 
         prevDirection = direction
@@ -110,16 +130,17 @@ def crackConnections(crackConnectionImage):
     edges = [None]
     nodeImage = GrayImage(crackConnectionImage.size())
     nodePositions = [None]
-    for startPos in crackConnectionImage.size():
+    for startPos in meshIter(crackConnectionImage.size()):
         #startPos = Point2D(*startPos)
         nodeConn = int(crackConnectionImage[startPos])
-        if degree[nodeConn] > 2:
+        if isNode(nodeConn):
             startNode = int(nodeImage[startPos])
             if not startNode:
                 nodeImage[startPos] = startNode = len(nodePositions) << 4
                 nodePositions.append(Vector2(*startPos) - Vector2(0.5, 0.5))
-            for direction, connection in enumerate(connections):
-                if nodeConn & connection and not startNode & connection:
+                nodeConnections.append(0)
+            for direction, startConn in enumerate(connections):
+                if nodeConn & startConn and not startNode & startConn:
                     edge, endPos, endConn = followEdge(
                         crackConnectionImage, startPos, direction)
                     endNode = int(nodeImage[endPos])
@@ -128,9 +149,13 @@ def crackConnections(crackConnectionImage):
                         nodePositions.append(Vector2(*endPos) - Vector2(0.5, 0.5))
                     assert not endNode & endConn, "double connection?"
                     edges.append((startNode >> 4, endNode >> 4, Polygon(edge)))
-                    startNode |= connection
-                    nodeImage[endPos] = endNode | endConn
-            nodeImage[startPos] = startNode
+                    startNode |= startConn
+                    if endNode >> 4 == startNode >> 4:
+                        startNode |= endConn
+                        nodeImage[startPos] = startNode
+                    else:
+                        nodeImage[startPos] = startNode
+                        nodeImage[endPos] = endNode | endConn
     return nodePositions, edges
 
 def showDegrees(crackConnectionImage):
