@@ -102,8 +102,9 @@ def followEdge(crackConnectionImage, pos, direction):
     vPos = Vector2(*pos) - Vector2(0.5, 0.5)
     result = [copy.copy(vPos)]
     prevDirection = None
-    imageRect = Rect2D(crackConnectionImage.size())
+    imageRect = Rect2D(crackConnectionImage.size()-Size2D(1, 1))
     while True:
+# 		sys.stderr.write(" [%s]" % direction)
         vPos += _dirVector[direction]
         if not simplifyStraight or prevDirection != direction:
             result.append(copy.copy(vPos))
@@ -121,6 +122,7 @@ def followEdge(crackConnectionImage, pos, direction):
         prevDirection = direction
         direction = _turnRight[direction]
         while connection & connections[direction] == 0:
+# 			sys.stderr.write(" (%s)" % direction)
             direction = _turnLeft[direction]
 # 	result.append(Vector2(*pos) - Vector2(0.5, 0.5))
 # 	sys.stderr.write(" %d steps.\n" % (len(result)-2, ))
@@ -138,7 +140,6 @@ def crackConnections(crackConnectionImage):
             if not startNode:
                 nodeImage[startPos] = startNode = len(nodePositions) << 4
                 nodePositions.append(Vector2(*startPos) - Vector2(0.5, 0.5))
-                nodeConnections.append(0)
             for direction, startConn in enumerate(connections):
                 if nodeConn & startConn and not startNode & startConn:
                     edge, endPos, endConn = followEdge(
@@ -146,7 +147,8 @@ def crackConnections(crackConnectionImage):
                     endNode = int(nodeImage[endPos])
                     if not endNode:
                         endNode = len(nodePositions) << 4
-                        nodePositions.append(Vector2(*endPos) - Vector2(0.5, 0.5))
+                        nodePositions.append(
+                            Vector2(*endPos) - Vector2(0.5, 0.5))
                     assert not endNode & endConn, "double connection?"
                     edges.append((startNode >> 4, endNode >> 4, Polygon(edge)))
                     startNode |= startConn
@@ -163,3 +165,14 @@ def showDegrees(crackConnectionImage):
     for p in crackConnectionImage.size():
         degreeImage[p] = degree[int(crackConnectionImage[p])]
     return showImage(degreeImage)
+
+if __name__ == "__main__":
+    # test code, to be converted into unittest-stuff
+    g = GrayImage(10, 10)
+    for y in range(5, 10):
+        g[5,y] = 1
+    cem = crackEdgeMap(g)
+    assert cem.faceCount == 3, \
+           "should be one infinite, one background, and one foreground region"
+# 	import mapdisplay
+# 	d = mapdisplay.MapDisplay(cem)
