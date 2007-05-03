@@ -873,6 +873,8 @@ class DartNavigator(DartNavigatorBase):
 
 # --------------------------------------------------------------------
 
+import copy
+
 class ROISelector(qt.QObject):
     def __init__(self, parent = None, name = None,
                  roi = None, viewer = None, color = qt.Qt.yellow, width = 0):
@@ -910,12 +912,15 @@ class ROISelector(qt.QObject):
         if roi != self.roi:
             updateRect = self.windowRect()
             self.roi = roi
+            if not self.visible:
+                return
             updateRect |= self.windowRect()
             self._viewer.update(updateRect)
             self.emit(qt.PYSIGNAL("roiChanged"), (roi, ))
 
     def _startPainting(self):
         self._painting = True
+        self._oldROI = copy.copy(self.roi)
         if not self._alwaysVisible:
             self._viewer.addOverlay(self)
 
@@ -927,10 +932,22 @@ class ROISelector(qt.QObject):
     def mousePressed(self, x, y, button):
         if self._painting and button == qt.Qt.RightButton:
             self._stopPainting()
+            self.setROI(self._oldROI)
             return
         if button != qt.Qt.LeftButton:
             return
-        self.startPos = intPos((x, y))
+        if self.roi:
+            mousePos = self._viewer.toWindowCoordinates(x, y)
+            wr = self.windowRect()
+            print (mousePos - wr.topLeft()).manhattanLength()
+            if (mousePos - wr.topLeft()).manhattanLength() < 9:
+                self.startPos = self.roi.lowerRight()
+            elif (mousePos - wr.bottomRight()).manhattanLength() < 9:
+                self.startPos = self.roi.upperLeft()
+            else:
+                self.startPos = intPos((x, y))
+        else:
+            self.startPos = intPos((x, y))
         self.mouseMoved(x, y)
         self._startPainting()
 
