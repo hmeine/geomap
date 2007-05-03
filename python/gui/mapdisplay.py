@@ -432,13 +432,18 @@ class MapDisplay(DisplaySettings):
 
     def setMap(self, map):
         attached = self.detachHooks()
+
         self.setTool(None)
         self.map = map
         self.edgeOverlay.setMap(map)
         self.nodeOverlay.setMap(map)
+        if self._backgroundMode == 3:
+            self.setImage(self.map.labelImage(), self.normalizeStates[self._backgroundMode] and NBYTE or BYTE)
         self._dh.setMap(map)
+
         if attached:
             self.attachHooks()
+
         self.viewer.update()
 
     def setFaceMeans(self, faceMeans):
@@ -480,7 +485,7 @@ class MapDisplay(DisplaySettings):
             return
 
         self.image = displayImage
-        self._backgroundMode = mode # needed by toggleNormalize()
+        self._backgroundMode = mode
         normalize = self.normalizeStates[mode]
         if self.normalizeAction.isOn() != normalize:
             self.normalizeAction.setOn(normalize)
@@ -909,33 +914,45 @@ class ROISelector(qt.QObject):
             self._viewer.update(updateRect)
             self.emit(qt.PYSIGNAL("roiChanged"), (roi, ))
 
-    def mousePressed(self, x, y, button):
-        if button != qt.Qt.LeftButton:
-            return
-        self.startPos = Point2D(x, y)
+    def _startPainting(self):
         self._painting = True
-        self.mouseMoved(x, y)
         if not self._alwaysVisible:
             self._viewer.addOverlay(self)
+
+    def _stopPainting(self):
+        self._painting = False
+        if not self._alwaysVisible:
+            self._viewer.removeOverlay(self)
+
+    def mousePressed(self, x, y, button):
+        if self._painting and button == qt.Qt.RightButton:
+            self._stopPainting()
+            return
+        if button != qt.Qt.LeftButton:
+            return
+        self.startPos = intPos((x, y))
+        self.mouseMoved(x, y)
+        self._startPainting()
 
     def mouseMoved(self, x, y):
         if not self._painting: return
         # TODO: update overlay
         x1, y1 = self.startPos
+        x, y = intPos((x, y))
         self.setROI(
             Rect2D(min(x1, x), min(y1, y), max(x1, x)+1, max(y1, y)+1))
 
     def windowRect(self):
         if not self.roi:
             return qt.QRect()
-        wx1, wy1 = self._viewer.toWindowCoordinates(*self.roi.upperLeft())
-        wx2, wy2 = self._viewer.toWindowCoordinates(*self.roi.lowerRight())
-        return qt.QRect(qt.QPoint(wx1, wy1), qt.QPoint(wx2-1, wy2-1))
+        return qt.QRect(
+            self._viewer.toWindowCoordinates(*self.roi.upperLeft()),
+            self._viewer.toWindowCoordinates(*self.roi.lowerRight()))
 
-    def mouseReleased(self, x, y):
-        self._painting = False
-        if not self._alwaysVisible:
-            self._viewer.removeOverlay(self)
+    def mouseReleased(self, x, y, button):
+        if self._painting and button == qt.Qt.LeftButton:
+            self._stopPainting()
+            self.emit(qt.PYSIGNAL("roiSelected"), (self.roi, ))
 
     def disconnectViewer(self):
         self.disconnect(self._viewer, qt.PYSIGNAL("mousePressed"),
@@ -957,3 +974,13 @@ class ROISelector(qt.QObject):
         # painter is already set up with a shift:
         drawRect.moveBy(-self._viewer.x, -self._viewer.y)
         p.drawRect(drawRect)
+
+# def queryROI(imageWindow):
+#     pd = qt.QProgressDialog(imageWindow)
+#     pd.setLabelText("Please mark a ROI with drag & drop")
+#     rs = ROISelector(imageWindow)
+#     qt.QObject.connect(rs, qt.PYSIGNAL("roiSelected"),
+#                        pd.accept)
+#     if pd.exec_loop() == qt.QDialog.Accepted:
+#         return rs.roi
+#     return
