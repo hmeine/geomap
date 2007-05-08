@@ -398,6 +398,9 @@ def offset2(freemanCodes, pointIndex, closed = True):
     if closed:
         pointIndex = pointIndex % len(freemanCodes)
     dsl, ofs = hourglass.tangentDSL(freemanCodes, pointIndex, closed)
+    if not ofs:
+        return Vector2(0, 0)
+    
     dsl = dsl.convertToFourConnected()
 
     fc1 = freemanCodes[pointIndex - ofs]
@@ -422,13 +425,24 @@ def offset2(freemanCodes, pointIndex, closed = True):
 
 from hourglass import Polygon
 
-def euclideanPath(crackPoly):
+def euclideanPath(crackPoly, closed = None):
     fc = freeman(crackPoly)
-    closed = crackPoly[-1] == crackPoly[0]
-    result = Polygon([p + offset2(fc, i, closed)
-                      for i, p in enumerate(list(crackPoly)[:-1])])
+    if closed == None:
+        closed = crackPoly[-1] == crackPoly[0]
+    result = Polygon(crackPoly)
+    if closed:
+        eo = offset2(fc, 0, closed)
+        result[0] += eo
+        result[-1] += eo
+    for i in range(1, len(result)-1):
+        result[i] += offset2(fc, i, closed)
+    return result
 
-import Gnuplot
+def crackEdges2EuclideanPaths(crackEdgeMap):
+    import maputils
+    return maputils.copyMapContents(
+        crackEdgeMap, None, edgeTransform = \
+        lambda e: euclideanPath(e, e.isLoop() and e.startNode().degree() == 2))
 
 class DSLExperiment(object):
     def __init__(self, reverse = False):
