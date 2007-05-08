@@ -538,10 +538,8 @@ def copyMapContents(sourceMap, destMap, edgeTransform = None):
             if neighbor.label() < 0:
                 endNeighbor.nextAlpha()
 
-        print startNeighbor, endNeighbor, edge
         edges[edge.label()] = destMap.addEdge(
             startNeighbor, endNeighbor, geometry)
-        print
 
     # now add isolated nodes:
     for node in sourceMap.nodeIter():
