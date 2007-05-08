@@ -449,6 +449,10 @@ def connectBorderNodes(map, epsilon,
         lastNode = node
 
     if not borderEdges:
+        cornerNode = map.addNode(lastPoints[0])
+        lastPoints.append(lastPoints[0]) # close loop
+        map.addEdge(cornerNode, cornerNode, lastPoints) \
+                        .setFlag(flag_constants.BORDER_PROTECTION)
         return
 
     lastPoints.extend(borderEdges[0][0])
@@ -461,27 +465,54 @@ def connectBorderNodes(map, epsilon,
         map.addEdge(startNode, endNode, points) \
                         .setFlag(flag_constants.BORDER_PROTECTION)
 
-def copyMapContents(sourceMap, destMap):
-    """copyMapContents(sourceMap, destMap)
+def copyMapContents(sourceMap, destMap, edgeTransform = None):
+    """copyMapContents(sourceMap, destMap, edgeTransform = None)
 
     Adds all nodes and edges of sourceMap to the destMap.  The sigma
     order is preserved.  Thus, it is an error to copy the contents of
     a graph - not sourceMap.edgesSorted() - into a map with
-    destMap.edgesSorted()."""
+    destMap.edgesSorted().
+
+    You can pass an optional edgeTransform to map edges to other
+    Polygons: edgeTransform may be a callable that is called with Edge
+    instances and must return an object suitable as the geometry
+    parameter of GeoMap.addEdge.
+
+    Returns a tuple (destMap, nodes, edges), where nodes and edges are
+    lists that map source nodes/edges onto their new counterparts in
+    destMap.
+
+    If destMap is None, a new GeoMap of the same size is created and
+    returned."""
+
+    if destMap == None:
+        destMap = sourceMap.__class__(sourceMap.imageSize())
+        if sourceMap.edgesSorted():
+            destMap.sortEdgesDirectly()
 
     assert sourceMap.edgesSorted() or not destMap.edgesSorted(), \
            "refraining from inserting unsorted edges into sorted map!"
     
     nodes = [None] * sourceMap.maxNodeLabel()
-    for node in sourceMap.nodeIter():
-        nodes[node.label()] = destMap.addNode(node.position())
+    # for better edgeTransform support, nodes are added on-the-fly now
     
     edges = [None] * sourceMap.maxEdgeLabel()
     for edge in sourceMap.edgeIter():
+        geometry = edge
+        if edgeTransform:
+            geometry = edgeTransform(geometry)
+
         startNeighbor = nodes[edge.startNodeLabel()]
-        if not startNeighbor.isIsolated():
+        if startNeighbor == None:
+            startNeighbor = destMap.addNode(geometry[0])
+            nodes[edge.startNodeLabel()] = startNeighbor
+        elif not startNeighbor.isIsolated():
+            if edgeTransform:
+                assert geometry[0] == startNeighbor.position(), "copyMapContents: edgeTransform leads to inconsistent node positions!"
+            
             neighbor = edge.dart()
-            while neighbor.nextSigma().edgeLabel() > edge.label():
+            while neighbor.nextSigma().edgeLabel() > edge.label() \
+                      or neighbor.label() == -edge.label():
                 pass
             assert neighbor.edgeLabel() < edge.label(), \
                    "since !startNeighbor.isIsolated(), there should be an (already handled) edge with a smaller label in this orbit!"
@@ -490,9 +521,16 @@ def copyMapContents(sourceMap, destMap):
                 startNeighbor.nextAlpha()
 
         endNeighbor = nodes[edge.endNodeLabel()]
-        if not endNeighbor.isIsolated():
+        if endNeighbor == None:
+            endNeighbor = destMap.addNode(geometry[-1])
+            nodes[edge.endNodeLabel()] = endNeighbor
+        elif not endNeighbor.isIsolated():
+            if edgeTransform:
+                assert geometry[-1] == endNeighbor.position(), "copyMapContents: edgeTransform leads to inconsistent node positions!"
+            
             neighbor = edge.dart().nextAlpha()
-            while neighbor.nextSigma().edgeLabel() > edge.label():
+            while neighbor.nextSigma().edgeLabel() > edge.label() \
+                      or neighbor.label() == edge.label():
                 pass
             assert neighbor.edgeLabel() < edge.label(), \
                    "since !endNeighbor.isIsolated(), there should be an (already handled) edge with a smaller label in this orbit!"
@@ -500,8 +538,17 @@ def copyMapContents(sourceMap, destMap):
             if neighbor.label() < 0:
                 endNeighbor.nextAlpha()
 
+        print startNeighbor, endNeighbor, edge
         edges[edge.label()] = destMap.addEdge(
-            startNeighbor, endNeighbor, edge)
+            startNeighbor, endNeighbor, geometry)
+        print
+
+    # now add isolated nodes:
+    for node in sourceMap.nodeIter():
+        if not nodes[node.label()]:
+            nodes[node.label()] = destMap.addNode(node.position())
+
+    return destMap, nodes, edges
 
 # --------------------------------------------------------------------
 #                         consistency checks
@@ -649,6 +696,32 @@ def removeCruft(map, what = 3, doChecks = False):
 
     print "removeCruft(): %d operations performed." % result.count
     return result.count
+
+def removeIsolatedNodes(map):
+    """removeIsolatedNodes(map)
+
+    Removes all isolated nodes with map.removeIsolatedNode(...) and
+    returns the number of successful operations (= nodes removed)."""
+    
+    result = 0
+    for node in map.nodeIter():
+        if node.isIsolated():
+            if map.removeIsolatedNode(node):
+                result += 1
+    return result
+
+def mergeDegree2Nodes(map):
+    """mergeDegree2Nodes(map)
+
+    Removes all degree-2-nodes with map.mergeEdges(...) and
+    returns the number of successful operations (= nodes removed)."""
+    
+    result = 0
+    for node in map.nodeIter():
+        if node.degree() == 2 and not node.anchor().edge().isLoop():
+            if map.mergeEdges(node.anchor()):
+                result += 1
+    return result
 
 def removeSmallRegions(map, minArea):
     result = 0
