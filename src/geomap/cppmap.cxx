@@ -950,6 +950,16 @@ class GeoMap::SigmaAnchor
         return nodeLabel_;
     }
 
+    bool operator==(const GeoMap::SigmaAnchor &other) const
+    {
+        if(isSingular() != other.isSingular())
+            return false;
+        if(isSingular())
+            return nodeLabel_ == other.nodeLabel_;
+        else
+            return dartLabel_ == other.dartLabel_;
+    }
+
   private:
     bool isSingular_;
     int dartLabel_;
@@ -1068,9 +1078,6 @@ CELL_PTR(GeoMap::Edge) GeoMap::addEdge(
     const GeoMap::SigmaAnchor &endNeighbor,
     const Vector2Array &points, CellLabel label)
 {
-    // ATTENTION: Handle adding self-loops correctly (startNeighbor ==
-    // endNeighbor)
-
     if(label > edges_.size())
         edges_.resize(label, NULL_PTR(GeoMap::Edge));
     GeoMap::Edge *result = new GeoMap::Edge(
@@ -1084,7 +1091,11 @@ CELL_PTR(GeoMap::Edge) GeoMap::addEdge(
     else
         insertSigmaPredecessor(startNeighbor.dartLabel(), (int)result->label());
 
-    if(endNeighbor.isSingular())
+    if((endNeighbor == startNeighbor) && result->partialArea() < 0)
+    {
+        insertSigmaPredecessor((int)result->label(), -(int)result->label());
+    }
+    else if(endNeighbor.isSingular())
     {
         insertSigmaPredecessor(result->endNode()->anchor_, -(int)result->label());
         result->endNode()->anchor_ = -(int)result->label();
@@ -1146,6 +1157,10 @@ void GeoMap::sortEdgesDirectly()
         int predecessor = dartAngles[0].second;
         for(unsigned int i = 1; i < dartAngles.size(); ++i)
         {
+            vigra_precondition(
+                dartAngles[i-1].first != dartAngles[i].first,
+                "sortEdgesDirectly: edges leave node at identical angles!");
+
             sigmaMapping_[predecessor] = dartAngles[i].second;
             sigmaInverseMapping_[dartAngles[i].second] = predecessor;
             predecessor = dartAngles[i].second;
@@ -1869,6 +1884,7 @@ void GeoMap::initializeMap(bool initLabelImage)
         sortEdgesDirectly();
 
     initContours();
+    //std::cerr << faceCount_ << " contours found, embedding...\n";
     embedFaces(initLabelImage);
 }
 
@@ -3380,6 +3396,8 @@ CELL_PTR(GeoMap::Edge) addEdgeBackwardCompatibility(
 
 GeoMap::FaceIterator faceIter(GeoMap &geomap, bool skipInfinite)
 {
+    vigra_precondition(geomap.mapInitialized(),
+                       "faceIter() called on graph (!mapInitialized())");
     GeoMap::FaceIterator result(geomap.facesBegin());
     if(skipInfinite)
         ++result;
