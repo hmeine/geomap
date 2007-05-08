@@ -60,21 +60,14 @@ def samplePoly(poly, shift = None, size = None):
         poly = Polygon(poly + shift)
 
     result = GrayImage(size)
-    for p in size:
+    for p in meshIter(size):
         result[p] = poly.contains(Vector2(p[0], p[1])) and 1 or 0
     return result
 
-from cellimage import GeoMap, CellType
 import pixelmap
 
 def polyCrackMap(poly, shift = None, midCracks = True):
     img = samplePoly(poly, shift)
-    ce = regionImageToCrackEdgeImage(transformImage(img, "\l x:x+1"), 0)
-    geomap = GeoMap(ce, 0, CellType.Line)
-    spmap = pixelmap.pixelMap2subPixelMap(
-        geomap, 0.5, labelImageSize = (geomap.cellImage.size()-Size2D(3,3))/2)
-    if midCracks:
-        pixelmap.crackEdges2MidCracks(spmap)
-    return spmap
+    return pixelmap.crackEdgeMap(img, midCracks)
 
 # poly = Polygon((rotatedPoly(kochCurve(5), math.pi/4)+Vector2(0.5, 0.5))*100)
