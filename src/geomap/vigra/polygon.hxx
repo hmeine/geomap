@@ -242,6 +242,7 @@ class Polygon : public PointArray<POINT>
             for(unsigned int i = 1; i < this->points_.size(); ++i)
                 partialArea_ += (this->points_[i][0]*this->points_[i-1][1] -
                                  this->points_[i][1]*this->points_[i-1][0]);
+            partialArea_ /= 2.0;
             partialAreaValid_ = true;
         }
         return partialArea_;
