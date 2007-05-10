@@ -939,9 +939,8 @@ class ROISelector(qt.QObject):
         if self.roi:
             mousePos = self._viewer.toWindowCoordinates(x, y)
             wr = self.windowRect()
-            print (mousePos - wr.topLeft()).manhattanLength()
             if (mousePos - wr.topLeft()).manhattanLength() < 9:
-                self.startPos = self.roi.lowerRight()
+                self.startPos = self.roi.lowerRight() - Diff2D(1,1)
             elif (mousePos - wr.bottomRight()).manhattanLength() < 9:
                 self.startPos = self.roi.upperLeft()
             else:
