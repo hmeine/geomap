@@ -442,7 +442,7 @@ def crackEdges2EuclideanPaths(crackEdgeMap):
     import maputils
     return maputils.copyMapContents(
         crackEdgeMap, None, edgeTransform = \
-        lambda e: euclideanPath(e, e.isLoop() and e.startNode().degree() == 2))
+        lambda e: euclideanPath(e, e.isLoop() and e.startNode().degree() == 2))[0]
 
 class DSLExperiment(object):
     def __init__(self, reverse = False):
