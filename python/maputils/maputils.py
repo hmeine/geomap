@@ -39,19 +39,16 @@ class EdgeProtection(object):
     def __getinitargs__(self):
         return (self._map(), )
 
-def protectFace(face, protect = True):
-    """protectFace(face, protect = True)
-
-    Sets the PROTECTED_FACE of 'face' according to 'protect'.
+def protectFace(face, protect = True, flag = flag_constants.PROTECTED_FACE):
+    """Sets the PROTECTED_FACE flag of 'face' according to 'protect'.
     Subsequently, sets the CONTOUR_PROTECTION of each edge in the
     contours of 'face' iff either of the adjacent faces is
     protected."""
     
-    face.setFlag(flag_constants.PROTECTED_FACE, protect)
+    face.setFlag(flag, protect)
     for dart in contourDarts(face):
         dart.edge().setFlag(flag_constants.CONTOUR_PROTECTION,
-                            protect or dart.rightFace().flag(
-            flag_constants.PROTECTED_FACE))
+                            protect or dart.rightFace().flag(flag))
 
 # --------------------------------------------------------------------
 #                      subpixel watershed functions
@@ -894,6 +891,27 @@ def thresholdMergeCost(map, mergeCostFunctor, maxCost, costs = None, q = None):
                 costs.append(cost)
     
     return result, q
+
+# --------------------------------------------------------------------
+
+# FIXME: split into classifyFaces... and classifyEdgesFromFaceClassification
+def classifyEdgesFromLabelImage(map, labelImage):
+    faceStats = statistics.FaceColorStatistics(map, labelImage)
+
+    for face in map.faceIter(skipInfinite = True):
+        l = faceStats[face.label()]
+        assert float(int(l)) == l, "each Face should be entirely within one region of the labelImage"
+
+    good = []
+    bad = []
+    for edge in map.edgeIter():
+        if edge.flag(BORDER_PROTECTION | CONTOUR_PROTECTION):
+            continue
+        if faceStats[edge.leftFaceLabel()] != faceStats[edge.rightFaceLabel()]:
+            good.append(edge)
+        else:
+            bad.append(edge)
+    return good, bad
 
 # --------------------------------------------------------------------
 #                   topological utility functions
