@@ -5,8 +5,12 @@
 # edge protection:
 BORDER_PROTECTION  = 1
 SCISSOR_PROTECTION = 2
-CONTOUR_PROTECTION = 4
-ALL_PROTECTION     = 7 # or'ed values of the ones above
+CONTOUR_PROTECTION = 4 # cf. maputils.protectFace()
+
+# sinology:
+COLUMN_PROTECTION = 8
+
+ALL_PROTECTION     = 15 # or'ed values of the ones above
 
 # delaunay:
 CONTOUR_SEGMENT = 256
