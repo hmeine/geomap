@@ -3673,36 +3673,127 @@ void defMap()
                  "Returns an upper bound on the face labels.\n"
                  "Actually, this is the max. face label + 1, so that you can use it as LUT size.")
             .def("imageSize", &GeoMap::imageSize,
-                 return_value_policy<copy_const_reference>())
+                 return_value_policy<copy_const_reference>(),
+                 "imageSize() -> Size2D\n\n"
+                 "Return the image size (as passed to __init__).\n"
+                 "If the map has a labelImage, this is its size.")
             .def("addNode", (CELL_PTR(GeoMap::Node) (GeoMap::*)(const vigra::Vector2 &))&GeoMap::addNode, crp, args("position"))
-            .def("addNode", (CELL_PTR(GeoMap::Node) (GeoMap::*)(const vigra::Vector2 &, CellLabel))&GeoMap::addNode, crp, args("position", "label"))
+            .def("addNode", (CELL_PTR(GeoMap::Node) (GeoMap::*)(const vigra::Vector2 &, CellLabel))&GeoMap::addNode, crp, args("position", "label"),
+                 "addNode(position) -> Node\n\n"
+                 "Add node at the given position and return the new Node\n"
+                 "object.")
             .def("addEdge", &addEdgeBackwardCompatibility, crp,
                  (arg("startNodeLabel"), arg("endNodeLabel"),
                   arg("points"), arg("label") = 0))
             .def("addEdge", &GeoMap::addEdge, crp,
                  (arg("startNeighbor"), arg("endNeighbor"),
-                  arg("points"), arg("label") = 0))
-            .def("removeEdge", &GeoMap::removeEdge, crp)
+                  arg("points"), arg("label") = 0),
+                 "addEdge(startNeighbor, endNeighbor, points, label = None) -> Edge\n\n"
+                 "Add edge new edge with given geometry to the map and return\n"
+                 "the new Edge object.  If start/endNeighbor are Node objects,\n"
+                 "the edge is inserted at an arbitrary point in the sigma orbit,\n"
+                 "if Dart objects are given, the new Edge becomes the sigma\n"
+                 "predecessor of the given start and/or edge darts.  (For\n"
+                 "isolated nodes, you have to pass a Node object.)\n\n"
+                 "A label >= maxEdgeLabel() may be given in order to\n"
+                 "force the given label (the edges with lower labels will then\n"
+                 "stay unused ATM).")
+            .def("removeEdge", &GeoMap::removeEdge, crp,
+                 "removeEdge(dart)\n\n"
+                 "Equivalent to either removeBridge or mergeFaces, depending on\n"
+                 "the type of edge.  May also be called if not mapInitialized()\n"
+                 "in order to remove an edge from the graph.")
             .def("splitEdge", &pySplitEdge,
-                 (arg("edge"), arg("segmentIndex"), arg("newPoint") = object()))
+                 (arg("edge"), arg("segmentIndex"), arg("newPoint") = object()),
+                 "splitEdge(self, edge, segmentIndex, newPoint = None) -> Edge\n\n"
+                 "Splits the given `edge` by cutting it into two at the given position.\n"
+                 "`newPoint` should be a point in the polygon segment with the given index.\n"
+                 "If None or not given, the edge will be split exactly at the beginning\n"
+                 "of the segment given by `segmentIndex`.\n\n"
+                 "splitEdge() returns the new resulting edge whose `startNode()` is a new\n"
+                 "node that has become the new `endNode()` of the `edge` that was split.")
 
-            .def("removeIsolatedNode", &GeoMap::removeIsolatedNode, arg("dart"))
-            .def("mergeEdges", &GeoMap::mergeEdges, arg("dart"), crp)
+            .def("removeIsolatedNode", &GeoMap::removeIsolatedNode, arg("dart"),
+                 "removeIsolatedNode(node)\n\n"
+                 "Euler operation removing an isolated node.  In contrast to the\n"
+                 "other operations, this one cannot be parametrized with a dart,\n"
+                 "since by definition no dart is attached to an isolated node.\n\n"
+                 "ATM, this operation is called internally (from the other Euler\n"
+                 "operations) whenever a node becomes isolated, and does not have to\n"
+                 "be called manually.  (This is the reason why it does not appear in\n"
+                 "map.history.)")
+            .def("mergeEdges", &GeoMap::mergeEdges, arg("dart"), crp,
+                 "mergeEdges(dart)\n\n"
+                 "Euler operation merging two edges around a node of degree 2.\n"
+                 "Return the surviving (merged) edge (which might either be\n"
+                 "dart.edge() or dart.nextSigma().edge()).  The resulting edge\n"
+                 "has the same direction as before.")
             .def("removeBridge", &GeoMap::removeBridge, arg("dart"), crp)
             .def("mergeFaces", &GeoMap::mergeFaces, arg("dart"), crp)
-            .def("sortEdgesDirectly", &GeoMap::sortEdgesDirectly)
+            .def("sortEdgesDirectly", &GeoMap::sortEdgesDirectly,
+                 "sortEdgesDirectly()\n\n"
+                 "Sort edges around nodes by taking into account the direction\n"
+                 "of the first polyline segment attached to a node.  This simple\n"
+                 "method is not suitable for subpixel watersheds, see\n"
+                 "sortEdgesEventually instead.")
             .def("sortEdgesEventually", &GeoMap_sortEdgesEventually,
-                 (arg("stepDist"), arg("minDist"), arg("splitEdges") = true))
-            .def("edgesSorted", &GeoMap::edgesSorted)
+                 (arg("stepDist"), arg("minDist"), arg("splitEdges") = true),
+                 "sortEdgesEventually(stepDist, minDist, splitEdges = True)\n\n"
+                 "Sort edges by following them until the eventually part.\n"
+                 "minDist is the minimal distance the flowlines must be apart,\n"
+                 "stepDist is the (arclength) step size the sigma sorting\n"
+                 "algorithm will use to walk along groups of parallel edges.\n\n"
+                 "If splitEdges is True, the positions of divergence are stored\n"
+                 "for later calling of splitEdges() - note that the edges are\n"
+                 "not split if you do not call the latter method.")
+            .def("edgesSorted", &GeoMap::edgesSorted,
+                 "edgesSorted() -> bool\n\n"
+                 "Return whether the edges have already been sorted.\n"
+                 "Normally this is the case when one of\n"
+                 "`sortEdgesDirectly`/`sortEdgesEventually`/`setSigmaMapping`\n"
+                 "has been used.")
             .def("splitParallelEdges", &GeoMap::splitParallelEdges)
-            .def("initializeMap", &GeoMap::initializeMap, (arg("initLabelImage") = true))
-            .def("mapInitialized", &GeoMap::mapInitialized)
-            .def("hasLabelImage", &GeoMap::hasLabelImage)
-            .def("labelImage", &labelImage)
+            .def("initializeMap", &GeoMap::initializeMap, (arg("initLabelImage") = true),
+                 "initializeMap(initLabelImage = True) -> None\n\n"
+                 "This finishes the initialization of a GeoMap.  Call this after\n"
+                 "setting up the geometry (adding nodes/edges via\n"
+                 "`addNode`/`addEdge`) and initializing the sigma orbits\n"
+                 "(e.g. `sortEdgesDirectly`/`sortEdgesEventually`/`setSigmaMapping`).\n"
+                 "Given the embedded graph, this will initialize the faces and\n"
+                 "their embedding.\n\n"
+                 "Subsequently, `mapInitialized()` will return True and\n"
+                 "`initializeMap()` must not be called again.\n\n"
+                 "If initLabelImage is False, `labelImage()` will not\n"
+                 "return a label image, and `hasLabelImage()` will return\n"
+                 "False.  This is useful e.g. for GeoMaps with Delaunay edges,\n"
+                 "where most pixels facets in the label image are crossed by an\n"
+                 "edge (and thus don't contain face labels) anyways.")
+            .def("mapInitialized", &GeoMap::mapInitialized,
+                 "mapInitialized() -> bool\n\n"
+                 "Return whether initializeMap() has already been\n"
+                 "called.  Otherwise, someMap is considered to be a graph.  See\n"
+                 "also edgesSorted().")
+            .def("hasLabelImage", &GeoMap::hasLabelImage,
+                 "hasLabelImage() -> bool\n\n"
+                 "Return True when someMap has a labelImage,\n"
+                 "i.e. initializeMap(...) has already been called with\n"
+                 "its initLabelImage parameter set to True (default).  Then,\n"
+                 "labelImage() returns a GrayImage, else None.")
+            .def("labelImage", &labelImage,
+                 "labelImage() -> GrayImage/None\n\n"
+                 "Return a GrayImage where all pixels that are entirely inside\n"
+                 "a region are assigned that regions' label.  All pixels whose\n"
+                 "facet is crossed by an edge are assigned negative numbers\n"
+                 "indicating how many edges intersect this pixel.\n\n"
+                 "If hasLabelImage() is False, this method may return\n"
+                 "None.")
             .def("nearestNode", &GeoMap::nearestNode, crp,
                  (arg("position"), arg(
                      "maxSquaredDist") = vigra::NumericTraits<double>::max()))
-            .def("checkConsistency", &GeoMap::checkConsistency)
+            .def("checkConsistency", &GeoMap::checkConsistency,
+                 "checkConsistency() -> bool\n\n"
+                 "Performs a series of consistency/sanity checks and returns\n"
+                 "True if someMap seems to be OK.")
             .def_pickle(GeoMapPickleSuite())
             );
 
@@ -3975,7 +4066,9 @@ void defMap()
         "contourPoly(anchor) -> Polygon\n\n"
         "Returns a Polygon composed by traversing anchor's phi orbit once.");
 
-    class_<DartPosition>("DartPosition", init<GeoMap::Dart>())
+    class_<DartPosition>("DartPosition",
+                         "Helper class for traversing a Dart's geometry.",
+                         init<GeoMap::Dart>())
         .def("atEnd", &DartPosition::atEnd)
         .def("__call__", &DartPosition::operator(),
              return_value_policy<copy_const_reference>())
