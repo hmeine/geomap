@@ -3625,8 +3625,10 @@ void defMap()
                 "The GeoMap class manages a topologically consistent set of nodes,\n"
                 "edges, and faces.\n\n"
                 "You can get the number of nodes via the `nodeCount` property, and\n"
-                "iterate over all existing nodes with ``for node in amap.nodeIter():\n"
-                "...``.  The same goes for edges and faces.\n\n"
+                "iterate over all existing nodes with ::\n\n"
+                "  for node in amap.nodeIter():\n"
+                "    ...\n\n"
+                "The same goes for edges and faces.\n\n"
                 "You can monitor changes on the map by adding your own callbacks via:\n\n"
                 "addMergeEdgesCallbacks(preOpCallback, postOpCallback)\n"
                 "  called before/after merging two edges with a node of degree two\n"
@@ -3700,8 +3702,8 @@ void defMap()
                  "stay unused ATM).")
             .def("removeEdge", &GeoMap::removeEdge, crp,
                  "removeEdge(dart)\n\n"
-                 "Equivalent to either removeBridge or mergeFaces, depending on\n"
-                 "the type of edge.  May also be called if not mapInitialized()\n"
+                 "Equivalent to either `removeBridge` or `mergeFaces`, depending on\n"
+                 "the type of edge.  May even be called if not `mapInitialized()`\n"
                  "in order to remove an edge from the graph.")
             .def("splitEdge", &pySplitEdge,
                  (arg("edge"), arg("segmentIndex"), arg("newPoint") = object()),
@@ -3710,8 +3712,8 @@ void defMap()
                  "`newPoint` should be a point in the polygon segment with the given index.\n"
                  "If None or not given, the edge will be split exactly at the beginning\n"
                  "of the segment given by `segmentIndex`.\n\n"
-                 "splitEdge() returns the new resulting edge whose `startNode()` is a new\n"
-                 "node that has become the new `endNode()` of the `edge` that was split.")
+                 "splitEdge() returns the new resulting edge whose `Edge.startNode()` is a new\n"
+                 "node that has become the new `Edge.endNode()` of the `edge` that was split.")
 
             .def("removeIsolatedNode", &GeoMap::removeIsolatedNode, arg("dart"),
                  "removeIsolatedNode(node)\n\n"
