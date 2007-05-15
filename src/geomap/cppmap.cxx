@@ -3645,19 +3645,60 @@ void defMap()
                 "  first, and a list of Point2Ds as second parameter)\n\n"
                 "GeoMap objects can be pickled, at will guarantee persistence of edges\n"
                 "and nodes with their geometry and labels (face labels may change!).",
-                init<vigra::Size2D>(arg("imageSize")))
+                init<vigra::Size2D>(arg("imageSize"),
+                    "GeoMap(nodePositions, edges, imageSize)\n\n"
+                    "Creates a GeoMap of the given `imageSize`.\n\n"
+                    "`nodePositions`\n"
+                    "  is a list of node positions (``None`` values are ignored).\n"
+                    "`edges`\n"
+                    "  is a list of edge triples (startNodeLabel, endNodeLabel, points)\n"
+                    "  (index 0 is ignored, so are ``None`` values inside the list).\n"
+                    "`imageSize`\n"
+                    "  is the size of the labelImage to be created\n"
+                    "  (usually, the original image size).\n\n"
+                    "If `nodePositions` and `edges` are given (they can be omitted),\n"
+                    "adds these to the map as if `addNode`/`addEdge` were called.\n"
+                    "``None`` is allowed inside these two lists,\n"
+                    "and all created Node/Edge objects will have labels that\n"
+                    "point to their corresponding entries in the lists (that is, ``None``\n"
+                    "will lead to gaps in the labels).\n"
+                    "Since edges must have non-zero labels, ``edges[0]`` *must* be ``None``."))
             .def("__init__", make_constructor(
                      &createGeoMap, default_call_policies(),
                      (arg("nodePositions") = list(),
                       arg("edgeTuples") = list(),
                       arg("imageSize") = vigra::Size2D(0, 0))))
-            .def("node", &GeoMap::node, crp)
-            .def("nodeIter", &GeoMap::nodesBegin)
-            .def("edge", &GeoMap::edge, crp)
-            .def("edgeIter", &GeoMap::edgesBegin)
-            .def("face", &GeoMap::face, crp)
-            .def("faceIter", &faceIter, arg("skipInfinite") = false)
-            .def("dart", &GeoMap::dart)
+            .def("node", &GeoMap::node, crp,
+                 "node(label) -> Node\n\n"
+                 "Return Node object for the given label.")
+            .def("nodeIter", &GeoMap::nodesBegin,
+                 "Iterates over all existing nodes.\n\n"
+                 ">>> for node in amap.nodeIter():\n"
+                 "...     print node.label(), node.degree(), node.anchor()")
+            .def("edge", &GeoMap::edge, crp,
+                 "edge(label) -> Edge\n\n"
+                 "Return Edge object for the given label.")
+            .def("edgeIter", &GeoMap::edgesBegin,
+                 "Iterates over all existing edges.\n\n"
+                 ">>> for edge in amap.edgeIter():\n"
+                 "...     print \"Edge %d has %d points\" % len(edge)")
+            .def("face", &GeoMap::face, crp,
+                 "face(label) -> Face\n\n"
+                 "Return Face object for the given label.")
+            .def("faceIter", &faceIter, arg("skipInfinite") = false,
+                 "Iterates over all existing faces.\n\n"
+                 ">>> for face in amap.faceIter():\n"
+                 "...     for dart in face.contours():\n"
+                 "...         print dart\n\n"
+                 "For your convenience, it supports skipping the infinite face:\n\n"
+                 ">>> assert amap.faceIter(skipInfinite = True).next().label() > 0\n")
+            .def("dart", &GeoMap::dart,
+                 "dart(label) -> Dart\n\n"
+                 "Return `Dart` object for the given `label`.\n"
+                 "The dart will point to the `edge` labelled ``abs(label)``, and\n"
+                 "negative dart labels correspond to the opposite half-edge\n"
+                 "(meaning that Darts with negative labels start at the end of\n"
+                 "the corresponding edge).")
             .def("faceAt", &GeoMap::faceAt, crp)
             .add_property("nodeCount", &GeoMap::nodeCount,
                           "Return the number of nodes in this graph/map.")
@@ -3679,27 +3720,27 @@ void defMap()
                  "imageSize() -> Size2D\n\n"
                  "Return the image size (as passed to __init__).\n"
                  "If the map has a labelImage, this is its size.")
-            .def("addNode", (CELL_PTR(GeoMap::Node) (GeoMap::*)(const vigra::Vector2 &))&GeoMap::addNode, crp, args("position"))
-            .def("addNode", (CELL_PTR(GeoMap::Node) (GeoMap::*)(const vigra::Vector2 &, CellLabel))&GeoMap::addNode, crp, args("position", "label"),
+            .def("addNode", (CELL_PTR(GeoMap::Node) (GeoMap::*)(const vigra::Vector2 &))&GeoMap::addNode, crp, args("position"),
                  "addNode(position) -> Node\n\n"
                  "Add node at the given position and return the new Node\n"
                  "object.")
+            .def("addNode", (CELL_PTR(GeoMap::Node) (GeoMap::*)(const vigra::Vector2 &, CellLabel))&GeoMap::addNode, crp, args("position", "label"))
             .def("addEdge", &addEdgeBackwardCompatibility, crp,
                  (arg("startNodeLabel"), arg("endNodeLabel"),
-                  arg("points"), arg("label") = 0))
-            .def("addEdge", &GeoMap::addEdge, crp,
-                 (arg("startNeighbor"), arg("endNeighbor"),
                   arg("points"), arg("label") = 0),
                  "addEdge(startNeighbor, endNeighbor, points, label = None) -> Edge\n\n"
                  "Add edge new edge with given geometry to the map and return\n"
-                 "the new Edge object.  If start/endNeighbor are Node objects,\n"
+                 "the new `Edge` object.  If start/endNeighbor are Node objects,\n"
                  "the edge is inserted at an arbitrary point in the sigma orbit,\n"
-                 "if Dart objects are given, the new Edge becomes the sigma\n"
+                 "if Dart objects are given, the new edge becomes the sigma\n"
                  "predecessor of the given start and/or edge darts.  (For\n"
                  "isolated nodes, you have to pass a Node object.)\n\n"
                  "A label >= maxEdgeLabel() may be given in order to\n"
                  "force the given label (the edges with lower labels will then\n"
                  "stay unused ATM).")
+            .def("addEdge", &GeoMap::addEdge, crp,
+                 (arg("startNeighbor"), arg("endNeighbor"),
+                  arg("points"), arg("label") = 0))
             .def("removeEdge", &GeoMap::removeEdge, crp,
                  "removeEdge(dart)\n\n"
                  "Equivalent to either `removeBridge` or `mergeFaces`, depending on\n"
@@ -3791,7 +3832,11 @@ void defMap()
                  "None.")
             .def("nearestNode", &GeoMap::nearestNode, crp,
                  (arg("position"), arg(
-                     "maxSquaredDist") = vigra::NumericTraits<double>::max()))
+                      "maxSquaredDist") = vigra::NumericTraits<double>::max()),
+                 "nearestNode(position[, maxSquaredDist]) -> Node\n\n"
+                 "Return the nearest node to the given position.  If\n"
+                 "`maxSquaredDist` dist is given and no Node is within range, ``None``\n"
+                 "is returned instead.")
             .def("checkConsistency", &GeoMap::checkConsistency,
                  "checkConsistency() -> bool\n\n"
                  "Performs a series of consistency/sanity checks and returns\n"
@@ -3799,28 +3844,57 @@ void defMap()
             .def_pickle(GeoMapPickleSuite())
             );
 
-        RangeIterWrapper<GeoMap::NodeIterator, CELL_RETURN_POLICY>("NodeIterator");
-        RangeIterWrapper<GeoMap::EdgeIterator, CELL_RETURN_POLICY>("EdgeIterator");
-        RangeIterWrapper<GeoMap::FaceIterator, CELL_RETURN_POLICY>("FaceIterator");
+        RangeIterWrapper<GeoMap::NodeIterator, CELL_RETURN_POLICY>("_NodeIterator");
+        RangeIterWrapper<GeoMap::EdgeIterator, CELL_RETURN_POLICY>("_EdgeIterator");
+        RangeIterWrapper<GeoMap::FaceIterator, CELL_RETURN_POLICY>("_FaceIterator");
 
-        class_<GeoMap::Node, boost::noncopyable>("Node", init<GeoMap *, const vigra::Vector2 &>())
+        class_<GeoMap::Node, boost::noncopyable>(
+            "Node",
+            "Represents a node of the GeoMap.  You can get an `anchor`\n"
+            "Dart that is attached to the Node (if not `isIsolated()`), and\n"
+            "you can query its `position()` and `degree()`.",
+            init<GeoMap *, const vigra::Vector2 &>())
             .def("initialized", &GeoMap::Node::initialized)
-            .def("label", &GeoMap::Node::label)
+            .def("label", &GeoMap::Node::label,
+                 "label() -> int\n\n"
+                 "Return the label of this Node.  Node labels are >= 0 and\n"
+                 "you can query the maximal value by `GeoMap.maxNodeLabel()`.")
             .def("position", &GeoMap::Node::position,
                  return_value_policy<copy_const_reference>())
             .def("setPosition", &GeoMap::Node::setPosition)
             .def("degree", &GeoMap::Node::degree)
-            .def("isIsolated", &GeoMap::Node::isIsolated)
+            .def("isIsolated", &GeoMap::Node::isIsolated,
+                 "isIsolated() -> bool\n\n"
+                 "Return True iff there is no edge attached to this node.\n"
+                 "You must not call `anchor` on such Darts.")
             .def("anchor", &GeoMap::Node::anchor)
             .def(self == self)
             .def(self != self)
             .def("__repr__", &Node__repr__)
         ;
 
-        class_<GeoMap::Edge, bases<Polygon>, boost::noncopyable>("Edge", no_init)
+        class_<GeoMap::Edge, bases<Polygon>, boost::noncopyable>(
+            "Edge",
+            "Represents an edge within the GeoMap.  This class is\n"
+            "derived from `Polygon`, so a GeoMap.Edge *is* a Polygon and\n"
+            "you can iterate it, ``len(edge)`` gives the number of points,\n"
+            "``edge[5]`` returns its 6th support point etc.\n\n"
+            "Furthermore, it gives access to the left/right face, the\n"
+            "start/end node and you can easily create a `dart` which points\n"
+            "to this edge.\n\n"
+            "Edges (and Faces) allow you to use `setFlag` in order to tag\n"
+            "edges with bit-flags.  `flags` returns all flags or'ed\n"
+            "together and `flag` can be used to simply test for a flag.\n"
+            "There is a module ``flag_constants`` that is used to note\n"
+            "which flags are already used by some applications/framework\n"
+            "parts.",
+            no_init)
             .def(init<GeoMap *, CellLabel, CellLabel, GeoMap::Edge::Base>())
             .def("initialized", &GeoMap::Edge::initialized)
-            .def("label", &GeoMap::Edge::label)
+            .def("label", &GeoMap::Edge::label,
+                 "label() -> int\n\n"
+                 "Return the label of this Edge.  Edge labels are >= 1 and\n"
+                 "you can query the maximal value by `GeoMap.maxEdgeLabel()`.")
             .def("startNodeLabel", &GeoMap::Edge::startNodeLabel)
             .def("startNode", &GeoMap::Edge::startNode, crp)
             .def("endNodeLabel", &GeoMap::Edge::endNodeLabel)
@@ -3843,13 +3917,41 @@ void defMap()
             .def("__repr__", &Edge__repr__)
         ;
 
-        class_<GeoMap::Face, boost::noncopyable>("Face", init<GeoMap *, GeoMap::Dart>())
+        class_<GeoMap::Face, boost::noncopyable>(
+            "Face",
+            "Represents a face within the GeoMap.  This is used to store\n"
+            "anchors for the `contours` (i.e. one for the outer `contour`,\n"
+            "and one for each of the `holeContours`).  Furthermore, it\n"
+            "caches information like the `boundingBox` and/or the `area` of\n"
+            "the whole face.\n\n"
+            "Faces (and Edges) allow you to use `setFlag` in order to tag\n"
+            "edges with bit-flags.  `flags` returns all flags or'ed\n"
+            "together and `flag` can be used to simply test for a flag.\n"
+            "There is a module ``flag_constants`` that is used to note\n"
+            "which flags are already used by some applications/framework\n"
+            "parts.",
+            init<GeoMap *, GeoMap::Dart>())
             .def("initialized", &GeoMap::Face::initialized)
-            .def("label", &GeoMap::Face::label)
+            .def("label", &GeoMap::Face::label,
+                 "label() -> int\n\n"
+                 "Return the label of this Face.  Face labels are >= 0 and\n"
+                 "you can query the maximal value by `GeoMap.maxFaceLabel()`.\n"
+                 "Face 0 is always the surrounding infinite face.")
             .def("boundingBox", &GeoMap::Face::boundingBox,
-                 return_value_policy<copy_const_reference>())
-            .def("contains", &GeoMap::Face::contains)
-            .def("area", &GeoMap::Face::area)
+                 return_value_policy<copy_const_reference>(),
+                 "boundingBox() -> BoundingBox\n\n"
+                 "Return the (axis-parallel) bounding box of this face.")
+            .def("contains", &GeoMap::Face::contains,
+                 "contains(point) -> bool\n\n"
+                 "Return whether this face contains the given point, i.e.\n"
+                 "whether it is within the exterior contour, but not within\n"
+                 "any hole contour.")
+            .def("area", &GeoMap::Face::area,
+                 "area() -> float\n\n"
+                 "Return area of this region (without holes, i.e.\n"
+                 "area(exterior)-sum_i(area(interior_i)) ).  The return\n"
+                 "value for the map's infinite exterior face (label 0) is\n"
+                 "not defined.")
             .def("pixelArea", &GeoMap::Face::pixelArea)
             .def("contour", &GeoMap::Face::contour,
                  return_value_policy<copy_const_reference>(),
@@ -3866,13 +3968,20 @@ void defMap()
             .def("__repr__", &Face__repr__)
         ;
 
-        RangeIterWrapper<ContourRangeIterator>("ContourIterator");
+        RangeIterWrapper<ContourRangeIterator>("_ContourIterator");
 
         return_internal_reference<> rself; // "return self" policy
 
-        RangeIterWrapper<DartPointIter>("DartPointIter");
+        RangeIterWrapper<DartPointIter>("_DartPointIter");
 
-        class_<GeoMap::Dart>("Dart", no_init)
+        class_<GeoMap::Dart>("Dart",
+                             "Points to a dart within the GeoMap.  Dart objects are used\n"
+                             "like iterators, for traversing a GeoMap and analyzing its\n"
+                             "topology and/or geometry.  A Dart behaves like a `Polygon`,\n"
+                             "i.e. like a sequence of points (you can iterate it,\n"
+                             "``len(dart)`` gives the number of points, ``dart[5]`` returns\n"
+                             "the 6th support point of the directed polygon, etc.)",
+                             no_init)
             .def(init<GeoMap *, int>())
             .def("clone", &GeoMap::Dart::clone,
                  "Return a copy of this Dart.  This is especially useful\n"
@@ -3979,11 +4088,11 @@ void defMap()
             .def("__repr__", &Dart__repr__)
         ;
 
-        RangeIterWrapper<PhiOrbitIterator>("PhiOrbitIterator");
+        RangeIterWrapper<PhiOrbitIterator>("_PhiOrbitIterator");
         register_ptr_to_python< std::auto_ptr<PhiOrbitIterator> >();
-        RangeIterWrapper<SigmaOrbitIterator>("SigmaOrbitIterator");
+        RangeIterWrapper<SigmaOrbitIterator>("_SigmaOrbitIterator");
         register_ptr_to_python< std::auto_ptr<SigmaOrbitIterator> >();
-        RangeIterWrapper<AlphaOrbitIterator>("AlphaOrbitIterator");
+        RangeIterWrapper<AlphaOrbitIterator>("_AlphaOrbitIterator");
         register_ptr_to_python< std::auto_ptr<AlphaOrbitIterator> >();
 
 #ifndef USE_INSECURE_CELL_PTRS
@@ -4003,13 +4112,13 @@ void defMap()
         ;
 
         def("addRemoveNodeCallback", &addRemoveNodeCallback,
-            "addRemoveNodeCallback(callback)\n\n"
+            "addRemoveNodeCallback(callback) -> SimpleCallback\n\n"
             "Add a callback to be called called before removing an\n"
             "isolated node.  The callback will be called with the node to\n"
             "be removed as parameter.  If any callback does not return True,\n"
             "the operation will be canceled.");
         def("addMergeEdgesCallbacks", &addMergeEdgesCallbacks,
-            "addMergeFacesCallbacks(preOpCallback, postOpCallback)\n\n"
+            "addMergeFacesCallbacks(preOpCallback, postOpCallback) -> SimpleCallback\n\n"
             "Add callbacks to be called called before/after merging two\n"
             "faces via a common edge.  The rightFace() of the dart passed\n"
             "to preOpCallback will be merged into its leftFace(), the\n"
@@ -4017,7 +4126,7 @@ void defMap()
             "preOpCallback does not return True, the operation will be\n"
             "canceled.");
         def("addSplitEdgeCallbacks", &addSplitEdgeCallbacks,
-            "addSplitEdgeCallbacks(preOpCallback, postOpCallback)\n\n"
+            "addSplitEdgeCallbacks(preOpCallback, postOpCallback) -> SimpleCallback\n\n"
             "Add callbacks to be called called before/after splitting an\n"
             "edge.  The preOpCallback is called with the three arguments\n"
             "(edge, segmentIndex, newPoint) given to splitEdge, and the\n"
@@ -4025,7 +4134,7 @@ void defMap()
             "newEdge).  A splitEdge() operation cannot be canceled through\n"
             "preOpCallbacks (their return values are ignored).");
         def("addRemoveBridgeCallbacks", &addRemoveBridgeCallbacks,
-            "addRemoveBridgeCallbacks(preOpCallback, postOpCallback)\n\n"
+            "addRemoveBridgeCallbacks(preOpCallback, postOpCallback) -> SimpleCallback\n\n"
             "Add callbacks to be called called before/after removing a\n"
             "bridge (\"loose\" edge within a face).  The preOpCallback is\n"
             "called with the dart to be removed, the postOpCallback gets\n"
@@ -4033,7 +4142,7 @@ void defMap()
             "If any preOpCallback does not return True, the operation will\n"
             "be canceled.");
         def("addMergeFacesCallbacks", &addMergeFacesCallbacks,
-            "addMergeFacesCallbacks(preOpCallback, postOpCallback)\n\n"
+            "addMergeFacesCallbacks(preOpCallback, postOpCallback) -> SimpleCallback\n\n"
             "Add callbacks to be called called before/after merging two\n"
             "faces via a common edge.  The rightFace() of the dart passed\n"
             "to preOpCallback will be merged into its leftFace(), the\n"
@@ -4041,7 +4150,7 @@ void defMap()
             "preOpCallback does not return True, the operation will be\n"
             "canceled.");
         def("addAssociatePixelsCallback", &addAssociatePixelsCallback,
-            "addAssociatePixelsCallback(callback)\n\n"
+            "addAssociatePixelsCallback(callback) -> SimpleCallback\n\n"
             "Add a callback to be called whenever the removal of edges\n"
             "results in pixels being associated with the surrounding face\n"
             "(i.e. after a mergeFaces or removeBridge operation).  The\n"
