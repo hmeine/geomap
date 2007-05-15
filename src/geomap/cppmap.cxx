@@ -3618,7 +3618,29 @@ void defMap()
     {
         scope geoMap(
             class_<GeoMap, boost::noncopyable>(
-                "GeoMap", init<vigra::Size2D>(arg("imageSize")))
+                "GeoMap",
+                "The GeoMap class manages a topologically consistent set of nodes,\n"
+                "edges, and faces.\n\n"
+                "You can get the number of nodes via the `nodeCount` property, and\n"
+                "iterate over all existing nodes with ``for node in amap.nodeIter():\n"
+                "...``.  The same goes for edges and faces.\n\n"
+                "You can monitor changes on the map by adding your own callbacks via:\n\n"
+                "addMergeEdgesCallbacks(preOpCallback, postOpCallback)\n"
+                "  called before/after merging two edges with a node of degree two\n"
+                "addMergeFacesCallbacks(preOpCallback, postOpCallback)\n"
+                "  called before/after merging two faces via a common edge\n"
+                "addRemoveBridgeCallbacks(preOpCallback, postOpCallback)\n"
+                "  called before/after removing a bridge (\"loose\" edge within a face)\n"
+                "addRemoveNodeCallback(callback)\n"
+                "  called before removing a node (callbacks are passed the Node object\n"
+                "  being removed)\n"
+                "addAssociatePixelsCallback(callback)\n"
+                "  called when the removal of edges results in pixels being\n"
+                "  associated with the surrounding face (called with the face as\n"
+                "  first, and a list of Point2Ds as second parameter)\n\n"
+                "GeoMap objects can be pickled, at will guarantee persistence of edges\n"
+                "and nodes with their geometry and labels (face labels may change!).",
+                init<vigra::Size2D>(arg("imageSize")))
             .def("__init__", make_constructor(
                      &createGeoMap, default_call_policies(),
                      (arg("nodePositions") = list(),
@@ -3632,9 +3654,12 @@ void defMap()
             .def("faceIter", &faceIter, arg("skipInfinite") = false)
             .def("dart", &GeoMap::dart)
             .def("faceAt", &GeoMap::faceAt, crp)
-            .add_property("nodeCount", &GeoMap::nodeCount)
-            .add_property("edgeCount", &GeoMap::edgeCount)
-            .add_property("faceCount", &GeoMap::faceCount)
+            .add_property("nodeCount", &GeoMap::nodeCount,
+                          "Return the number of nodes in this graph/map.")
+            .add_property("edgeCount", &GeoMap::edgeCount,
+                          "Return the number of edges in this graph/map.")
+            .add_property("faceCount", &GeoMap::faceCount,
+                          "Return the number of faces in this graph/map.")
             .def("maxNodeLabel", &GeoMap::maxNodeLabel,
                  "Returns an upper bound on the node labels.\n"
                  "Actually, this is the max. node label + 1, so that you can use it as LUT size.")
@@ -3753,33 +3778,106 @@ void defMap()
 
         class_<GeoMap::Dart>("Dart", no_init)
             .def(init<GeoMap *, int>())
-            .def("clone", &GeoMap::Dart::clone)
-            .def("label", &GeoMap::Dart::label)
+            .def("clone", &GeoMap::Dart::clone,
+                 "Return a copy of this Dart.  This is especially useful\n"
+                 "if you want to call nextFoo() without changing the\n"
+                 "original object.")
+            .def("label", &GeoMap::Dart::label,
+                 "label() -> int\n\n"
+                 "Return the label of this Dart.")
             .def("map", &GeoMap::Dart::map,
-                 return_value_policy<reference_existing_object>())
-            .def("edgeLabel", &GeoMap::Dart::edgeLabel)
-            .def("edge", &GeoMap::Dart::edge, crp)
-            .def("guaranteedEdge", &GeoMap::Dart::guaranteedEdge, crp)
-            .def("startNodeLabel", &GeoMap::Dart::startNodeLabel)
-            .def("startNode", &GeoMap::Dart::startNode, crp)
-            .def("endNodeLabel", &GeoMap::Dart::endNodeLabel)
-            .def("endNode", &GeoMap::Dart::endNode, crp)
-            .def("leftFaceLabel", &GeoMap::Dart::leftFaceLabel)
-            .def("leftFace", &GeoMap::Dart::leftFace, crp)
-            .def("rightFaceLabel", &GeoMap::Dart::rightFaceLabel)
-            .def("rightFace", &GeoMap::Dart::rightFace, crp)
-            .def("partialArea", &GeoMap::Dart::partialArea, crp)
+                 return_value_policy<reference_existing_object>(),
+                 "map() -> GeoMap\n\n"
+                 "Return the GeoMap this Dart belongs to.")
+            .def("edgeLabel", &GeoMap::Dart::edgeLabel,
+                 "edgeLabel() -> int\n\n"
+                 "Return the label of the edge.  This is equivalent to\n"
+                 "abs(dart.label()).")
+            .def("edge", &GeoMap::Dart::edge, crp,
+                "edge() -> Edge/None\n\n"
+                 "Returns corresponding edge or None if that edge has\n"
+                 "already been removed.")
+            .def("guaranteedEdge", &GeoMap::Dart::guaranteedEdge, crp,
+                "guaranteedEdge() -> Edge\n\n"
+                 "Equivalent to `edge()`, but throws an exception if the\n"
+                 "edge is not valid anymore (i.e. has been removed via an\n"
+                 "Euler operation.")
+            .def("startNodeLabel", &GeoMap::Dart::startNodeLabel,
+                 "startNodeLabel() -> int\n\n"
+                 "Return the label of the node that is at the start of this dart.")
+            .def("startNode", &GeoMap::Dart::startNode, crp,
+                 "startNode() -> Node\n\n"
+                 "Return the node that is at the start of this dart.")
+            .def("endNodeLabel", &GeoMap::Dart::endNodeLabel,
+                 "endNodeLabel() -> int\n\n"
+                 "Return the label of the node that is at the end of this dart.")
+            .def("endNode", &GeoMap::Dart::endNode, crp,
+                 "endNode() -> Node\n\n"
+                 "Return the node that is at the end of this dart.\n"
+                 "(Actually, this can be seen as a convenience method for\n"
+                 "dart.clone().nextAlpha().startNode().")
+            .def("leftFaceLabel", &GeoMap::Dart::leftFaceLabel,
+                 "leftFaceLabel() -> int\n\n"
+                 "Return the label of the face to the left of this dart.")
+            .def("leftFace", &GeoMap::Dart::leftFace, crp,
+                 "leftFace() -> Face\n\n"
+                 "Return the face to the left of this dart.")
+            .def("rightFaceLabel", &GeoMap::Dart::rightFaceLabel,
+                 "rightFaceLabel() -> int\n\n"
+                 "Return the label of the face to the right of this dart.")
+            .def("rightFace", &GeoMap::Dart::rightFace, crp,
+                 "rightFace() -> Face\n\n"
+                 "Return the face to the right of this dart.")
+            .def("partialArea", &GeoMap::Dart::partialArea, crp,
+                 "partialArea() -> float\n\n"
+                 "Return the (signed) partial area contributed by this dart.\n"
+                 "This is the enclosed area if the dart is a self-loop.")
             .def("__getitem__", &Array__getitem__<GeoMap::Dart>)
             .def("__iter__", &GeoMap::Dart::pointIter)
             .def("__len__", &GeoMap::Dart::size)
-            .def("nextAlpha", &GeoMap::Dart::nextAlpha, rself)
-            .def("nextSigma", &GeoMap::Dart::nextSigma, rself)
-            .def("prevSigma", &GeoMap::Dart::prevSigma, rself)
-            .def("nextPhi", &GeoMap::Dart::nextPhi, rself)
-            .def("prevPhi", &GeoMap::Dart::prevPhi, rself)
-            .def("phiOrbit", &phiOrbit)
-            .def("sigmaOrbit", &sigmaOrbit)
-            .def("alphaOrbit", &alphaOrbit)
+            .def("nextAlpha", &GeoMap::Dart::nextAlpha, rself,
+                 "Jump to the opposite dart.  (The opposite dart is the\n"
+                 "successor in the alpha permutation.)  Since alpha is\n"
+                 "an involution, two calls to nextAlpha() cancel each other.\n"
+                 "Return the modified dart, so that you can combine multiple\n"
+                 "operations like dart.nextAlpha().prevSigma()")
+            .def("nextSigma", &GeoMap::Dart::nextSigma, rself,
+                 "Turn counter-clockwise around the `startNode`.\n"
+                 "(The cyclic order is encoded by the sigma permutation.)\n"
+                 "The modified dart is returned, so that you can combine\n"
+                 "multiple operations like dart.nextSigma().nextAlpha()")
+            .def("prevSigma", &GeoMap::Dart::prevSigma, rself,
+                 "Turn clockwise around the `startNode`.\n"
+                 "(The cyclic order is encoded by the sigma permutation.)\n"
+                 "The modified dart is returned, so that you can combine\n"
+                 "multiple operations like dart.prevSigma().nextAlpha()")
+            .def("nextPhi", &GeoMap::Dart::nextPhi, rself,
+                 "Follow this contour of the face to the left.\n"
+                 "(The phi permutation is composed by alpha and sigma^-1.)\n"
+                 "This is a shortcut for `nextAlpha()`.`prevSigma()`.\n"
+                 "The modified dart is returned, so that you can combine\n"
+                 "multiple operations like dart.nextPhi().nextSigma()")
+            .def("prevPhi", &GeoMap::Dart::prevPhi, rself,
+                 "Follow this contour of the face to the left (backwards).\n"
+                 "(The phi permutation is composed by alpha and sigma^-1.)\n"
+                 "This is a shortcut for `nextSigma()`.`nextAlpha()`.\n"
+                 "The modified dart is returned, so that you can combine\n"
+                 "multiple operations like dart.prevPhi().nextSigma()")
+            .def("phiOrbit", &phiOrbit,
+                 "phiOrbit() -> iterator\n\n"
+                 "Return an iterator over the darts in the phi orbit.\n"
+                 "The phi orbit contains all darts in this contour of the\n"
+                 "leftFace, starting with dart itself.")
+            .def("sigmaOrbit", &sigmaOrbit,
+                 "sigmaOrbit() -> iterator\n\n"
+                 "Return an iterator over the darts in the sigma orbit.\n"
+                 "i.e. a counter-clockwise ordering of all darts attached to\n"
+                 "dart's startNode, starting with dart itself.")
+            .def("alphaOrbit", &alphaOrbit,
+                 "alphaOrbit() -> iterator\n\n"
+                 "Return an iterator over the darts in the alpha orbit.\n"
+                 "(Since alpha is an involution, there are always exactly\n"
+                 "two darts in this orbit).")
             .def(self == self)
             .def(self != self)
             .def("__repr__", &Dart__repr__)
@@ -3798,16 +3896,62 @@ void defMap()
         register_ptr_to_python< CELL_PTR(GeoMap::Face) >();
 #endif
 
-        class_<SimpleCallback>("SimpleCallback", no_init)
-            .def("disconnect", &SimpleCallback::disconnect)
+        class_<SimpleCallback>("SimpleCallback",
+            "Internal class to manage Euler operation callbacks.\n"
+            "Removes the callbacks from the caller on __del__ or `disconnect()`.",
+                               no_init)
+            .def("disconnect", &SimpleCallback::disconnect,
+                 "Disconnect this callback.  This operation is not\n"
+                 "reversible, you have to reconnect in the same way as before to\n"
+                 "aquire a new `SimpleCallback`.")
         ;
 
-        def("addRemoveNodeCallback", &addRemoveNodeCallback);
-        def("addMergeEdgesCallbacks", &addMergeEdgesCallbacks);
-        def("addSplitEdgeCallbacks", &addSplitEdgeCallbacks);
-        def("addRemoveBridgeCallbacks", &addRemoveBridgeCallbacks);
-        def("addMergeFacesCallbacks", &addMergeFacesCallbacks);
-        def("addAssociatePixelsCallback", &addAssociatePixelsCallback);
+        def("addRemoveNodeCallback", &addRemoveNodeCallback,
+            "addRemoveNodeCallback(callback)\n\n"
+            "Add a callback to be called called before removing an\n"
+            "isolated node.  The callback will be called with the node to\n"
+            "be removed as parameter.  If any callback does not return True,\n"
+            "the operation will be canceled.");
+        def("addMergeEdgesCallbacks", &addMergeEdgesCallbacks,
+            "addMergeFacesCallbacks(preOpCallback, postOpCallback)\n\n"
+            "Add callbacks to be called called before/after merging two\n"
+            "faces via a common edge.  The rightFace() of the dart passed\n"
+            "to preOpCallback will be merged into its leftFace(), the\n"
+            "postOpCallback gets the resulting Face as parameter.  If any\n"
+            "preOpCallback does not return True, the operation will be\n"
+            "canceled.");
+        def("addSplitEdgeCallbacks", &addSplitEdgeCallbacks,
+            "addSplitEdgeCallbacks(preOpCallback, postOpCallback)\n\n"
+            "Add callbacks to be called called before/after splitting an\n"
+            "edge.  The preOpCallback is called with the three arguments\n"
+            "(edge, segmentIndex, newPoint) given to splitEdge, and the\n"
+            "postOpCallback is given the resulting two edges (edge,\n"
+            "newEdge).  A splitEdge() operation cannot be canceled through\n"
+            "preOpCallbacks (their return values are ignored).");
+        def("addRemoveBridgeCallbacks", &addRemoveBridgeCallbacks,
+            "addRemoveBridgeCallbacks(preOpCallback, postOpCallback)\n\n"
+            "Add callbacks to be called called before/after removing a\n"
+            "bridge (\"loose\" edge within a face).  The preOpCallback is\n"
+            "called with the dart to be removed, the postOpCallback gets\n"
+            "the surrounding Face the Edge was merged into as parameter.\n"
+            "If any preOpCallback does not return True, the operation will\n"
+            "be canceled.");
+        def("addMergeFacesCallbacks", &addMergeFacesCallbacks,
+            "addMergeFacesCallbacks(preOpCallback, postOpCallback)\n\n"
+            "Add callbacks to be called called before/after merging two\n"
+            "faces via a common edge.  The rightFace() of the dart passed\n"
+            "to preOpCallback will be merged into its leftFace(), the\n"
+            "postOpCallback gets the resulting Face as parameter.  If any\n"
+            "preOpCallback does not return True, the operation will be\n"
+            "canceled.");
+        def("addAssociatePixelsCallback", &addAssociatePixelsCallback,
+            "addAssociatePixelsCallback(callback)\n\n"
+            "Add a callback to be called whenever the removal of edges\n"
+            "results in pixels being associated with the surrounding face\n"
+            "(i.e. after a mergeFaces or removeBridge operation).  The\n"
+            "callback will be called with the face as first, and a list of\n"
+            "Point2Ds as second parameter.  All internal GeoMap structures\n"
+            "are updated before the callbacks happen.");
         register_ptr_to_python< std::auto_ptr<SimpleCallback> >();
 
         geoMap.attr("BYTES_PER_NODE") = sizeof(GeoMap::Node);
