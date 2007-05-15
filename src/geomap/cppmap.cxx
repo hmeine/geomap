@@ -62,6 +62,7 @@ class GeoMap::Node : boost::noncopyable
         return map_ != NULL;
     }
 
+  protected:
     void uninitialize()
     {
         GeoMap *map = map_;
@@ -73,6 +74,7 @@ class GeoMap::Node : boost::noncopyable
         RESET_PTR(map->nodes_[label_]); // may have effect like "delete this;"!
     }
 
+  public:
     CellLabel label() const
     {
         return label_;
@@ -130,10 +132,7 @@ class GeoMap::Edge
     mutable std::auto_ptr<vigra::Scanlines> scanLines_;
 
     friend class Dart; // allow setLeftFaceLabel
-    friend CELL_PTR(GeoMap::Edge) GeoMap::mergeEdges(Dart &);
-    friend CELL_PTR(GeoMap::Edge) GeoMap::splitEdge(
-        Edge &, unsigned int, const vigra::Vector2 &, bool);
-    friend void GeoMap::splitParallelEdges();
+    friend class GeoMap;
 
   public:
     template<class POINTS>
@@ -158,6 +157,7 @@ class GeoMap::Edge
         return map_ != NULL;
     }
 
+  protected:
     void uninitialize()
     {
         GeoMap *map = map_;
@@ -166,6 +166,7 @@ class GeoMap::Edge
         RESET_PTR(map->edges_[label_]); // may have effect like "delete this;"
     }
 
+  public:
     CellLabel label() const
     {
         return label_;
@@ -760,6 +761,7 @@ class GeoMap::Face : boost::noncopyable
         return map_ != NULL;
     }
 
+  protected:
     void uninitialize()
     {
         GeoMap *map = map_;
@@ -768,6 +770,7 @@ class GeoMap::Face : boost::noncopyable
         RESET_PTR(map->faces_[label_]); // may have effect like "delete this;"
     }
 
+  public:
     CellLabel label() const
     {
         return label_;
