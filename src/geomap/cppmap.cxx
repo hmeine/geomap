@@ -3,6 +3,7 @@
 #include <vigra/pythonimage.hxx>
 #include <vigra/pythonutil.hxx>
 #include <vigra/copyimage.hxx>
+#include <vigra/crackconnections.hxx>
 #include <iostream>
 #include <algorithm>
 #include <cmath>
@@ -3614,6 +3615,14 @@ T returnCopy(const T &v)
     return v;
 }
 
+vigra::PythonGrayImage
+pyCrackConnectionImage(vigra::PythonSingleBandImage const &labels)
+{
+    vigra::PythonGrayImage result(labels.size() + vigra::Diff2D(1, 1));
+    crackConnectionImage(srcImageRange(labels), destImage(result));
+    return result;
+}
+
 void defMap()
 {
     CELL_RETURN_POLICY crp;
@@ -4201,4 +4210,10 @@ void defMap()
 
     implicitly_convertible<GeoMap::Node, GeoMap::SigmaAnchor>();
     implicitly_convertible<GeoMap::Dart, GeoMap::SigmaAnchor>();
+
+    def("crackConnectionImage", &pyCrackConnectionImage,
+        args("labelImage"),
+        "crackConnectionImage(labelImage)\n\n"
+        "Tranform a region image into an image with crack connections marked.\n"
+        "(Bit 1: connected to the right, bit 2: connected downwards)");
 }
