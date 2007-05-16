@@ -2136,17 +2136,17 @@ void defPolygon()
         .def("computeImplictEquation",
              &LineFit::pyComputeImplictEquation,
              "computeImplictEquation() -> res, (a, b, p)\n\n"
-             "Compute parameters such that\n"
-             "  a * x + b * y + p == 0\n"
-             "for all (x,y) on the line.\n"
+             "Compute parameters such that ::\n\n"
+             "  a * x + b * y + p == 0\n\n"
+             "holds for all (x,y) on the line.\n"
              "'res' is the residual of the estimate, namely\n"
              "the std.dev. perpendicular to the line.\n")
         .def("computeParametricEquation",
              &LineFit::pyComputeParametricEquation,
              "computeParametricEquation() -> res, (center, orientation)\n\n"
-             "Compute center, orientation such that\n"
-             "  (x,y) = center + t * orientation\n"
-             "for all (x,y) on the line.\n"
+             "Compute center, orientation such that ::\n\n"
+             "  (x,y) = center + t * orientation\n\n"
+             "holds for all (x,y) on the line.\n"
              "'res' is the residual of the estimate, namely\n"
              "the std.dev. perpendicular to the line.\n")
     ;
