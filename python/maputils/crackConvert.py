@@ -19,10 +19,6 @@ def crackEdgeMap(labelImage, initLabelImage = True):
     sys.stdout.write("- creating GeoMap...\n"); c = time.clock()
     result = GeoMap(nodes, edges, labelImage.size())
 
-    sys.stdout.write("  adding border..."); c1 = time.clock()
-    maputils.connectBorderNodes(result, 0.1, aroundPixels = True)
-    sys.stdout.write(" (%ss)\n" % (time.clock()-c1, ))
-
     maputils.mergeDegree2Nodes(result)
 
     sys.stdout.write("  sorting edges..."); c1 = time.clock()
@@ -44,41 +40,54 @@ def crackEdgeMap(labelImage, initLabelImage = True):
 from vigra import GrayImage, Vector2, Point2D, Size2D, Rect2D
 from hourglass import Polygon
 
-CONN_UP = 1
+CONN_RIGHT = 1
 CONN_DOWN = 2
 CONN_LEFT = 4
-CONN_RIGHT = 8
+CONN_UP = 8
 
 connections = [CONN_RIGHT, CONN_UP, CONN_LEFT, CONN_DOWN]
 
-degree = [0, 1, 1, 2, # 0000 0001 0010 0011
-          1, 2, 2, 3, # 0100 0101 0110 0111
-          1, 2, 2, 3, # 1000 1001 1010 1011
-          2, 3, 3, 4, # 1100 1101 1110 1111
-          ]
+degree = [0] * 16
+for conn in connections:
+    for i in range(16):
+        if i & conn:
+            degree[i] += 1
 
 def crackConnectionImage(labelImage):
     result = GrayImage(labelImage.size()+Size2D(1,1))
 
     for y in range(labelImage.height()-1):
         for x in range(labelImage.width()-1):
-            if labelImage[(x, y)] != labelImage[(x+1, y)]:
-                result[(x+1, y  )] += CONN_DOWN
-                result[(x+1, y+1)] += CONN_UP
-            if labelImage[(x, y)] != labelImage[(x, y+1)]:
-                result[(x,   y+1)] += CONN_RIGHT
-                result[(x+1, y+1)] += CONN_LEFT
+            if labelImage[x, y] != labelImage[x+1, y]:
+                result[x+1, y  ] += CONN_DOWN
+                result[x+1, y+1] += CONN_UP
+            if labelImage[x, y] != labelImage[x, y+1]:
+                result[x,   y+1] += CONN_RIGHT
+                result[x+1, y+1] += CONN_LEFT
         x = labelImage.width()-1
-        if labelImage[(x, y)] != labelImage[(x, y+1)]:
-            result[(x,   y+1)] += CONN_RIGHT
-            result[(x+1, y+1)] += CONN_LEFT
+        if labelImage[x, y] != labelImage[x, y+1]:
+            result[x,   y+1] += CONN_RIGHT
+            result[x+1, y+1] += CONN_LEFT
 
     lastRow = labelImage.subImage((0, labelImage.height()-1),
                                   Size2D(labelImage.width(), 1))
     for x in range(labelImage.width()-1):
         if lastRow[x, 0] != lastRow[x+1, 0]:
             result[x+1, labelImage.height()-1] += CONN_DOWN
-            result[x+1, labelImage.height()] += CONN_UP
+            result[x+1, labelImage.height()  ] += CONN_UP
+
+    # add border:
+    for x in range(labelImage.width()):
+        result[x  , 0]                   += CONN_RIGHT
+        result[x  , labelImage.height()] += CONN_RIGHT
+        result[x+1, 0]                   += CONN_LEFT
+        result[x+1, labelImage.height()] += CONN_LEFT
+
+    for y in range(labelImage.height()):
+        result[0,                  y  ] += CONN_DOWN
+        result[labelImage.width(), y  ] += CONN_DOWN
+        result[0,                  y+1] += CONN_UP
+        result[labelImage.width(), y+1] += CONN_UP
 
     return result
 
@@ -102,7 +111,6 @@ def followEdge(crackConnectionImage, pos, direction):
     vPos = Vector2(*pos) - Vector2(0.5, 0.5)
     result = [copy.copy(vPos)]
     prevDirection = None
-    imageRect = Rect2D(crackConnectionImage.size()-Size2D(1, 1))
     while True:
 # 		sys.stderr.write(" [%s]" % direction)
         vPos += _dirVector[direction]
@@ -112,8 +120,6 @@ def followEdge(crackConnectionImage, pos, direction):
             result[-1] = copy.copy(vPos)
         #result.append(Vector2(*pos) - Vector2(0.5, 0.5) + 0.5*dirVector[direction])
         pos += _dirOffset[direction]
-        if not imageRect.contains(pos):
-            break
 
         connection = int(crackConnectionImage[pos])
         if isNode(connection):
@@ -167,12 +173,22 @@ def showDegrees(crackConnectionImage):
     return showImage(degreeImage)
 
 if __name__ == "__main__":
-    # test code, to be converted into unittest-stuff
-    g = GrayImage(10, 10)
-    for y in range(5, 10):
-        g[5,y] = 1
-    cem = crackEdgeMap(g)
-    assert cem.faceCount == 3, \
-           "should be one infinite, one background, and one foreground region"
-# 	import mapdisplay
-# 	d = mapdisplay.MapDisplay(cem)
+    import unittest
+
+    class CrackEdgeMapTest(unittest.TestCase):
+        def testSimpleMap(self):
+            g = GrayImage(10, 10)
+            for y in range(5, 10):
+                g[5,y] = 1
+            cem = crackEdgeMap(g)
+            self.assertEqual(cem.faceCount, 3) # should be one infinite, one background, and one foreground region
+
+        def testHeadlineMap(self):
+            from vigra import readImage
+            labels = readImage("headline.png")[0]
+            cem = crackEdgeMap(labels)
+            self.assertEqual(cem.nodeCount, 11)
+            self.assertEqual(cem.edgeCount, 13)
+            self.assertEqual(cem.faceCount, 11)
+
+    sys.exit(unittest.main())
