@@ -3876,7 +3876,7 @@ void defMap()
         class_<GeoMap::Edge, bases<Polygon>, boost::noncopyable>(
             "Edge",
             "Represents an edge within the GeoMap.  This class is\n"
-            "derived from `Polygon`, so a GeoMap.Edge *is* a Polygon and\n"
+            "derived from `Polygon`, so a GeoMap.Edge *is* a `Polygon` and\n"
             "you can iterate it, ``len(edge)`` gives the number of points,\n"
             "``edge[5]`` returns its 6th support point etc.\n\n"
             "Furthermore, it gives access to the left/right face, the\n"
