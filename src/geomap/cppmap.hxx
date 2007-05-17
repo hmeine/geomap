@@ -1,5 +1,5 @@
-#ifndef CPPMAP_HXX
-#define CPPMAP_HXX
+#ifndef VIGRA_CPPMAP_HXX
+#define VIGRA_CPPMAP_HXX
 
 #include "filteriterator.hxx"
 #include "vigra/positionedmap.hxx"
@@ -7,8 +7,6 @@
 #include <vector>
 #include <vigra/multi_array.hxx>
 #include <sigc++/sigc++.h>
-
-//#define USE_INSECURE_CELL_PTRS
 
 // The define USE_INSECURE_CELL_PTRS can be used to switch between
 // "safe" cell handling e.g. for Python and a possibly faster C++ way.
@@ -93,7 +91,7 @@ class GeoMap
         typedef int value_type;
 
         template<class Iterator>
-        value_type operator()(Iterator it)
+        value_type operator()(Iterator it) const
         {
             int label = *it;
             if(label >= 0)
@@ -103,7 +101,7 @@ class GeoMap
 
         template<class Iterator>
         value_type operator()(Iterator it,
-                              typename Iterator::difference_type diff)
+                              typename Iterator::difference_type diff) const
         {
             int label = it[diff];
             if(label >= 0)
@@ -292,4 +290,4 @@ class GeoMap
     GeoMap &operator=(const GeoMap &) { return *this; }
 };
 
-#endif // CPPMAP_HXX
+#endif // VIGRA_CPPMAP_HXX
