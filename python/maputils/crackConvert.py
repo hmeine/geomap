@@ -1,5 +1,5 @@
-import copy, sys, time
-from hourglass import GeoMap
+import sys, time
+from hourglass import GeoMap, crackConnectionImage
 from vigra import meshIter
 import maputils
 
@@ -53,7 +53,7 @@ for conn in connections:
         if i & conn:
             degree[i] += 1
 
-def crackConnectionImage(labelImage):
+def pyCrackConnectionImage(labelImage):
     result = GrayImage(labelImage.size()+Size2D(1,1))
 
     for y in range(labelImage.height()-1):
@@ -109,15 +109,15 @@ def followEdge(crackConnectionImage, pos, direction):
 # 	sys.stderr.write("following crack edge from %s in '%s'-direction.." % (
 # 		pos, dirName[direction]))
     vPos = Vector2(*pos) - Vector2(0.5, 0.5)
-    result = [copy.copy(vPos)]
+    result = Polygon([vPos])
     prevDirection = None
     while True:
 # 		sys.stderr.write(" [%s]" % direction)
         vPos += _dirVector[direction]
         if not simplifyStraight or prevDirection != direction:
-            result.append(copy.copy(vPos))
+            result.append(vPos)
         else:
-            result[-1] = copy.copy(vPos)
+            result[-1] = vPos
         #result.append(Vector2(*pos) - Vector2(0.5, 0.5) + 0.5*dirVector[direction])
         pos += _dirOffset[direction]
 
