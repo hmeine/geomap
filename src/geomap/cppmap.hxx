@@ -319,6 +319,8 @@ class GeoMap::Node : boost::noncopyable
     friend class GeoMap; // give access to anchor_ (add edge, sort edges, Euler..)
     friend class SigmaAnchor; // give access to anchor_
 
+    inline void uninitialize();
+
   public:
     Node(GeoMap *map, const vigra::Vector2 &position)
     : map_(map),
@@ -334,18 +336,6 @@ class GeoMap::Node : boost::noncopyable
     bool initialized() const
     {
         return map_ != NULL;
-    }
-
-  protected:
-    void uninitialize()
-    {
-        GeoMap *map = map_;
-        map_ = NULL; // DON'T MESS WITH THIS!
-        --map->nodeCount_;
-        map->nodeMap_.erase(
-            map->nodeMap_.nearest(PositionedNodeLabel(position_, label_),
-                                   vigra::NumericTraits<double>::epsilon()));
-        RESET_PTR(map->nodes_[label_]); // may have effect like "delete this;"!
     }
 
   public:
@@ -370,12 +360,12 @@ class GeoMap::Node : boost::noncopyable
 
     inline unsigned int degree() const;
 
-    inline bool operator==(const GeoMap::Node &other)
+    bool operator==(const GeoMap::Node &other)
     {
-        return label() == other.label() && map_ == other.map_;
+        return label() == other.label();
     }
 
-    inline bool operator!=(const GeoMap::Node &other)
+    bool operator!=(const GeoMap::Node &other)
     {
         return !operator==(other);
     }
@@ -417,6 +407,8 @@ class GeoMap::Edge
     friend class Dart; // allow setLeftFaceLabel
     friend class GeoMap;
 
+    inline void uninitialize();
+
   public:
     template<class POINTS>
     Edge(GeoMap *map, CellLabel startNodeLabel, CellLabel endNodeLabel,
@@ -438,15 +430,6 @@ class GeoMap::Edge
     bool initialized() const
     {
         return map_ != NULL;
-    }
-
-  protected:
-    void uninitialize()
-    {
-        GeoMap *map = map_;
-        map_ = NULL;
-        --map->edgeCount_;
-        RESET_PTR(map->edges_[label_]); // may have effect like "delete this;"
     }
 
   public:
@@ -511,12 +494,12 @@ class GeoMap::Edge
         return startNodeLabel_ == endNodeLabel_;
     }
 
-    inline bool operator==(const GeoMap::Edge &other)
+    bool operator==(const GeoMap::Edge &other)
     {
-        return label() == other.label() && map_ == other.map_;
+        return label() == other.label();
     }
 
-    inline bool operator!=(const GeoMap::Edge &other)
+    bool operator!=(const GeoMap::Edge &other)
     {
         return !operator==(other);
     }
@@ -946,6 +929,7 @@ class GeoMap::Face : boost::noncopyable
 
     friend class GeoMap; // give access to pixelArea_ and anchors_ (Euler ops...)
 
+    inline void uninitialize();
     unsigned int findComponentAnchor(const GeoMap::Dart &dart);
 
   public:
@@ -975,15 +959,6 @@ class GeoMap::Face : boost::noncopyable
     bool initialized() const
     {
         return map_ != NULL;
-    }
-
-  protected:
-    void uninitialize()
-    {
-        GeoMap *map = map_;
-        map_ = NULL;
-        --map->faceCount_;
-        RESET_PTR(map->faces_[label_]); // may have effect like "delete this;"
     }
 
   public:
@@ -1080,27 +1055,14 @@ class GeoMap::Face : boost::noncopyable
         return result;
     }
 
-    void embedContour(const Dart &anchor)
+    void embedContour(const Dart &anchor);
+
+    bool operator==(const GeoMap::Face &other)
     {
-        anchors_.push_back(anchor);
-
-        Dart dart(anchor); // we need a non-const reference
-        for(; dart.leftFaceLabel() != label_; dart.nextPhi())
-            dart.setLeftFaceLabel(label_);
-
-        if(flag(AREA_VALID))
-            area_ += contourArea(dart);
-
-        vigra_postcondition(dart == anchor,
-                            "contour labeled partially?!");
+        return label() == other.label();
     }
 
-    inline bool operator==(const GeoMap::Face &other)
-    {
-        return label() == other.label() && map_ == other.map_;
-    }
-
-    inline bool operator!=(const GeoMap::Face &other)
+    bool operator!=(const GeoMap::Face &other)
     {
         return !operator==(other);
     }
@@ -1138,6 +1100,33 @@ class GeoMap::Face : boost::noncopyable
 inline GeoMap::Dart GeoMap::dart(int label)
 {
     return GeoMap::Dart(this, label);
+}
+
+inline void GeoMap::Node::uninitialize()
+{
+    GeoMap *map = map_;
+    map_ = NULL; // DON'T MESS WITH THIS!
+    --map->nodeCount_;
+    map->nodeMap_.erase(
+        map->nodeMap_.nearest(PositionedNodeLabel(position_, label_),
+                              vigra::NumericTraits<double>::epsilon()));
+    RESET_PTR(map->nodes_[label_]); // may have effect like "delete this;"!
+}
+
+inline void GeoMap::Edge::uninitialize()
+{
+    GeoMap *map = map_;
+    map_ = NULL;
+    --map->edgeCount_;
+    RESET_PTR(map->edges_[label_]);
+}
+
+inline void GeoMap::Face::uninitialize()
+{
+    GeoMap *map = map_;
+    map_ = NULL;
+    --map->faceCount_;
+    RESET_PTR(map->faces_[label_]);
 }
 
 inline GeoMap::Dart GeoMap::Node::anchor() const

@@ -80,32 +80,6 @@ DartPointIter::DartPointIter(GeoMap::Dart const &dart)
 
 /********************************************************************/
 
-void GeoMap::Node::setPosition(const vigra::Vector2 &p)
-{
-    vigra_precondition(initialized(), "setPosition() of uninitialized node!");
-    map_->nodeMap_.erase(
-        map_->nodeMap_.nearest(PositionedNodeLabel(position_, label_),
-                               vigra::NumericTraits<double>::epsilon()));
-    position_ = p;
-
-    GeoMap::Dart d(map_, anchor_);
-    do
-    {
-        if(d.label() > 0)
-        {
-            (*map_->edge(d.label()))[ 0] = p;
-        }
-        else
-        {
-            GeoMap::Edge &edge(*map_->edge(-d.label()));
-            edge[edge.size()-1] = p;
-        }
-    }
-    while(d.nextSigma().label() != anchor_);
-
-    map_->nodeMap_.insert(PositionedNodeLabel(p, label_));
-}
-
 GeoMap::GeoMap(vigra::Size2D imageSize)
 : sigmaMappingArray_(101, 0),
   sigmaInverseMappingArray_(101, 0),
@@ -1233,6 +1207,10 @@ bool GeoMap::checkConsistency()
 }
 
 /********************************************************************/
+/*                                                                  */
+/*                  Euler operations (and helpers)                  */
+/*                                                                  */
+/********************************************************************/
 
 bool GeoMap::removeIsolatedNode(GeoMap::Node &node)
 {
@@ -1530,24 +1508,6 @@ CELL_PTR(GeoMap::Edge) GeoMap::splitEdge(
     return this->edge(result->label());
 }
 
-unsigned int GeoMap::Face::findComponentAnchor(const GeoMap::Dart &dart)
-{
-    for(unsigned int i = 0; i < anchors_.size(); ++i)
-        if(anchors_[i] == dart)
-            return i;
-
-    for(unsigned int i = 0; i < anchors_.size(); ++i)
-    {
-        GeoMap::Dart d(anchors_[i]);
-        while(d.nextPhi() != anchors_[i])
-            if(d == dart)
-                return i;
-    }
-
-    vigra_fail("findComponentAnchor failed: dart not found in face contours!");
-    return 42; // never reached
-}
-
 void GeoMap::associatePixels(GeoMap::Face &face, const PixelList &pixels)
 {
     face.pixelArea_ += pixels.size();
@@ -1737,6 +1697,68 @@ CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(GeoMap::Dart &dart)
         associatePixels(survivor, associatedPixels);
 
     return this->face(survivor.label());
+}
+
+/********************************************************************/
+
+void GeoMap::Node::setPosition(const vigra::Vector2 &p)
+{
+    vigra_precondition(initialized(), "setPosition() of uninitialized node!");
+    map_->nodeMap_.erase(
+        map_->nodeMap_.nearest(PositionedNodeLabel(position_, label_),
+                               vigra::NumericTraits<double>::epsilon()));
+    position_ = p;
+
+    GeoMap::Dart d(map_, anchor_);
+    do
+    {
+        if(d.label() > 0)
+        {
+            (*map_->edge(d.label()))[ 0] = p;
+        }
+        else
+        {
+            GeoMap::Edge &edge(*map_->edge(-d.label()));
+            edge[edge.size()-1] = p;
+        }
+    }
+    while(d.nextSigma().label() != anchor_);
+
+    map_->nodeMap_.insert(PositionedNodeLabel(p, label_));
+}
+
+unsigned int GeoMap::Face::findComponentAnchor(const GeoMap::Dart &dart)
+{
+    for(unsigned int i = 0; i < anchors_.size(); ++i)
+        if(anchors_[i] == dart)
+            return i;
+
+    for(unsigned int i = 0; i < anchors_.size(); ++i)
+    {
+        GeoMap::Dart d(anchors_[i]);
+        while(d.nextPhi() != anchors_[i])
+            if(d == dart)
+                return i;
+    }
+
+    vigra_fail("findComponentAnchor failed: dart not found in face contours!");
+    return 42; // never reached
+}
+
+void GeoMap::Face::embedContour(const Dart &anchor)
+{
+    anchors_.push_back(anchor);
+
+    Dart dart(anchor);
+    for(; dart.leftFaceLabel() != label_; dart.nextPhi())
+        dart.setLeftFaceLabel(label_);
+
+    // don't try to do this on the fly (special bridge handling needed):
+    if(flag(AREA_VALID))
+        area_ += contourArea(dart);
+
+    vigra_postcondition(dart == anchor,
+                        "contour labeled partially?!");
 }
 
 /********************************************************************/
