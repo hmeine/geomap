@@ -696,6 +696,28 @@ pyCrackConnectionImage(vigra::PythonSingleBandImage const &labels)
 {
     vigra::PythonGrayImage result(labels.size() + vigra::Diff2D(1, 1));
     crackConnectionImage(srcImageRange(labels), destImage(result));
+
+    vigra::PythonGrayImage::traverser
+        end = result.lowerRight() - vigra::Diff2D(1, 1),
+        row = result.upperLeft();
+    for(; row.y < end.y; ++row.y)
+    {
+        vigra::PythonGrayImage::traverser it = row;
+        for(; it.x < end.x; ++it.x)
+        {
+            if((int)*it & 1)
+                it[vigra::Diff2D(1, 0)] = (int)it[vigra::Diff2D(1, 0)] | 4;
+            if((int)*it & 2)
+                it[vigra::Diff2D(0, 1)] = (int)it[vigra::Diff2D(0, 1)] | 8;
+        }
+        if((int)*it & 2)
+            it[vigra::Diff2D(0, 1)] = (int)it[vigra::Diff2D(0, 1)] | 8;
+    }
+
+    for(; row.x < end.x; ++row.x)
+        if((int)*row & 1)
+            row[vigra::Diff2D(1, 0)] = (int)row[vigra::Diff2D(1, 0)] | 4;
+
     return result;
 }
 
