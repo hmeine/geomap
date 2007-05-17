@@ -1,7 +1,5 @@
 #include "cppmap.hxx"
 #include <vigra/tinyvector.hxx>
-#include <vigra/copyimage.hxx>
-#include <vigra/crackconnections.hxx>
 #include <iostream>
 #include <algorithm>
 #include <cmath>
@@ -28,645 +26,6 @@ void removeOne(Container &container,
 }
 
 /********************************************************************/
-
-const CellLabel UNINITIALIZED_CELL_LABEL =
-    vigra::NumericTraits<CellLabel>::max();
-
-class GeoMap::Node : boost::noncopyable
-{
-  protected:
-    GeoMap        *map_;
-    CellLabel      label_;
-    vigra::Vector2 position_;
-    int            anchor_;
-
-    friend class GeoMap; // give access to anchor_ (add edge, sort edges, Euler..)
-    friend class SigmaAnchor; // give access to anchor_
-
-  public:
-    Node(GeoMap *map, const vigra::Vector2 &position)
-    : map_(map),
-      label_(map->nodes_.size()),
-      position_(position),
-      anchor_(0)
-    {
-        map_->nodes_.push_back(GeoMap::Nodes::value_type(this));
-        ++map_->nodeCount_;
-        map_->nodeMap_.insert(PositionedNodeLabel(position_, label_));
-    }
-
-    bool initialized() const
-    {
-        return map_ != NULL;
-    }
-
-  protected:
-    void uninitialize()
-    {
-        GeoMap *map = map_;
-        map_ = NULL; // DON'T MESS WITH THIS!
-        --map->nodeCount_;
-        map->nodeMap_.erase(
-            map->nodeMap_.nearest(PositionedNodeLabel(position_, label_),
-                                   vigra::NumericTraits<double>::epsilon()));
-        RESET_PTR(map->nodes_[label_]); // may have effect like "delete this;"!
-    }
-
-  public:
-    CellLabel label() const
-    {
-        return label_;
-    }
-
-    const vigra::Vector2 &position() const
-    {
-        return position_;
-    }
-
-    void setPosition(const vigra::Vector2 &p);
-
-    inline Dart anchor() const;
-
-    bool isIsolated() const
-    {
-        return !anchor_;
-    }
-
-    inline unsigned int degree() const;
-
-    inline bool operator==(const GeoMap::Node &other)
-    {
-        return label() == other.label() && map_ == other.map_;
-    }
-
-    inline bool operator!=(const GeoMap::Node &other)
-    {
-        return !operator==(other);
-    }
-
-    GeoMap *map() const
-    {
-        return map_;
-    }
-
-  private:
-    Node(const Node &) {} // disallow copying
-    Node &operator=(const Node &) { return *this; }
-};
-
-class GeoMap::Edge
-: public vigra::BBoxPolygon<vigra::Vector2>, boost::noncopyable
-{
-  public:
-    typedef vigra::BBoxPolygon<vigra::Vector2> Base;
-
-  protected:
-    GeoMap      *map_;
-    CellLabel    label_;
-    CellLabel    startNodeLabel_, endNodeLabel_;
-    CellLabel    leftFaceLabel_, rightFaceLabel_;
-    unsigned int flags_;
-
-    mutable std::auto_ptr<vigra::Scanlines> scanLines_;
-
-    friend class Dart; // allow setLeftFaceLabel
-    friend class GeoMap;
-
-  public:
-    template<class POINTS>
-    Edge(GeoMap *map, CellLabel startNodeLabel, CellLabel endNodeLabel,
-         const POINTS &p)
-    : Base(p),
-      map_(map),
-      label_(map->edges_.size()),
-      startNodeLabel_(startNodeLabel),
-      endNodeLabel_(endNodeLabel),
-      leftFaceLabel_(UNINITIALIZED_CELL_LABEL),
-      rightFaceLabel_(UNINITIALIZED_CELL_LABEL),
-      flags_(0),
-      scanLines_(NULL)
-    {
-        map_->edges_.push_back(GeoMap::Edges::value_type(this));
-        ++map_->edgeCount_;
-    }
-
-    bool initialized() const
-    {
-        return map_ != NULL;
-    }
-
-  protected:
-    void uninitialize()
-    {
-        GeoMap *map = map_;
-        map_ = NULL;
-        --map->edgeCount_;
-        RESET_PTR(map->edges_[label_]); // may have effect like "delete this;"
-    }
-
-  public:
-    CellLabel label() const
-    {
-        return label_;
-    }
-
-    inline Dart dart() const;
-
-    CellLabel startNodeLabel() const
-    {
-        return startNodeLabel_;
-    }
-
-    GeoMap::Nodes::value_type startNode() const
-    {
-        vigra_precondition(initialized(), "startNode() of uninitialized edge!");
-        return map_->node(startNodeLabel_);
-    }
-
-    CellLabel endNodeLabel() const
-    {
-        return endNodeLabel_;
-    }
-
-    GeoMap::Nodes::value_type endNode() const
-    {
-        vigra_precondition(initialized(), "endNode() of uninitialized edge!");
-        return map_->node(endNodeLabel_);
-    }
-
-    CellLabel leftFaceLabel() const
-    {
-        return leftFaceLabel_;
-    }
-
-    GeoMap::Faces::value_type leftFace() const
-    {
-        vigra_precondition(initialized(), "leftFace() of uninitialized edge!");
-        return map_->face(leftFaceLabel_);
-    }
-
-    CellLabel rightFaceLabel() const
-    {
-        return rightFaceLabel_;
-    }
-
-    GeoMap::Faces::value_type rightFace() const
-    {
-        vigra_precondition(initialized(), "rightFace() of uninitialized edge!");
-        return map_->face(rightFaceLabel_);
-    }
-
-    bool isBridge() const
-    {
-        return leftFaceLabel_ == rightFaceLabel_;
-    }
-
-    bool isLoop() const
-    {
-        return startNodeLabel_ == endNodeLabel_;
-    }
-
-    inline bool operator==(const GeoMap::Edge &other)
-    {
-        return label() == other.label() && map_ == other.map_;
-    }
-
-    inline bool operator!=(const GeoMap::Edge &other)
-    {
-        return !operator==(other);
-    }
-
-    unsigned int flags() const
-    {
-        return flags_;
-    }
-
-    unsigned int flag(unsigned int which) const
-    {
-        return flags_ & which;
-    }
-
-    void setFlag(unsigned int flag, bool onoff = true)
-    {
-        if(onoff)
-            flags_ |= flag;
-        else
-            flags_ &= ~flag;
-    }
-
-    GeoMap *map() const
-    {
-        return map_;
-    }
-
-    const vigra::Scanlines &scanLines() const
-    {
-        if(!scanLines_.get())
-            scanLines_ = scanPoly(*this);
-        return *scanLines_;
-    }
-
-  private:
-    Edge(const Edge &) : vigra::BBoxPolygon<vigra::Vector2>() {} // disallow copying
-    Edge &operator=(const Edge &) { return *this; }
-};
-
-class DartPointIter
-{
-    CELL_PTR(GeoMap::Edge) edge_;
-    int index_, inc_, end_;
-
-  public:
-        /** the iterator's value type
-        */
-    typedef GeoMap::Edge::value_type value_type;
-
-        /** the iterator's reference type (return type of <tt>*iter</tt>)
-        */
-    typedef value_type & reference;
-
-        /** the iterator's pointer type (return type of <tt>operator-></tt>)
-        */
-    typedef value_type * pointer;
-
-        /** the iterator tag (forward_iterator_tag)
-        */
-    typedef std::forward_iterator_tag iterator_category;
-
-    DartPointIter(GeoMap::Dart const &dart);
-
-    DartPointIter & operator++()
-    {
-        index_ += inc_;
-        return *this;
-    }
-
-    DartPointIter operator++(int)
-    {
-        DartPointIter ret(*this);
-        operator++();
-        return ret;
-    }
-
-        /**
-         * Change the direction of traversal, without changing the
-         * current position.  (Thus, atEnd()/inRange() will also not
-         * change.)
-         */
-    void reverse()
-    {
-        if(inc_ < 0)
-        {
-            inc_ = 1;
-            end_ = edge_->size();
-        }
-        else
-        {
-            inc_ = -1;
-            end_ = -1;
-        }
-    }
-
-        /**
-         * the opposite of inRange(); true if this iterator is behind the
-         * range and should not be dereferenced any more
-         */
-    bool atEnd() const
-    {
-        return index_ == end_;
-    }
-
-        /**
-         * the opposite of atEnd(); true if this iterator is dereferencable
-         */
-    bool inRange() const
-    {
-        return index_ != end_;
-    }
-
-    reference operator*() const
-    {
-        return (*edge_)[index_];
-    }
-
-    pointer operator->() const
-    {
-        return &(operator*());
-    }
-};
-
-class GeoMap::Dart
-{
-  protected:
-    GeoMap *map_;
-    int     label_;
-
-    void setLeftFaceLabel(CellLabel label)
-    {
-        if(label_ > 0)
-            guaranteedEdge()->leftFaceLabel_ = label;
-        else
-            guaranteedEdge()->rightFaceLabel_ = label;
-    }
-
-    friend class Face; // allow setLeftFaceLabel in Face constructor
-    friend CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(Dart &);
-
-  public:
-    Dart(GeoMap *map, int label)
-    : map_(map),
-      label_(label)
-    {}
-
-    Dart clone() const
-    {
-        return Dart(map_, label_);
-    }
-
-    int label() const
-    {
-        return label_;
-    }
-
-    GeoMap *map() const
-    {
-        return map_;
-    }
-
-    CellLabel edgeLabel() const
-    {
-        return abs(label_);
-    }
-
-    CellLabel startNodeLabel() const
-    {
-        if(label_ > 0)
-            return guaranteedEdge()->startNodeLabel();
-        else
-            return guaranteedEdge()->endNodeLabel();
-    }
-
-    CellLabel endNodeLabel() const
-    {
-        if(label_ > 0)
-            return guaranteedEdge()->endNodeLabel();
-        else
-            return guaranteedEdge()->startNodeLabel();
-    }
-
-//         def _setStartNode(self, node):
-//             """changes corresponding start/end node of this dart's
-//             edge and the first/last point of its' polygon, too"""
-//             if self._label > 0:
-//                 self.edge()._startNodeLabel = node._label
-//                 self.edge()[0] = node.position()
-//                 #self.edge().invalidateProperties()
-//             else:
-//                 self.edge()._endNodeLabel = node._label
-//                 self.edge()[-1] = node.position()
-//                 #self.edge().invalidateProperties()
-
-    CellLabel leftFaceLabel() const
-    {
-        if(label_ > 0)
-            return guaranteedEdge()->leftFaceLabel();
-        else
-            return guaranteedEdge()->rightFaceLabel();
-    }
-
-    CellLabel rightFaceLabel() const
-    {
-        if(label_ > 0)
-            return guaranteedEdge()->rightFaceLabel();
-        else
-            return guaranteedEdge()->leftFaceLabel();
-    }
-
-    GeoMap::Edges::value_type edge() const
-    {
-        return map_->edge(edgeLabel());
-    }
-
-    GeoMap::Edges::value_type guaranteedEdge() const
-    {
-        GeoMap::Edges::value_type result(edge());
-        if(!result)
-        {
-            std::stringstream s;
-            s << "Cannot operate on invalid dart " << label()
-              << " belonging to removed edge!";
-            vigra_precondition(result, s.str());
-        }
-        return result;
-    }
-
-    GeoMap::Nodes::value_type startNode() const
-    {
-        return map_->node(startNodeLabel());
-    }
-
-    GeoMap::Nodes::value_type endNode() const
-    {
-        return map_->node(endNodeLabel());
-    }
-
-    GeoMap::Faces::value_type leftFace() const
-    {
-        return map_->face(leftFaceLabel());
-    }
-
-    GeoMap::Faces::value_type rightFace() const
-    {
-        return map_->face(rightFaceLabel());
-    }
-
-    double partialArea() const
-    {
-        if(label_ > 0)
-            return guaranteedEdge()->partialArea();
-        else
-            return -guaranteedEdge()->partialArea();
-    }
-
-    DartPointIter pointIter() const
-    {
-        return DartPointIter(*this);
-    }
-
-    typedef GeoMap::Edge::value_type value_type;
-
-    const value_type &operator[](int index) const
-    {
-        if(label_ > 0)
-            return (*guaranteedEdge())[index];
-        else
-            return (*guaranteedEdge())[size()-1-index];
-    }
-
-    GeoMap::Edge::size_type size() const
-    {
-        return guaranteedEdge()->size();
-    }
-
-    Dart &nextAlpha()
-    {
-        label_ = -label_;
-        return *this;
-    }
-
-    Dart &nextSigma()
-    {
-        label_ = map_->sigmaMapping_[label_];
-        return *this;
-    }
-
-    Dart &prevSigma()
-    {
-        label_ = map_->sigmaInverseMapping_[label_];
-        return *this;
-    }
-
-    Dart &nextPhi()
-    {
-        return nextAlpha().prevSigma();
-    }
-
-    Dart &prevPhi()
-    {
-        return nextSigma().nextAlpha();
-    }
-
-    bool operator==(const Dart &other) const
-    {
-        return label_ == other.label_;
-    }
-
-    bool operator!=(const Dart &other) const
-    {
-        return label_ != other.label_;
-    }
-};
-
-inline GeoMap::Dart GeoMap::Edge::dart() const
-{
-    return map_->dart(label());
-}
-
-inline unsigned int GeoMap::Node::degree() const
-{
-    if(!anchor_)
-        return 0;
-
-    int result = 0;
-    GeoMap::Dart d(map_, anchor_);
-    do
-    {
-        ++result;
-    }
-    while(d.nextSigma().label() != anchor_);
-    return result;
-}
-
-DartPointIter::DartPointIter(GeoMap::Dart const &dart)
-: edge_(dart.guaranteedEdge())
-{
-    if(dart.label() > 0)
-    {
-        index_ = 0;
-        inc_ = 1;
-        end_ = dart.size();
-    }
-    else
-    {
-        index_ = dart.size() - 1;
-        inc_ = -1;
-        end_ = -1;
-    }
-}
-
-/*
- * Note: This code is based on the assumption that a dart must always
- * have a least two points!
- */
-class ContourPointIter
-{
-    DartPointIter dpi_;
-    GeoMap::Dart dart_, end_;
-
-  public:
-        /** the iterator's value type
-        */
-    typedef GeoMap::Edge::value_type value_type;
-
-        /** the iterator's reference type (return type of <tt>*iter</tt>)
-        */
-    typedef value_type & reference;
-
-        /** the iterator's pointer type (return type of <tt>operator-></tt>)
-        */
-    typedef value_type * pointer;
-
-        /** the iterator tag (forward_iterator_tag)
-        */
-    typedef std::forward_iterator_tag iterator_category;
-
-    ContourPointIter(GeoMap::Dart const &dart, bool firstTwice = false)
-    : dpi_(dart),
-      dart_(dart),
-      end_(dart)
-    {
-        if(!firstTwice)
-            ++dpi_;
-    }
-
-    ContourPointIter & operator++()
-    {
-        ++dpi_;
-        if(dpi_.atEnd())
-        {
-            if(dart_.nextPhi() != end_)
-            {
-                dpi_ = DartPointIter(dart_);
-                ++dpi_;
-            }
-        }
-        return *this;
-    }
-
-    ContourPointIter operator++(int)
-    {
-        ContourPointIter ret(*this);
-        operator++();
-        return ret;
-    }
-
-    /**
-     * the opposite of inRange(); true if this iterator is behind the
-     * range and should not be dereferenced any more
-     */
-    bool atEnd() const
-    {
-        return dpi_.atEnd();
-    }
-
-    /**
-     * the opposite of atEnd(); true if this iterator is dereferencable
-     */
-    bool inRange() const
-    {
-        return dpi_.inRange();
-    }
-
-    reference operator*() const
-    {
-        return *dpi_;
-    }
-
-    pointer operator->() const
-    {
-        return &(operator*());
-    }
-};
 
 double contourArea(const GeoMap::Dart &dart)
 {
@@ -700,273 +59,26 @@ Polygon contourPoly(const GeoMap::Dart &dart)
     return result;
 }
 
-typedef vigra::MultiArray<2, int>::difference_type IVector2;
+/********************************************************************/
 
-inline IVector2 intVPos(const Vector2 &p)
+DartPointIter::DartPointIter(GeoMap::Dart const &dart)
+: edge_(dart.guaranteedEdge())
 {
-    return IVector2((int)floor(p[0]+0.5), (int)floor(p[1]+0.5));
+    if(dart.label() > 0)
+    {
+        index_ = 0;
+        inc_ = 1;
+        end_ = dart.size();
+    }
+    else
+    {
+        index_ = dart.size() - 1;
+        inc_ = -1;
+        end_ = -1;
+    }
 }
 
-class GeoMap::Face : boost::noncopyable
-{
-  public:
-    typedef Edge::BoundingBox BoundingBox;
-    typedef std::vector<Dart> Contours;
-    typedef Contours::const_iterator ContourIterator;
-
-  protected:
-    GeoMap              *map_;
-    CellLabel            label_;
-    std::vector<Dart>    anchors_;
-    mutable unsigned int flags_;
-    mutable BoundingBox  boundingBox_;
-    mutable double       area_;
-    unsigned int         pixelArea_;
-
-    static const unsigned int BOUNDING_BOX_VALID = 0x8000000;
-    static const unsigned int AREA_VALID         = 0x4000000;
-
-    friend class GeoMap; // give access to pixelArea_ and anchors_ (Euler ops...)
-
-    unsigned int findComponentAnchor(const GeoMap::Dart &dart);
-
-  public:
-    Face(GeoMap *map, Dart anchor)
-    : map_(map),
-      label_(map->faces_.size()),
-      flags_(0),
-      pixelArea_(0)
-    {
-        map_->faces_.push_back(GeoMap::Faces::value_type(this));
-        ++map_->faceCount_;
-
-        if(label_)
-        {
-            anchors_.push_back(anchor);
-
-            for(; anchor.leftFaceLabel() == UNINITIALIZED_CELL_LABEL;
-                anchor.nextPhi())
-            {
-                // don't calculate area on-the-fly here; we want to
-                // exclude bridges from the area!
-                anchor.setLeftFaceLabel(label_);
-            }
-        }
-    }
-
-    bool initialized() const
-    {
-        return map_ != NULL;
-    }
-
-  protected:
-    void uninitialize()
-    {
-        GeoMap *map = map_;
-        map_ = NULL;
-        --map->faceCount_;
-        RESET_PTR(map->faces_[label_]); // may have effect like "delete this;"
-    }
-
-  public:
-    CellLabel label() const
-    {
-        return label_;
-    }
-
-    const BoundingBox &boundingBox() const
-    {
-        vigra_precondition(label_, "infinite face has no boundingBox()!");
-
-        if(!flag(BOUNDING_BOX_VALID))
-        {
-            boundingBox_ = BoundingBox();
-            Dart anchor(anchors_[0]), dart(anchor);
-            do
-            {
-                boundingBox_ |= dart.edge()->boundingBox();
-            }
-            while(dart.nextPhi() != anchor);
-            flags_ |= BOUNDING_BOX_VALID;
-        }
-        return boundingBox_;
-    }
-
-    bool contains(const Vector2 &point) const
-    {
-        vigra_precondition(initialized(), "contains() of uninitialized face!");
-        if(map_->labelImage_)
-        {
-            IVector2 iPos(intVPos(point));
-            if(map_->labelImage_->isInside(iPos))
-            {
-                int l = (*map_->labelImage_)[iPos];
-                if(l > 0 && (map_->faceLabelLUT_[l] == label_))
-                    return true;
-            }
-        }
-        unsigned int i = 0;
-        if(label_)
-        {
-            if(!boundingBox().contains(point))
-                return false;
-            if(!contourPoly(anchors_[0]).contains(point))
-                return false;
-            ++i;
-        }
-        for(; i < anchors_.size(); ++i)
-            if(contourPoly(anchors_[i]).contains(point))
-                return false;
-        return true;
-    }
-
-    double area() const
-    {
-        if(!flag(AREA_VALID))
-        {
-            area_ = 0.0;
-            for(unsigned int i = 0; i < anchors_.size(); ++i)
-            {
-                area_ += contourArea(anchors_[i]);
-            }
-            flags_ |= AREA_VALID;
-        }
-        return area_;
-    }
-
-    unsigned int pixelArea() const
-    {
-        return pixelArea_;
-    }
-
-    const Dart &contour(unsigned int index = 0)
-    {
-        return anchors_[index];
-    }
-
-    ContourIterator contoursBegin() const
-    {
-        return anchors_.begin();
-    }
-
-    ContourIterator contoursEnd() const
-    {
-        return anchors_.end();
-    }
-
-    ContourIterator holesBegin() const
-    {
-        ContourIterator result(anchors_.begin());
-        if(label())
-            ++result;
-        return result;
-    }
-
-    void embedContour(const Dart &anchor)
-    {
-        anchors_.push_back(anchor);
-
-        Dart dart(anchor); // we need a non-const reference
-        for(; dart.leftFaceLabel() != label_; dart.nextPhi())
-            dart.setLeftFaceLabel(label_);
-
-        if(flag(AREA_VALID))
-            area_ += contourArea(dart);
-
-        vigra_postcondition(dart == anchor,
-                            "contour labeled partially?!");
-    }
-
-    inline bool operator==(const GeoMap::Face &other)
-    {
-        return label() == other.label() && map_ == other.map_;
-    }
-
-    inline bool operator!=(const GeoMap::Face &other)
-    {
-        return !operator==(other);
-    }
-
-    unsigned int flags() const
-    {
-        return flags_;
-    }
-
-    unsigned int flag(unsigned int which) const
-    {
-        return flags_ & which;
-    }
-
-    void setFlag(unsigned int flag, bool onoff = true)
-    {
-        if(onoff)
-            flags_ |= flag;
-        else
-            flags_ &= ~flag;
-    }
-
-    GeoMap *map() const
-    {
-        return map_;
-    }
-
-  private:
-    Face(const Face &) {} // disallow copying
-    Face &operator=(const Face &) { return *this; }
-};
-
-class GeoMap::SigmaAnchor
-{
-  public:
-    SigmaAnchor(const GeoMap::Node &node)
-    : isSingular_(node.isIsolated()),
-      dartLabel_(node.anchor_),
-      nodeLabel_(node.label()),
-      map_(node.map())
-    {
-        vigra_precondition(isSingular_ || !node.map()->mapInitialized(),
-            "sigma position of initialized GeoMap not fully specified");
-    }
-
-    SigmaAnchor(const GeoMap::Dart &dart)
-    : isSingular_(false),
-      dartLabel_(dart.label()),
-      nodeLabel_(dart.startNodeLabel()),
-      map_(dart.map())
-    {
-    }
-
-    bool isSingular() const
-    {
-        return isSingular_;
-    }
-
-    int dartLabel() const
-    {
-        return dartLabel_;
-    }
-
-    CellLabel nodeLabel() const
-    {
-        return nodeLabel_;
-    }
-
-    bool operator==(const GeoMap::SigmaAnchor &other) const
-    {
-        if(isSingular() != other.isSingular())
-            return false;
-        if(isSingular())
-            return nodeLabel_ == other.nodeLabel_;
-        else
-            return dartLabel_ == other.dartLabel_;
-    }
-
-  private:
-    bool isSingular_;
-    int dartLabel_;
-    CellLabel nodeLabel_;
-    GeoMap *map_;
-};
+/********************************************************************/
 
 void GeoMap::Node::setPosition(const vigra::Vector2 &p)
 {
@@ -992,13 +104,6 @@ void GeoMap::Node::setPosition(const vigra::Vector2 &p)
     while(d.nextSigma().label() != anchor_);
 
     map_->nodeMap_.insert(PositionedNodeLabel(p, label_));
-}
-
-inline GeoMap::Dart GeoMap::Node::anchor() const
-{
-    vigra_precondition(initialized(), "anchor() of uninitialized node!");
-    vigra_precondition(anchor_ != 0, "anchor() of degree 0 node!");
-    return Dart(map_, anchor_);
 }
 
 GeoMap::GeoMap(vigra::Size2D imageSize)
@@ -1027,11 +132,6 @@ GeoMap::~GeoMap()
         (*it)->uninitialize();
 }
 
-inline GeoMap::Dart GeoMap::dart(int label)
-{
-    return GeoMap::Dart(this, label);
-}
-
 double angleTheta(double dy, double dx); // implemented in polygon.cxx
 
 CELL_PTR(GeoMap::Face) GeoMap::faceAt(const vigra::Vector2 &position)
@@ -1041,7 +141,7 @@ CELL_PTR(GeoMap::Face) GeoMap::faceAt(const vigra::Vector2 &position)
 
     if(labelImage_)
     {
-        GeoMap::LabelImage::difference_type p(intVPos(position));
+        GeoMap::LabelImage::difference_type p(detail::intVPos(position));
         if(labelImage_->isInside(p))
         {
             int faceLabel = (*labelImage_)[p];
@@ -1173,262 +273,7 @@ void GeoMap::sortEdgesDirectly()
     edgesSorted_ = true;
 }
 
-class DartPosition
-{
-  public:
-    DartPosition(const GeoMap::Dart &dart)
-    : dart_(dart),
-      pointIter_(dart),
-      segmentIndex_(0),
-      arcLength_(0.0),
-      partialArcLength_(0.0),
-      position_(*pointIter_)
-    {
-        p1_ = *pointIter_;
-        p2_ = *++pointIter_;
-    }
-
-    bool atEnd() const
-    {
-        return pointIter_.atEnd();
-    }
-
-    const vigra::Vector2 &operator()() const
-    {
-        return position_;
-    }
-
-    GeoMap::Dart dart() const
-    {
-        return dart_;
-    }
-
-    int dartLabel() const
-    {
-        return dart_.label();
-    }
-
-    unsigned int segmentIndex() const
-    {
-        return segmentIndex_;
-    }
-
-    double arcLength() const
-    {
-        return arcLength_ + partialArcLength_;
-    }
-
-    const vigra::Vector2 &segmentStart() const
-    {
-        return p1_;
-    }
-
-    const vigra::Vector2 &segmentEnd() const
-    {
-        return p2_;
-    }
-
-    double segmentLength() const
-    {
-        return (p2_ - p1_).magnitude();
-    }
-
-    bool gotoArcLength(double arcLength)
-    {
-        while(arcLength < arcLength_)
-            if(!prevSegmentInternal())
-                return false;
-        do
-        {
-            double rest = arcLength - arcLength_;
-            Vector2 diff(p2_ - p1_);
-            if(diff.squaredMagnitude() > rest*rest)
-            {
-                position_ = p1_ + diff*rest/diff.magnitude();
-                partialArcLength_ = rest;
-                return true;
-            }
-        }
-        while(nextSegmentInternal());
-        partialArcLength_ = 0.0;
-        return false;
-    }
-
-    bool gotoNextSegment()
-    {
-        bool result = nextSegmentInternal();
-        position_ = p1_;
-        partialArcLength_ = 0.0;
-        return result;
-    }
-
-    bool gotoPrevSegment()
-    {
-        bool result = prevSegmentInternal();
-        position_ = p1_;
-        partialArcLength_ = 0.0;
-        return result;
-    }
-
-    bool leaveCircle(const vigra::Vector2 &center, double radius2)
-    {
-        while((p2_ - center).squaredMagnitude() < radius2)
-            if(!nextSegmentInternal())
-                break;
-
-        position_ = p2_;
-        partialArcLength_ = (p2_ - p1_).magnitude();
-        return !atEnd();
-    }
-
-    bool intersectCircle(const vigra::Vector2 &center, double radius2)
-    {
-        // unfortunately, this prevents larger steps:
-//         if((p1_ - center).squaredMagnitude() >= radius2)
-//         {
-//             std::cerr << "intersectCircle: we are already outside!\n";
-//             position_ = p1_;
-//             return;
-//         }
-        while((p2_ - center).squaredMagnitude() < radius2)
-        {
-            if(!nextSegmentInternal())
-            {
-                position_ = p2_;
-                return false;
-            }
-        }
-
-        vigra::Vector2 diff(p2_ - p1_);
-        double dist2 = diff.squaredMagnitude();
-        double lambda = (
-            (std::sqrt(radius2 * dist2
-                       - vigra::sq(p2_[0]*p1_[1] - p1_[0]*p2_[1]
-                                   + center[0]*diff[1] - diff[0]*center[1]))
-             - dot(diff, p1_ - center))
-            / dist2);
-        if(!isnan(lambda))
-            diff *= lambda;
-        else
-        {
-            std::cerr << "intersectCircle: error interpolating between " << p1_ << " and " << p2_ << " to a squared distance of " << radius2 << " from " << center << "!\n";
-        }
-        position_ = p1_ + diff;
-        partialArcLength_ = diff.magnitude();
-        return true;
-    }
-
-  protected:
-    bool nextSegmentInternal()
-    {
-        if(atEnd())
-            return false;
-        arcLength_ += (p2_ - p1_).magnitude();
-        p1_ = p2_;
-        ++pointIter_;
-        if(pointIter_.atEnd())
-            return false;
-        p2_ = *pointIter_;
-        ++segmentIndex_;
-        return true;
-    }
-
-    bool prevSegmentInternal()
-    {
-        if(!segmentIndex_)
-            return false;
-        // now I assume that pointIter_ can step backwards and still
-        // is inRange():
-        pointIter_.reverse();
-        p2_ = p1_;
-        ++pointIter_;
-        pointIter_.reverse();
-        p1_ = *pointIter_;
-        arcLength_ -= (p2_ - p1_).magnitude();
-        --segmentIndex_;
-        return true;
-    }
-
-    GeoMap::Dart dart_;
-    DartPointIter pointIter_;
-    unsigned int segmentIndex_;
-    double arcLength_, partialArcLength_;
-    vigra::Vector2 p1_, p2_, position_;
-};
-
-struct DartPositionAngle
-{
-    struct EdgePosition
-    {
-        unsigned int segmentIndex;
-        double arcLength;
-        vigra::Vector2 position;
-    };
-
-    struct CommonPos : public EdgePosition
-    {
-        CommonPos()
-        : isSet(false)
-        {}
-
-        const vigra::Vector2 &set(const DartPosition &dp)
-        {
-            position = dp();
-            segmentIndex = dp.segmentIndex();
-            arcLength = dp.arcLength();
-            isSet = true;
-            return position;
-        }
-
-        bool isSet;
-    };
-
-    DartPosition dp;
-    double absAngle, angle;
-    CommonPos commonPos;
-
-    DartPositionAngle(const GeoMap::Dart &dart)
-    : dp(dart)
-    {}
-
-    bool operator<(const DartPositionAngle &other) const
-    {
-        return angle < other.angle;
-    }
-
-    struct SplitPos : public EdgePosition
-    {
-        int dartLabel, sigmaPos;
-        unsigned int splitGroup, newEdgeLabel;
-
-        SplitPos(const EdgePosition &ep, int dl, unsigned int sg)
-        : EdgePosition(ep),
-          dartLabel(dl),
-          splitGroup(sg)
-        {}
-
-        bool operator<(const SplitPos &other) const
-        {
-            return arcLength > other.arcLength;
-        }
-    };
-
-    SplitPos splitPos(unsigned int group) const
-    {
-        vigra_precondition(
-            commonPos.isSet, "splitPos() called with uninitialized commonPos");
-        SplitPos result(commonPos, dp.dartLabel(), group);
-        if(dp.dartLabel() < 0)
-        {
-            GeoMap::Edge &edge(*dp.dart().edge());
-            result.segmentIndex = edge.size()-2 - result.segmentIndex;
-            result.arcLength = edge.length() - result.arcLength;
-        }
-        return result;
-    }
-};
-
-typedef std::vector<DartPositionAngle> DartPositionAngles;
+typedef std::vector<detail::DartPositionAngle> DartPositionAngles;
 typedef DartPositionAngles::iterator DPAI;
 
 template<class Iterator>
@@ -1450,22 +295,12 @@ inline double normAngle(double diff)
     return diff;
 }
 
-class PlannedSplits : public std::vector<DartPositionAngle::SplitPos>
-{
-  public:
-    PlannedSplits()
-    : splitGroupCount(0)
-    {}
-
-    unsigned int splitGroupCount;
-};
-
 void sortEdgesInternal(const vigra::Vector2 &currentPos,
                        double referenceAngle,
                        DPAI dpBegin, DPAI dpEnd,
                        double stepDist2, double minAngle,
                        GeoMap::UnsortableGroups &unsortable,
-                       PlannedSplits *splitInfo,
+                       detail::PlannedSplits *splitInfo,
                        bool parallel)
 {
     if(dpEnd - dpBegin < 2)
@@ -1520,7 +355,7 @@ void sortEdgesInternal(const vigra::Vector2 &currentPos,
     }
 
     bool storedSplitPos = false;
-    PlannedSplits::size_type storedSplitsOffset = 0;
+    detail::PlannedSplits::size_type storedSplitsOffset = 0;
 
     // look for groups of parallel edges
     DPAI groupStart = dpBegin,
@@ -1579,7 +414,7 @@ void sortEdgesInternal(const vigra::Vector2 &currentPos,
         // here.  We do not do it then, because it becomes much more
         // complicated after the splitting.
 
-        PlannedSplits::iterator
+        detail::PlannedSplits::iterator
             storedSplitsBegin(splitInfo->begin() + storedSplitsOffset),
             storedSplitsEnd(storedSplitsBegin + (dpEnd - dpBegin));
 
@@ -1590,7 +425,7 @@ void sortEdgesInternal(const vigra::Vector2 &currentPos,
         for(DPAI dpi = dpBegin; dpi != dpEnd; ++dpi, ++sigmaPos)
         {
             int dartLabel = dpi->dp.dartLabel();
-            for(PlannedSplits::iterator splIt = // wordplay ;-)
+            for(detail::PlannedSplits::iterator splIt = // wordplay ;-)
                     storedSplitsBegin; splIt != storedSplitsEnd; ++splIt)
             {
                 if(splIt->dartLabel == dartLabel)
@@ -1614,7 +449,8 @@ void GeoMap::sortEdgesEventually(double stepDist, double minDist,
           stepDist2 = vigra::sq(stepDist);
 
     if(splitEdges)
-        splitInfo_ = std::auto_ptr<PlannedSplits>(new PlannedSplits());
+        splitInfo_ = std::auto_ptr<detail::PlannedSplits>(
+            new detail::PlannedSplits());
 
     for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
     {
@@ -1626,7 +462,7 @@ void GeoMap::sortEdgesEventually(double stepDist, double minDist,
         GeoMap::Dart anchor((*it)->anchor()), d(anchor);
         do
         {
-            dartPositions.push_back(DartPositionAngle(d));
+            dartPositions.push_back(detail::DartPositionAngle(d));
         }
         while(d.nextSigma() != anchor);
 
@@ -1671,14 +507,12 @@ struct MergeDart
     }
 };
 
-std::string Dart__repr__(GeoMap::Dart const &dart);
-
 void GeoMap::splitParallelEdges()
 {
     vigra_precondition(splitInfo_.get(), "splitParallelEdges(): no planned splits (set splitEdges parameter of sortEdgesEventually?)");
 
-    std::vector<PlannedSplits::difference_type> groupPositions;
-    for(PlannedSplits::iterator it = splitInfo_->begin();
+    std::vector<detail::PlannedSplits::difference_type> groupPositions;
+    for(detail::PlannedSplits::iterator it = splitInfo_->begin();
         it != splitInfo_->end(); ++it)
     {
         if(it->splitGroup == groupPositions.size())
@@ -1689,14 +523,14 @@ void GeoMap::splitParallelEdges()
 
     typedef std::vector<MergeDart> MergeDarts;
     MergeDarts mergeDarts(splitInfo_->size());
-    for(PlannedSplits::iterator it = splitInfo_->begin();
+    for(detail::PlannedSplits::iterator it = splitInfo_->begin();
         it != splitInfo_->end(); ++it)
     {
         CellLabel newEdgeLabel =
             splitEdge(*edge(abs(it->dartLabel)),
                       it->segmentIndex, it->position)->label();
 
-        PlannedSplits::difference_type &pos(
+        detail::PlannedSplits::difference_type &pos(
             groupPositions[it->splitGroup]);
 
         mergeDarts[pos] =
@@ -1981,7 +815,7 @@ void GeoMap::embedFaces(bool initLabelImage)
                 ContourPointIter cpi(anchor);
                 while(cpi.inRange())
                 {
-                    GeoMap::LabelImage::difference_type p(intVPos(*cpi++));
+                    GeoMap::LabelImage::difference_type p(detail::intVPos(*cpi++));
                     if(labelImage_->isInside(p))
                     {
                         int parentLabel = (*labelImage_)[p];

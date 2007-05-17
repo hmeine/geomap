@@ -1,7 +1,9 @@
 #include "cppmap.hxx"
+#include "exporthelpers.hxx"
 #include <vigra/pythonimage.hxx>
 #include <vigra/pythonutil.hxx>
-#include "exporthelpers.hxx"
+#include <vigra/copyimage.hxx>
+#include <iostream>
 
 /********************************************************************/
 /*                                                                  */
@@ -571,13 +573,13 @@ struct GeoMapPickleSuite : bp::pickle_suite
             pySigmaMapping.append(*it);
         }
 
-        list edgeFlags;
+        bp::list edgeFlags;
         for(GeoMap::EdgeIterator it = map.edgesBegin(); it.inRange(); ++it)
         {
             edgeFlags.append((*it)->flags());
         }
 
-        list faceFlags;
+        bp::list faceFlags;
         for(GeoMap::FaceIterator it = map.facesBegin(); it.inRange(); ++it)
         {
             faceFlags.append((*it)->flags());
@@ -604,8 +606,8 @@ struct GeoMapPickleSuite : bp::pickle_suite
         bool edgesSorted = bp::extract<bool>(state[1])();
         bool mapInitialized = bp::extract<bool>(state[2])();
         bool initLabelImage = bp::extract<bool>(state[3])();
-        bp::list edgeFlags = bp::extract<list>(state[4])();
-        bp::list faceFlags = bp::extract<list>(state[5])();
+        bp::list edgeFlags = bp::extract<bp::list>(state[4])();
+        bp::list faceFlags = bp::extract<bp::list>(state[5])();
         bp::object __dict__ = state[6];
 
         GeoMap::SigmaMapping sigmaMapping(bp::len(pySigmaMapping));
@@ -685,6 +687,10 @@ T returnCopy(const T &v)
     return v;
 }
 
+/********************************************************************/
+
+#include <vigra/crackconnections.hxx>
+
 vigra::PythonGrayImage
 pyCrackConnectionImage(vigra::PythonSingleBandImage const &labels)
 {
@@ -693,8 +699,12 @@ pyCrackConnectionImage(vigra::PythonSingleBandImage const &labels)
     return result;
 }
 
+/********************************************************************/
+
 void defMap()
 {
+    using namespace boost::python;
+ 
     CELL_RETURN_POLICY crp;
 
     {
