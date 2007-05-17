@@ -1,7 +1,6 @@
 from vigra import *
 addPathFromHere('../cellimage')
 import cellimage, hourglass
-from cellimage import CellType
 from flag_constants import BORDER_PROTECTION
 #from map import GeoMap
 from hourglass import GeoMap
@@ -141,7 +140,7 @@ def cannyEdgeMap(image, scale, thresh):
     
     edgeImage = cannyEdgeImage(image, scale, thresh)
     edgeImage = cannyEdgeImageThinning(edgeImage)
-    geomap = cellimage.GeoMap(edgeImage, 0, CellType.Line)
+    geomap = cellimage.GeoMap(edgeImage, 0, cellimage.CellType.Line)
     spmap = pixelMap2subPixelMap(
         geomap, offset = Vector2(1,1), labelImageSize = image.size())
     return spmap
@@ -156,7 +155,7 @@ def crackEdgeMap(labelImage, midCracks = True):
 
     print "- creating pixel-based GeoMap..."
     ce = regionImageToCrackEdgeImage(transformImage(labelImage, "\l x:x+1"), 0)
-    geomap = cellimage.GeoMap(ce, 0, CellType.Line)
+    geomap = cellimage.GeoMap(ce, 0, cellimage.CellType.Line)
 
     print "- converting pixel-based GeoMap..."
     result = pixelMap2subPixelMap(
@@ -192,7 +191,7 @@ def pixelWatershedMap(biImage, crackEdges = 4, midCracks = False):
     lab, count = watershedSegmentation(biImage, KeepContours)
 
     print "- creating pixel-based GeoMap..."
-    geomap = cellimage.GeoMap(lab, 0, CellType.Vertex)
+    geomap = cellimage.GeoMap(lab, 0, cellimage.CellType.Vertex)
 
     print "- converting pixel-based GeoMap..."
     return pixelMap2subPixelMap(
