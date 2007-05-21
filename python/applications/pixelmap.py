@@ -17,8 +17,8 @@ def pixelMapData(geomap, scale = 1.0, offset = Vector2(0, 0),
     For nodes, this function simply calculates their center of mass.
     All positions are shifted by the optional offset and then scaled
     with the given factor. Set skipEverySecond to True if the geomap
-    contains a crack edge map (otherwise, each real edge segment has
-    an additional mid crack point)."""
+    contains a crack edge map (otherwise, each resulting edge segment
+    will have an additional mid crack point)."""
 
     nodes = [None] * (geomap.maxNodeLabel() + 1)
     for node in geomap.nodes:
@@ -145,8 +145,8 @@ def cannyEdgeMap(image, scale, thresh):
         geomap, offset = Vector2(1,1), labelImageSize = image.size())
     return spmap
 
-def crackEdgeMap(labelImage, midCracks = True):
-    """crackEdgeMap(labelImage, midCracks = True)
+def crackEdgeMap(labelImage, midCracks = False):
+    """crackEdgeMap(labelImage, midCracks = False)
 
     Returns a subpixel-GeoMap containing crack-edge contours extracted
     from the given labelImage.  If the optional parameter 'midCracks'
