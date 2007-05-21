@@ -21,6 +21,7 @@ OBJS = \
 	statistics.lo \
 	delaunay.lo \
 	cppmap.lo \
+	cppmapmodule.lo \
 	dsl.lo \
 
 IMPEX_LIB = `vigra-config --impex_lib`
