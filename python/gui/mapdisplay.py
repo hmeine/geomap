@@ -4,8 +4,8 @@ _cvsVersion = "$Id$" \
 import fig, figexport, maputils, flag_constants, qt, sys, os, time, tools
 from vigra import BYTE, NBYTE, Point2D, Rect2D, Vector2, GrayImage
 from vigrapyqt import ImageWindow, EdgeOverlay, PointOverlay
-from hourglass import simplifyPolygon, intPos, BoundingBox
-from maputils import removeCruft
+from hourglass import simplifyPolygon, intPos, BoundingBox, contourPoly
+from maputils import removeCruft, holeComponent
 from weakref import ref
 
 # ui-generated base classes:
@@ -669,9 +669,10 @@ class MapDisplay(DisplaySettings):
         image.subImage(roi).write(filename, normalize)
 
     def saveFig(self, basepath, geometry = None, scale = None,
-                bgFilename = None):
+                bgFilename = None, faceMeans = False):
         """display.saveFig(basepath,
-                           geometry=None, scale=None, bgFilename = None)
+                           geometry=None, scale=None, bgFilename = None,
+                           faceMeans = False)
 
         Saves an XFig file as <basepath>.fig (and the pixel background
         as <basepath>_bg.png if bgFilename is not given) and returns
@@ -693,6 +694,7 @@ class MapDisplay(DisplaySettings):
         figFilename = basepath + ".fig"
         pngFilename = basepath + "_bg.png"
 
+        # determine ROI to be saved
         if geometry == None:
             geometry = Rect2D(self.image.size())
         elif type(geometry) == tuple:
@@ -700,7 +702,10 @@ class MapDisplay(DisplaySettings):
         elif type(geometry) == str:
             geometry = Rect2D(*fig.parseGeometry(geometry))
 
-        if bgFilename == None:
+        if faceMeans:
+            faceMeans = self.faceMeans
+
+        if bgFilename == None and not faceMeans:
             # create .png background
             self.savePNG(pngFilename, geometry)
             _, bgFilename = os.path.split(pngFilename)
@@ -712,10 +717,42 @@ class MapDisplay(DisplaySettings):
         roi = BoundingBox(geometry)
         fe = figexport.FigExporter(scale, roi)
         qtColor2figColor = figexport.qtColor2figColor
-        if bgFilename:
+        if bgFilename and not faceMeans:
             fe.addBackgroundWithFrame(bgFilename, depth = 100, roi = roi)
         else:
-            fe.addROIRect(depth = 100, roi = roi)
+            fe.addROIRect(depth = 100, roi = roi, lineWidth = 0)
+
+        if faceMeans:
+            def getGray(face):
+                faceColor = faceMeans[face.label()]
+                return fe.f.gray(int(faceColor))
+
+            def getRGB(face):
+                faceColor = faceMeans[face.label()]
+                return fe.f.getColor(map(int, tuple(faceColor))) # , similarity
+
+            getFaceColor = getGray
+            if faceMeans.bands() == 3:
+                getFaceColor = getRGB
+
+            todo = [faceMeans.map().face(0)]
+            currentDepth = 100
+            while todo:
+                currentDepth -= 1
+                thisLayer = todo
+                todo = []
+                for face in thisLayer:
+                    if face.area() > 0:
+                        # FIXME: addClippedPoly does not work for closed outer polygon
+                        fe.addEdge(
+                            contourPoly(face.contour()),
+                            depth = currentDepth,
+                            lineWidth = 0,
+                            fillColor = getFaceColor(face),
+                            fillStyle = fig.fillStyleSolid)
+                    for anchor in face.holeContours():
+                        todo.extend(holeComponent(anchor))
+        
         depth = 50
         for overlay in self.viewer.overlays:
             if not overlay.visible:
