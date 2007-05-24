@@ -494,11 +494,6 @@ faceHoleContours(const GeoMap::Face &face)
     return ContourRangeIterator(face.holesBegin(), face.contoursEnd());
 }
 
-unsigned int faceHoleCount(const GeoMap::Face &face)
-{
-    return face.contoursEnd() - face.holesBegin();
-}
-
 bp::object
 labelImage(const GeoMap &map)
 {
@@ -692,7 +687,7 @@ T returnCopy(const T &v)
 #include <vigra/crackconnections.hxx>
 
 vigra::PythonGrayImage
-pyCrackConnectionImage(vigra::PythonSingleBandImage const &labels)
+pyCrackConnectionImage(vigra::PythonImage const &labels)
 {
     vigra::PythonGrayImage result(labels.size() + vigra::Diff2D(1, 1));
     crackConnectionImage(srcImageRange(labels), destImage(result));
@@ -726,7 +721,7 @@ pyCrackConnectionImage(vigra::PythonSingleBandImage const &labels)
 void defMap()
 {
     using namespace boost::python;
- 
+
     CELL_RETURN_POLICY crp;
 
     {
@@ -1069,7 +1064,7 @@ void defMap()
                  arg("index") = 0)
             .def("contours", &faceContours)
             .def("holeContours", &faceHoleContours)
-            .def("holeCount", &faceHoleCount)
+            .def("holeCount", &GeoMap::Face::holeCount)
             .def("flags", &GeoMap::Face::flags)
             .def("flag", &GeoMap::Face::flag, arg("which"))
             .def("setFlag", &GeoMap::Face::setFlag,

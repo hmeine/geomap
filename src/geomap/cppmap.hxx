@@ -1055,6 +1055,11 @@ class GeoMap::Face : boost::noncopyable
         return result;
     }
 
+    unsigned int holeCount() const
+    {
+        return contoursEnd() - holesBegin();
+    }
+
     void embedContour(const Dart &anchor);
 
     bool operator==(const GeoMap::Face &other)

@@ -996,7 +996,8 @@ bool GeoMap::checkConsistency()
             return result; // function may not terminate in this state
     }
 
-    unsigned int actualNodeCount = 0, actualEdgeCount = 0, actualFaceCount = 0;
+    unsigned int actualNodeCount = 0, actualEdgeCount = 0, actualFaceCount = 0,
+               isolatedNodeCount = 0, connectedComponents = 0;
 
     for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
     {
@@ -1010,7 +1011,10 @@ bool GeoMap::checkConsistency()
         }
 
         if((*it)->isIsolated())
+        {
+            ++isolatedNodeCount;
             continue;
+        }
 
         Dart anchor((*it)->anchor()), dart(anchor);
         do
@@ -1130,6 +1134,7 @@ bool GeoMap::checkConsistency()
     for(FaceIterator it = facesBegin(); it.inRange(); ++it)
     {
         ++actualFaceCount;
+        connectedComponents += (*it)->holeCount();
 
         GeoMap::Face &face(**it);
         if(face.map() != this)
@@ -1201,6 +1206,16 @@ bool GeoMap::checkConsistency()
         std::cerr << "  Face count wrong (" << faceCount()
                   << ", should be " << actualFaceCount << ")!\n";
             result = false;
+    }
+
+    if(actualNodeCount - actualEdgeCount + actualFaceCount
+       - (connectedComponents + isolatedNodeCount) != 1)
+    {
+        std::cerr << "  Euler-Poincare invariant violated! (N - E + F - C = "
+                  << (actualNodeCount - actualEdgeCount + actualFaceCount
+                      - (connectedComponents + isolatedNodeCount))
+                  << ", map cannot be planar)\n";
+        result = false;
     }
 
     return result;
@@ -1676,10 +1691,12 @@ CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(GeoMap::Dart &dart)
     detachDart(-removedDart.label());
 
     // remove singular nodes
-    if(node1.isIsolated() && node2.label() != node1.label())
+    if(node1.isIsolated())
+    {
+        vigra_assert(node2.label() == node1.label(),
+                     "mergeEdges can only create isolated nodes from self-loops");
         removeIsolatedNode(node1);
-    if(node2.isIsolated())
-        removeIsolatedNode(node2);
+    }
 
     if(survivor.flag(GeoMap::Face::AREA_VALID))
         survivor.area_ += mergedFace.area();
