@@ -321,7 +321,6 @@ class GeoMap::Node : boost::noncopyable
 
     inline void uninitialize();
 
-  public:
     Node(GeoMap *map, const vigra::Vector2 &position)
     : map_(map),
       label_(map->nodes_.size()),
@@ -333,12 +332,12 @@ class GeoMap::Node : boost::noncopyable
         map_->nodeMap_.insert(PositionedNodeLabel(position_, label_));
     }
 
+  public:
     bool initialized() const
     {
         return map_ != NULL;
     }
 
-  public:
     CellLabel label() const
     {
         return label_;
@@ -409,7 +408,6 @@ class GeoMap::Edge
 
     inline void uninitialize();
 
-  public:
     template<class POINTS>
     Edge(GeoMap *map, CellLabel startNodeLabel, CellLabel endNodeLabel,
          const POINTS &p)
@@ -427,12 +425,12 @@ class GeoMap::Edge
         ++map_->edgeCount_;
     }
 
+  public:
     bool initialized() const
     {
         return map_ != NULL;
     }
 
-  public:
     CellLabel label() const
     {
         return label_;
@@ -932,7 +930,6 @@ class GeoMap::Face : boost::noncopyable
     inline void uninitialize();
     unsigned int findComponentAnchor(const GeoMap::Dart &dart);
 
-  public:
     Face(GeoMap *map, Dart anchor)
     : map_(map),
       label_(map->faces_.size()),
@@ -957,12 +954,12 @@ class GeoMap::Face : boost::noncopyable
         }
     }
 
+  public:
     bool initialized() const
     {
         return map_ != NULL;
     }
 
-  public:
     CellLabel label() const
     {
         return label_;

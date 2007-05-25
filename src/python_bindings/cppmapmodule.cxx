@@ -959,7 +959,7 @@ void defMap()
             "Represents a node of the GeoMap.  You can get an `anchor`\n"
             "Dart that is attached to the Node (if not `isIsolated()`), and\n"
             "you can query its `position()` and `degree()`.",
-            init<GeoMap *, const vigra::Vector2 &>())
+            no_init)
             .def("initialized", &GeoMap::Node::initialized)
             .def("label", &GeoMap::Node::label,
                  "label() -> int\n\n"
@@ -995,7 +995,6 @@ void defMap()
             "which flags are already used by some applications/framework\n"
             "parts.",
             no_init)
-            .def(init<GeoMap *, CellLabel, CellLabel, GeoMap::Edge::Base>())
             .def("initialized", &GeoMap::Edge::initialized)
             .def("label", &GeoMap::Edge::label,
                  "label() -> int\n\n"
@@ -1036,7 +1035,7 @@ void defMap()
             "There is a module ``flag_constants`` that is used to note\n"
             "which flags are already used by some applications/framework\n"
             "parts.",
-            init<GeoMap *, GeoMap::Dart>())
+            no_init)
             .def("initialized", &GeoMap::Face::initialized)
             .def("label", &GeoMap::Face::label,
                  "label() -> int\n\n"
