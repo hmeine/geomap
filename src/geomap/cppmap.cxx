@@ -1656,7 +1656,7 @@ CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(GeoMap::Dart &dart)
     {
         GeoMap::Dart d(mergedFace.anchors_[i]);
         while(d.nextPhi().leftFaceLabel() != survivor.label())
-            d.setLeftFaceLabel(survivor.label());
+            d.internalLeftFaceLabel() = survivor.label();
     }
 
     // re-use an old anchor for the merged contour
@@ -1790,7 +1790,7 @@ void GeoMap::Face::embedContour(const Dart &anchor)
 
     Dart dart(anchor);
     for(; dart.leftFaceLabel() != label_; dart.nextPhi())
-        dart.setLeftFaceLabel(label_);
+        dart.internalLeftFaceLabel() = label_;
 
     // don't try to do this on the fly (special bridge handling needed):
     if(flag(AREA_VALID))

@@ -629,15 +629,15 @@ class GeoMap::Dart
     GeoMap *map_;
     int     label_;
 
-    void setLeftFaceLabel(CellLabel label)
+    CellLabel &internalLeftFaceLabel()
     {
         if(label_ > 0)
-            guaranteedEdge()->leftFaceLabel_ = label;
+            return guaranteedEdge()->leftFaceLabel_;
         else
-            guaranteedEdge()->rightFaceLabel_ = label;
+            return guaranteedEdge()->rightFaceLabel_;
     }
 
-    friend class Face; // allow setLeftFaceLabel in Face constructor
+    friend class Face; // allow internalLeftFaceLabel in Face constructor
     friend CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(Dart &);
 
   public:
@@ -946,12 +946,13 @@ class GeoMap::Face : boost::noncopyable
         {
             anchors_.push_back(anchor);
 
-            for(; anchor.leftFaceLabel() == UNINITIALIZED_CELL_LABEL;
+            for(; anchor.internalLeftFaceLabel() == UNINITIALIZED_CELL_LABEL;
                 anchor.nextPhi())
             {
+                anchor.internalLeftFaceLabel() = label_;
+
                 // don't calculate area on-the-fly here; we want to
                 // exclude bridges from the area!
-                anchor.setLeftFaceLabel(label_);
             }
         }
     }
