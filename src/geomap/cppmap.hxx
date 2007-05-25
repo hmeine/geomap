@@ -898,6 +898,7 @@ class ContourPointIter
 };
 
 double contourArea(const GeoMap::Dart &dart);
+double contourLength(const GeoMap::Dart &dart);
 Polygon contourPoly(const GeoMap::Dart &dart);
 
 /********************************************************************/

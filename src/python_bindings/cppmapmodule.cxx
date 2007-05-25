@@ -1278,6 +1278,11 @@ void defMap()
         "Returns the area of contourPoly(anchor) (is however much faster than\n"
         "using that function, since it simply sums up all partialArea()s of the\n"
         "darts in the phi orbit.");
+    def("contourLength", &contourLength,
+        "contourLength(anchor) -> float\n\n"
+        "Returns the length of contourPoly(anchor) (is however much faster than\n"
+        "using that function, since it simply sums up all length()s of the\n"
+        "darts in the phi orbit.");
     def("contourPoly", &contourPoly,
         "contourPoly(anchor) -> Polygon\n\n"
         "Returns a Polygon composed by traversing anchor's phi orbit once.");

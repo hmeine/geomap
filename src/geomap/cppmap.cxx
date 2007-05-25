@@ -40,6 +40,18 @@ double contourArea(const GeoMap::Dart &dart)
     return result;
 }
 
+double contourLength(const GeoMap::Dart &dart)
+{
+    double result = 0.0;
+    GeoMap::Dart d(dart);
+    do
+    {
+        result += d.edge()->length();
+    }
+    while(d.nextPhi() != dart);
+    return result;
+}
+
 Polygon contourPoly(const GeoMap::Dart &dart)
 {
     Polygon result;
