@@ -997,7 +997,7 @@ bool GeoMap::checkConsistency()
     }
 
     unsigned int actualNodeCount = 0, actualEdgeCount = 0, actualFaceCount = 0,
-               isolatedNodeCount = 0, connectedComponents = 0;
+        connectedComponentsCount = 0, contourCount = 0;
 
     for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
     {
@@ -1012,7 +1012,7 @@ bool GeoMap::checkConsistency()
 
         if((*it)->isIsolated())
         {
-            ++isolatedNodeCount;
+            ++connectedComponentsCount;
             continue;
         }
 
@@ -1134,7 +1134,8 @@ bool GeoMap::checkConsistency()
     for(FaceIterator it = facesBegin(); it.inRange(); ++it)
     {
         ++actualFaceCount;
-        connectedComponents += (*it)->holeCount();
+        connectedComponentsCount += (*it)->holeCount();
+        contourCount += ((*it)->contoursEnd() - (*it)->contoursBegin());
 
         GeoMap::Face &face(**it);
         if(face.map() != this)
@@ -1209,12 +1210,26 @@ bool GeoMap::checkConsistency()
     }
 
     if(actualNodeCount - actualEdgeCount + actualFaceCount
-       - (connectedComponents + isolatedNodeCount) != 1)
+       != connectedComponentsCount + 1)
     {
         std::cerr << "  Euler-Poincare invariant violated! (N - E + F - C = "
+                  << actualNodeCount << " - " << actualEdgeCount << " + "
+                  << actualFaceCount << " - " << connectedComponentsCount << " = "
                   << (actualNodeCount - actualEdgeCount + actualFaceCount
-                      - (connectedComponents + isolatedNodeCount))
-                  << ", map cannot be planar)\n";
+                      - connectedComponentsCount)
+                  << " != 1, map cannot be planar)\n";
+        result = false;
+    }
+
+    if(actualNodeCount - actualEdgeCount + contourCount
+       != 2*connectedComponentsCount)
+    {
+        std::cerr << "  Euler-Poincare invariant violated! (N - E + B - 2*C = "
+                  << actualNodeCount << " - " << actualEdgeCount << " + "
+                  << contourCount << " - 2*" << connectedComponentsCount << " = "
+                  << (actualNodeCount - actualEdgeCount + contourCount
+                      - 2*connectedComponentsCount)
+                  << " != 0, map cannot be planar)\n";
         result = false;
     }
 
