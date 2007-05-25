@@ -1619,10 +1619,12 @@ CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(GeoMap::Dart &dart)
     vigra_precondition(survivor.label() != mergedFace.label(),
                        "mergeFaces(): dart belongs to a bridge!");
 
+    // COMPLEXITY: depends on number of contours in F1 + F2
     unsigned int contour1 = survivor.findComponentAnchor(removedDart);
     unsigned int contour2 = mergedFace.findComponentAnchor(
         GeoMap::Dart(removedDart).nextAlpha());
 
+    // COMPLEXITY: depends on callbacks (preMergeFacesHook)
     if(!preMergeFacesHook(dart))
         return NULL_PTR(GeoMap::Face);
 
@@ -1634,6 +1636,7 @@ CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(GeoMap::Dart &dart)
         mergedBBox = mergedFace.boundingBox();
 
     // relabel contour's leftFaceLabel
+    // COMPLEXITY: depends on number of darts in mergedFace's contours
     for(unsigned int i = 0; i < mergedFace.anchors_.size(); ++i)
     {
         GeoMap::Dart d(mergedFace.anchors_[i]);
@@ -1663,6 +1666,7 @@ CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(GeoMap::Dart &dart)
     }
 
     // copy all remaining anchors into survivor's list:
+    // COMPLEXITY: depends on number of contours in mergedFace
     for(unsigned int i = 0; i < mergedFace.anchors_.size(); ++i)
     {
         if(i != contour2)
@@ -1670,6 +1674,7 @@ CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(GeoMap::Dart &dart)
     }
 
     // relabel region in image
+    // COMPLEXITY: depends on maxFaceLabel and number of pixel faces crossed by mergedEdge
     PixelList associatedPixels;
     if(labelImage_)
     {
@@ -1708,8 +1713,10 @@ CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(GeoMap::Dart &dart)
     mergedEdge.uninitialize();
     mergedFace.uninitialize();
 
+    // COMPLEXITY: depends on callbacks (postMergeFacesHook)
     postMergeFacesHook(survivor);
 
+    // COMPLEXITY: depends on callbacks (associatePixelsHook)
     if(associatedPixels.size())
         associatePixels(survivor, associatedPixels);
 
