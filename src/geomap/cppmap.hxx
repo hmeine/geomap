@@ -470,7 +470,7 @@ class GeoMap::Edge
     GeoMap::Faces::value_type leftFace() const
     {
         vigra_precondition(initialized(), "leftFace() of uninitialized edge!");
-        return map_->face(leftFaceLabel_);
+        return map_->face(leftFaceLabel());
     }
 
     CellLabel rightFaceLabel() const
@@ -481,12 +481,12 @@ class GeoMap::Edge
     GeoMap::Faces::value_type rightFace() const
     {
         vigra_precondition(initialized(), "rightFace() of uninitialized edge!");
-        return map_->face(rightFaceLabel_);
+        return map_->face(rightFaceLabel());
     }
 
     bool isBridge() const
     {
-        return leftFaceLabel_ == rightFaceLabel_;
+        return leftFaceLabel() == rightFaceLabel();
     }
 
     bool isLoop() const
