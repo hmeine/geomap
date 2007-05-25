@@ -703,9 +703,9 @@ void GeoMap::initContours()
 
     for(EdgeIterator it = edgesBegin(); it.inRange(); ++it)
     {
-        if((*it)->leftFaceLabel() == UNINITIALIZED_CELL_LABEL)
+        if((*it)->leftFaceLabel_ == UNINITIALIZED_CELL_LABEL)
             new Face(this, dart( (int)(*it)->label()));
-        if((*it)->rightFaceLabel() == UNINITIALIZED_CELL_LABEL)
+        if((*it)->rightFaceLabel_ == UNINITIALIZED_CELL_LABEL)
             new Face(this, dart(-(int)(*it)->label()));
     }
 }
