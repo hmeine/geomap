@@ -77,6 +77,41 @@ class FaceColorStatistics : boost::noncopyable
         return functors_[faceLabel]->variance(unbiased);
     }
 
+    bool preMergeFaces(const GeoMap::Dart &dart)
+    {
+//         ssLeft = self._superSampled[dart.leftFaceLabel()]
+//         ssRight = self._superSampled[dart.rightFaceLabel()]
+//         self.ssMerged = 0 # hopefully, the merged face has no supersampling
+//         if ssLeft and (ssLeft == ssRight):
+//             self.ssMerged = ssLeft
+//             ssLeft, ssRight = 0, 0 # can be merged
+//         if ssLeft and ssRight:
+//             if ssLeft < ssRight:
+//                 self.ssMerged = ssLeft
+//                 ssLeft = 0 # take stats from face with less supersampling
+//             else:
+//                 self.ssMerged = ssRight
+//                 ssRight = 0
+        merged_ = *functors_[dart.leftFaceLabel()];
+        merged_(*functors_[dart.rightFaceLabel()]);
+        return true;
+    }
+
+    void postMergeFaces(GeoMap::Face &face)
+    {
+        *functors_[face.label()] = merged_;
+    }
+
+    void associatePixels(GeoMap::Face &face, const PixelList &pixels)
+    {
+        Functor &f(*functors_[face.label()]);
+        for(PixelList::const_iterator it = pixels.begin();
+            it != pixels.end(); ++it)
+        {
+            f(originalImage_[*it]);
+        }
+    }
+
     double faceMeanDiff(const GeoMap::Dart &dart)
     {
         return vigra::norm(average(dart.leftFaceLabel()) -
@@ -100,8 +135,10 @@ class FaceColorStatistics : boost::noncopyable
 
   protected:
     GeoMap &map_;
+    std::vector<sigc::connection> connections_;
     const OriginalImage &originalImage_;
     std::vector<Functor *> functors_;
+    Functor merged_;
     double maxDiffNorm_;
 };
 
@@ -124,6 +161,16 @@ FaceColorStatistics<OriginalImage>::FaceColorStatistics(
                      iff);
 
     // FIXME: ensure minSampleCount
+
+    connections_.push_back(
+        map.preMergeFacesHook.connect(
+            sigc::mem_fun(this, &FaceColorStatistics::preMergeFaces)));
+    connections_.push_back(
+        map.postMergeFacesHook.connect(
+            sigc::mem_fun(this, &FaceColorStatistics::postMergeFaces)));
+    connections_.push_back(
+        map.associatePixelsHook.connect(
+            sigc::mem_fun(this, &FaceColorStatistics::associatePixels)));
 }
 
 template<class OriginalImage>
