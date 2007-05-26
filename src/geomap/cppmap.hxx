@@ -76,7 +76,7 @@ class PlannedSplits;
 /*                                                                  */
 /********************************************************************/
 
-class GeoMap
+class GeoMap : boost::noncopyable
 {
   public:
     class Node;
@@ -246,6 +246,14 @@ class GeoMap
     LabelImageAccessor labelAccessor() const
     {
         return LabelImageAccessor(faceLabelLUT_);
+    }
+
+    vigra::triple<LabelImageIterator, LabelImageIterator, LabelImageAccessor>
+    srcLabelRange() const
+    {
+        return srcIterRange(labelsUpperLeft(),
+                            labelsLowerRight(),
+                            labelAccessor());
     }
 
   protected:
@@ -899,6 +907,7 @@ class ContourPointIter
 
 double contourArea(const GeoMap::Dart &dart);
 double contourLength(const GeoMap::Dart &dart);
+double isoperimeter(const GeoMap::Dart &dart);
 Polygon contourPoly(const GeoMap::Dart &dart);
 
 /********************************************************************/

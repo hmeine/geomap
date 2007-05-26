@@ -52,6 +52,22 @@ double contourLength(const GeoMap::Dart &dart)
     return result;
 }
 
+double isoperimeter(const GeoMap::Dart &dart)
+{
+    double area = 0.0, length = 0.0;
+
+    GeoMap::Dart d(dart);
+    do
+    {
+        if(!d.edge()->isBridge())
+            area += d.partialArea();
+        length += d.edge()->length();
+    }
+    while(d.nextPhi() != dart);
+
+    return vigra::squaredNorm(length)/(4*M_PI*area);
+}
+
 Polygon contourPoly(const GeoMap::Dart &dart)
 {
     Polygon result;
@@ -1009,7 +1025,7 @@ bool GeoMap::checkConsistency()
     }
 
     unsigned int actualNodeCount = 0, actualEdgeCount = 0, actualFaceCount = 0,
-        connectedComponentsCount = 0, contourCount = 0;
+        connectedComponentsCount = 0, isolatedNodesCount = 0, contourCount = 0;
 
     for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
     {
@@ -1024,7 +1040,7 @@ bool GeoMap::checkConsistency()
 
         if((*it)->isIsolated())
         {
-            ++connectedComponentsCount;
+            ++isolatedNodesCount;
             continue;
         }
 
@@ -1222,25 +1238,25 @@ bool GeoMap::checkConsistency()
     }
 
     if(actualNodeCount - actualEdgeCount + actualFaceCount
-       != connectedComponentsCount + 1)
+       != (connectedComponentsCount + isolatedNodesCount) + 1)
     {
         std::cerr << "  Euler-Poincare invariant violated! (N - E + F - C = "
                   << actualNodeCount << " - " << actualEdgeCount << " + "
                   << actualFaceCount << " - " << connectedComponentsCount << " = "
-                  << (actualNodeCount - actualEdgeCount + actualFaceCount
-                      - connectedComponentsCount)
+                  << (int)(actualNodeCount - actualEdgeCount + actualFaceCount
+                           - connectedComponentsCount)
                   << " != 1, map cannot be planar)\n";
         result = false;
     }
 
     if(actualNodeCount - actualEdgeCount + contourCount
-       != 2*connectedComponentsCount)
+       != 2*connectedComponentsCount + isolatedNodesCount)
     {
         std::cerr << "  Euler-Poincare invariant violated! (N - E + B - 2*C = "
                   << actualNodeCount << " - " << actualEdgeCount << " + "
                   << contourCount << " - 2*" << connectedComponentsCount << " = "
-                  << (actualNodeCount - actualEdgeCount + contourCount
-                      - 2*connectedComponentsCount)
+                  << (int)(actualNodeCount - actualEdgeCount + contourCount
+                           - 2*connectedComponentsCount)
                   << " != 0, map cannot be planar)\n";
         result = false;
     }
@@ -1572,6 +1588,7 @@ CELL_PTR(GeoMap::Face) GeoMap::removeBridge(GeoMap::Dart &dart)
     vigra_precondition(node1.label() != node2.label(),
                        "Inconsistent map: bridge to be removed is also a self-loop!?");
 
+    // COMPLEXITY: depends on callbacks (preRemoveBridgeHook)
     if(!preRemoveBridgeHook(dart))
         return NULL_PTR(GeoMap::Face);
 
@@ -1580,12 +1597,14 @@ CELL_PTR(GeoMap::Face) GeoMap::removeBridge(GeoMap::Dart &dart)
     Dart newAnchor1(dart), newAnchor2(dart);
     newAnchor1.prevSigma();
     newAnchor2.nextAlpha().prevSigma();
+    // COMPLEXITY: depends on number of contours in face
     unsigned int contourIndex = face.findComponentAnchor(dart);
 
     // remove both darts from both sigma orbits:
     detachDart( dart.label());
     detachDart(-dart.label());
 
+    // COMPLEXITY: depends on number of darts in contours
     if(contourIndex == 0)
     {
         // determine outer anchor, swap if necessary:
@@ -1598,12 +1617,14 @@ CELL_PTR(GeoMap::Face) GeoMap::removeBridge(GeoMap::Dart &dart)
     face.anchors_[contourIndex] = newAnchor1;
     face.anchors_.push_back(newAnchor2);
 
+    // COMPLEXITY: depends on number of pixel facets crossed by the bridge
     PixelList associatedPixels;
     if(labelImage_)
         removeEdgeFromLabelImage(
             edge.scanLines(), *labelImage_, face.label(), associatedPixels);
 
     // remove singular nodes
+    // COMPLEXITY: depends on face anchors.erase, may be O(contour count)
     if(newAnchor1.edgeLabel() == dart.edgeLabel())
     {
         removeIsolatedNode(*newAnchor1.startNode());
@@ -1617,8 +1638,10 @@ CELL_PTR(GeoMap::Face) GeoMap::removeBridge(GeoMap::Dart &dart)
 
     edge.uninitialize();
 
+    // COMPLEXITY: depends on callbacks (postRemoveBridgeHook)
     postRemoveBridgeHook(face);
 
+    // COMPLEXITY: depends on callbacks (associatePixelsHook)
     if(associatedPixels.size())
         associatePixels(face, associatedPixels);
 
@@ -1701,7 +1724,7 @@ CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(GeoMap::Dart &dart)
     }
 
     // relabel region in image
-    // COMPLEXITY: depends on maxFaceLabel and number of pixel faces crossed by mergedEdge
+    // COMPLEXITY: depends on maxFaceLabel and number of pixel facets crossed by mergedEdge
     PixelList associatedPixels;
     if(labelImage_)
     {
@@ -1811,27 +1834,3 @@ void GeoMap::Face::embedContour(const Dart &anchor)
     vigra_postcondition(dart == anchor,
                         "contour labeled partially?!");
 }
-
-/********************************************************************/
-
-// template<class OriginalImage>
-// class FaceColorStatistics
-// {
-//     template<int SplineOrder>
-//     FaceColorStatistics(GeoMap &map, const OriginalImage &originalImage,
-//                         int minSampleCount = 1);
-
-//     GeoMap &map_;
-//     const OriginalImage &originalImage_;
-// };
-
-// template<class OriginalImage>
-// template<int SplineOrder>
-// FaceColorStatistics<OriginalImage>::FaceColorStatistics(
-//     GeoMap &map, const OriginalImage &originalImage,
-//     int minSampleCount)
-// : map_(map),
-//   originalImage_(originalImage)
-// {
-
-// }

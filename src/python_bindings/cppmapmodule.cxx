@@ -1,4 +1,5 @@
 #include "cppmap.hxx"
+#include "facestatistics.hxx"
 #include "exporthelpers.hxx"
 #include <vigra/pythonimage.hxx>
 #include <vigra/pythonutil.hxx>
@@ -500,9 +501,7 @@ labelImage(const GeoMap &map)
     if(!map.hasLabelImage())
         return bp::object();
     vigra::PythonGrayImage result(map.imageSize());
-    copyImage(srcIterRange(map.labelsUpperLeft(), map.labelsLowerRight(),
-                           map.labelAccessor()),
-              destImage(result));
+    copyImage(map.srcLabelRange(), destImage(result));
     return bp::object(result);
 }
 
@@ -715,6 +714,58 @@ pyCrackConnectionImage(vigra::PythonImage const &labels)
 
     return result;
 }
+
+/********************************************************************/
+
+template<class T>
+struct DiffNormTraits {};
+
+template<class OriginalImage>
+class FaceColorStatisticsWrapper
+: bp::class_<FaceColorStatistics<OriginalImage>, boost::noncopyable>
+{
+  public:
+    typedef FaceColorStatistics<OriginalImage> Statistics;
+
+    FaceColorStatisticsWrapper(const char *name)
+    : bp::class_<Statistics, boost::noncopyable>(name, bp::no_init)
+    {
+        def("__init__", make_constructor(
+                &create,
+                // FaceColorStatistics store a ref. to originalImage,
+                // actually also to the map, but we need to prevent
+                // cyclic dependencies:
+                bp::default_call_policies(), // FIXME!!
+                // bp::with_custodian_and_ward_postcall<0, 2>(),
+                (bp::arg("map"), bp::arg("originalImage"),
+                 bp::arg("minSampleCount") = 1)));
+
+        def("pixelCount", &Statistics::pixelCount);
+        def("average", &Statistics::average);
+        def("variance", &Statistics::variance);
+        
+        def("faceMeanDiff", &Statistics::faceMeanDiff);
+
+        def("regionImage", &regionImage);
+    }
+
+    static Statistics *create(
+        GeoMap &map, OriginalImage const &originalImage, int minSampleCount)
+    {
+        double maxDiffNorm = 255.*sqrt(originalImage.bands());
+        return new Statistics(map, originalImage,
+                              maxDiffNorm, minSampleCount);
+    }
+
+    static OriginalImage regionImage(const Statistics &stats)
+    {
+        OriginalImage result(stats.map()->imageSize());
+
+        stats.copyRegionImage(destImage(result));
+
+        return result;
+    }
+};
 
 /********************************************************************/
 
@@ -1283,6 +1334,10 @@ void defMap()
         "Returns the length of contourPoly(anchor) (is however much faster than\n"
         "using that function, since it simply sums up all length()s of the\n"
         "darts in the phi orbit.");
+    def("isoperimeter", &isoperimeter,
+        "isoperimeter(anchor) -> length\n\n"
+        "Returns a the isoperimetric ratio for contourPoly(anchor).\n"
+        "This is defined by sq(contourLength(anchor))/(4*pi*contourArea(anchor)).");
     def("contourPoly", &contourPoly,
         "contourPoly(anchor) -> Polygon\n\n"
         "Returns a Polygon composed by traversing anchor's phi orbit once.");
@@ -1317,4 +1372,7 @@ void defMap()
         "crackConnectionImage(labelImage)\n\n"
         "Tranform a region image into an image with crack connections marked.\n"
         "(Bit 1: connected to the right, bit 2: connected downwards)");
+
+    FaceColorStatisticsWrapper<vigra::PythonGrayImage>("FaceGrayStatistics");
+    FaceColorStatisticsWrapper<vigra::PythonVector3Image>("FaceRGBStatistics");
 }

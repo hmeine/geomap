@@ -16,6 +16,7 @@ TARGET = hourglassmodule.la
 MODULE = $(patsubst %.la,%.so,$(TARGET))
 
 OBJS = \
+	shapecontext.lo \
     hourglassmodule.lo \
 	polygon.lo \
 	statistics.lo \
