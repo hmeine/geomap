@@ -128,6 +128,23 @@ class FaceColorStatistics : boost::noncopyable
         copyRegionImage(d.first, d.second);
     }
 
+    template<class SRC_ITERATOR, class SRC_ACCESSOR,
+             class DEST_ITERATOR, class DEST_ACCESSOR>
+    void transformRegionImage(
+        SRC_ITERATOR sul, SRC_ITERATOR slr, SRC_ACCESSOR sa,
+        DEST_ITERATOR dul, DEST_ACCESSOR da) const;
+
+    template<class SRC_ITERATOR, class SRC_ACCESSOR,
+             class DEST_ITERATOR, class DEST_ACCESSOR>
+    void transformRegionImage(
+        vigra::triple<SRC_ITERATOR, SRC_ITERATOR, SRC_ACCESSOR> s,
+        std::pair<DEST_ITERATOR, DEST_ACCESSOR> d) const
+    {
+        transformRegionImage(
+            s.first, s.second, s.third,
+            d.first, d.second);
+    }
+
     const GeoMap *map() const
     {
         return &map_;
@@ -185,7 +202,18 @@ template<class DEST_ITERATOR, class DEST_ACCESSOR>
 void FaceColorStatistics<OriginalImage>::copyRegionImage(
     DEST_ITERATOR dul, DEST_ACCESSOR da) const
 {
-    transformImage(map_.srcLabelRange(), destIter(dul, da),
+    transformRegionImage(
+        map_.srcLabelRange(), destIter(dul, da));
+}
+
+template<class OriginalImage>
+template<class SRC_ITERATOR, class SRC_ACCESSOR,
+         class DEST_ITERATOR, class DEST_ACCESSOR>
+void FaceColorStatistics<OriginalImage>::transformRegionImage(
+    SRC_ITERATOR sul, SRC_ITERATOR slr, SRC_ACCESSOR sa,
+    DEST_ITERATOR dul, DEST_ACCESSOR da) const
+{
+    transformImage(sul, slr, sa, dul, da,
                    detail::LookupFaceAverage<Functor>(functors_));
 }
 

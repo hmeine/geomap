@@ -747,6 +747,7 @@ class FaceColorStatisticsWrapper
         def("faceMeanDiff", &Statistics::faceMeanDiff);
 
         def("regionImage", &regionImage);
+        def("regionImage", &convertToRegionMeans);
     }
 
     static Statistics *create(
@@ -762,6 +763,16 @@ class FaceColorStatisticsWrapper
         OriginalImage result(stats.map()->imageSize());
 
         stats.copyRegionImage(destImage(result));
+
+        return result;
+    }
+
+    static OriginalImage convertToRegionMeans(
+        const Statistics &stats, vigra::PythonSingleBandImage labels)
+    {
+        OriginalImage result(labels.size());
+
+        stats.transformRegionImage(srcImageRange(labels), destImage(result));
 
         return result;
     }
