@@ -748,6 +748,8 @@ class FaceColorStatisticsWrapper
 
         def("regionImage", &regionImage);
         def("regionImage", &convertToRegionMeans);
+
+        def("detachHooks", &Statistics::detachHooks);
     }
 
     static Statistics *create(

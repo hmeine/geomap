@@ -150,6 +150,14 @@ class FaceColorStatistics : boost::noncopyable
         return &map_;
     }
 
+    void detachHooks()
+    {
+        for(unsigned int i = 0; i < connections_.size(); ++i)
+            if(connections_[i].connected())
+                connections_[i].disconnect();
+        connections_.clear();
+    }
+
   protected:
     GeoMap &map_;
     std::vector<sigc::connection> connections_;
