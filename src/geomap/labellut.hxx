@@ -14,7 +14,8 @@ class LabelLUT
     {}
 
     LabelLUT(unsigned int size)
-    : labelLUT_(size)
+    : labelLUT_(size),
+      prevMerged_(size)
     {
         initIdentity(size);
     }
@@ -22,13 +23,18 @@ class LabelLUT
     void initIdentity(unsigned int size)
     {
         labelLUT_.resize(size);
+        prevMerged_.resize(size);
         for(unsigned int i = 0; i < size; ++i)
+        {
             labelLUT_[i] = i;
+            prevMerged_[i] = i;
+        }
     }
 
     void appendOne()
     {
         labelLUT_.push_back(labelLUT_.size());
+        prevMerged_.push_back(prevMerged_.size());
     }
 
     LabelType operator[](size_type index) const
@@ -43,16 +49,33 @@ class LabelLUT
 
     void relabel(LabelType from, LabelType to)
     {
-        for(unsigned int i = 0; i < labelLUT_.size(); ++i)
+        LabelType prev, toEnd;
+
+        for(toEnd = to; true; toEnd = prev)
         {
-            if(labelLUT_[i] == from)
-                labelLUT_[i] = to;
+            // find end of "to" list (for later concatenation)
+            prev = prevMerged_[toEnd];
+            if(prev == toEnd)
+                break;
         }
+
+        for(LabelType fromIt = from; true; fromIt = prev)
+        {
+            // relabel elements in "from" list:
+            labelLUT_[fromIt] = to;
+
+            prev = prevMerged_[fromIt];
+            if(prev == fromIt)
+                break;
+        }
+
+        // concatenate lists:
+        prevMerged_[toEnd] = from;
     }
 
   protected:
-    std::vector<LabelType> labelLUT_;
-
+    LUTType labelLUT_;
+    LUTType prevMerged_;
 };
 
 #endif // LABELLUT_HXX
