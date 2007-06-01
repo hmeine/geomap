@@ -252,6 +252,8 @@ class GeoMap : boost::noncopyable
     vigra::triple<LabelImageIterator, LabelImageIterator, LabelImageAccessor>
     srcLabelRange() const
     {
+        vigra_precondition(
+            hasLabelImage(), "trying to access labelImage of GeoMap w/o label image!");
         return srcIterRange(labelsUpperLeft(),
                             labelsLowerRight(),
                             labelAccessor());
@@ -305,10 +307,6 @@ class GeoMap : boost::noncopyable
         postMergeFacesHook;
     sigc::signal<void, Face &, const PixelList &>
         associatePixelsHook;
-
-  private:
-    GeoMap(const GeoMap &) {} // disallow copying
-    GeoMap &operator=(const GeoMap &) { return *this; }
 };
 
 /********************************************************************/
@@ -382,10 +380,6 @@ class GeoMap::Node : boost::noncopyable
     {
         return map_;
     }
-
-  private:
-    Node(const Node &) {} // disallow copying
-    Node &operator=(const Node &) { return *this; }
 };
 
 /********************************************************************/
@@ -540,10 +534,6 @@ class GeoMap::Edge
             scanLines_ = scanPoly(*this);
         return *scanLines_;
     }
-
-  private:
-    Edge(const Edge &) : vigra::BBoxPolygon<vigra::Vector2>() {} // disallow copying
-    Edge &operator=(const Edge &) { return *this; }
 };
 
 class DartPointIter
@@ -1003,8 +993,8 @@ class GeoMap::Face : boost::noncopyable
             if(map_->labelImage_->isInside(iPos))
             {
                 int l = (*map_->labelImage_)[iPos];
-                if(l > 0 && (map_->faceLabelLUT_[l] == label_))
-                    return true;
+                if(l > 0)
+                    return map_->faceLabelLUT_[l] == label_;
             }
         }
         unsigned int i = 0;
@@ -1103,10 +1093,6 @@ class GeoMap::Face : boost::noncopyable
     {
         return map_;
     }
-
-  private:
-    Face(const Face &) {} // disallow copying
-    Face &operator=(const Face &) { return *this; }
 };
 
 /********************************************************************/
