@@ -2,7 +2,7 @@ from vigra import Vector2, Size2D, labelImage4
 from hourglass import Polygon
 import maputils
 
-from hourglass import GeoMap
+from hourglass import GeoMap, contourPoly
 #from map import GeoMap
 execfile("testSPWS")
 
@@ -16,6 +16,7 @@ execfile("testSPWS")
 # worked with that Map.
 map = GeoMap(maxima2, [], Size2D(39, 39))
 maputils.addFlowLinesToMap(flowlines2, map)
+assert map.checkConsistency(), "graph inconsistent"
 map.sortEdgesEventually(stepDist = 0.2, minDist = 0.05)
 map.splitParallelEdges()
 map.initializeMap()
@@ -24,6 +25,9 @@ assert maputils.checkLabelConsistency(map), "map.labelImage() inconsistent"
 
 # merge faces so that survivor has a hole:
 hole = map.faceAt((16,17))
+assert hole.contains((16,17))
+assert contourPoly(hole.contour()).contains((16,17))
+
 dart = hole.contour()
 while True:
     while dart.startNode().degree() > 2:
@@ -34,6 +38,7 @@ while True:
 assert face.holeCount() > 0 # should have hole
 for p in [(3, 24), (10, 15), (13, 21)]: # in region, but not within hole
     assert face.contains(p)
+
 for p in [(16, 17), (13, 17)]: # in hole
     assert not face.contains(p)
     assert hole.contains(p)
@@ -112,7 +117,7 @@ def checkPassValues(map, siv):
             continue
         pv = map.wsStats.passValue(edge)
         actualPV = min([siv[p] for p in edge])
-        assert pv == actualPV # no epsilon needed ;-)
+        assert pv == actualPV, "%s != %s" % (pv, actualPV) # no epsilon needed ;-)
 
 import statistics
 map.wsStats = statistics.WatershedStatistics(map, flowlines, img.gm.siv)
@@ -178,9 +183,10 @@ assert maputils.checkLabelConsistency(map), "map.labelImage() inconsistent"
 # bg = readImage("../../../Testimages/blox.gif")
 # d = MapDisplay(bg, map)
 
-assert map.faceAt(Vector2(91,  86.4)) == map.face(14)
-assert map.faceAt(Vector2(91,  85.8)) == map.face(6)
-assert map.faceAt(Vector2(91.4,85.8)) == map.face(1)
+labels = [map.faceAt(p).label() for p in
+          [Vector2(91, 86.4), Vector2(91, 85.8), Vector2(91.4, 85.8)]]
+assert len(dict.fromkeys(labels).keys()) == 3, \
+       "those nearby positions point to three pairwise different faces"
 
 # --------------------------------------------------------------------
 
