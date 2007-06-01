@@ -139,6 +139,9 @@ class ActivePaintbrush(qt.QObject):
     def mousePressed(self, x, y, button):
         if button != qt.Qt.LeftButton:
             return
+        if not self._map.mapInitialized():
+            sys.stderr.write("Paintbrush: Map not initialized. Unable to determine faces.\n")
+            return
         self._currentLabel = None
         self._painting = True
         self._changed = False
