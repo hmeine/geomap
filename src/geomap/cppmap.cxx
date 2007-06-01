@@ -767,7 +767,7 @@ void GeoMap::embedFaces(bool initLabelImage)
                            "initLabelImage: non-zero imageSize must be given!");
         labelImage_ = new LabelImage(
             LabelImage::size_type(imageSize().width(), imageSize().height()), 0);
-        faceLabelLUT_.resize(faces_.size());
+        faceLabelLUT_.initIdentity(faces_.size());
     }
 
     // copy and remove all preliminary contours except the infinite one:
@@ -804,7 +804,6 @@ void GeoMap::embedFaces(bool initLabelImage)
                                 labelImage_->traverser_begin(),
                                 labelImage_->size(),
                                 vigra::StandardValueAccessor<int>());
-                faceLabelLUT_[contour.label()] = contour.label();
             }
         }
         else
@@ -1385,8 +1384,8 @@ CELL_PTR(GeoMap::Edge) GeoMap::mergeEdges(GeoMap::Dart &dart)
                        "mergeEdges called on self-loop!");
 
     Dart d2(d1);
-    d2.nextSigma();
-    vigra_precondition(d2 == dart,
+    d1.nextSigma();
+    vigra_precondition(d1 == dart,
                        "mergeEdges cannot remove node with degree > 2!");
 
     vigra_assert((d1.leftFaceLabel() == d2.rightFaceLabel()) &&
@@ -1724,16 +1723,15 @@ CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(GeoMap::Dart &dart)
     }
 
     // relabel region in image
-    // COMPLEXITY: depends on maxFaceLabel and number of pixel facets crossed by mergedEdge
     PixelList associatedPixels;
     if(labelImage_)
     {
 //         relabelImage(map.labelImage.subImage(mergedFace.pixelBounds_),
 //                      mergedFace.label(), survivor.label())
-        for(unsigned int i = 0; i < faceLabelLUT_.size(); ++i)
-            if(faceLabelLUT_[i] == mergedFace.label())
-                faceLabelLUT_[i] = survivor.label();
+        // COMPLEXITY: depends on maxFaceLabel
+        faceLabelLUT_.relabel(mergedFace.label(), survivor.label());
 
+        // COMPLEXITY: depends on number of pixel facets crossed by mergedEdge
         removeEdgeFromLabelImage(
             mergedEdge.scanLines(),
             *labelImage_, survivor.label(), associatedPixels);

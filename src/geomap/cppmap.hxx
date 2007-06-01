@@ -2,6 +2,7 @@
 #define VIGRA_CPPMAP_HXX
 
 #include "filteriterator.hxx"
+#include "labellut.hxx"
 #include "vigra/positionedmap.hxx"
 #include "vigra/polygon.hxx"
 #include <vector>
@@ -124,11 +125,11 @@ class GeoMap : boost::noncopyable
       protected:
         friend class GeoMap;
 
-        LabelImageAccessor(std::vector<CellLabel> const &faceLabelLUT)
+        LabelImageAccessor(LabelLUT const &faceLabelLUT)
         : faceLabelLUT_(faceLabelLUT)
         {}
 
-        std::vector<CellLabel> const &faceLabelLUT_;
+        LabelLUT const &faceLabelLUT_;
     };
 
   protected:
@@ -153,9 +154,9 @@ class GeoMap : boost::noncopyable
 
     typedef vigra::MultiArray<2, int> LabelImage;
 
-    vigra::Size2D          imageSize_;
-    LabelImage            *labelImage_;
-    std::vector<CellLabel> faceLabelLUT_;
+    vigra::Size2D imageSize_;
+    LabelImage   *labelImage_;
+    LabelLUT      faceLabelLUT_;
 
     bool edgesSorted_;
     std::auto_ptr<detail::PlannedSplits> splitInfo_;
