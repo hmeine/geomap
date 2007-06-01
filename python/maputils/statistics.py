@@ -5,6 +5,7 @@ import math, string, copy
 from weakref import ref
 from vigra import *
 from hourglass import PositionedMap, EdgeStatistics, \
+     FaceGrayStatistics, FaceRGBStatistics, \
      spatialStabilityImage, tangentList, resamplePolygon
 import sivtools, flag_constants
 from map import arcLengthIter
@@ -32,6 +33,8 @@ def safeSqrt(variance):
     return type(variance)(*result)
 
 class FaceMeanFunctor(object):
+    __slots__ = ["pixelCount", "sum", "sum2", "defaultValue"]
+    
     def __init__(self, defaultValue):
         self.pixelCount = None
         self.defaultValue = defaultValue
@@ -100,7 +103,7 @@ def sampleRegions(map, image, functors):
                  LookupFaceFunctors(functors))
 
 # new API: does not touch the Face objects themselves
-class FaceColorStatistics(DynamicFaceStatistics):
+class _FaceColorStatistics(DynamicFaceStatistics):
     def __init__(self, map, originalImage,
                  defaultValue = None, minSampleCount = 1,
                  SIV = SplineImageView5):
@@ -274,6 +277,14 @@ class FaceColorStatistics(DynamicFaceStatistics):
         return norm(f1.average() - f2.average()) / \
            max(math.sqrt(f1.variance() / f1.pixelCount + \
                          f2.variance() / f2.pixelCount), 1e-3)
+
+def FaceColorStatistics(map, originalImage, minSampleCount = 1):
+    if originalImage.bands() == 1:
+        return FaceGrayStatistics(map, originalImage, minSampleCount)
+    elif originalImage.bands() == 3:
+        return FaceRGBStatistics(map, originalImage, minSampleCount)
+    else:
+        return _FaceRGBStatistics(map, originalImage, minSampleCount)
 
 def faceAreaHomogenity(dart):
     a1 = dart.leftFace().area()
