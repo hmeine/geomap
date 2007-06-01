@@ -245,7 +245,7 @@ for node in map.nodeIter():
 
 backup = copy.copy(map)
 
-history = ""
+history = maputils.LiveHistory(map)
 try:
   changed = True
   while True:
@@ -271,7 +271,6 @@ try:
             mec.remove(nodeLabel)
             dart = map.node(nodeLabel).anchor()
             print "removing node %d via %s" % (nodeLabel, dart)
-            history += "map.mergeEdges(map.dart(%d))\n" % (dart.label(), )
 #             mergePos = dart[0]
             survivor = map.mergeEdges(dart)
             if survivor:
@@ -289,7 +288,6 @@ try:
             rbc.remove(dartLabel)
             dart = map.dart(dartLabel)
             print "removing bridge via %s" % (dart, )
-            history += "map.removeBridge(map.dart(%d))\n" % (dartLabel, )
             if map.removeBridge(dart):
                 changed = True
 
@@ -303,12 +301,11 @@ try:
             mfc.remove(dartLabel)
             dart = map.dart(dartLabel)
             print "removing edge via %s" % (dart, )
-            history += "map.mergeFaces(map.dart(%d))\n" % (dartLabel, )
             if map.mergeFaces(dart):
                 changed = True
 
 except Exception, e:
-    print history
+    print history.commands()
     raise
 
 maputils.checkLabelConsistency(map)
@@ -322,6 +319,7 @@ print map.faceCount, "faces:", list(map.faceIter())
 
 map = backup
 
+history = history.commands()
 c = time.clock()
 exec history
 
