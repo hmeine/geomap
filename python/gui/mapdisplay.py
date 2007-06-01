@@ -616,6 +616,8 @@ class MapDisplay(DisplaySettings):
             dart = self.map.dart(dart)
         self.dn = DartNavigator(dart, self)
         self.dn.show()
+        self.viewer.center = dart[0]
+        self.viewer.optimizeUpperLeft()
 
     def setImage(self, image, pixelFormat = NBYTE):
         if hasattr(image, "orig"):
