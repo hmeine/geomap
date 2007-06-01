@@ -125,7 +125,7 @@ GeoMap::GeoMap(vigra::Size2D imageSize)
 
 GeoMap::~GeoMap()
 {
-    // make sure the cells' destructors don't access this map!
+    // make sure the cells don't access this map anymore!
     for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
         (*it)->uninitialize();
     for(EdgeIterator it = edgesBegin(); it.inRange(); ++it)
@@ -1381,7 +1381,7 @@ CELL_PTR(GeoMap::Edge) GeoMap::mergeEdges(GeoMap::Dart &dart)
     Dart d1(dart);
     d1.nextSigma();
     vigra_precondition(d1.edgeLabel() != dart.edgeLabel(),
-                       "mergeEdges called on self-loop!");
+                       "mergeEdges called on self-loop or startNode's degree = 1!");
 
     Dart d2(d1);
     d1.nextSigma();
