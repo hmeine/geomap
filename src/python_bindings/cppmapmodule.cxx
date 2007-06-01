@@ -528,6 +528,35 @@ bp::list GeoMap_sortEdgesEventually(
     return result;
 }
 
+bp::list GeoMap_sigmaMapping(GeoMap &map)
+{
+    bp::list result;
+    const GeoMap::SigmaMapping &sigmaMapping(map.sigmaMapping());
+    for(GeoMap::SigmaMapping::const_iterator it = sigmaMapping.begin();
+        it != sigmaMapping.end(); ++it)
+    {
+        if(map.edge(abs(*it)))
+            result.append(*it);
+        else
+            result.append(0);
+    }
+    return result;
+}
+
+void GeoMap_setSigmaMapping(GeoMap &map, bp::list pySigmaMapping, bool edgesSorted = true)
+{
+    GeoMap::SigmaMapping sigmaMapping(bp::len(pySigmaMapping));
+
+    unsigned int i = 0;
+    for(GeoMap::SigmaMapping::iterator it = sigmaMapping.begin();
+        it != sigmaMapping.end(); ++it, ++i)
+    {
+        *it = bp::extract<int>(pySigmaMapping[i])();
+    }
+
+    map.setSigmaMapping(sigmaMapping, edgesSorted);
+}
+
 struct GeoMapPickleSuite : bp::pickle_suite
 {
     static bp::tuple getinitargs(GeoMap &map)
@@ -559,13 +588,7 @@ struct GeoMapPickleSuite : bp::pickle_suite
     {
         GeoMap &map((bp::extract<GeoMap &>(pyMap)()));
 
-        bp::list pySigmaMapping;
-        const GeoMap::SigmaMapping &sigmaMapping(map.sigmaMapping());
-        for(GeoMap::SigmaMapping::const_iterator it = sigmaMapping.begin();
-            it != sigmaMapping.end(); ++it)
-        {
-            pySigmaMapping.append(*it);
-        }
+        bp::list pySigmaMapping = GeoMap_sigmaMapping(map);
 
         bp::list edgeFlags;
         for(GeoMap::EdgeIterator it = map.edgesBegin(); it.inRange(); ++it)
@@ -576,7 +599,7 @@ struct GeoMapPickleSuite : bp::pickle_suite
         bp::list faceFlags;
         for(GeoMap::FaceIterator it = map.facesBegin(); it.inRange(); ++it)
         {
-            faceFlags.append((*it)->flags());
+            faceFlags.append((*it)->flags() & ~0xf0000000);
         }
 
         return bp::make_tuple(
@@ -604,19 +627,11 @@ struct GeoMapPickleSuite : bp::pickle_suite
         bp::list faceFlags = bp::extract<bp::list>(state[5])();
         bp::object __dict__ = state[6];
 
-        GeoMap::SigmaMapping sigmaMapping(bp::len(pySigmaMapping));
-        unsigned int i = 0;
-        for(GeoMap::SigmaMapping::iterator it = sigmaMapping.begin();
-            it != sigmaMapping.end(); ++it, ++i)
-        {
-            *it = bp::extract<int>(pySigmaMapping[i])();
-        }
-
-        map.setSigmaMapping(sigmaMapping, edgesSorted);
+        GeoMap_setSigmaMapping(map, pySigmaMapping, edgesSorted);
         if(mapInitialized)
             map.initializeMap(initLabelImage);
 
-        i = 0;
+        unsigned int i = 0;
         for(GeoMap::EdgeIterator it = map.edgesBegin(); it.inRange(); ++it, ++i)
         {
             (*it)->setFlag(bp::extract<unsigned int>(edgeFlags[i])());
@@ -743,7 +758,7 @@ class FaceColorStatisticsWrapper
         def("pixelCount", &Statistics::pixelCount);
         def("average", &Statistics::average);
         def("variance", &Statistics::variance);
-        
+
         def("faceMeanDiff", &Statistics::faceMeanDiff);
 
         def("regionImage", &regionImage);
@@ -959,6 +974,22 @@ void defMap()
                  "If splitEdges is True, the positions of divergence are stored\n"
                  "for later calling of splitEdges() - note that the edges are\n"
                  "not split if you do not call the latter method.")
+            .def("sigmaMapping", &GeoMap_sigmaMapping,
+                 "Returns a list containing the sigma permutation.\n"
+                 "The list is a mapping from dart labels to the labels of their\n"
+                 "sigma successors, where the mapping must be seen relative to\n"
+                 "the middle of the list (its length is always odd).")
+            .def("setSigmaMapping", &GeoMap_setSigmaMapping,
+                 (arg("sigmaMapping"), arg("sorted") = true),
+                 "setSigmaMapping(sigmaMapping, sorted = True)\n"
+                 "Initialize the sigma permutation.\n"
+                 "The argument is expected to be a mapping from dart labels to\n"
+                 "the labels of their sigma successors, see `sigmaMapping()`.\n"
+                 "Usually, the GeoMap will thus become oriented,\n"
+                 "i.e. `edgesSorted()` will be True afterwards, as if\n"
+                 "e.g. `sortEdgesDirectly()` was called.\n"
+                 "The optional parameter `sorted` can be used to specify whether\n"
+                 "the given sigmaMapping shall make the GeoMap sorted.")
             .def("edgesSorted", &GeoMap::edgesSorted,
                  "edgesSorted() -> bool\n\n"
                  "Return whether the edges have already been sorted.\n"
@@ -1287,13 +1318,13 @@ void defMap()
             "be removed as parameter.  If any callback does not return True,\n"
             "the operation will be canceled.");
         def("addMergeEdgesCallbacks", &addMergeEdgesCallbacks,
-            "addMergeFacesCallbacks(preOpCallback, postOpCallback) -> SimpleCallback\n\n"
+            "addMergeEdgesCallbacks(preOpCallback, postOpCallback)\n\n"
             "Add callbacks to be called called before/after merging two\n"
-            "faces via a common edge.  The rightFace() of the dart passed\n"
-            "to preOpCallback will be merged into its leftFace(), the\n"
-            "postOpCallback gets the resulting Face as parameter.  If any\n"
-            "preOpCallback does not return True, the operation will be\n"
-            "canceled.");
+            "edges with a node of degree two.  The dart passed to\n"
+            "preOpCallback belongs to the surviving edge and starts at the\n"
+            "merged node, the postOpCallback gets the resulting Edge as\n"
+            "parameter.  If any preOpCallback does not return True,\n"
+            "the operation will be canceled.");
         def("addSplitEdgeCallbacks", &addSplitEdgeCallbacks,
             "addSplitEdgeCallbacks(preOpCallback, postOpCallback) -> SimpleCallback\n\n"
             "Add callbacks to be called called before/after splitting an\n"
