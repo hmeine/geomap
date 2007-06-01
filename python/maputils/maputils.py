@@ -940,6 +940,15 @@ class History(list):
     def __getslice__(self, b, e):
         return History(list.__getslice__(self, b, e))
 
+    def commands(self, mapName = "map"):
+        """Return string with python commands replaying this history.
+        (Very useful for creating code for unittests or the like.)"""
+        result = ""
+        for opName, label in self:
+            result += "%s.%s(%s.dart(%d))\n" % (mapName, opName,
+                                                mapName, label)
+        return result
+
     def replay(self, map, careful = False, verbose = True):
         result = 0
         
@@ -969,6 +978,10 @@ class LiveHistory(History):
     """`History` list which attaches to a GeoMap and updates itself
     via Euler operation callbacks."""
     
+    _mergeFaces = 'mergeFaces'
+    _removeBridge = 'removeBridge'
+    _mergeEdges = 'mergeEdges'
+    
     def __init__(self, map):
         self._attachedHooks = (
             map.addMergeFacesCallbacks(self.preMergeFaces, self.confirm),
@@ -981,15 +994,15 @@ class LiveHistory(History):
             cb.disconnect()
     
     def preMergeFaces(self, dart):
-        self.op = ('mergeFaces', dart.label())
+        self.op = (self._mergeFaces, dart.label())
         return True
     
     def preRemoveBridge(self, dart):
-        self.op = ('removeBridge', dart.label())
+        self.op = (self._removeBridge, dart.label())
         return True
     
     def preMergeEdges(self, dart):
-        self.op = ('mergeEdges', dart.label())
+        self.op = (self._mergeEdges, dart.label())
         return True
     
     def confirm(self, *args):
@@ -1269,6 +1282,8 @@ class StandardCostQueue(object):
         return index, cost
 
 class SeededRegionGrowing(object):
+    __slots__ = ["_map", "_mergeCostMeasure", "_step", "_queue", "_neighborSkipFlags"]
+    
     def __init__(self, map, mergeCostMeasure, dynamic = False, stupidInit = False):
         self._map = map
         self._mergeCostMeasure = mergeCostMeasure
