@@ -744,8 +744,8 @@ struct AbsAreaCompare
     bool operator()(CELL_PTR(GeoMap::Face) f1, CELL_PTR(GeoMap::Face) f2) const
     {
         double a1 = f1->area(), a2 = f2->area();
-        double absdiff = fabs(a1) - fabs(a2);
-        if(fabs(absdiff) < 1e-2 && ((a1 < 0) != (a2 < 0)))
+        double absdiff = std::fabs(a1) - std::fabs(a2);
+        if(std::fabs(absdiff) < 1e-2 && ((a1 < 0) != (a2 < 0)))
             return (a1 < 0); // for faces with equal area, prefer the exterior one
         return absdiff > 0; // else, prefer face with larger absolute area
     }
@@ -764,7 +764,7 @@ void GeoMap::embedFaces(bool initLabelImage)
     if(initLabelImage)
     {
         vigra_precondition(imageSize_.area() > 0,
-                           "initLabelImage: non-zero imageSize must be given!");
+                           "initLabelImage: imageSize must be non-zero!");
         labelImage_ = new LabelImage(
             LabelImage::size_type(imageSize().width(), imageSize().height()), 0);
         faceLabelLUT_.initIdentity(faces_.size());
