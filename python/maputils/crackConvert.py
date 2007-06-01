@@ -1,7 +1,10 @@
 import sys, time
 from hourglass import GeoMap, crackConnectionImage
 from vigra import meshIter
+from flag_constants import BORDER_PROTECTION
 import maputils
+
+__all__ = ["crackEdgeMap", "crackEdgeGraph"]
 
 # --------------------------------------------------------------------
 #                              FRONTEND
@@ -24,12 +27,19 @@ def crackEdgeMap(labelImage, initLabelImage = True):
     result.initializeMap(initLabelImage)
     sys.stdout.write(" (%ss)\n" % (time.clock()-c1, ))
     
+    # mark the border edges:
+    assert result.face(0).holeCount() == 1, "infinite face should have exactly one contour, not %d!?" % result.face(0).holeCount()
+# 	for dart in result.face(0).holeContours().next().anchor().phiOrbit():
+# 		edge = dart.edge()
+# 		if not edge.leftFaceLabel() or not edge.rightFaceLabel():
+# 			edge.setFlag(BORDER_PROTECTION)
+
     sys.stdout.write("  done. (%ss)\n" % (time.clock()-c, ))
 
     return result
 
 # --------------------------------------------------------------------
-# 						   helper functions
+#                          helper functions
 # --------------------------------------------------------------------
 
 from vigra import GrayImage, Vector2, Point2D, Size2D, Rect2D
