@@ -346,6 +346,39 @@ def mapFromEdges(edges, imageSize, GeoMap = hourglass.GeoMap):
     
     return result
 
+def gridMap(gridSize = (10, 10), firstPos = Vector2(0.5, 0.5),
+            dist = Vector2(1, 1), imageSize = None):
+    """Create a GeoMap representing a rectangular grid."""
+    
+    xDist = Vector2(dist[0], 0)
+    yDist = Vector2(0, dist[1])
+    if not imageSize:
+        imageSize = (int(math.ceil(gridSize[0] * dist[0] + 2*(firstPos[0]+0.5))),
+                     int(math.ceil(gridSize[1] * dist[1] + 2*(firstPos[1]+0.5))))
+
+    map = hourglass.GeoMap(imageSize)
+
+    def addEdge(n1, n2):
+        map.addEdge(n1, n2, [n1.position(), n2.position()])
+
+    prevRow = None
+    for y in range(gridSize[1]+1):
+        row = []
+        for x in range(gridSize[0]+1):
+            pos = firstPos + x * xDist + y * yDist
+            row.append(map.addNode(pos))
+
+        for x in range(gridSize[0]):
+            addEdge(row[x], row[x+1])
+
+        if prevRow:
+            for x in range(gridSize[0]+1):
+                addEdge(row[x], prevRow[x])
+
+        prevRow = row
+
+    return map
+
 def connectBorderNodes(map, epsilon,
                        samePosEpsilon = 1e-6, aroundPixels = False):
     """connectBorderNodes(map, epsilon,
@@ -591,6 +624,43 @@ def checkLabelConsistency(map):
             result = False
     return result
 
+def drawLabelImage(aMap, scale = 1):
+    total = aMap.faceCount - 1
+    done = 1
+    result = GrayImage(aMap.imageSize()*scale)
+    holes = list(aMap.face(0).holeContours())
+    # shift sampling points from middle of pixel (0.5, 0.5)
+    # to middle of new, scaled pixel (scale/2, scale/2):
+    offset = Vector2(scale / 2.0 - 0.5, scale / 2.0 - 0.5)
+    for contour in holes:
+        for hole in holeComponent(contour):
+            if done % 23 == 0:
+                sys.stdout.write("\r[%d%%] Face %d/%d" % (
+                    done*100/total, done, total))
+                sys.stdout.flush()
+            poly = Polygon(hole.contour().polygon() * scale + offset)
+            sl = scanPoly(poly, result.height())
+            fillScannedPoly(sl, result, hole.faceLabel())
+            holes.extend(hole.holeContours())
+            done += 1
+    return result
+
+def checkLabelConsistencyThoroughly(aMap):
+    """Call `checkLabelConsistency` and additionally check that the
+    labels are at the correct position (using `drawLabelImage`)."""
+    
+    class AssertRightLabel(object):
+        def __init__(self):
+            self.correct = True
+        
+        def __call__(self, label, shouldBe):
+            if label >= 0:
+                self.correct = self.correct and (label == shouldBe)
+
+    return checkLabelConsistency(aMap) and \
+           inspectImage(aMap.labelImage(), drawLabelImage(aMap),
+                        AssertRightLabel()).correct
+
 # --------------------------------------------------------------------
 
 def showMapStats(map):
@@ -766,20 +836,20 @@ def removeEdge(dart):
     else:
         return map.mergeFaces(dart)
 
-def mergeFacesCompletely(dart, doRemoveDegree2Nodes = True):
-    """mergeFacesCompletely(dart, doRemoveDegree2Nodes = True)
+def mergeFacesCompletely(dart, removeDegree2Nodes = True):
+    """mergeFacesCompletely(dart, removeDegree2Nodes = True)
 
     In contrast to the Euler operation mergeFaces(), this function
     removes all common edges of the two faces, not only the single
     edge belonging to dart.
 
-    Furthermore, if the optional parameter doRemoveDegree2Nodes is
+    Furthermore, if the optional parameter removeDegree2Nodes is
     True (default), all nodes whose degree is reduced to two will be
     merged into their surrounding edges.
 
     Returns the surviving face."""
     
-    #print "mergeFacesCompletely(%s, %s)" % (dart, doRemoveDegree2Nodes)
+    #print "mergeFacesCompletely(%s, %s)" % (dart, removeDegree2Nodes)
     if dart.edge().isBridge():
         raise TypeError("mergeFacesCompletely(): dart belongs to a bridge!")
     map = dart.map()
@@ -808,15 +878,22 @@ def mergeFacesCompletely(dart, doRemoveDegree2Nodes = True):
         if not node: continue
         if node.degree == 0:
             map.removeIsolatedNode(node)
-        if doRemoveDegree2Nodes and node.degree() == 2:
+        if removeDegree2Nodes and node.degree() == 2:
             d = node.anchor()
             if d.endNodeLabel() != node.label():
                 map.mergeEdges(d)
 
     return survivor
 
-def mergeFacesByLabel(map, label1, label2, doRemoveDegree2Nodes = True):
-    """mergeFacesByLabel(map, label1, label2, doRemoveDegree2Nodes = True)
+def findCommonDart(face1, face2):
+    """Find a dart with leftFace() == face1 and rightFace() == face2."""
+    for contour in face1.contours():
+        for contourIt in contour.phiOrbit():
+            if contourIt.rightFaceLabel() == face2.label():
+                return contourIt
+
+def mergeFacesByLabel(map, label1, label2, removeDegree2Nodes = True):
+    """mergeFacesByLabel(map, label1, label2, removeDegree2Nodes = True)
 
     Similar to mergeFacesCompletely() (which is called to perform the
     action), but is parametrized with two face labels and finds a
@@ -825,18 +902,98 @@ def mergeFacesByLabel(map, label1, label2, doRemoveDegree2Nodes = True):
     Returns the surviving face (or None if no common edge was found)."""
     
     face1 = map.face(label1)
+    face2 = map.face(label2)
     if not face1:
         sys.stderr.write("mergeFacesByLabel: face with label1 = %d does not exist!\n"
                          % (label1, ))
         return
-    if not map.face(label2):
+    if not face2:
         sys.stderr.write("mergeFacesByLabel: face with label2 = %d does not exist!\n"
                          % (label2, ))
         return
-    for dart in face1.contours():
-        for contourIt in dart.phiOrbit():
-            if contourIt.rightFaceLabel() == label2:
-                return mergeFacesCompletely(contourIt, doRemoveDegree2Nodes)
+    dart = findCommonDart(face1, face2)
+    return dart and mergeFacesCompletely(dart, removeDegree2Nodes)
+
+# --------------------------------------------------------------------
+
+class History(list):
+    """List of (operation name, dart label) pairs.  Used to manage a
+    list of operations that happend on a GeoMap.  For example, you may
+    do:
+
+    >>> map1 = ...
+    >>> map2 = copy.copy(map1)
+    >>> history = LiveHistory(map1)
+    >>> someExpensiveAnalysisMethod(map1) # modify map1 via Euler ops
+    >>> history.replay(map2)"""
+    
+    @staticmethod
+    def load(self, filename):
+        return History(eval(file(history).read()))
+    
+    def save(self, filename):
+        import pprint
+        f = file(filename, "w")
+        pprint.pprint(self, stream = f)
+        f.close()
+
+    def __getslice__(self, b, e):
+        return History(list.__getslice__(self, b, e))
+
+    def replay(self, map, careful = False, verbose = True):
+        result = 0
+        
+#         counter = 20
+        for opName, param in self:
+            if careful and not map.checkConsistency():# or not checkLabelConsistency(map)
+                sys.stderr.write(
+                    "History.replay: map inconsistent, will not replay anything!\n")
+                return result
+
+            if verbose:
+                print "replaying %s(dart %d)" % (opName, param)
+            op = getattr(map, opName)
+            op(map.dart(param))
+            result += 1
+
+#             counter -= 1
+#             if not counter:
+#                 qt.qApp.processEvents()
+#                 counter = 20
+
+        if careful:
+            map.checkConsistency()
+        return result
+
+class LiveHistory(History):
+    """`History` list which attaches to a GeoMap and updates itself
+    via Euler operation callbacks."""
+    
+    def __init__(self, map):
+        self._attachedHooks = (
+            map.addMergeFacesCallbacks(self.preMergeFaces, self.confirm),
+            map.addRemoveBridgeCallbacks(self.preRemoveBridge, self.confirm),
+            map.addMergeEdgesCallbacks(self.preMergeEdges, self.confirm),
+            )
+        
+    def detachHooks(self):
+        for cb in self._attachedHooks:
+            cb.disconnect()
+    
+    def preMergeFaces(self, dart):
+        self.op = ('mergeFaces', dart.label())
+        return True
+    
+    def preRemoveBridge(self, dart):
+        self.op = ('removeBridge', dart.label())
+        return True
+    
+    def preMergeEdges(self, dart):
+        self.op = ('mergeEdges', dart.label())
+        return True
+    
+    def confirm(self, *args):
+        self.append(self.op)
 
 # --------------------------------------------------------------------
 
@@ -923,8 +1080,8 @@ def contourDarts(face):
     Generator function which iterates over all darts within all
     contours, i.e. substitues the following standard loop construct:
 
-      for anchor in face.contours():
-          for dart in anchor.phiOrbit():
+      for contour in face.contours():
+          for dart in contour.phiOrbit():
               doSth(dart)
 
     Thus, you can now write:
@@ -932,8 +1089,8 @@ def contourDarts(face):
       for dart in contourDarts(face):
           doSth(dart)"""
 
-    for anchor in face.contours():
-        for dart in anchor.phiOrbit():
+    for contour in face.contours():
+        for dart in contour.phiOrbit():
             yield dart
 
 def neighborFaces(face):
@@ -986,8 +1143,8 @@ def showHomotopyTree(face, indentation = ""):
     if not hasattr(face, "label"):
         face = face.face(0)
     print indentation + str(face)
-    for anchor in face.holeContours():
-        for hole in holeComponent(anchor):
+    for contour in face.holeContours():
+        for hole in holeComponent(contour):
             showHomotopyTree(hole, indentation + "  ")
 
 def edgeAtBorder(edge):
@@ -1111,13 +1268,75 @@ class StandardCostQueue(object):
         cost, index = heappop(self.heap)
         return index, cost
 
-def _addNeighborsToQueue(face, queue, mergeCostMeasure, neighborSkipFlags):
-    for dart in neighborFaces(face):
-        neighbor = dart.rightFace()
-        if not neighbor.flag(neighborSkipFlags):
-            cost = mergeCostMeasure(dart)
-            queue.setCost(neighbor.label(), cost)
-            neighbor.setFlag(flag_constants.SRG_BORDER)
+class SeededRegionGrowing(object):
+    def __init__(self, map, mergeCostMeasure, dynamic = False, stupidInit = False):
+        self._map = map
+        self._mergeCostMeasure = mergeCostMeasure
+        self._step = 0
+        
+        for face in map.faceIter():
+            face.setFlag(flag_constants.SRG_BORDER, False)
+
+        self._neighborSkipFlags = flag_constants.SRG_SEED
+        if dynamic:
+            self._queue = hourglass.DynamicCostQueue(map.maxFaceLabel())
+        else:
+            self._queue = StandardCostQueue()
+            if stupidInit:
+                self._neighborSkipFlags |= flag_constants.SRG_BORDER
+
+        for face in map.faceIter():
+            if face.flag(flag_constants.SRG_SEED):
+                self._addNeighborsToQueue(face)
+
+        assert self._queue, "SeededRegionGrowing: No seeds found (mark Faces with SRG_SEED)!"
+
+        if not dynamic and not stupidInit:
+            self._neighborSkipFlags |= flag_constants.SRG_BORDER
+
+    def _addNeighborsToQueue(self, face):
+        for dart in neighborFaces(face):
+            neighbor = dart.rightFace()
+            if not neighbor.flag(self._neighborSkipFlags):
+                cost = self._mergeCostMeasure(dart)
+                self._queue.setCost(neighbor.label(), cost)
+                neighbor.setFlag(flag_constants.SRG_BORDER)
+
+    def grow(self, maxCost = None):
+        oldStep = self._step
+        if maxCost:
+            while self._queue and self._queue.top()[1] <= maxCost:
+                self._step += self.growStep()
+        else:
+            while self._queue:
+                self._step += self.growStep()
+        return self._step - oldStep
+
+    def growStep(self):
+        # fetch candidate Face from queue:
+        face = None
+        while self._queue and (not face or face.flag(flag_constants.SRG_SEED)):
+            faceLabel, _ = self._queue.pop()
+            face = self._map.face(faceLabel)
+
+        # look for neighbor with lowest merge cost:
+        best = None
+        for dart in neighborFaces(face):
+            neighbor = dart.rightFace()
+            if neighbor.flag(flag_constants.SRG_SEED):
+                cost = self._mergeCostMeasure(dart)
+                if not best or cost < best[0]:
+                    best = (cost, dart)
+
+        # grow region:
+        survivor = mergeFacesCompletely(best[1])
+        if survivor:
+            survivor.setFlag(flag_constants.SRG_BORDER, False)
+            survivor.setFlag(flag_constants.SRG_SEED)
+            self._addNeighborsToQueue(survivor)
+            self._step += 1
+            return 1
+        return 0
 
 def seededRegionGrowing(map, mergeCostMeasure, dynamic = False, stupidInit = False):
     """seededRegionGrowing(map, mergeCostMeasure, dynamic = False, stupidInit = False)
@@ -1140,45 +1359,8 @@ def seededRegionGrowing(map, mergeCostMeasure, dynamic = False, stupidInit = Fal
     happen regularly (instead of being an exception as in the original
     pixel-based SRG application)."""
 
-    for face in map.faceIter():
-        face.setFlag(flag_constants.SRG_BORDER, False)
-
-    neighborSkipFlags = flag_constants.SRG_SEED
-    if dynamic:
-        queue = hourglass.DynamicCostQueue(map.maxFaceLabel())
-    else:
-        queue = StandardCostQueue()
-        if stupidInit:
-            neighborSkipFlags |= flag_constants.SRG_BORDER
-
-    for face in map.faceIter():
-        if face.flag(flag_constants.SRG_SEED):
-            _addNeighborsToQueue(face, queue, mergeCostMeasure,
-                                 neighborSkipFlags)
-
-    if not dynamic and not stupidInit:
-        neighborSkipFlags |= flag_constants.SRG_BORDER
-
-    while queue:
-        faceLabel, _ = queue.pop()
-        face = map.face(faceLabel)
-        if not face or face.flag(flag_constants.SRG_SEED):
-            continue
-
-        best = None
-        for dart in neighborFaces(face):
-            neighbor = dart.rightFace()
-            if neighbor.flag(flag_constants.SRG_SEED):
-                cost = mergeCostMeasure(dart)
-                if not best or cost < best[0]:
-                    best = (cost, dart)
-
-        survivor = mergeFacesCompletely(best[1])
-        if survivor:
-            survivor.setFlag(flag_constants.SRG_BORDER, False)
-            survivor.setFlag(flag_constants.SRG_SEED)
-            _addNeighborsToQueue(survivor, queue, mergeCostMeasure,
-                                 neighborSkipFlags)
+    srg = SeededRegionGrowing(map, mergeCostMeasure, dynamic, stupidInit)
+    srg.grow()
 
 def regionalMinima(map, mst):
     """regionalMinima(map, mst)
