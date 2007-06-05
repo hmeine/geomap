@@ -1,12 +1,12 @@
 """`tools` - module with interactive GeoMap tools:
 
-You will find three tool classes:
+You will find the following tool classes:
 * MapSearcher
 * ManualClassifier
 * ActivePaintbrush
 * IntelligentScissors
 
-tools.activePathMeasure is used to steer the IntelligentScissors tool.
+tools.`activePathMeasure` is used to steer the IntelligentScissors tool.
 It can be assigned any object which returns a path cost when called
 with two arguments:
 
@@ -20,14 +20,14 @@ with two arguments:
 combined path (old path plus ``newDart``), and this must be larger
 than the old cost ``liveWire.totalCost()``.
 
-Cf. the (documented) class SimplePathCostMeasure which looks at the
+Cf. the `SimplePathCostMeasure` class  which looks at the
 path darts independently with a given measure, e.g. use::
 
   tools.activePathMeasure = SimplePathCostMeasure(faceMeanDiff)
 
 to (locally, dart-wise) depend on the faceMeanDiff measure.
 
-You might also be interested in the ESPathCostMeasure (using Euler
+You might also be interested in the `ESPathCostMeasure` (using Euler
 Spirals), or the `LiveWire` helper class (which is the type of the
 object passed into the above-mentioned activePathMeasure's __call__
 method)."""
@@ -475,3 +475,16 @@ class ESPathCostMeasure(object):
         # ... + math.exp(-error)
 
 activePathMeasure = SimplePathCostMeasure(statistics.minEdgeGradCost)
+"""activePathMeasure is used to steer the IntelligentScissors tool.
+It can be assigned any object which returns a path cost when called
+with two arguments:
+
+* The first argument will be a LiveWire object
+  containing the beginning of a path, and
+
+* the second argument will be a Dart object (whose startNode is the
+  liveWire's end node) which could potentially be added to the path.
+
+``activePathMeasure(liveWire, newDart)`` should return the cost of
+combined path (old path plus ``newDart``), and this must be larger
+than the old cost ``liveWire.totalCost()``."""
