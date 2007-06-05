@@ -2,6 +2,9 @@
 #                             edge flags
 # --------------------------------------------------------------------
 
+# note that the highest bits are reserved for the C++ code:
+#     static const unsigned int IS_BRIDGE = 0x8000000;
+
 # edge protection:
 BORDER_PROTECTION  = 1
 SCISSOR_PROTECTION = 2
