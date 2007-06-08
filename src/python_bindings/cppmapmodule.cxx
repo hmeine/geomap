@@ -596,10 +596,11 @@ struct GeoMapPickleSuite : bp::pickle_suite
             edgeFlags.append((*it)->flags());
         }
 
-        bp::list faceFlags;
+        bp::list faceFlags, faceAnchors;
         for(GeoMap::FaceIterator it = map.facesBegin(); it.inRange(); ++it)
         {
             faceFlags.append((*it)->flags() & ~0xf0000000);
+            faceAnchors.append((*it)->contour().label());
         }
 
         return bp::make_tuple(
@@ -608,7 +609,7 @@ struct GeoMapPickleSuite : bp::pickle_suite
             map.mapInitialized(),
             map.hasLabelImage(),
             edgeFlags,
-            faceFlags,
+            faceFlags, faceAnchors,
             pyMap.attr("__dict__"));
     }
 
@@ -625,7 +626,8 @@ struct GeoMapPickleSuite : bp::pickle_suite
         bool initLabelImage = bp::extract<bool>(state[3])();
         bp::list edgeFlags = bp::extract<bp::list>(state[4])();
         bp::list faceFlags = bp::extract<bp::list>(state[5])();
-        bp::object __dict__ = state[6];
+        bp::list faceAnchors = bp::extract<bp::list>(state[6])();
+        bp::object __dict__ = state[7];
 
         GeoMap_setSigmaMapping(map, pySigmaMapping, edgesSorted);
         if(mapInitialized)
@@ -637,10 +639,11 @@ struct GeoMapPickleSuite : bp::pickle_suite
             (*it)->setFlag(bp::extract<unsigned int>(edgeFlags[i])());
         }
 
-        i = 0;
-        for(GeoMap::FaceIterator it = map.facesBegin(); it.inRange(); ++it, ++i)
+        for(i = 0; i < map.faceCount(); ++i)
         {
-            (*it)->setFlag(bp::extract<unsigned int>(faceFlags[i])());
+            int anchorLabel = bp::extract<unsigned int>(faceAnchors[i])();
+            map.dart(anchorLabel).leftFace()->setFlag(
+                bp::extract<unsigned int>(faceFlags[i])());
         }
 
         bp::extract<bp::dict>(pyMap.attr("__dict__"))().update(__dict__);
