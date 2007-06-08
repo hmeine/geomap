@@ -8,7 +8,6 @@
 #include <vector>
 #include <cmath>
 #include <algorithm>
-#include "box.hxx"
 
 namespace vigra {
 
@@ -491,6 +490,8 @@ POINT Polygon<POINT>::nearestPoint(const_reference p) const
 }
 
 /********************************************************************/
+
+#include "box.hxx"
 
 // assumes that Point is a TinyVector
 template<class POINT>
@@ -1829,6 +1830,16 @@ unsigned int fillScannedPoly(
 }
 
 template<class DestIterator, class SizeType, class DestAccessor>
+unsigned int fillScannedPoly(
+    const Scanlines &scanlines,
+    typename DestAccessor::value_type value,
+    triple<DestIterator, SizeType, DestAccessor> dest)
+{
+    return fillScannedPoly(scanlines, value,
+                           dest.first, dest.second, dest.third);
+}
+
+template<class DestIterator, class SizeType, class DestAccessor>
 unsigned int drawScannedPoly(
     const Scanlines &scanlines,
     typename DestAccessor::value_type value,
@@ -1867,6 +1878,16 @@ unsigned int drawScannedPoly(
     }
 
     return pixelCount;
+}
+
+template<class DestIterator, class SizeType, class DestAccessor>
+unsigned int drawScannedPoly(
+    const Scanlines &scanlines,
+    typename DestAccessor::value_type value,
+    triple<DestIterator, SizeType, DestAccessor> dest)
+{
+    return drawScannedPoly(scanlines, value,
+                           dest.first, dest.second, dest.third);
 }
 
 } // namespace vigra
