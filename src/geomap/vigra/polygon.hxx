@@ -8,6 +8,7 @@
 #include <vector>
 #include <cmath>
 #include <algorithm>
+#include "box.hxx"
 
 namespace vigra {
 
@@ -490,8 +491,6 @@ POINT Polygon<POINT>::nearestPoint(const_reference p) const
 }
 
 /********************************************************************/
-
-#include "box.hxx"
 
 // assumes that Point is a TinyVector
 template<class POINT>
