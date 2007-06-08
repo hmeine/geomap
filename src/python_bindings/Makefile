@@ -9,7 +9,7 @@ include $(INT2BUILDDIR)/config/Makefile.include
 LOCAL_CPPFLAGS = -I. -I../cellimage `pkg-config --cflags sigc++-2.0`
 
 #CXXFLAGS += -Wall -g -W
-CXXFLAGS += -Wall
+CXXFLAGS += -Wall -O3 -DNDEBUG
 CPPFLAGS += $(LOCAL_CPPFLAGS)
 LIBCPPFLAGS += $(LOCAL_CPPFLAGS)
 TARGET = hourglassmodule.la
