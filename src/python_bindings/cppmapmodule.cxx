@@ -643,7 +643,7 @@ struct GeoMapPickleSuite : bp::pickle_suite
             (*it)->setFlag(bp::extract<unsigned int>(faceFlags[i])());
         }
 
-        pyMap.attr("__dict__") = __dict__;
+        bp::extract<bp::dict>(pyMap.attr("__dict__"))().update(__dict__);
     }
 };
 
@@ -732,6 +732,16 @@ pyCrackConnectionImage(vigra::PythonImage const &labels)
 
 /********************************************************************/
 
+template<class TargetType>
+struct CastingAccessor
+{
+    template<class ITERATOR>
+    TargetType operator()(ITERATOR const &it) const
+    {
+        return static_cast<TargetType>(*it);
+    }
+};
+
 template<class T>
 struct DiffNormTraits {};
 
@@ -757,6 +767,7 @@ class FaceColorStatisticsWrapper
 
         def("pixelCount", &Statistics::pixelCount);
         def("average", &Statistics::average);
+        this->attr("__getitem__") = this->attr("average");
         def("variance", &Statistics::variance);
 
         def("faceMeanDiff", &Statistics::faceMeanDiff);
@@ -789,7 +800,8 @@ class FaceColorStatisticsWrapper
     {
         OriginalImage result(labels.size());
 
-        stats.transformRegionImage(srcImageRange(labels), destImage(result));
+        stats.transformRegionImage(
+            srcImageRange(labels, CastingAccessor<int>()), destImage(result));
 
         return result;
     }
