@@ -793,17 +793,13 @@ void GeoMap::embedFaces(bool initLabelImage)
                     scanPoly(contourPoly(anchor), imageSize().height()));
                 contour.pixelArea_ =
                     fillScannedPoly(*scanlines, (int)contour.label(),
-                                    labelImage_->traverser_begin(),
-                                    labelImage_->size(),
-                                    vigra::StandardValueAccessor<int>());
+                                    destMultiArrayRange(*labelImage_));
                 // no need for rawAddEdgeToLabelImage here, since we
                 // work with darts anyways, and there's no easy way to
                 // ensure that the negative counts will not be wrong
                 // (esp. also for interior bridges etc.)
                 drawScannedPoly(*scanlines, -1,
-                                labelImage_->traverser_begin(),
-                                labelImage_->size(),
-                                vigra::StandardValueAccessor<int>());
+                                destMultiArrayRange(*labelImage_));
             }
         }
         else
@@ -871,9 +867,7 @@ void GeoMap::embedFaces(bool initLabelImage)
         for(EdgeIterator it = edgesBegin(); it.inRange(); ++it)
             if((*it)->isBridge())
                 drawScannedPoly((*it)->scanLines(), -1,
-                                labelImage_->traverser_begin(),
-                                labelImage_->size(),
-                                vigra::StandardValueAccessor<int>());
+                                destMultiArrayRange(*labelImage_));
 
         // remove temporary edge markings and fix pixelAreas:
         for(GeoMap::LabelImage::traverser lrow = labelImage_->traverser_begin();
