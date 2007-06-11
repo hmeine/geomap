@@ -1271,49 +1271,10 @@ def nodeAtBorder(node):
     return False
 
 # --------------------------------------------------------------------
+# 						Seeded Region Growing
+# --------------------------------------------------------------------
 
 from heapq import heappush, heappop
-
-def minimumSpanningTree(map, edgeCosts):
-    """minimumSpanningTree(map, edgeCosts)
-
-    Given a cost associated with each edge of the map, this function
-    finds the minimum spanning tree of the map's boundary graph (None
-    in edgeCosts is allowed and is handled as if the corresponding
-    edge was missing).  The result is a modified copy of the edgeCosts
-    list, with all non-MST-edges set to None.  This can be used for
-    the waterfall algorithm by Meyer and Beucher, see waterfall().
-
-    The complexity is O(edgeCount*faceCount), but the performance
-    could be improved a little."""
-
-    faceLabels = [None] * map.maxFaceLabel()
-    for face in map.faceIter():
-        faceLabels[face.label()] = face.label()
-
-    print "- initializing priority queue for MST..."
-    heap = []
-    for edge in map.edgeIter():
-        edgeLabel = edge.label()
-        cost = edgeCosts[edgeLabel]
-        if cost != None:
-            heappush(heap, (cost, edgeLabel))
-
-    print "- building MST..."
-    result = list(edgeCosts)
-    while heap:
-        _, edgeLabel = heappop(heap)
-        edge = map.edge(edgeLabel)
-        lfl = faceLabels[edge.leftFaceLabel()]
-        rfl = faceLabels[edge.rightFaceLabel()]
-        if lfl != rfl:
-            for i in range(len(faceLabels)): # this could be optimized
-                if faceLabels[i] == rfl:
-                    faceLabels[i] = lfl
-        else:
-            result[edgeLabel] = None
-
-    return result
 
 def seededRegionGrowingStatic(map, faceLabels, edgeCosts):
     """seededRegionGrowingStatic(map, faceLabels, edgeCosts)
@@ -1489,6 +1450,51 @@ def seededRegionGrowing(map, mergeCostMeasure, dynamic = False, stupidInit = Fal
 
     srg = SeededRegionGrowing(map, mergeCostMeasure, dynamic, stupidInit)
     srg.grow()
+
+# --------------------------------------------------------------------
+# 						   MST / waterfall
+# --------------------------------------------------------------------
+
+def minimumSpanningTree(map, edgeCosts):
+    """minimumSpanningTree(map, edgeCosts)
+
+    Given a cost associated with each edge of the map, this function
+    finds the minimum spanning tree of the map's boundary graph (None
+    in edgeCosts is allowed and is handled as if the corresponding
+    edge was missing).  The result is a modified copy of the edgeCosts
+    list, with all non-MST-edges set to None.  This can be used for
+    the waterfall algorithm by Meyer and Beucher, see waterfall().
+
+    The complexity is O(edgeCount*faceCount), but the performance
+    could be improved a little."""
+
+    faceLabels = [None] * map.maxFaceLabel()
+    for face in map.faceIter():
+        faceLabels[face.label()] = face.label()
+
+    print "- initializing priority queue for MST..."
+    heap = []
+    for edge in map.edgeIter():
+        edgeLabel = edge.label()
+        cost = edgeCosts[edgeLabel]
+        if cost != None:
+            heappush(heap, (cost, edgeLabel))
+
+    print "- building MST..."
+    result = list(edgeCosts)
+    while heap:
+        _, edgeLabel = heappop(heap)
+        edge = map.edge(edgeLabel)
+        lfl = faceLabels[edge.leftFaceLabel()]
+        rfl = faceLabels[edge.rightFaceLabel()]
+        if lfl != rfl:
+            for i in range(len(faceLabels)): # this could be optimized
+                if faceLabels[i] == rfl:
+                    faceLabels[i] = lfl
+        else:
+            result[edgeLabel] = None
+
+    return result
 
 def regionalMinima(map, mst):
     """regionalMinima(map, mst)
