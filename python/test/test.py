@@ -153,7 +153,7 @@ checkPassValues(map, img.gm.siv)
 # 			complete subpixel watersheds map + statistics
 # --------------------------------------------------------------------
 
-spmap = maputils.subpixelWatershedMap(
+spmap = maputils.subpixelWatershedMapFromData(
     maxima, flowlines, img.size(),
     wsStatsSpline = img.gm.siv,
     minima = img.spws.minima())
