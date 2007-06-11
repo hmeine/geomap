@@ -259,8 +259,10 @@ class FigExporter:
         points."""
         
         radius *= self.scale
-        attr["fillStyle"] = attr.get("fillStyle", fig.fillStyleSolid)
-        attr["lineWidth"] = attr.get("lineWidth", 0)
+        if "fillStyle" not in attr:
+            attr["fillStyle"] = fig.fillStyleSolid
+        if "lineWidth" not in attr and attr["fillStyle"] != fig.fillStyleNone:
+            attr["lineWidth"] = 0
         result = []
         o = self.offset + attr.get('offset', Vector2(0,0))
         if self.roi:
@@ -279,6 +281,17 @@ class FigExporter:
             self.f.append(dc)
         return result
 
+    def _setOverlayColor(self, overlay, colorAttr, attr):
+        """Set color from overlay attributes."""
+        if colorAttr not in attr:
+            color = overlay.color
+            if type(color) == qt.QColor:
+                color = qtColor2figColor(color, self.f)
+            attr[colorAttr] = color
+            print "fetched %s %s from %s" % (colorAttr, color, overlay)
+        if hasattr(overlay, "width") and "lineWidth" not in attr:
+            attr["lineWidth"] = overlay.width
+
     def addPointOverlay(self, pointOverlay, **attr):
         """See addPointCircles(), this function simply takes the
         points and radius from a PointOverlay object for your
@@ -288,11 +301,7 @@ class FigExporter:
         radius = float(pointOverlay.origRadius)
         if not pointOverlay.relativeRadius:
             radius /= pointOverlay.zoom
-        if not attr.has_key("fillColor"):
-            fillColor = pointOverlay.color
-            if type(fillColor) == qt.QColor:
-                fillColor = qtColor2figColor(fillColor, self.f)
-            attr["fillColor"] = fillColor
+        self._setOverlayColor(pointOverlay, "fillColor", attr)
         attr["lineWidth"] = attr.get("lineWidth", 0)
         
         return self.addPointCircles(points, radius, **attr)
@@ -303,11 +312,7 @@ class FigExporter:
         color."""
 
         edges = edgeOverlay.originalEdges
-        if not attr.has_key("penColor"):
-            penColor = edgeOverlay.color
-            if type(penColor) == qt.QColor:
-                penColor = qtColor2figColor(penColor, self.f)
-            attr["penColor"] = penColor
+        self._setOverlayColor(edgeOverlay, "penColor", attr)
             
         result = []
         for edge in edges:
@@ -315,6 +320,30 @@ class FigExporter:
                 edge = Polygon(edge)
             parts = self.addClippedPoly(edge, **attr)
             result.extend(parts)
+        return result
+
+    def addCircleOverlay(self, circleOverlay, **attr):
+        """Adds and returns fig.Circle for all circles of the given
+        overlay, using the overlays' color and width."""
+
+        circles = circleOverlay.originalCircles
+        self._setOverlayColor(circleOverlay, "penColor", attr)
+            
+        o = self.offset + attr.get('offset', Vector2(0,0))
+        if self.roi:
+            o = o - self.roi.begin() # don't modify in-place!
+
+        result = []
+        for center, radius in circles:
+            if self.roi and not self.roi.contains(center+o):
+                continue
+            p = intPos((Vector2(center[0], center[1]) + o) * self.scale)
+            dc = fig.Circle(p, radius * self.scale)
+            for a in attr:
+                setattr(dc, a, attr[a])
+            result.append(dc)
+            self.f.append(dc)
+
         return result
 
     def addMapNodes(self, map, radius, returnNodes = False, **attr):
