@@ -1,4 +1,4 @@
-import hourglass, sys, math, time
+import vigra, hourglass, sys, math, time
 from vigra import * # FIXME?
 
 import flag_constants
@@ -24,6 +24,10 @@ class EdgeProtection(object):
             map.addMergeEdgesCallbacks(self.preMergeEdges, None))
 
     def detachHooks(self):
+        """Detach this objects from its GeoMaps' hooks.  Note that if
+        you do not call this method, the GeoMap keeps references to
+        this object, and it will be impossible to destroy it without
+        deleting the GeoMap, too."""
         for cb in self._attachedHooks:
             cb.disconnect()
 
@@ -36,8 +40,12 @@ class EdgeProtection(object):
         return (dart.edge().flags() ==
                 dart.clone().nextSigma().edge().flags())
 
-    def __getinitargs__(self):
+    def __getstate__(self):
         return (self._map(), )
+
+    def __setstate__(self, (map, )): # cf. __init__
+        self._attach(map)
+        self._map = ref(map)
 
 def protectFace(face, protect = True, flag = flag_constants.PROTECTED_FACE):
     """Sets the PROTECTED_FACE flag of 'face' according to 'protect'.
@@ -88,7 +96,7 @@ def filterSaddlePoints(rawSaddles, biSIV, threshold, maxDist):
     return result
 
 def subpixelWatershedData(spws, biSIV = None, threshold = None, mask = None,
-                          maxSaddleDist = 0.12, # sensible: ssMinDist
+                          minSaddleDist = 0.12, # sensible: ssMinDist
                           perpendicularDistEpsilon = 0.1, maxStep = 0.1):
     """subpixelWatershedData(spws, biSIV, threshold) -> tuple
 
@@ -103,7 +111,7 @@ def subpixelWatershedData(spws, biSIV = None, threshold = None, mask = None,
     to filter out saddle points below the threshold within the
     SplineImageView 'biSIV' which should contain the boundary
     indicator and to filter out duplicate saddlepoints (pass the
-    optional argument 'maxSaddleDist' to change the default of 0.1
+    optional argument 'minSaddleDist' to change the default of 0.1
     here).
 
     Each found edge polygon is simplified using simplifyPolygon with
@@ -137,7 +145,7 @@ def subpixelWatershedData(spws, biSIV = None, threshold = None, mask = None,
             saddleIndex = newSaddleIndex
         return (sn, en, poly, saddleIndex, index)
 
-    saddles = filterSaddlePoints(rawSaddles, biSIV, threshold, maxSaddleDist)
+    saddles = filterSaddlePoints(rawSaddles, biSIV, threshold, minSaddleDist)
     prefix = "- following %d/%d edges.." % (len(saddles), len(rawSaddles))
     c = time.clock()
     flowlines = [None]
@@ -181,15 +189,15 @@ def _handleUnsortable(map, unsortable):
         pass
     assert not unsortable, "unhandled unsortable edges occured"
 
-def subpixelWatershedMap(maxima, flowlines, imageSize,
-                         perpendicularDistEpsilon = 0.1, maxStep = 0.1,
-                         borderConnectionDist = 0.1,
-                         ssStepDist = 0.2, ssMinDist = 0.12,
-                         performBorderClosing = True,
-                         performEdgeSplits = True,
-                         wsStatsSpline = None,
-                         minima = None,
-                         Map = hourglass.GeoMap):
+def subpixelWatershedMapFromData(
+    maxima, flowlines, imageSize,
+    borderConnectionDist = 0.1,
+    ssStepDist = 0.2, ssMinDist = 0.12,
+    performBorderClosing = True,
+    performEdgeSplits = True,
+    wsStatsSpline = None,
+    minima = None,
+    Map = hourglass.GeoMap):
 
     spmap = Map(maxima, [], imageSize)
 
@@ -202,7 +210,7 @@ def subpixelWatershedMap(maxima, flowlines, imageSize,
         connectBorderNodes(spmap, borderConnectionDist)
         spmap.edgeProtection = EdgeProtection(spmap)
 
-    print " ",; removeCruft(spmap, 1) # FIXME: removeIsolatedNodes
+    removeIsolatedNodes(spmap)
     unsortable = spmap.sortEdgesEventually(
         ssStepDist, ssMinDist, performEdgeSplits)
     _handleUnsortable(spmap, unsortable)
@@ -232,6 +240,59 @@ def subpixelWatershedMap(maxima, flowlines, imageSize,
         print " (%ss)" % (time.clock()-c, )
 
     return spmap
+
+def subpixelWatershedMap(
+    boundaryIndicator, splineOrder = 5,
+    saddleThreshold = None, mask = None,
+    perpendicularDistEpsilon = 0.1, maxStep = 0.1,
+    borderConnectionDist = 0.1,
+    ssStepDist = 0.2, ssMinDist = 0.12,
+    performBorderClosing = True,
+    performEdgeSplits = True,
+    initWSStats = True,
+    Map = hourglass.GeoMap):
+
+    """`boundaryIndicator` should be an image with e.g. a gradient
+    magnitude.
+    
+    If `mask` is False, all pixels are searched for critical
+    points.  By default (mask == None), pixels below saddleThreshold/2
+    are skipped.
+
+    If `initWSStats` is True, the resulting GeoMap will have an
+    attribute 'wsStats' with a `statistics.WatershedStatistics`
+    instance."""
+
+    SPWS = getattr(hourglass, "SubPixelWatersheds%d" % splineOrder)
+    spws = SPWS(boundaryIndicator)
+
+    if hasattr(boundaryIndicator, "siv"):
+        siv = boundaryIndicator.siv
+    else:
+        SIV = getattr(vigra, "SplineImageView%d" % splineOrder)
+        siv = SIV(boundaryIndicator)
+
+    if mask == None and saddleThreshold:
+        mask = transformImage(
+            boundaryIndicator, "\l x: x > %s ? 1 : 0" % (saddleThreshold/2, ))
+
+    maxima, flowlines = subpixelWatershedData(
+        spws,
+        biSIV = siv, threshold = saddleThreshold, mask = mask,
+        minSaddleDist = ssMinDist,
+        perpendicularDistEpsilon = perpendicularDistEpsilon, maxStep = maxStep)
+    
+    spwsMap = subpixelWatershedMapFromData(
+        maxima, flowlines, boundaryIndicator.size(),
+        borderConnectionDist = borderConnectionDist,
+        ssStepDist = ssStepDist, ssMinDist = ssMinDist,
+        performBorderClosing = performBorderClosing,
+        performEdgeSplits = performEdgeSplits,
+        wsStatsSpline = initWSStats and siv or None,
+        minima = initWSStats and spws.minima() or None,
+        Map = Map)
+
+    return spwsMap
 
 def addFlowLinesToMap(edges, map):
     """addFlowLinesToMap(edges, map)
@@ -788,6 +849,40 @@ def mergeDegree2Nodes(map):
                 result += 1
     return result
 
+def removeUnProtectedEdges(map):
+    result = 0
+
+    bridges = []
+    for edge in map.edgeIter():
+        if not edge.flag(flag_constants.ALL_PROTECTION):
+            if edge.isBridge():
+                bridges.append(edge)
+            elif map.mergeFaces(edge.dart()):
+                result += 1
+
+    while bridges:
+        for edge in bridges:
+            dart = edge.dart()
+            if dart.endNode().degree() == 1:
+                dart.nextAlpha()
+                break
+            if dart.startNode().degree() == 1:
+                break
+        while True:
+            next = dart.clone().nextPhi()
+            bridges.remove(dart.edge())
+            if map.removeBridge(dart):
+                result += 1
+            if next.clone().nextSigma() != next:
+                break
+            dart = next
+            if not dart.edge():
+                break
+
+    result += removeIsolatedNodes(map) # FIXME: depend on allowIsolatedNodes
+    result += mergeDegree2Nodes(map)
+    return result
+
 def removeSmallRegions(map, minArea):
     result = 0
     for face in map.faceIter(skipInfinite = True):
@@ -1321,10 +1416,10 @@ class SeededRegionGrowing(object):
         oldStep = self._step
         if maxCost:
             while self._queue and self._queue.top()[1] <= maxCost:
-                self._step += self.growStep()
+                self.growStep()
         else:
             while self._queue:
-                self._step += self.growStep()
+                self.growStep()
         return self._step - oldStep
 
     def growStep(self):
@@ -1352,6 +1447,24 @@ class SeededRegionGrowing(object):
             self._step += 1
             return 1
         return 0
+
+    def step(self):
+        return self._step
+
+    def growSteps(self, count):
+        result = 0
+        while self._queue and result < count:
+            result += self.growStep()
+        return result
+
+    def growToStep(self, targetStep):
+        return self.growSteps(targetStep - self._step)
+
+    def growToCost(self, maxCost):
+        result = 0
+        while self._queue and self._queue.top()[0] < maxCost:
+            result += self.growStep()
+        return result
 
 def seededRegionGrowing(map, mergeCostMeasure, dynamic = False, stupidInit = False):
     """seededRegionGrowing(map, mergeCostMeasure, dynamic = False, stupidInit = False)
