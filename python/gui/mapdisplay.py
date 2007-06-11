@@ -704,7 +704,7 @@ class MapDisplay(DisplaySettings):
         elif type(geometry) == str:
             geometry = Rect2D(*fig.parseGeometry(geometry))
 
-        if faceMeans:
+        if faceMeans in (None, True):
             faceMeans = self.faceMeans
 
         if bgFilename == None and not faceMeans:
@@ -725,35 +725,7 @@ class MapDisplay(DisplaySettings):
             fe.addROIRect(depth = 100, roi = roi, lineWidth = 0)
 
         if faceMeans:
-            def getGray(face):
-                faceColor = faceMeans[face.label()]
-                return fe.f.gray(int(faceColor))
-
-            def getRGB(face):
-                faceColor = faceMeans[face.label()]
-                return fe.f.getColor(map(int, tuple(faceColor))) # , similarity
-
-            getFaceColor = getGray
-            if faceMeans.bands() == 3:
-                getFaceColor = getRGB
-
-            todo = [faceMeans.map().face(0)]
-            currentDepth = 100
-            while todo:
-                currentDepth -= 1
-                thisLayer = todo
-                todo = []
-                for face in thisLayer:
-                    if face.area() > 0:
-                        # FIXME: addClippedPoly does not work for closed outer polygon
-                        fe.addEdge(
-                            contourPoly(face.contour()),
-                            depth = currentDepth,
-                            lineWidth = 0,
-                            fillColor = getFaceColor(face),
-                            fillStyle = fig.fillStyleSolid)
-                    for anchor in face.holeContours():
-                        todo.extend(holeComponent(anchor))
+            fe.addMapFaces(self.map, faceMeans)
         
         depth = 50
         for overlay in self.viewer.overlays:

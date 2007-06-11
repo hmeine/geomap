@@ -1,7 +1,7 @@
 import qt, fig
 
 from vigra import Vector2, readImage, Rect2D
-from hourglass import BoundingBox, Polygon, simplifyPolygon, intPos
+from hourglass import BoundingBox, Polygon, simplifyPolygon, intPos, contourPoly
 from dartpath import Path
 
 def _intersectLine(inside, outside, clipRect):
@@ -268,7 +268,7 @@ class FigExporter:
         for i, point in enumerate(points):
             if self.roi and not self.roi.contains(point+o):
                 continue
-            p = intPos((point + o) * self.scale)
+            p = intPos((Vector2(point[0], point[1]) + o) * self.scale)
             dc = fig.Circle(p, radius)
             for a in attr:
                 setattr(dc, a, attr[a])
@@ -371,36 +371,51 @@ class FigExporter:
                 result.extend(parts)
         return result
 
-    # FIXME: unfinished!:
-    def addMapFaces(self, map, **attr):
-        """fe.addMapEdges(map, ...)
+    def addMapFaces(self, geomap, faceMeans, **attr):
+        """fe.addMapFaces(geomap, faceMeans, ...)
 
         Adds and returns fig.Polygons for all map faces (or -parts,
         see addClippedPoly).  Clipping is experimental, since clipping
         arbitrary closed polygons is much harder than just open ones."""
 
-        assert attr.has_key("fillColor"), \
-               "TODO: addMapFaces() does not yet automatically find face colors!"
-        
-        facePolys = []
-        for face in map.faceIter(skipInfinite = True):
-            facePolys.append((
-                Polygon(list(Path(face.contours()[0].phiOrbit()).points())), face))
+        import maputils
 
-        def AreaCompare(c1, c2):
-            return -cmp(c1[0].partialArea(), c2[0].partialArea())
-        facePolys.sort(AreaCompare)
+        def getGray(face):
+            faceColor = faceMeans[face.label()]
+            return self.f.gray(int(faceColor))
+
+        def getRGB(face):
+            faceColor = faceMeans[face.label()]
+            return self.f.getColor(map(int, tuple(faceColor))) # , similarity
+
+        getFaceColor = getGray
+        if faceMeans.bands() == 3:
+            getFaceColor = getRGB
+
+        attr["lineWidth"] = attr.get("lineWidth", 0)
+        attr["fillStyle"] = attr.get("fillStyle", fig.fillStyleSolid)
 
         result = []
-        for poly, face in facePolys:
-            if hasattr(face, "color"):
-                #fillColor = ...
-                thisattr = dict(attr)
-                #thisattr["fillColor"] = fillColor
-                parts = self.addClippedPoly(poly, **thisattr)
-            else:
-                parts = self.addClippedPoly(poly, **attr)
-            result.extend(parts)
+
+        todo = [geomap.face(0)]
+        currentDepth = attr.get("depth", 100)
+        while todo:
+            currentDepth -= 1
+            thisLayer = todo
+            todo = []
+            for face in thisLayer:
+                if face.area() > 0:
+                    thisattr = dict(attr)
+                    thisattr["fillColor"] = getFaceColor(face)
+                    thisattr["depth"] = currentDepth
+                    # FIXME: addClippedPoly does not work for closed
+                    # outer polygon..
+                    result.append(self.addEdge(
+                        contourPoly(face.contour()),
+                        **thisattr))
+                for anchor in face.holeContours():
+                    todo.extend(maputils.holeComponent(anchor))
+
         return result
 
     def save(self, filename, fig2dev = None):
