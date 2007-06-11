@@ -106,15 +106,21 @@ class SeedSelector(qt.QObject):
         self.connect(viewer, qt.PYSIGNAL("mousePressed"),
                      self.mousePressed)
 
+        self.overlay = PointOverlay(self.seeds, qt.Qt.green, 2)
+        viewer.addOverlay(self.overlay)
+
     def mousePressed(self, x, y, button):
         if button != qt.Qt.LeftButton:
             return
         self.seeds.append((x, y))
+        viewer = self.parent().viewer
+        viewer.update()
         
     def disconnectViewer(self):
         viewer = self.parent().viewer
         self.disconnect(viewer, qt.PYSIGNAL("mousePressed"),
                         self.mousePressed)
+        viewer.removeOverlay(self.overlay)
 
 class ActivePaintbrush(qt.QObject):
     def __init__(self, map, parent = None, name = None):
@@ -474,7 +480,7 @@ class ESPathCostMeasure(object):
         #return liveWire.totalCost(previousEndNodeLabel) + error
         # ... + math.exp(-error)
 
-activePathMeasure = SimplePathCostMeasure(statistics.minEdgeGradCost)
+activePathMeasure = None
 """activePathMeasure is used to steer the IntelligentScissors tool.
 It can be assigned any object which returns a path cost when called
 with two arguments:
