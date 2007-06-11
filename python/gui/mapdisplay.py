@@ -3,7 +3,7 @@ _cvsVersion = "$Id$" \
 
 import fig, figexport, maputils, flag_constants, qt, sys, os, time, tools
 from vigra import BYTE, NBYTE, Point2D, Rect2D, Vector2, GrayImage
-from vigrapyqt import ImageWindow, EdgeOverlay, PointOverlay
+from vigrapyqt import ImageWindow, EdgeOverlay, PointOverlay, CircleOverlay
 from hourglass import simplifyPolygon, intPos, BoundingBox, contourPoly
 from maputils import removeCruft, holeComponent
 from weakref import ref
@@ -766,6 +766,8 @@ class MapDisplay(DisplaySettings):
                 fe.addPointOverlay(overlay, depth = depth)
             elif type(overlay) == EdgeOverlay:
                 fe.addEdgeOverlay(overlay, depth = depth)
+            elif type(overlay) == CircleOverlay:
+                fe.addCircleOverlay(overlay, depth = depth)
             elif type(overlay) == ROISelector:
                 color = qtColor2figColor(overlay.color, fe.f)
                 fe.addROIRect(overlay.roi, penColor = color, depth = depth)
