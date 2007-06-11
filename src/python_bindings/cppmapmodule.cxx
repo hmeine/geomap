@@ -774,6 +774,8 @@ class FaceColorStatisticsWrapper
         def("variance", &Statistics::variance);
 
         def("faceMeanDiff", &Statistics::faceMeanDiff);
+        def("faceHomogenity", &Statistics::faceHomogenity);
+        def("faceAreaHomogenity", &Statistics::faceAreaHomogenity);
 
         def("regionImage", &regionImage);
         def("regionImage", &convertToRegionMeans);

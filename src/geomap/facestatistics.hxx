@@ -4,6 +4,8 @@
 #include "cppmap.hxx"
 #include <vigra/inspectimage.hxx>
 #include <vigra/transformimage.hxx>
+#include <vigra/splineimageview.hxx>
+#include <cmath>
 
 namespace detail {
 
@@ -56,7 +58,7 @@ class FaceColorStatistics : boost::noncopyable
 
 //     template<int SplineOrder>
     FaceColorStatistics(GeoMap &map, const OriginalImage &originalImage,
-                        double maxDiffNorm = 1.0, int minSampleCount = 1);
+                        double maxDiffNorm = 1.0, unsigned int minSampleCount = 1);
     ~FaceColorStatistics();
 
     unsigned int
@@ -79,19 +81,32 @@ class FaceColorStatistics : boost::noncopyable
 
     bool preMergeFaces(const GeoMap::Dart &dart)
     {
-//         ssLeft = self._superSampled[dart.leftFaceLabel()]
-//         ssRight = self._superSampled[dart.rightFaceLabel()]
-//         self.ssMerged = 0 # hopefully, the merged face has no supersampling
-//         if ssLeft and (ssLeft == ssRight):
-//             self.ssMerged = ssLeft
-//             ssLeft, ssRight = 0, 0 # can be merged
-//         if ssLeft and ssRight:
-//             if ssLeft < ssRight:
-//                 self.ssMerged = ssLeft
-//                 ssLeft = 0 # take stats from face with less supersampling
-//             else:
-//                 self.ssMerged = ssRight
-//                 ssRight = 0
+        if(superSampled_.get())
+        {
+            unsigned char ssLeft((*superSampled_)[dart.leftFaceLabel()]);
+            unsigned char ssRight((*superSampled_)[dart.rightFaceLabel()]);
+
+            if(ssLeft != ssRight)
+            {
+                if(ssLeft < ssRight)
+                {
+                    merged_ = *functors_[dart.leftFaceLabel()];
+                    mergedSS_ = ssLeft;
+                    mergeDecreasesSSCount_ = !ssLeft;
+                }
+                else
+                {
+                    merged_ = *functors_[dart.rightFaceLabel()];
+                    mergedSS_ = ssRight;
+                    mergeDecreasesSSCount_ = !ssRight;
+                }
+                return true;
+            }
+
+            mergedSS_ = ssLeft;
+            mergeDecreasesSSCount_ = false;
+        }
+
         merged_ = *functors_[dart.leftFaceLabel()];
         merged_(*functors_[dart.rightFaceLabel()]);
         return true;
@@ -100,6 +115,13 @@ class FaceColorStatistics : boost::noncopyable
     void postMergeFaces(GeoMap::Face &face)
     {
         *functors_[face.label()] = merged_;
+        if(superSampled_.get())
+        {
+            (*superSampled_)[face.label()] = mergedSS_;
+            if(mergeDecreasesSSCount_)
+                if(!--superSampledCount_)
+                    superSampled_.reset();
+        }
     }
 
     void associatePixels(GeoMap::Face &face, const PixelList &pixels)
@@ -117,6 +139,24 @@ class FaceColorStatistics : boost::noncopyable
         return vigra::norm(average(dart.leftFaceLabel()) -
                            average(dart.rightFaceLabel()))
             / maxDiffNorm_;
+    }
+
+    double faceAreaHomogenity(const GeoMap::Dart &dart)
+    {
+        double a1 = dart.leftFace()->area();
+        double a2 = dart.rightFace()->area();
+        return (a1 * a2) / (a1 + a2);
+    }
+
+    double faceHomogenity2(const GeoMap::Dart &dart)
+    {
+        return vigra::squaredNorm(faceMeanDiff(dart))
+            * faceAreaHomogenity(dart);
+    }
+
+    double faceHomogenity(const GeoMap::Dart &dart)
+    {
+        return std::sqrt(faceHomogenity2(dart));
     }
 
     template<class DEST_ITERATOR, class DEST_ACCESSOR>
@@ -159,11 +199,20 @@ class FaceColorStatistics : boost::noncopyable
     }
 
   protected:
+    void ensureMinSampleCount(unsigned int minSampleCount);
+
     GeoMap &map_;
     std::vector<sigc::connection> connections_;
-    const OriginalImage &originalImage_;
+    const OriginalImage originalImage_;
     std::vector<Functor *> functors_;
+
+    std::auto_ptr<std::vector<unsigned char> > superSampled_;
+    unsigned int superSampledCount_;
+
     Functor merged_;
+    unsigned char mergedSS_;
+    bool mergeDecreasesSSCount_;
+
     double maxDiffNorm_;
 };
 
@@ -171,10 +220,11 @@ template<class OriginalImage>
 // template<int SplineOrder>
 FaceColorStatistics<OriginalImage>::FaceColorStatistics(
     GeoMap &map, const OriginalImage &originalImage,
-    double maxDiffNorm, int minSampleCount)
+    double maxDiffNorm, unsigned int minSampleCount)
 : map_(map),
   originalImage_(originalImage),
   functors_(map.maxFaceLabel(), NULL),
+  superSampledCount_(0),
   maxDiffNorm_(maxDiffNorm)
 {
     for(GeoMap::FaceIterator it = map.facesBegin(); it.inRange(); ++it)
@@ -185,7 +235,8 @@ FaceColorStatistics<OriginalImage>::FaceColorStatistics(
                      srcImage(originalImage),
                      iff);
 
-    // FIXME: ensure minSampleCount
+    if(minSampleCount)
+        ensureMinSampleCount(minSampleCount);
 
     connections_.push_back(
         map.preMergeFacesHook.connect(
@@ -196,6 +247,49 @@ FaceColorStatistics<OriginalImage>::FaceColorStatistics(
     connections_.push_back(
         map.associatePixelsHook.connect(
             sigc::mem_fun(this, &FaceColorStatistics::associatePixels)));
+}
+
+template<class OriginalImage>
+void FaceColorStatistics<OriginalImage>::ensureMinSampleCount(
+    unsigned int minSampleCount)
+{
+    std::auto_ptr<std::vector<unsigned char> > superSampled;
+    typedef typename vigra::NumericTraits<
+        typename OriginalImage::value_type>::RealPromote FloatPixel;
+    std::auto_ptr<vigra::SplineImageView<5, FloatPixel> > siv;
+
+    GeoMap::FaceIterator it = map_.facesBegin();
+    for(++it; it.inRange(); ++it)
+    {
+        if(functors_[(*it)->label()]->count() < minSampleCount)
+        {
+            if(!superSampled.get())
+            {
+                superSampled.reset(
+                    new std::vector<unsigned char>(map_.maxFaceLabel(), 0));
+                siv.reset(
+                    new vigra::SplineImageView<5, FloatPixel>(
+                        srcImageRange(originalImage_)));
+            }
+
+            do
+            {
+                unsigned char ss(++(*superSampled)[(*it)->label()]);
+                double gridDist = 1.0/(1+ss);
+                GeoMap::Face::BoundingBox bbox((*it)->boundingBox());
+                for(double y = bbox.begin()[1]; y < bbox.end()[1]; y += gridDist)
+                    for(double x = bbox.begin()[0]; x < bbox.end()[0]; x += gridDist)
+                        if((*it)->contains(Vector2(x, y)))
+                            (*functors_[(*it)->label()])((*siv)(x, y));
+            }
+            while(functors_[(*it)->label()]->count() < minSampleCount);
+
+            ++superSampledCount_;
+        }
+    }
+        
+    if(superSampledCount_)
+        superSampled_ = superSampled;
 }
 
 template<class OriginalImage>
