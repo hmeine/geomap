@@ -15,6 +15,15 @@ class DetachableStatistics(object):
         for cb in self._attachedHooks:
             cb.disconnect()
 
+def _combinedMeasure(dart, weightedMeasures):
+    cost = 0.0
+    for weight, measure in weightedMeasures:
+        cost += weight * measure(dart)
+    return cost
+
+def combinedMeasure(*weightedMeasures):
+    return lambda dart: _combinedMeasure(dart, weightedMeasures)
+
 # --------------------------------------------------------------------
 #              Region-based Statistics & Cost Measures
 # --------------------------------------------------------------------
@@ -194,6 +203,7 @@ class _FaceColorStatistics(DynamicFaceStatistics):
 
     def postMergeFaces(self, survivor):
         self._functors[survivor.label()] = self.mergedStats
+        self._superSampled[dart.rightFaceLabel()] = self.ssMerged
 
     def associatePixels(self, face, positions):
         functor = self._functors[face.label()]
@@ -278,13 +288,16 @@ class _FaceColorStatistics(DynamicFaceStatistics):
            max(math.sqrt(f1.variance() / f1.pixelCount + \
                          f2.variance() / f2.pixelCount), 1e-3)
 
+FaceGrayStatistics.bands = lambda x: 1
+FaceRGBStatistics.bands = lambda x: 3
+
 def FaceColorStatistics(map, originalImage, minSampleCount = 1):
     if originalImage.bands() == 1:
         return FaceGrayStatistics(map, originalImage, minSampleCount)
     elif originalImage.bands() == 3:
         return FaceRGBStatistics(map, originalImage, minSampleCount)
     else:
-        return _FaceRGBStatistics(map, originalImage, minSampleCount)
+        return _FaceColorStatistics(map, originalImage, minSampleCount)
 
 def faceAreaHomogenity(dart):
     a1 = dart.leftFace().area()
@@ -466,7 +479,7 @@ class WatershedStatistics(DynamicEdgeIndices):
             # the indices:
             flowline = flowlines[edge.label()]
             if len(edge) != len(flowline[2]) and edge[1] == flowline[2][0]:
-                assert flowline[0] == 0
+                assert flowline[0] <= 0
                 saddleIndex += 1
             
             self._passValues[edge.label()] = gmSiv[edge[saddleIndex]]
@@ -538,10 +551,12 @@ class WatershedStatistics(DynamicEdgeIndices):
             edge = self._map().edge(edgeLabel)
         return [edge[i] for i in self._indices[edgeLabel]]
 
-    def passValue(self, edge):
-        if hasattr(edge, "label"):
-            edge = edge.label()
-        return self._passValues[edge]
+    def dartPassValue(self, dart):
+        return self._passValues[dart.edgeLabel()]
+
+    def passValue(self, dart):
+        return min([self.dartPassValue(d)
+                    for d in commonBoundaryDarts(dart)])
 
 #     def dynamic(self, edge):
 #         if hasattr(edge, "label"):
@@ -607,24 +622,56 @@ class BoundaryIndicatorStatistics(DynamicEdgeStatistics):
     def postMergeEdges(self, survivor):
         self._functors[survivor.label()] = self.mergedStats
 
+def commonBoundaryDarts(dart):
+    rightFaceLabel = dart.rightFaceLabel()
+    for d in dart.phiOrbit():
+        if d.rightFaceLabel() == rightFaceLabel:
+            yield d
+
 class EdgeGradientStatistics(BoundaryIndicatorStatistics):
-    def __init__(self, map, gmSiv, resample = None):
+    def __init__(self, map, gmSiv, resample = 0.1):
         BoundaryIndicatorStatistics.__init__(self, map)
         for edge in map.edgeIter():
             poly = resample and resamplePolygon(edge, resample) or edge
             self._functors[edge.label()] = EdgeStatistics(poly, gmSiv)
         self.attach(map)
 
-    def minGradient(self, dart):
-        return self._functors[dart.edgeLabel()].quantile(0.0)
+    def __getitem__(self, edgeLabel):
+        return self._functors[edgeLabel]
 
-    def maxGradient(self, dart):
-        return self._functors[dart.edgeLabel()].quantile(1.0)
+    def dartMin(self, dart):
+        return self[dart.edgeLabel()].quantile(0.0)
+
+    def dartMax(self, dart):
+        return self[dart.edgeLabel()].quantile(1.0)
+
+    def dartQuantile(self, q):
+        def specificQuantile(dart):
+            return self[dart.edgeLabel()].quantile(q)
+        return specificQuantile
+
+    def dartAverage(self, dart):
+        return self[dart.edgeLabel()].average()
+
+    def combinedStatistics(self, dart):
+        result = EdgeStatistics()
+        for d in commonBoundaryDarts(dart):
+            result.merge(self[d.edgeLabel()])
+        return result
+
+    def min(self, dart):
+        return self.combinedStatistics(dart).quantile(0.0)
+
+    def max(self, dart):
+        return self.combinedStatistics(dart).quantile(1.0)
 
     def quantile(self, q):
-        def specificQuantile(dart, q = q, egs = self):
-            return self._functors[dart.edgeLabel()].quantile(1)
+        def specificQuantile(dart):
+            return self.combinedStatistics(dart).quantile(q)
         return specificQuantile
+
+    def average(self, dart):
+        return self.combinedStatistics(dart).average()
 
 # USAGE:
 # >>> boundaryIndicator = SplineImageView5(...)
@@ -973,37 +1020,6 @@ class EdgeRegularity(DetachableStatistics):
 
     def postMergeEdges(self, survivor):
         self.calcRegularity(survivor)
-
-def otherCommonDarts(dart):
-    it = dart.clone()
-    rightFaceLabel = dart.rightFaceLabel()
-    while it.nextPhi() != dart:
-        if it.rightFaceLabel() == rightFaceLabel:
-            yield it
-
-def totalBoundaryStatistics(dart, attrName):
-    result = EdgeStatistics()
-    result.merge(getattr(dart.edge(), attrName))
-    for d in otherCommonDarts(dart):
-        result.merge(getattr(d.edge(), attrName))
-    return result
-
-def meanEdgeGradCost(dart):
-    return totalBoundaryStatistics(dart, "_meanGradient").average()
-
-def medianEdgeGradCost(dart):
-    return totalBoundaryStatistics(dart, "_meanGradient").quantile(0.5)
-
-def minEdgeGradCost(dart):
-    result = dart.edge()._passValue
-    for d in otherCommonDarts(dart):
-        result = min(result, d.edge()._passValue)
-    return result
-
-def edgeQuantileCost(attrName, quantile):
-    def boundaryStatisticsQuantile(dart, attrName = attrName, quantile = quantile):
-        return totalBoundaryStatistics(dart, attrName).quantile(quantile)
-    return boundaryStatisticsQuantile
 
 # --------------------------------------------------------------------
 
