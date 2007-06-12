@@ -1104,15 +1104,88 @@ class LiveHistory(History):
         self.append(self.op)
 
 # --------------------------------------------------------------------
+#                      Automatic Region Merger
+# --------------------------------------------------------------------
 
-def thresholdMergeCost(map, mergeCostFunctor, maxCost, costs = None, q = None):
-    """thresholdMergeCost(map, mergeCostFunctor, maxCost, costs = None, q = None)
+class AutomaticRegionMerger(object):
+    """Merges faces in order of increasing costs.  The given
+    mergeCostMeasure is called on a dart for each edge to determine
+    the cost of removing that edge / merging the adjacent regions.
+
+    Internally, a DynamicCostQueue is used in order to always remove
+    the edge with the lowest assigned cost.  After each operation, the
+    costs of all edges around the surviving face are recalculated."""
+
+    __slots__ = ["_map", "_mergeCostMeasure", "_step", "_queue",
+                 "_costLog"]
+
+    def __init__(self, map, mergeCostMeasure, q = None):
+        self._map = map
+        self._mergeCostMeasure = mergeCostMeasure
+        self._step = 0
+
+        if q == None:
+            q = hourglass.DynamicCostQueue(map.maxEdgeLabel()+1)
+            for edge in map.edgeIter():
+                q.insert(edge.label(), mergeCostMeasure(edge.dart()))
+        
+        self._queue = q
+        self._costLog = None
+
+    def nextCost(self):
+        """Returns the cost of the operation that would be performed
+        next by `mergeStep()`."""
+        return self._queue.top()[1]
+
+    def step(self):
+        """Returns the number of steps performed so far."""
+        return self._step
+
+    def merge(self, maxCost = None):
+        oldStep = self._step
+        if maxCost:
+            while self._queue and self.nextCost() <= maxCost:
+                self.mergeStep()
+        else:
+            while self._queue:
+                self.mergeStep()
+        return self._step - oldStep
+
+    def mergeStep(self):
+        while True:
+            edgeLabel, cost = self._queue.pop()
+            edge = self._map.edge(edgeLabel)
+            if edge and not edge.flag(flag_constants.ALL_PROTECTION):
+                break
+
+        assert edge, "no more mergeable faces found"
+
+        d = edge.dart()
+        if edge.isBridge():
+            # FIXME: precondition "no bridges"?
+            # or removeBridges in constructor?
+            survivor = self._map.removeBridge(d)
+        else:
+            survivor = mergeFacesCompletely(d)
+            if survivor:
+                q = self._queue
+                mcm = self._mergeCostMeasure
+                for dart in contourDarts(survivor):
+                    q.setCost(dart.edgeLabel(), mcm(dart))
+
+        if survivor:
+            if self._costLog:
+                self._costLog.append(cost)
+            self._step += 1
+
+def thresholdMergeCost(map, mergeCostMeasure, maxCost, costs = None, q = None):
+    """thresholdMergeCost(map, mergeCostMeasure, maxCost, costs = None, q = None)
 
     Merges faces of the given map in order of increasing costs until
     no more merges are assigned a cost <= maxCost by the
-    mergeCostFunctor.
+    mergeCostMeasure.
 
-    The mergeCostFunctor is called on a dart for each edge to
+    The mergeCostMeasure is called on a dart for each edge to
     determine the cost of removing that edge.  This is used to
     initialize a DynamicCostQueue, which is used internally in order
     to always remove the edge with the lowest cost assigned.  The
@@ -1120,42 +1193,16 @@ def thresholdMergeCost(map, mergeCostFunctor, maxCost, costs = None, q = None):
     the DynamicCostQueue, and you may pass the latter as optional
     argument 'd' into a subsequent call of thresholdMergeCost (with
     the same map and an increased maxCost) in order to re-use it
-    (mergeCostFunctor is not used then).
+    (mergeCostMeasure is not used then).
 
     If the optional argument costs is given, it should be a mutable
     sequence which is append()ed the costs of each performed
     operation."""
     
-    result = 0
+    arm = AutomaticRegionMerger(map, mergeCostMeasure, q)
+    arm._costLog = costs
 
-    if q == None:
-        q = hourglass.DynamicCostQueue(map.maxEdgeLabel()+1)
-        for edge in map.edgeIter():
-            q.insert(edge.label(), mergeCostFunctor(edge.dart()))
-        
-    while not q.empty():
-        edgeLabel, cost = q.pop()
-        if cost > maxCost:
-            break
-
-        edge = map.edge(edgeLabel)
-        if not edge or edge.flag(flag_constants.ALL_PROTECTION):
-            continue
-        d = edge.dart()
-        if edge.isBridge():
-            survivor = removeBridge(d)
-        else:
-            survivor = mergeFacesCompletely(d)
-            if survivor:
-                for dart in contourDarts(survivor):
-                    q.setCost(dart.edgeLabel(),
-                              mergeCostFunctor(dart))
-        if survivor:
-            result += 1
-            if costs != None:
-                costs.append(cost)
-    
-    return result, q
+    return arm.merge(maxCost = maxCost), arm._queue
 
 # --------------------------------------------------------------------
 
@@ -1271,7 +1318,7 @@ def nodeAtBorder(node):
     return False
 
 # --------------------------------------------------------------------
-# 						Seeded Region Growing
+#                       Seeded Region Growing
 # --------------------------------------------------------------------
 
 from heapq import heappush, heappop
@@ -1365,6 +1412,12 @@ class SeededRegionGrowing(object):
         if not dynamic and not stupidInit:
             self._neighborSkipFlags |= flag_constants.SRG_BORDER
 
+    def nextCost(self):
+        return self._queue.top()[1]
+
+    def step(self):
+        return self._step
+
     def _addNeighborsToQueue(self, face):
         for dart in neighborFaces(face):
             neighbor = dart.rightFace()
@@ -1376,7 +1429,7 @@ class SeededRegionGrowing(object):
     def grow(self, maxCost = None):
         oldStep = self._step
         if maxCost:
-            while self._queue and self._queue.top()[1] <= maxCost:
+            while self._queue and self.nextCost() <= maxCost:
                 self.growStep()
         else:
             while self._queue:
@@ -1385,10 +1438,13 @@ class SeededRegionGrowing(object):
 
     def growStep(self):
         # fetch candidate Face from queue:
-        face = None
-        while self._queue and (not face or face.flag(flag_constants.SRG_SEED)):
+        while True:
             faceLabel, _ = self._queue.pop()
             face = self._map.face(faceLabel)
+            if face and not face.flag(flag_constants.SRG_SEED):
+                break
+
+        assert face, "no more candidate faces found"
 
         # look for neighbor with lowest merge cost:
         best = None
@@ -1409,9 +1465,6 @@ class SeededRegionGrowing(object):
             return 1
         return 0
 
-    def step(self):
-        return self._step
-
     def growSteps(self, count):
         result = 0
         while self._queue and result < count:
@@ -1423,7 +1476,7 @@ class SeededRegionGrowing(object):
 
     def growToCost(self, maxCost):
         result = 0
-        while self._queue and self._queue.top()[0] < maxCost:
+        while self._queue and self.nextCost() < maxCost:
             result += self.growStep()
         return result
 
@@ -1452,7 +1505,7 @@ def seededRegionGrowing(map, mergeCostMeasure, dynamic = False, stupidInit = Fal
     srg.grow()
 
 # --------------------------------------------------------------------
-# 						   MST / waterfall
+#                          MST / waterfall
 # --------------------------------------------------------------------
 
 def minimumSpanningTree(map, edgeCosts):
@@ -1554,7 +1607,7 @@ def waterfall(map, edgeCosts, mst = None):
             continue
         if edge.isBridge():
             print "ERROR: waterfall should not be called on maps with bridges!"
-            removeBridge(edge.dart())
+            map.removeBridge(edge.dart())
             continue
         lfl = faceLabels[edge.leftFaceLabel()]
         rfl = faceLabels[edge.rightFaceLabel()]
