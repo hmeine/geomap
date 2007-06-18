@@ -79,6 +79,16 @@ class FaceColorStatistics : boost::noncopyable
         return functors_[faceLabel]->variance(unbiased);
     }
 
+    unsigned int size() const
+    {
+        return functors_.size();
+    }
+
+    const Functor *operator[](unsigned int index) const
+    {
+        return functors_[index];
+    }
+
     bool preMergeFaces(const GeoMap::Dart &dart)
     {
         if(superSampled_.get())
