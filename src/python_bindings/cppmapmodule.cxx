@@ -754,6 +754,7 @@ class FaceColorStatisticsWrapper
 {
   public:
     typedef FaceColorStatistics<OriginalImage> Statistics;
+    typedef typename Statistics::Functor StatsFunctor;
 
     FaceColorStatisticsWrapper(const char *name)
     : bp::class_<Statistics, boost::noncopyable>(name, bp::no_init)
@@ -768,10 +769,10 @@ class FaceColorStatisticsWrapper
                 (bp::arg("map"), bp::arg("originalImage"),
                  bp::arg("minSampleCount") = 1)));
 
-        def("pixelCount", &Statistics::pixelCount);
-        def("average", &Statistics::average);
+        def("pixelCount", &pixelCount);
+        def("average", &average);
         this->attr("__getitem__") = this->attr("average");
-        def("variance", &Statistics::variance);
+        def("variance", &variance);
 
         def("faceMeanDiff", &Statistics::faceMeanDiff);
         def("faceHomogenity", &Statistics::faceHomogenity);
@@ -781,6 +782,44 @@ class FaceColorStatisticsWrapper
         def("regionImage", &convertToRegionMeans);
 
         def("detachHooks", &Statistics::detachHooks);
+    }
+
+    static void
+    checkFaceLabel(Statistics const &stats, CellLabel faceLabel)
+    {
+        if((unsigned int)faceLabel >= stats.size())
+        {
+            PyErr_SetString(PyExc_IndexError,
+                            "face label out of bounds.");
+            boost::python::throw_error_already_set();
+        }
+        if(!stats[faceLabel])
+        {
+            PyErr_SetString(PyExc_ValueError,
+                            "no information for the given face label.");
+            boost::python::throw_error_already_set();
+        }
+    }
+
+    static unsigned int
+    pixelCount(Statistics const &stats, CellLabel faceLabel)
+    {
+        checkFaceLabel(stats, faceLabel);
+        return stats.pixelCount(faceLabel);
+    }
+
+    static typename StatsFunctor::result_type
+    average(Statistics const &stats, CellLabel faceLabel)
+    {
+        checkFaceLabel(stats, faceLabel);
+        return stats.average(faceLabel);
+    }
+
+    static typename StatsFunctor::result_type
+    variance(Statistics const &stats, CellLabel faceLabel, bool unbiased)
+    {
+        checkFaceLabel(stats, faceLabel);
+        return stats.variance(faceLabel, unbiased);
     }
 
     static Statistics *create(
