@@ -288,7 +288,7 @@ class FigExporter:
             if type(color) == qt.QColor:
                 color = qtColor2figColor(color, self.f)
             attr[colorAttr] = color
-            print "fetched %s %s from %s" % (colorAttr, color, overlay)
+            #print "fetched %s %s from %s" % (colorAttr, color, overlay)
         if hasattr(overlay, "width") and "lineWidth" not in attr:
             attr["lineWidth"] = overlay.width
 
@@ -400,7 +400,7 @@ class FigExporter:
                 result.extend(parts)
         return result
 
-    def addMapFaces(self, geomap, faceMeans, **attr):
+    def addMapFaces(self, geomap, faceMeans, returnFaces = False, **attr):
         """fe.addMapFaces(geomap, faceMeans, ...)
 
         Adds and returns fig.Polygons for all map faces (or -parts,
@@ -439,9 +439,11 @@ class FigExporter:
                     thisattr["depth"] = currentDepth
                     # FIXME: addClippedPoly does not work for closed
                     # outer polygon..
-                    result.append(self.addEdge(
-                        contourPoly(face.contour()),
-                        **thisattr))
+                    o = self.addEdge(contourPoly(face.contour()), **thisattr)
+                    if returnFaces:
+                        result.append((face, o))
+                    else:
+                        result.append(o)
                 for anchor in face.holeContours():
                     todo.extend(maputils.holeComponent(anchor))
 
