@@ -170,9 +170,12 @@ class FigExporter:
         Returns the pair (bgImage, bgRect) of both added fig objects."""
         
         if not params.has_key("roi"):
-            size = readImage(bgImageFilename).size()
-            params["roi"] = BoundingBox(
-                Vector2(0, 0), Vector2(size[0], size[1]))
+            if self.roi:
+                params["roi"] = self.roi
+            else:
+                size = readImage(bgImageFilename).size()
+                params["roi"] = BoundingBox(
+                    Vector2(0, 0), Vector2(size[0], size[1]))
 
         if not params.has_key("depth"):
             params["depth"] = 1
@@ -225,18 +228,27 @@ class FigExporter:
         is called on the *scaled* polygon (i.e. the default is to
         simplify the polygon to 0.5 fig units, which are integer
         anyways)."""
-        
+
+        # no ROI to clip to?
         if not self.roi:
             return [self.addEdge(polygon, **attr)]
-        if not self.roi.intersects(polygon.boundingBox()):
-            return []
+
         clipRect = BoundingBox(self.roi)
         o = self.offset + attr.get('offset', Vector2(0,0))
         clipRect.moveBy(-o)
+
+        # handle all-or-none cases:
+        if not clipRect.intersects(polygon.boundingBox()):
+            return []
         if clipRect.contains(polygon.boundingBox()):
             return [self.addEdge(polygon, **attr)]
-        return [self.addEdge(polygon, **attr)
-                for polygon in clipPoly(polygon, clipRect)]
+
+        # general case: perform clipping, add parts one-by-one:
+        result = []
+        for part in clipPoly(polygon, clipRect):
+            if part.length(): # don't add zero-length polygons
+                result.append(self.addEdge(part, **attr))
+        return result
 
     def addPointCircles(self, points, radius, returnIndices = False, **attr):
         """fe.addPointCircles(points, radius, returnIndices = False,...)
