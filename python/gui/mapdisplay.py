@@ -58,6 +58,20 @@ class MapEdges(object):
         self._attachedHooks = None
         return True
 
+    def changeColor(self, edge, newColor):
+        if isinstance(edge, int):
+            edge = self._map().edge(edge)
+        if not self.colors:
+            self.colors = [self.color] * self._map().maxEdgeLabel()
+        self.colors[edge.label()] = newColor
+        self._updateEdgeROI(edge)
+
+    def _updateEdgeROI(self, edge):
+        """FIXME: only used by changeColor so far, similar to setEdgePoints"""
+        result = self._getZoomedEdge(edge).boundingRect()
+        result.moveBy(self.viewer.x, self.viewer.y)
+        self.viewer.update(result)
+
     def _calculatePoints(self):
         if not self._map():
             return
@@ -163,6 +177,9 @@ class MapEdges(object):
             self._zoomedEdges = [None] * len(self._zoomedEdges)
 
     def _getZoomedEdge(self, edge):
+        """Return the QPointArray for the given GeoMap.Edge object.
+        The QPointArrays are cached and will be created on demand if
+        you call this function."""
         index = edge.label()
         result = self._zoomedEdges[index]
         if result == None:
@@ -577,6 +594,8 @@ class MapDisplay(DisplaySettings):
             return # no recursion please
         if self.tool:
             self.tool.disconnectViewer()
+            if self.tool.parent() == self:
+                self.tool.deleteLater()
             self.tool = None
 
         if tool == 1:
@@ -611,13 +630,14 @@ class MapDisplay(DisplaySettings):
     def cleanupMap(self):
         removeCruft(self.map, 7)
 
-    def navigate(self, dart):
+    def navigate(self, dart, center = True):
         if type(dart) == int:
             dart = self.map.dart(dart)
         self.dn = DartNavigator(dart, self)
         self.dn.show()
-        self.viewer.center = dart[0]
-        self.viewer.optimizeUpperLeft()
+        if center:
+            self.viewer.center = dart[0]
+            self.viewer.optimizeUpperLeft()
 
     def setImage(self, image, pixelFormat = NBYTE):
         if hasattr(image, "orig"):
