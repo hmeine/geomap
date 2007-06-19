@@ -852,6 +852,7 @@ class DartNavigator(DartNavigatorBase):
     def closeEvent(self, e):
         self.dh.highlight(None)
         DartNavigatorBase.closeEvent(self, e)
+        self.deleteLater() # like qt.Qt.WDestructiveClose ;-)
 
     def highlightNext(self):
         self.activePerm()
