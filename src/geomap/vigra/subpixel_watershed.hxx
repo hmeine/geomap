@@ -555,7 +555,7 @@ void findCriticalPointsNewtonMethod(IMAGEVIEW const & image,
 }
 
 template <class IMAGEVIEW, class VECTOR, class MaskIterator, class MaskAccessor>
-void findCriticalPointsNewtonMethod(IMAGEVIEW const & image,
+void findCriticalPointsNewtonMethodIf(IMAGEVIEW const & image,
     pair<MaskIterator, MaskAccessor> mask,
     VECTOR & minima, VECTOR & saddles, VECTOR & maxima,
     double epsilon, unsigned int oversampling)
@@ -580,7 +580,7 @@ void findCriticalPointsNewtonMethod(IMAGEVIEW const & image,
         percent = 100 * y / h;
         if(percent != lastPercent)
         {
-            std::cerr << "findCriticalPointsNewtonMethod(): " << percent << "%\r";
+            std::cerr << "findCriticalPointsNewtonMethodIf(): " << percent << "%\r";
             lastPercent = percent;
         }
         MaskIterator mit(maskRow);
@@ -619,7 +619,7 @@ void findCriticalPointsNewtonMethod(IMAGEVIEW const & image,
             }
         }
     }
-    std::cerr << "findCriticalPointsNewtonMethod(): done.\n";
+    std::cerr << "findCriticalPointsNewtonMethodIf(): done.\n";
 }
 
 template <class T, class VECTOR>
@@ -1517,7 +1517,7 @@ void SubPixelWatersheds<SplineImageView>::findCriticalPoints(
     saddles_.push_back(PointType());
     maxima_.push_back(PointType());
 
-    findCriticalPointsNewtonMethod(
+    findCriticalPointsNewtonMethodIf(
         image_, mask, minima_, saddles_, maxima_, minCPDist_, 2);
     updateMaxImage();
 }
