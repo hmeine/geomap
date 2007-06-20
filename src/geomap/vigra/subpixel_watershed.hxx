@@ -1314,14 +1314,16 @@ class SubPixelWatersheds
     SubPixelWatersheds(SrcIterator ul, SrcIterator lr, SrcAccessor src)
     : image_(ul, lr, src),
       initialStep_(0.1),
-      minCPDist_(1e-3)
+      minCPDist_(1e-3),
+      cpOversampling_(2)
     {}
 
     template <class SrcIterator, class SrcAccessor>
     SubPixelWatersheds(triple<SrcIterator, SrcIterator, SrcAccessor> src)
     : image_(src),
       initialStep_(0.1),
-      minCPDist_(1e-3)
+      minCPDist_(1e-3),
+      cpOversampling_(2)
     {}
 
     int width() const { return image_.width(); }
@@ -1345,6 +1347,7 @@ class SubPixelWatersheds
     PointArray minima_, saddles_, maxima_;
     IImage maxImage_;
     double initialStep_, minCPDist_;
+    unsigned int cpOversampling_;
 };
 
 // static int sturmcount, zeroOrder;
@@ -1508,7 +1511,7 @@ void SubPixelWatersheds<SplineImageView>::findCriticalPoints(
     maxima_.push_back(PointType());
 
     findCriticalPointsNewtonMethodIf(
-        image_, mask, minima_, saddles_, maxima_, minCPDist_, 2);
+        image_, mask, minima_, saddles_, maxima_, minCPDist_, cpOversampling_);
     updateMaxImage();
 }
 
@@ -1534,7 +1537,7 @@ SubPixelWatersheds<SplineImageView>::findCriticalPoints()
 //             findCriticalPointsInFacet(x, y, minima_, saddles_, maxima_);
 //         }
 //     }
-    findCriticalPointsNewtonMethod(image_, minima_, saddles_, maxima_, minCPDist_, 2);
+    findCriticalPointsNewtonMethod(image_, minima_, saddles_, maxima_, minCPDist_, cpOversampling_);
     updateMaxImage();
 //     std::cerr << "Sturm fired: " << sturmcount << " times\n";
 //     std::cerr << "Zero order fired: " << zeroOrder << " times\n";
@@ -1774,7 +1777,7 @@ if(DEBUG) std::cerr << "stop index, x, y " << index << ' ' << curve.back()[0] <<
         return index;
     }
 
-    for(int k = 0; k < 10000; ++k)
+    for(int k = 0; k < 100000; ++k)
     {
         double xn, yn;
         RungeKuttaResult rungeKuttaResult(
@@ -1815,8 +1818,8 @@ if(DEBUG) std::cerr << "stop index, x, y " << index << ' ' << curve.back()[0] <<
             return failReason; // give up
         }
     }
-    if(DEBUG) std::cerr << "too many steps\n";
-    return failReason;
+    std::cerr << "flowLine(): too many steps, h = " << h << "\n";
+    return failReason-3;
 }
 
 template <class SplineImageView>
