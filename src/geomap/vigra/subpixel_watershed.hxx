@@ -218,15 +218,15 @@ void findCriticalPointsLinearInterpolation(IMAGE const & image,
 template <class IMAGEVIEW>
 CriticalPoint
 findCriticalPointNewtonMethod(IMAGEVIEW const & image,
-                  double x, double y, double & xx, double & yy,
-                  double epsilon)
+                  const double x, const double y, double & xx, double & yy,
+                  const double stepEpsilon)
 {
     typedef typename IMAGEVIEW::value_type Value;
     Value zero = NumericTraits<Value>::zero();
 
     xx = x;
     yy = y;
-    double sxx, syy, epsilon2 = epsilon * epsilon;
+    double sxx, syy, stepEpsilon2 = stepEpsilon * stepEpsilon;
     for(int i=0; i<100; ++i) // do at most 100 iterations
     {
         Value dx = image.dx(xx, yy);
@@ -235,26 +235,29 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
         Value dxy = image.dxy(xx, yy);
         Value dyy = image.dyy(xx, yy);
         Value det = dxx*dyy - dxy*dxy;
+
         if(det != zero)
         {
             sxx = (dxy*dy - dyy*dx) / det;
             syy = (dxy*dx - dxx*dy) / det;
             xx += sxx;
             yy += syy;
+            if(!image.isValid(xx, yy))
+                return Failed; // coordinates out of range
         }
         else
         {
             sxx = syy = 0.0;
         }
-        if(!image.isValid(xx, yy))
+
+        double dist2 = sxx*sxx + syy*syy;
+        if(dist2 < stepEpsilon2) // convergence
         {
-            return Failed; // coordinates out of range
-        }
-        double diff2 = sxx*sxx + syy*syy;
-        if(diff2 < epsilon2) // convergence
-        {
-            if(xx < -epsilon || xx > (double)(image.width())-1.0+epsilon ||
-               yy < -epsilon || yy > (double)(image.height())-1.0+epsilon)
+            // FIXME: this is the second reuse of epsilon for a third
+            // purpose (I renamed the first epsilon to minCPDist, the
+            // second to stepEpsilon, which is minCPDist/10)
+            if(xx < -stepEpsilon || xx > (double)(image.width())-1.0+stepEpsilon ||
+               yy < -stepEpsilon || yy > (double)(image.height())-1.0+stepEpsilon)
             {
                 return Failed; // coordinates out of range
             }
@@ -265,7 +268,6 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
                     return Saddle;
                 }
                 return Failed;
-
             }
             else if(det < zero)
             {
@@ -287,15 +289,15 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
 template <class IMAGEVIEW>
 CriticalPoint
 findCriticalPointNewtonMethod(IMAGEVIEW const & image,
-                  double x, double y, double & xx, double & yy,
-                  double epsilon, double maxJump)
+                  const double x, const double y, double & xx, double & yy,
+                  const double stepEpsilon, const double squaredSearchRadius)
 {
     typedef typename IMAGEVIEW::value_type Value;
     Value zero = NumericTraits<Value>::zero();
 
     xx = x;
     yy = y;
-    double sxx, syy, epsilon2 = epsilon * epsilon;
+    double sxx, syy, stepEpsilon2 = stepEpsilon * stepEpsilon;
     for(int i=0; i<100; ++i) // do at most 100 iterations
     {
         Value dx = image.dx(xx, yy);
@@ -304,26 +306,29 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
         Value dxy = image.dxy(xx, yy);
         Value dyy = image.dyy(xx, yy);
         Value det = dxx*dyy - dxy*dxy;
+
         if(det != zero)
         {
             sxx = (dxy*dy - dyy*dx) / det;
             syy = (dxy*dx - dxx*dy) / det;
             xx += sxx;
             yy += syy;
+            if(!image.isValid(xx, yy))
+                return Failed; // coordinates out of range
         }
         else
         {
             sxx = syy = 0.0;
         }
-        if(!image.isValid(xx, yy))
+
+        double dist2 = sxx*sxx + syy*syy;
+        if(dist2 < stepEpsilon2) // convergence
         {
-            return Failed; // coordinates out of range
-        }
-        double diff2 = (sxx*sxx + syy*syy);
-        if(diff2 < epsilon2) // convergence
-        {
-            if(xx < -epsilon || xx > (double)(image.width())-1.0+epsilon ||
-               yy < -epsilon || yy > (double)(image.height())-1.0+epsilon)
+            // FIXME: this is the second reuse of stepEpsilon for a third
+            // purpose (I renamed the first stepEpsilon to minCPDist, this
+            // is minCPDist/10)
+            if(xx < -stepEpsilon || xx > (double)(image.width())-1.0+stepEpsilon ||
+               yy < -stepEpsilon || yy > (double)(image.height())-1.0+stepEpsilon)
             {
                 return Failed; // coordinates out of range
             }
@@ -334,7 +339,6 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
                     return Saddle;
                 }
                 return Failed;
-
             }
             else if(det < zero)
             {
@@ -349,9 +353,8 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
                 return Maximum;
             }
         }
-
-        double odiff2 = sq(xx-x) + sq(yy-y);
-        if(odiff2 > maxJump)
+ 
+        if(sq(xx-x) + sq(yy-y) > squaredSearchRadius)
             return Failed;
     }
     return Failed;
@@ -360,7 +363,7 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
 template <class IMAGEVIEW, class VECTOR>
 void findCriticalPointsNewtonMethodOld(IMAGEVIEW const & image,
                         VECTOR & minima, VECTOR & saddles, VECTOR & maxima,
-                        double epsilon, unsigned int oversampling)
+                        double stepEpsilon, unsigned int oversampling)
 {
     int w = image.width();
     int h = image.height();
@@ -376,7 +379,7 @@ void findCriticalPointsNewtonMethodOld(IMAGEVIEW const & image,
         for(double x=1.0; x <= w-2.0; x += d)
         {
             double xx, yy;
-            CriticalPoint type = findCriticalPointNewtonMethod(image, x, y, xx, yy, epsilon);
+            CriticalPoint type = findCriticalPointNewtonMethod(image, x, y, xx, yy, stepEpsilon);
             if(type == Failed)
                 continue;
             if(VIGRA_CSTD::abs(xx - x) > 0.5*d || VIGRA_CSTD::abs(yy - y) > 0.5*d)
@@ -405,7 +408,7 @@ findDirectedMaximum(IMAGEVIEW const & image,
                     double x, double y,
                     double nx, double ny,
                     double & xx, double & yy,
-                    double epsilon, double maxDist)
+                    double stepEpsilon, double maxDist)
 {
     typedef typename IMAGEVIEW::value_type Value;
     Value zero = NumericTraits<Value>::zero();
@@ -419,7 +422,7 @@ findDirectedMaximum(IMAGEVIEW const & image,
 
     xx = x;
     yy = y;
-    double sxx, syy, epsilon2 = epsilon * epsilon, maxDist2 = maxDist * maxDist;
+    double sxx, syy, stepEpsilon2 = stepEpsilon * stepEpsilon, maxDist2 = maxDist * maxDist;
     for(int i=0; i<100; ++i) // do at most 100 iterations
     {
         Value d = image.dx(x, y)*nx + image.dy(x, y)*ny;
@@ -446,7 +449,7 @@ findDirectedMaximum(IMAGEVIEW const & image,
             return false; // coordinates out of range
         }
 
-        if(sxx*sxx + syy*syy < epsilon2) // convergence
+        if(sxx*sxx + syy*syy < stepEpsilon2) // convergence
             return (d2 < zero) && (dxx + dyy < zero); // maximum?
 
         sxx = xx - x; syy = yy - y;
