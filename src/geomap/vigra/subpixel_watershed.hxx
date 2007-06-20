@@ -353,7 +353,7 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
                 return Maximum;
             }
         }
- 
+
         if(sq(xx-x) + sq(yy-y) > squaredSearchRadius)
             return Failed;
     }
@@ -386,18 +386,15 @@ void findCriticalPointsNewtonMethodOld(IMAGEVIEW const & image,
             {
                 continue; // out of current starting point region
             }
+
+            Coordinate c(xx, yy);
+
             if(type == Saddle)
-            {
-                saddles.push_back(Coordinate(xx, yy));
-            }
+                saddles.push_back(c);
             else if(type == Minimum)
-            {
-                minima.push_back(Coordinate(xx, yy));
-            }
+                minima.push_back(c);
             else
-            {
-                maxima.push_back(Coordinate(xx, yy));
-            }
+                maxima.push_back(c);
         }
     }
 }
@@ -497,7 +494,7 @@ struct CriticalPointsCompare
 template <class IMAGEVIEW, class VECTOR>
 void findCriticalPointsNewtonMethod(IMAGEVIEW const & image,
                         VECTOR & minima, VECTOR & saddles, VECTOR & maxima,
-                        double epsilon, unsigned int oversampling)
+                        double minCPDist, unsigned int oversampling)
 {
     int w = image.width();
     int h = image.height();
@@ -506,7 +503,7 @@ void findCriticalPointsNewtonMethod(IMAGEVIEW const & image,
     typedef typename VECTOR::value_type Coordinate;
 
     double d = 1.0 / oversampling;
-    double squareEpsilon = sq(epsilon);
+    double squareMinCPDist = sq(minCPDist);
 
     Map2D<Coordinate> points;
 
@@ -529,26 +526,21 @@ void findCriticalPointsNewtonMethod(IMAGEVIEW const & image,
                 {
                     double xx, yy;
                     CriticalPoint type = findCriticalPointNewtonMethod(
-                        image, x + dx, y + dy, xx, yy, epsilon / 10.0, 4.0);
+                        image, x + dx, y + dy, xx, yy, minCPDist / 10.0, 4.0);
                     if(type == Failed)
                         continue;
 
                     Coordinate c(xx, yy);
-                    if(points.nearest(c, squareEpsilon) != points.end())
+                    if(points.nearest(c, squareMinCPDist) != points.end())
                         continue;
 
                     if(type == Saddle)
-                    {
                         saddles.push_back(c);
-                    }
                     else if(type == Minimum)
-                    {
                         minima.push_back(c);
-                    }
                     else
-                    {
                         maxima.push_back(c);
-                    }
+
                     points.insert(c);
                 }
             }
@@ -561,7 +553,7 @@ template <class IMAGEVIEW, class VECTOR, class MaskIterator, class MaskAccessor>
 void findCriticalPointsNewtonMethodIf(IMAGEVIEW const & image,
     pair<MaskIterator, MaskAccessor> mask,
     VECTOR & minima, VECTOR & saddles, VECTOR & maxima,
-    double epsilon, unsigned int oversampling)
+    double minCPDist, unsigned int oversampling)
 {
     int w = image.width();
     int h = image.height();
@@ -570,7 +562,7 @@ void findCriticalPointsNewtonMethodIf(IMAGEVIEW const & image,
     typedef typename VECTOR::value_type Coordinate;
 
     double d = 1.0 / oversampling;
-    double squareEpsilon = sq(epsilon);
+    double squareMinCPDist = sq(minCPDist);
 
     Map2D<Coordinate> points;
 
@@ -597,26 +589,21 @@ void findCriticalPointsNewtonMethodIf(IMAGEVIEW const & image,
                 {
                     double xx, yy;
                     CriticalPoint type = findCriticalPointNewtonMethod(
-                        image, x + dx, y + dy, xx, yy, epsilon / 10.0, 4.0);
+                        image, x + dx, y + dy, xx, yy, minCPDist / 10.0, 4.0);
                     if(type == Failed)
                         continue;
 
                     Coordinate c(xx, yy);
-                    if(points.nearest(c, squareEpsilon) != points.end())
+                    if(points.nearest(c, squareMinCPDist) != points.end())
                         continue;
 
                     if(type == Saddle)
-                    {
                         saddles.push_back(c);
-                    }
                     else if(type == Minimum)
-                    {
                         minima.push_back(c);
-                    }
                     else
-                    {
                         maxima.push_back(c);
-                    }
+
                     points.insert(c);
                 }
             }
@@ -1762,6 +1749,7 @@ SubPixelWatersheds<SplineImageView>::flowLine(double x, double y, bool forward, 
     x = x + dx;
     y = y + dy;
 
+    // FIXME: conceptually, this belongs in the caller's code...
     if(x < epsilon || x > (double)(image_.width())-1.0-epsilon ||
        y < epsilon || y > (double)(image_.height())-1.0-epsilon)
     {
