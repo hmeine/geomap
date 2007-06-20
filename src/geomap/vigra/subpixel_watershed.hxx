@@ -253,9 +253,8 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
         double dist2 = sxx*sxx + syy*syy;
         if(dist2 < stepEpsilon2) // convergence
         {
-            // FIXME: this is the second reuse of epsilon for a third
-            // purpose (I renamed the first epsilon to minCPDist, the
-            // second to stepEpsilon, which is minCPDist/10)
+            // FIXME: don't reuse stepEpsilon for a third purpose (I
+            // already refactored the other reuses away)
             if(xx < -stepEpsilon || xx > (double)(image.width())-1.0+stepEpsilon ||
                yy < -stepEpsilon || yy > (double)(image.height())-1.0+stepEpsilon)
             {
@@ -324,9 +323,8 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
         double dist2 = sxx*sxx + syy*syy;
         if(dist2 < stepEpsilon2) // convergence
         {
-            // FIXME: this is the second reuse of stepEpsilon for a third
-            // purpose (I renamed the first stepEpsilon to minCPDist, this
-            // is minCPDist/10)
+            // FIXME: don't reuse stepEpsilon for a third purpose (I
+            // already refactored the other reuses away)
             if(xx < -stepEpsilon || xx > (double)(image.width())-1.0+stepEpsilon ||
                yy < -stepEpsilon || yy > (double)(image.height())-1.0+stepEpsilon)
             {
@@ -492,9 +490,10 @@ struct CriticalPointsCompare
 };
 
 template <class IMAGEVIEW, class VECTOR>
-void findCriticalPointsNewtonMethod(IMAGEVIEW const & image,
-                        VECTOR & minima, VECTOR & saddles, VECTOR & maxima,
-                        double minCPDist, unsigned int oversampling)
+void findCriticalPointsNewtonMethod(
+    IMAGEVIEW const & image,
+    VECTOR & minima, VECTOR & saddles, VECTOR & maxima,
+    double minCPDist, double stepEpsilon, unsigned int oversampling)
 {
     int w = image.width();
     int h = image.height();
@@ -526,7 +525,7 @@ void findCriticalPointsNewtonMethod(IMAGEVIEW const & image,
                 {
                     double xx, yy;
                     CriticalPoint type = findCriticalPointNewtonMethod(
-                        image, x + dx, y + dy, xx, yy, minCPDist / 10.0, 4.0);
+                        image, x + dx, y + dy, xx, yy, stepEpsilon, 4.0);
                     if(type == Failed)
                         continue;
 
@@ -553,7 +552,7 @@ template <class IMAGEVIEW, class VECTOR, class MaskIterator, class MaskAccessor>
 void findCriticalPointsNewtonMethodIf(IMAGEVIEW const & image,
     pair<MaskIterator, MaskAccessor> mask,
     VECTOR & minima, VECTOR & saddles, VECTOR & maxima,
-    double minCPDist, unsigned int oversampling)
+    double minCPDist, double stepEpsilon, unsigned int oversampling)
 {
     int w = image.width();
     int h = image.height();
@@ -589,7 +588,7 @@ void findCriticalPointsNewtonMethodIf(IMAGEVIEW const & image,
                 {
                     double xx, yy;
                     CriticalPoint type = findCriticalPointNewtonMethod(
-                        image, x + dx, y + dy, xx, yy, minCPDist / 10.0, 4.0);
+                        image, x + dx, y + dy, xx, yy, stepEpsilon, 4.0);
                     if(type == Failed)
                         continue;
 
@@ -1315,6 +1314,7 @@ class SubPixelWatersheds
     : image_(ul, lr, src),
       initialStep_(0.1),
       minCPDist_(1e-3),
+      stepEpsilon_(1e-4),
       cpOversampling_(2)
     {}
 
@@ -1346,7 +1346,7 @@ class SubPixelWatersheds
     SplineImageView image_;
     PointArray minima_, saddles_, maxima_;
     IImage maxImage_;
-    double initialStep_, minCPDist_;
+    double initialStep_, minCPDist_, stepEpsilon_;
     unsigned int cpOversampling_;
 };
 
@@ -1511,7 +1511,7 @@ void SubPixelWatersheds<SplineImageView>::findCriticalPoints(
     maxima_.push_back(PointType());
 
     findCriticalPointsNewtonMethodIf(
-        image_, mask, minima_, saddles_, maxima_, minCPDist_, cpOversampling_);
+        image_, mask, minima_, saddles_, maxima_, minCPDist_, stepEpsilon_, cpOversampling_);
     updateMaxImage();
 }
 
@@ -1537,7 +1537,8 @@ SubPixelWatersheds<SplineImageView>::findCriticalPoints()
 //             findCriticalPointsInFacet(x, y, minima_, saddles_, maxima_);
 //         }
 //     }
-    findCriticalPointsNewtonMethod(image_, minima_, saddles_, maxima_, minCPDist_, cpOversampling_);
+    findCriticalPointsNewtonMethod(
+        image_, minima_, saddles_, maxima_, minCPDist_, stepEpsilon_, cpOversampling_);
     updateMaxImage();
 //     std::cerr << "Sturm fired: " << sturmcount << " times\n";
 //     std::cerr << "Zero order fired: " << zeroOrder << " times\n";
