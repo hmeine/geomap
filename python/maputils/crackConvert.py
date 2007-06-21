@@ -3,6 +3,7 @@ from hourglass import GeoMap, crackConnectionImage
 from vigra import meshIter
 from flag_constants import BORDER_PROTECTION
 import maputils
+import progress
 
 __all__ = ["crackEdgeMap", "crackEdgeGraph"]
 
@@ -11,9 +12,11 @@ __all__ = ["crackEdgeMap", "crackEdgeGraph"]
 # --------------------------------------------------------------------
 
 def crackEdgeMap(labelImage, initLabelImage = True):
-    sys.stdout.write("- following crack edges..."); c = time.clock()
-    result = crackEdgeGraph(labelImage)
-    sys.stdout.write("done. (%ss)\n" % (time.clock()-c, ))
+    c = time.clock()
+    msg = progress.StatusMessage("- following crack edges")
+    result = crackEdgeGraph(
+        labelImage, progressHook = progress.ProgressHook(msg))
+    msg.finish()
 
     sys.stdout.write("  removing deg.2 nodes..."); c1 = time.clock()
     maputils.mergeDegree2Nodes(result)
@@ -131,25 +134,31 @@ def followEdge(crackConnectionImage, pos, direction):
             direction = _turnLeft[direction]
     return result, pos, connections[(direction+2)%4]
 
-def crackEdgeGraph(labelImage):
+def crackEdgeGraph(labelImage, progressHook = None):
     result = GeoMap(labelImage.size())
 
     cc = crackConnectionImage(labelImage)
     nodeImage = GrayImage(cc.size())
-    for startPos in meshIter(cc.size()):
-        nodeConn = int(cc[startPos])
+
+    progressHook = progressHook and progressHook.rangeTicker(cc.height())
+
+    for y in range(cc.height()):
+      if progressHook:
+          progressHook()
+      for x in range(cc.width()):
+        nodeConn = int(cc[x, y])
         if isNode(nodeConn):
-            startNodeInfo = int(nodeImage[startPos])
+            startNodeInfo = int(nodeImage[x, y])
             if startNodeInfo:
                 startNode = result.node(startNodeInfo >> 4)
             else:
-                startNode = result.addNode((startPos[0] - 0.5, startPos[1] - 0.5))
-                nodeImage[startPos] = startNodeInfo = startNode.label() << 4
+                startNode = result.addNode((x - 0.5, y - 0.5))
+                nodeImage[x, y] = startNodeInfo = startNode.label() << 4
 
             for direction, startConn in enumerate(connections):
                 if nodeConn & startConn and not startNodeInfo & startConn:
                     edge, endPos, endConn = followEdge(
-                        cc, startPos, direction)
+                        cc, (x, y), direction)
                     endNodeInfo = int(nodeImage[endPos])
                     if not endNodeInfo:
                         endNode = result.addNode((endPos[0] - 0.5, endPos[1] - 0.5))
@@ -163,9 +172,9 @@ def crackEdgeGraph(labelImage):
                     startNodeInfo |= startConn
                     if edge.isLoop():
                         startNodeInfo |= endConn
-                        nodeImage[startPos] = startNodeInfo
+                        nodeImage[x, y] = startNodeInfo
                     else:
-                        nodeImage[startPos] = startNodeInfo
+                        nodeImage[x, y] = startNodeInfo
                         nodeImage[endPos] = endNodeInfo | endConn
 
     return result
