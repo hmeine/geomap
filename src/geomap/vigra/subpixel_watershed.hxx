@@ -1323,6 +1323,7 @@ class SubPixelWatersheds
     : image_(src),
       initialStep_(0.1),
       minCPDist_(1e-3),
+      stepEpsilon_(1e-4),
       cpOversampling_(2)
     {}
 
