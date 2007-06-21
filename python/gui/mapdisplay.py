@@ -910,7 +910,7 @@ class DartNavigator(DartNavigatorBase):
 import copy
 
 class ROISelector(qt.QObject):
-    def __init__(self, parent = None, name = None,
+    def __init__(self, parent = None, name = None, imageSize = None,
                  roi = None, viewer = None, color = qt.Qt.yellow, width = 0):
         qt.QObject.__init__(self, parent, name)
         self._painting = False
@@ -924,6 +924,10 @@ class ROISelector(qt.QObject):
             self._viewer = viewer
         else:
             self._viewer = parent.viewer
+            if imageSize == None and hasattr(parent, 'image'):
+                imageSize = parent.image.size()
+
+        self._validRect = imageSize and Rect2D(imageSize)
 
         self.connect(self._viewer, qt.PYSIGNAL("mousePressed"),
                      self.mousePressed)
@@ -1002,6 +1006,7 @@ class ROISelector(qt.QObject):
     def mouseReleased(self, x, y, button):
         if self._painting and button == qt.Qt.LeftButton:
             self._stopPainting()
+            self.setROI(self.roi & self._validRect)
             self.emit(qt.PYSIGNAL("roiSelected"), (self.roi, ))
 
     def disconnectViewer(self):
@@ -1018,6 +1023,8 @@ class ROISelector(qt.QObject):
         self.zoom = zoom
 
     def draw(self, p):
+        if not self.roi:
+            return
         p.setPen(qt.QPen(self.color, self.width))
         p.setBrush(qt.Qt.NoBrush)
         drawRect = self.windowRect()
