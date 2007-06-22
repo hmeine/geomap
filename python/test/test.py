@@ -50,7 +50,7 @@ for p in [(16, 17), (13, 17)]: # in hole
 # test copying / init from map data with disconnected contours:
 import copy
 om = copy.copy(map)
-assert om.__getstate__() == map.__getstate__()
+assert om.__getstate__()[:6] == map.__getstate__()[:6]
 assert om.checkConsistency(), "map inconsistent"
 assert maputils.checkLabelConsistency(om), "om.labelImage() inconsistent"
 
@@ -115,7 +115,7 @@ def checkPassValues(map, siv):
     for edge in map.edgeIter():
         if edge.flag(BORDER_PROTECTION):
             continue
-        pv = map.wsStats.passValue(edge)
+        pv = map.wsStats.dartPassValue(edge.dart())
         actualPV = min([siv[p] for p in edge])
         assert pv == actualPV, "%s != %s" % (pv, actualPV) # no epsilon needed ;-)
 
