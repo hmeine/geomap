@@ -5,8 +5,7 @@ curdir = .
 INT2BUILDDIR = ../../interactive2/build-$(PLATFORM)
 include $(INT2BUILDDIR)/config/Makefile.include
 
-# at KOGS, try: module add pkgconfig libsigc++
-LOCAL_CPPFLAGS = -I. -I../cellimage `pkg-config --cflags sigc++-2.0`
+LOCAL_CPPFLAGS = -I. -I../cellimage
 
 #CXXFLAGS += -Wall -g -W
 CXXFLAGS += -Wall -O3 -DNDEBUG
@@ -28,7 +27,7 @@ OBJS = \
 IMPEX_LIB = `vigra-config --impex_lib`
 
 $(TARGET): $(OBJS)
-	$(LINKCXXMODULE) -o $(TARGET) $(OBJS) $(BOOST_PYTHON_LIB) `pkg-config --libs sigc++-2.0` `vigra-interactive-config --pythonimage-lib`
+	$(LINKCXXMODULE) -o $(TARGET) $(OBJS) $(BOOST_PYTHON_LIB) -lboost_signals `vigra-interactive-config --pythonimage-lib`
 	test -s $(MODULE) || ln -s .libs/$(MODULE) .
 
 install: $(TARGET)

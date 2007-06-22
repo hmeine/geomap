@@ -5,6 +5,7 @@
 #include <vigra/pythonutil.hxx>
 #include <vigra/copyimage.hxx>
 #include <iostream>
+#include <boost/bind.hpp>
 
 /********************************************************************/
 /*                                                                  */
@@ -181,7 +182,7 @@ class SimpleCallback
     }
 
   protected:
-    std::vector<sigc::connection> connections_;
+    std::vector<boost::signals::connection> connections_;
 };
 
 class RemoveNodeCallback : public SimpleCallback
@@ -192,7 +193,7 @@ class RemoveNodeCallback : public SimpleCallback
     {
         connections_.push_back(
             geomap->removeNodeHook.connect(
-                sigc::mem_fun(this, &RemoveNodeCallback::operator())));
+                bind(boost::mem_fn(&RemoveNodeCallback::operator()), this, _1)));
     }
 
     bool operator()(GeoMap::Node &node)
@@ -216,11 +217,11 @@ class MergeEdgesCallbacks : public SimpleCallback
         if(preOpCallback)
             connections_.push_back(
                 geomap->preMergeEdgesHook.connect(
-                    sigc::mem_fun(this, &MergeEdgesCallbacks::preMergeEdges)));
+                    bind(boost::mem_fn(&MergeEdgesCallbacks::preMergeEdges), this, _1)));
         if(postOpCallback)
             connections_.push_back(
                 geomap->postMergeEdgesHook.connect(
-                    sigc::mem_fun(this, &MergeEdgesCallbacks::postMergeEdges)));
+                    bind(boost::mem_fn(&MergeEdgesCallbacks::postMergeEdges), this, _1)));
     }
 
     bool preMergeEdges(const GeoMap::Dart &dart)
@@ -250,11 +251,11 @@ class SplitEdgeCallbacks : public SimpleCallback
         if(preOpCallback)
             connections_.push_back(
                 geomap->preSplitEdgeHook.connect(
-                    sigc::mem_fun(this, &SplitEdgeCallbacks::preSplitEdge)));
+                    bind(boost::mem_fn(&SplitEdgeCallbacks::preSplitEdge), this, _1, _2, _3, _4)));
         if(postOpCallback)
             connections_.push_back(
                 geomap->postSplitEdgeHook.connect(
-                    sigc::mem_fun(this, &SplitEdgeCallbacks::postSplitEdge)));
+                    bind(boost::mem_fn(&SplitEdgeCallbacks::postSplitEdge), this, _1, _2)));
     }
 
     void preSplitEdge(GeoMap::Edge &edge, unsigned int segmentIndex,
@@ -285,11 +286,11 @@ class RemoveBridgeCallbacks : public SimpleCallback
         if(preOpCallback)
             connections_.push_back(
                 geomap->preRemoveBridgeHook.connect(
-                    sigc::mem_fun(this, &RemoveBridgeCallbacks::preRemoveBridge)));
+                    bind(boost::mem_fn(&RemoveBridgeCallbacks::preRemoveBridge), this, _1)));
         if(postOpCallback)
             connections_.push_back(
                 geomap->postRemoveBridgeHook.connect(
-                    sigc::mem_fun(this, &RemoveBridgeCallbacks::postRemoveBridge)));
+                    bind(boost::mem_fn(&RemoveBridgeCallbacks::postRemoveBridge), this, _1)));
     }
 
     bool preRemoveBridge(const GeoMap::Dart &dart)
@@ -319,11 +320,11 @@ class MergeFacesCallbacks : public SimpleCallback
         if(preOpCallback)
             connections_.push_back(
                 geomap->preMergeFacesHook.connect(
-                    sigc::mem_fun(this, &MergeFacesCallbacks::preMergeFaces)));
+                    bind(boost::mem_fn(&MergeFacesCallbacks::preMergeFaces), this, _1)));
         if(postOpCallback)
             connections_.push_back(
                 geomap->postMergeFacesHook.connect(
-                    sigc::mem_fun(this, &MergeFacesCallbacks::postMergeFaces)));
+                    bind(boost::mem_fn(&MergeFacesCallbacks::postMergeFaces), this, _1)));
     }
 
     bool preMergeFaces(const GeoMap::Dart &dart)
@@ -349,7 +350,7 @@ class AssociatePixelsCallback : public SimpleCallback
     {
         connections_.push_back(
             geomap->associatePixelsHook.connect(
-                sigc::mem_fun(this, &AssociatePixelsCallback::operator())));
+                bind(boost::mem_fn(&AssociatePixelsCallback::operator()), this, _1, _2)));
     }
 
     void operator()(GeoMap::Face &face, const PixelList &pixels)

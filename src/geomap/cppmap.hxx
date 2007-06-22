@@ -7,7 +7,7 @@
 #include "vigra/polygon.hxx"
 #include <vector>
 #include <vigra/multi_array.hxx>
-#include <sigc++/sigc++.h>
+#include <boost/signal.hpp>
 #include <boost/utility.hpp> // boost::noncopyable
 
 // The define USE_INSECURE_CELL_PTRS can be used to switch between
@@ -42,7 +42,7 @@ typedef vigra::BBoxPolygon<vigra::Vector2> Polygon;
 
 typedef vigra::PointArray<vigra::Point2D> PixelList;
 
-// "accumulator" for libsigc++, which calls pre-operation
+// "accumulator" for boost::signals, which calls pre-operation
 // callbacks in order but cancels whenever a callback returns false
 struct interruptable_accumulator
 {
@@ -287,25 +287,25 @@ class GeoMap : boost::noncopyable
     CELL_PTR(Face) mergeFaces(Dart &dart);
 
         // callbacks using libsigc++ <http://libsigc.sourceforge.net/>:
-    sigc::signal<bool, Node &>::accumulated<interruptable_accumulator>
+    boost::signal1<bool, Node &, interruptable_accumulator>
         removeNodeHook;
-    sigc::signal<bool, const Dart &>::accumulated<interruptable_accumulator>
+    boost::signal1<bool, const Dart &, interruptable_accumulator>
         preMergeEdgesHook;
-    sigc::signal<void, Edge &>
+    boost::signal1<void, Edge &>
         postMergeEdgesHook;
-    sigc::signal<void, Edge &, unsigned int, vigra::Vector2 const &, bool>
+    boost::signal4<void, Edge &, unsigned int, vigra::Vector2 const &, bool>
         preSplitEdgeHook;
-    sigc::signal<void, Edge &, Edge &>
+    boost::signal2<void, Edge &, Edge &>
         postSplitEdgeHook;
-    sigc::signal<bool, const Dart &>::accumulated<interruptable_accumulator>
+    boost::signal1<bool, const Dart &, interruptable_accumulator>
         preRemoveBridgeHook;
-    sigc::signal<void, Face &>
+    boost::signal1<void, Face &>
         postRemoveBridgeHook;
-    sigc::signal<bool, const Dart &>::accumulated<interruptable_accumulator>
+    boost::signal1<bool, const Dart &, interruptable_accumulator>
         preMergeFacesHook;
-    sigc::signal<void, Face &>
+    boost::signal1<void, Face &>
         postMergeFacesHook;
-    sigc::signal<void, Face &, const PixelList &>
+    boost::signal2<void, Face &, const PixelList &>
         associatePixelsHook;
 };
 

@@ -5,6 +5,7 @@
 #include <vigra/inspectimage.hxx>
 #include <vigra/transformimage.hxx>
 #include <vigra/splineimageview.hxx>
+#include <boost/bind.hpp>
 #include <cmath>
 
 namespace detail {
@@ -212,7 +213,7 @@ class FaceColorStatistics : boost::noncopyable
     void ensureMinSampleCount(unsigned int minSampleCount);
 
     GeoMap &map_;
-    std::vector<sigc::connection> connections_;
+    std::vector<boost::signals::connection> connections_;
     const OriginalImage originalImage_;
     std::vector<Functor *> functors_;
 
@@ -250,13 +251,13 @@ FaceColorStatistics<OriginalImage>::FaceColorStatistics(
 
     connections_.push_back(
         map.preMergeFacesHook.connect(
-            sigc::mem_fun(this, &FaceColorStatistics::preMergeFaces)));
+            boost::bind(boost::mem_fn(&FaceColorStatistics::preMergeFaces), this, _1)));
     connections_.push_back(
         map.postMergeFacesHook.connect(
-            sigc::mem_fun(this, &FaceColorStatistics::postMergeFaces)));
+            boost::bind(boost::mem_fn(&FaceColorStatistics::postMergeFaces), this, _1)));
     connections_.push_back(
         map.associatePixelsHook.connect(
-            sigc::mem_fun(this, &FaceColorStatistics::associatePixels)));
+            boost::bind(boost::mem_fn(&FaceColorStatistics::associatePixels), this, _1, _2)));
 }
 
 template<class OriginalImage>
@@ -297,7 +298,7 @@ void FaceColorStatistics<OriginalImage>::ensureMinSampleCount(
             ++superSampledCount_;
         }
     }
-        
+
     if(superSampledCount_)
         superSampled_ = superSampled;
 }
