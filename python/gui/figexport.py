@@ -145,10 +145,11 @@ class FigExporter:
         assert roi or self.roi, "addROIRect(): no ROI given!?"
         if roi == None:
             roi = self.roi
-        
+
+        roi = BoundingBox(roi) # convert to BoundingBox if necessary
         if self.roi:
-            roi = BoundingBox(roi) # don't modify in-place
             roi.moveBy(-self.roi.begin())
+
         result = fig.PolyBox(roi.begin()[0] * self.scale,
                              roi.begin()[1] * self.scale,
                              roi.end()[0] * self.scale,
@@ -277,12 +278,11 @@ class FigExporter:
             attr["lineWidth"] = 0
         result = []
         o = self.offset + attr.get('offset', Vector2(0,0))
-        if self.roi:
-            o = o - self.roi.begin() # don't modify in-place!
+        o2 = self.roi and o - self.roi.begin() or o
         for i, point in enumerate(points):
-            if self.roi and not self.roi.contains(point+o):
+            if self.roi and not self.roi.contains(point + o):
                 continue
-            p = intPos((Vector2(point[0], point[1]) + o) * self.scale)
+            p = intPos((Vector2(point[0], point[1]) + o2) * self.scale)
             dc = fig.Circle(p, radius)
             for a in attr:
                 setattr(dc, a, attr[a])
