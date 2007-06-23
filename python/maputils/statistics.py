@@ -14,6 +14,7 @@ class DetachableStatistics(object):
     def detachHooks(self):
         for cb in self._attachedHooks:
             cb.disconnect()
+        self._attachedHooks = ()
 
 def _combinedMeasure(dart, weightedMeasures):
     cost = 0.0

@@ -30,6 +30,7 @@ class EdgeProtection(object):
         deleting the GeoMap, too."""
         for cb in self._attachedHooks:
             cb.disconnect()
+        self._attachedHooks = ()
 
     def preRemoveEdge(self, dart):
         "do not allow removal of protected edges"
