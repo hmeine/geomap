@@ -391,6 +391,7 @@ class MapDisplay(DisplaySettings):
         self.map = map
         self.setFaceMeans(faceMeans)
         self._togglingGUI = False
+        self._attachedHooks = None
 
         if not hasattr(preparedImage, "orig"):
             self.backgroundGroup.setEnabled(False)
@@ -441,11 +442,6 @@ class MapDisplay(DisplaySettings):
     def __del__(self):
         # delete tool (which may reference the viewer & map)
         self.setTool(None)
-        
-        # I wonder why this makes sense; obviously, the callback hooks
-        # do not prevent the garbage collector from deleting this
-        # object:
-        self.detachHooks()
 
     def setMap(self, map):
         attached = self.detachHooks()
@@ -524,12 +520,19 @@ class MapDisplay(DisplaySettings):
     def detachHooks(self):
         """Detaches / removes callbacks from the map's hooks.
         Returns True if successful, False if already detached."""
-        result = self.nodeOverlay.detachHooks() and \
-                 self.edgeOverlay.detachHooks()
-        if result:
+        results = (self.nodeOverlay.detachHooks(),
+                   self.edgeOverlay.detachHooks())
+
+        if self._attachedHooks:
             for h in self._attachedHooks:
                 h.disconnect()
-        return result
+            self._attachedHooks = None
+            
+            if results == (True, True):
+                return True
+        else:
+            if results == (False, False):
+                return False
 
     def _redisplayROIImage(self, roi):
         roiImage = self.map.labelImage().subImage(roi)
