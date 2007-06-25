@@ -1,5 +1,5 @@
 import vigra, hourglass, sys, math, time
-from vigra import * # FIXME?
+from vigra import *
 
 import flag_constants
 
@@ -10,6 +10,11 @@ import flag_constants
 from weakref import ref
 
 class EdgeProtection(object):
+    """Protects GeoMap Edges which have a protection flag set.
+    I.e. all operations that would remove an edge for which
+    edge.flag(flag_constants.ALL_PROTECTION) is not 0 will be
+    canceled automatically."""
+    
     def __init__(self, map):
         self._attach(map)
         # prevent cycles if this is an attribute of the map:
@@ -408,12 +413,12 @@ def mapFromEdges(edges, imageSize, GeoMap = hourglass.GeoMap):
     
     return result
 
-def gridMap(gridSize = (10, 10), firstPos = Vector2(0.5, 0.5),
-            dist = Vector2(1, 1), imageSize = None):
+def gridMap(gridSize = (10, 10), firstPos = vigra.Vector2(0.5, 0.5),
+            dist = vigra.Vector2(1, 1), imageSize = None):
     """Create a GeoMap representing a rectangular grid."""
     
-    xDist = Vector2(dist[0], 0)
-    yDist = Vector2(0, dist[1])
+    xDist = vigra.Vector2(dist[0], 0)
+    yDist = vigra.Vector2(0, dist[1])
     if not imageSize:
         imageSize = (int(math.ceil(gridSize[0] * dist[0] + 2*(firstPos[0]+0.5))),
                      int(math.ceil(gridSize[1] * dist[1] + 2*(firstPos[1]+0.5))))
@@ -492,11 +497,11 @@ def connectBorderNodes(map, epsilon,
     borderEdges = []
     lastNode = None
 
-    lastPoints = [Vector2(x1, y1)]
+    lastPoints = [vigra.Vector2(x1, y1)]
     for node in top:
         thisPoints = []
         if node.position()[1] > y1 + samePosEpsilon:
-            thisPoints.append(Vector2(node.position()[0], y1))
+            thisPoints.append(vigra.Vector2(node.position()[0], y1))
         thisPoints.append(node.position())
         lastPoints.extend(thisPoints)
         borderEdges.append((lastPoints, node))
@@ -504,11 +509,11 @@ def connectBorderNodes(map, epsilon,
         lastPoints = thisPoints
         lastNode = node
 
-    lastPoints.append(Vector2(x2, y1))
+    lastPoints.append(vigra.Vector2(x2, y1))
     for node in right:
         thisPoints = []
         if node.position()[0] < x2 - samePosEpsilon:
-            thisPoints.append(Vector2(x2, node.position()[1]))
+            thisPoints.append(vigra.Vector2(x2, node.position()[1]))
         thisPoints.append(node.position())
         lastPoints.extend(thisPoints)
         borderEdges.append((lastPoints, node))
@@ -516,11 +521,11 @@ def connectBorderNodes(map, epsilon,
         lastPoints = thisPoints
         lastNode = node
 
-    lastPoints.append(Vector2(x2, y2))
+    lastPoints.append(vigra.Vector2(x2, y2))
     for node in bottom:
         thisPoints = []
         if node.position()[1] < y2 - samePosEpsilon:
-            thisPoints.append(Vector2(node.position()[0], y2))
+            thisPoints.append(vigra.Vector2(node.position()[0], y2))
         thisPoints.append(node.position())
         lastPoints.extend(thisPoints)
         borderEdges.append((lastPoints, node))
@@ -528,11 +533,11 @@ def connectBorderNodes(map, epsilon,
         lastPoints = thisPoints
         lastNode = node
 
-    lastPoints.append(Vector2(x1, y2))
+    lastPoints.append(vigra.Vector2(x1, y2))
     for node in left:
         thisPoints = []
         if node.position()[0] > x1 + samePosEpsilon:
-            thisPoints.append(Vector2(x1, node.position()[1]))
+            thisPoints.append(vigra.Vector2(x1, node.position()[1]))
         thisPoints.append(node.position())
         lastPoints.extend(thisPoints)
         borderEdges.append((lastPoints, node))
@@ -693,7 +698,7 @@ def drawLabelImage(aMap, scale = 1):
     holes = list(aMap.face(0).holeContours())
     # shift sampling points from middle of pixel (0.5, 0.5)
     # to middle of new, scaled pixel (scale/2, scale/2):
-    offset = Vector2(scale / 2.0 - 0.5, scale / 2.0 - 0.5)
+    offset = vigra.Vector2(scale / 2.0 - 0.5, scale / 2.0 - 0.5)
     for contour in holes:
         for hole in holeComponent(contour):
             if done % 23 == 0:
