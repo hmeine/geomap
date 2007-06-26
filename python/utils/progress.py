@@ -21,9 +21,9 @@ class ProgressHook(object):
 
     def subProgress(self, startPercent, endPercent):
         return ProgressHook(
-            self,
-            (self.start + startPercent * self._length(),
-             self.start + endPercent * self._length()))
+            self._hook,
+            (self.start() + startPercent * self._length(),
+             self.start() + endPercent * self._length()))
 
 class RangeTicker(object):
     def __init__(self, progressHook, count):
@@ -40,10 +40,11 @@ class RangeTicker(object):
 import sys, time
 
 class StatusMessage(object):
-    def __init__(self, message):
+    def __init__(self, message, stream = sys.stdout):
         self._message = message
         self._promille = None
         self._startClock = time.clock()
+        self._stream = stream
         self(0.0)
 
     def __del__(self):
@@ -52,9 +53,9 @@ class StatusMessage(object):
     def __call__(self, percent):
         promille = int(percent * 1000)
         if promille != self._promille:
-            sys.stdout.write("\r%s... (%.1f%%)" % (
+            self._stream.write("\r%s... (%.1f%%)" % (
                 self._message, percent * 100))
-            sys.stdout.flush()
+            self._stream.flush()
             self._promille = promille
 
     def totalTime(self):
@@ -63,6 +64,21 @@ class StatusMessage(object):
     def finish(self):
         if self._promille:
             self._totalTime = time.clock() - self._startClock
-            sys.stdout.write("\r%s... done. (%ss.)\n" % (
+            self._stream.write("\r%s... done. (%ss.)\n" % (
                 self._message, self._totalTime))
             self._promille = None
+
+if __name__ == "__main__":
+    sm = StatusMessage("please wait")
+    p1 = ProgressHook(sm)
+    p1(0.1)
+    p1(0.2)
+    p1(0.45)
+    p2 = p1.subProgress(0.5, 1.0)
+    p3 = p2.subProgress(0, 0.5)
+    p3(0.0)
+    p3(0.5)
+    p3(0.99)
+    p2(0.8)
+    p2(1.0)
+    sm.finish()
