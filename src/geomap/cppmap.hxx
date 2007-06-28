@@ -11,6 +11,18 @@
 #include <sigc++/sigc++.h>
 #include <boost/utility.hpp> // boost::noncopyable
 
+#include <cfloat>
+
+#ifdef _MSC_VER
+inline int isnan(double t) { return _isnan(t); }
+#else
+#include <math.h>
+// isnan is C99, Linux manpage says:
+// "Compile with -std=c99; link with -lm."
+// this is a workaround according to P.J. Plauger (Dinkumware):
+// # define cppmap_isnan_workaround(x) ((x) != (x))
+#endif
+
 // The define USE_INSECURE_CELL_PTRS can be used to switch between
 // "safe" cell handling e.g. for Python and a possibly faster C++ way.
 
