@@ -825,7 +825,7 @@ class FaceColorStatisticsWrapper
     static Statistics *create(
         GeoMap &map, OriginalImage const &originalImage, int minSampleCount)
     {
-        double maxDiffNorm = 255.*sqrt(originalImage.bands());
+        double maxDiffNorm = 255.*std::sqrt(originalImage.bands());
         return new Statistics(map, originalImage,
                               maxDiffNorm, minSampleCount);
     }
