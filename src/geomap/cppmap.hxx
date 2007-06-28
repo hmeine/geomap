@@ -6,6 +6,7 @@
 #include "vigra/positionedmap.hxx"
 #include "vigra/polygon.hxx"
 #include <vector>
+#include <list>
 #include <vigra/multi_array.hxx>
 #include <sigc++/sigc++.h>
 #include <boost/utility.hpp> // boost::noncopyable
