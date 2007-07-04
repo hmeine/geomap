@@ -1,67 +1,10 @@
-import qt, fig
+import os, sys, qt, fig
 
-from vigra import Vector2, readImage, Rect2D
+from vigra import Vector2, readImage, Rect2D, Point2D
+import vigrapyqt
 from hourglass import BoundingBox, Polygon, simplifyPolygon, intPos, contourPoly
 from dartpath import Path
-
-def _intersectLine(inside, outside, clipRect):
-    if outside[1] > clipRect.end()[1]:
-        return inside + (outside-inside) * \
-               (clipRect.end()[1]-inside[1])/(outside[1]-inside[1])
-    if outside[1] < clipRect.begin()[1]:
-        return inside + (outside-inside) * \
-               (clipRect.begin()[1]-inside[1])/(outside[1]-inside[1])
-    if outside[0] > clipRect.end()[0]:
-        return inside + (outside-inside) * \
-               (clipRect.end()[0]-inside[0])/(outside[0]-inside[0])
-    if outside[0] < clipRect.begin()[0]:
-        return inside + (outside-inside) * \
-               (clipRect.begin()[0]-inside[0])/(outside[0]-inside[0])
-
-def clipPoly(polygon, clipRect):
-    """clipPoly(polygon, clipRect)
-
-    Clips away those parts of polygon which are not in clipRect.
-    Returns a list of polygons (since the polygon may leave clipRect,
-    enter again, leave, ...).  Polygon segments crossing clipRect's
-    borders are cut, such that the resulting polyons get new endpoints
-    exactly on the border."""
-    
-    result = []
-
-#     print "clipPoly(%s..%s)" % (clipRect.begin(), clipRect.end())
-#     print list(polygon)
-
-    def closed(polygon):
-        return polygon[0] == polygon[-1]
-
-    i = 0
-    while i < len(polygon):
-        while i < len(polygon) and not clipRect.contains(polygon[i]):
-            i += 1
-        if i >= len(polygon):
-            break
-
-        p = Polygon()
-
-        if i > 0 and i < len(polygon):
-            p.append(_intersectLine(polygon[i], polygon[i-1], clipRect))
-
-        while i < len(polygon) and clipRect.contains(polygon[i]):
-            p.append(polygon[i])
-            i += 1
-
-        if i < len(polygon):
-            p.append(_intersectLine(polygon[i-1], polygon[i], clipRect))
-
-        result.append(p)
-
-    if closed(polygon):
-        if len(result) > 1 and (result[0][0] == result[-1][-1]):
-            result[-1].extend(result[0])
-            del result[0]
-
-    return result
+from polytools import clipPoly
 
 import qt, fig
 _qtColor2figColorMapping = {
