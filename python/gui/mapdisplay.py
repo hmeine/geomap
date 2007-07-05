@@ -1,8 +1,8 @@
 _cvsVersion = "$Id$" \
               .split(" ")[2:-2]
 
-import fig, figexport, maputils, flag_constants, qt, sys, os, time, tools
-from vigra import BYTE, NBYTE, Point2D, Rect2D, Vector2, GrayImage
+import fig, figexport, maputils, flag_constants, qt, sys, os, time, tools, vigra
+from vigra import Point2D, Rect2D, Vector2, GrayImage
 from vigrapyqt import ImageWindow, EdgeOverlay, PointOverlay, CircleOverlay
 from hourglass import simplifyPolygon, intPos, BoundingBox, contourPoly
 from maputils import removeCruft, holeComponent
@@ -11,6 +11,9 @@ from weakref import ref
 # ui-generated base classes:
 from displaysettings import DisplaySettings
 from dartnavigator import DartNavigatorBase
+
+assert bool(vigra.NBYTE) and not bool(vigra.BYTE), \
+       "this code relies on the fact that `normalize` can be either a bool or a PixelType"
 
 def findZoomFactor(srcSize, destSize):
     if destSize > srcSize:
@@ -375,10 +378,60 @@ class DartHighlighter(object):
 #                             MapDisplay
 # --------------------------------------------------------------------
 
+def addMapOverlay(fe, overlay, **attr):
+    qtColor2figColor = figexport.qtColor2figColor
+    
+    # FIXME: str(type(overlay)).contains(...) instead?
+    if isinstance(overlay, ROISelector):
+        color = qtColor2figColor(overlay.color, fe.f)
+        return fe.addROIRect(overlay.roi, penColor = color, **attr)
+    elif isinstance(overlay, (MapNodes, MapEdges)):
+        oldScale, oldOffset, oldROI = fe.scale, fe.offset, fe.roi
+
+        extraZoom = float(overlay._zoom) / overlay.viewer.scale
+        fe.scale *= extraZoom
+        fe.roi = BoundingBox(fe.roi.begin() / extraZoom,
+                             fe.roi.end() / extraZoom)
+
+        if isinstance(overlay, MapNodes):
+            radius = overlay.origRadius
+            if not overlay.relativeRadius:
+                radius /= float(overlay._zoom)
+            color = qtColor2figColor(overlay.color, fe.f)
+
+            return fe.addMapNodes(overlay._map(), radius,
+                                  fillColor = color, lineWidth = 0, **attr)
+        else:
+            attr = dict(attr)
+            if not overlay.colors:
+                attr["penColor"] = qtColor2figColor(overlay.color, fe.f)
+            if overlay.width:
+                attr["lineWidth"] = overlay.width
+
+            if overlay.colors:
+                result = fig.Compound(fe.f)
+                for edge in overlay._map().edgeIter():
+                    edgeColor = overlay.colors[edge.label()]
+                    if edgeColor:
+                        parts = fe.addClippedPoly(edge,
+                            penColor = qtColor2figColor(edgeColor, fe.f),
+                            container = result, **attr)
+                return result
+            else:
+                return fe.addMapEdges(overlay._map(), **attr)
+
+        fe.scale, fe.offset, fe.roi = oldScale, oldOffset, oldROI
+    else:
+        return figexport.addStandardOverlay(fe, overlay, **attr)
+
 class MapDisplay(DisplaySettings):
     def __init__(self, map, preparedImage = None, immediateShow = True,
                  faceMeans = None):
         DisplaySettings.__init__(self)
+        self.tool = None
+        self._togglingGUI = False
+        self.faceMeans = None # temp. needed (for _enableImageActions)
+
         # for backward compatibility:
         if hasattr(preparedImage, "imageSize") and hasattr(map, "width"):
             map, preparedImage = preparedImage, map
@@ -386,31 +439,32 @@ class MapDisplay(DisplaySettings):
             preparedImage = map.labelImage()
             if not preparedImage:
                 preparedImage = GrayImage(map.imageSize())
-        
-        self.preparedImage = preparedImage
-        self.map = map
-        self.setFaceMeans(faceMeans)
-        self._togglingGUI = False
-        self._attachedHooks = None
 
-        if not hasattr(preparedImage, "orig"):
-            self.backgroundGroup.setEnabled(False)
-            self.image = preparedImage
+        self.imageWindow = None # setImage would norm. pass the image on
+        if hasattr(preparedImage, "orig"):
+            self.images = {
+                "original" : preparedImage.view,
+                "colored" : preparedImage.orig,
+                "bi" : preparedImage.bi.gm,
+                }
+            self.setImage(preparedImage.view)
         else:
-            self.image = preparedImage.view
-            self.displayColoredAction.setEnabled(
-                self.preparedImage.orig.bands() == 3)
-
-        self.imageWindow = ImageWindow(self.image, BYTE, self)
+            self.images = {}
+            self.setImage(preparedImage)
+        
+        self.imageWindow = ImageWindow(self.image, vigra.BYTE, self)
         self.imageWindow.label.hide()
         self.setCentralWidget(self.imageWindow)
         self.viewer = self.imageWindow.viewer
         self.viewer.autoZoom(4.0)
 
-        self.tool = None
+        self.map = map
+        self.setFaceMeans(faceMeans)
+        self._attachedHooks = None
 
         self.normalizeStates = [False, False, True, True, False]
         self._backgroundMode = 0
+        self._enableImageActions()
         self.displayOriginalAction.setOn(True)
 
         self.connect(self.backgroundGroup, qt.SIGNAL("selected(QAction*)"),
@@ -451,7 +505,8 @@ class MapDisplay(DisplaySettings):
         self.edgeOverlay.setMap(map)
         self.nodeOverlay.setMap(map)
         if self._backgroundMode == 3:
-            self.setImage(self.map.labelImage(), self.normalizeStates[self._backgroundMode] and NBYTE or BYTE)
+            self._setImage(self.map.labelImage(),
+                           self.normalizeStates[self._backgroundMode])
         self._dh.setMap(map)
 
         if attached:
@@ -463,7 +518,7 @@ class MapDisplay(DisplaySettings):
         self.faceMeans = faceMeans
         if faceMeans:
             tools.activePathMeasure = faceMeans.faceMeanDiff
-        self.displayMeansAction.setEnabled(bool(faceMeans))
+        self._enableImageActions()
 
     def _adjustSize(self):
         pass # don't change window size out of a sudden
@@ -484,11 +539,11 @@ class MapDisplay(DisplaySettings):
 
         displayImage = None
         if mode == 0:
-            displayImage = self.preparedImage.view
+            displayImage = self.images["original"]
         elif mode == 1:
-            displayImage = self.preparedImage.orig
+            displayImage = self.images["colored"]
         elif mode == 2:
-            displayImage = self.preparedImage.bi.gm
+            displayImage = self.images["bi"]
         elif mode == 3:
             displayImage = self.map.labelImage()
         elif mode == 4:
@@ -503,11 +558,11 @@ class MapDisplay(DisplaySettings):
         if self.normalizeAction.isOn() != normalize:
             self.normalizeAction.setOn(normalize)
         else:
-            self.setImage(self.image, normalize and NBYTE or BYTE)
+            self._setImage(self.image, normalize)
 
     def toggleNormalize(self, normalize):
         self.normalizeStates[self._backgroundMode] = normalize
-        self.setImage(self.image, normalize and NBYTE or BYTE)
+        self._setImage(self.image, normalize)
 
     def attachHooks(self):
         self.nodeOverlay.attachHooks()
@@ -538,7 +593,8 @@ class MapDisplay(DisplaySettings):
         roiImage = self.map.labelImage().subImage(roi)
         if self._backgroundMode > 3:
             roiImage = self.faceMeans.regionImage(roiImage)
-        self.viewer.replaceROI(roiImage.toPNM(BYTE),
+        # FIXME: use global normalization here
+        self.viewer.replaceROI(roiImage.toPNM(vigra.BYTE),
                                qt.QPoint(*roi.upperLeft()))
 
     def _postMergeFacesHook(self, survivor):
@@ -642,16 +698,30 @@ class MapDisplay(DisplaySettings):
             self.viewer.center = dart[0]
             self.viewer.optimizeUpperLeft()
 
-    def setImage(self, image, pixelFormat = NBYTE):
-        if hasattr(image, "orig"):
-            self.backgroundGroup.setEnabled(True)
-            self.preparedImage = image
-            self.displayColoredAction.setEnabled(
-                self.preparedImage.orig.bands() == 3)
-            image = image.view
+    def _enableImageActions(self):
+        self.displayBIAction.setEnabled("bi" in self.images)
+        self.displayOriginalAction.setEnabled("original" in self.images)
+        self.displayColoredAction.setEnabled("colored" in self.images)
+        self.displayLabelsAction.setEnabled(True)
+        self.displayMeansAction.setEnabled(bool(self.faceMeans))
+
+    def _setImage(self, image, normalize):
         self.image = image
-        self.imageWindow.image = self.image
-        self.viewer.replaceImage(self.image.toPNM(pixelFormat))
+        if self.imageWindow:
+            self.imageWindow.replaceImage(
+                self.image, normalize and vigra.NBYTE or vigra.BYTE)
+
+    def setImage(self, image, normalize = True, role = None):
+        if role == None:
+            if image.bands() == 3:
+                self.images["original"] = vigra.transformImage(
+                    image, "\l x: RGB2Lab(x)")[0]
+                role = "colored"
+            else:
+                role = "original"
+        self.images[role] = image
+        self._enableImageActions()
+        self._setImage(image, normalize)
 
     def highlight(self, darts):
         """highlight(darts)
@@ -693,18 +763,18 @@ class MapDisplay(DisplaySettings):
         image, normalize = self.imageWindow.getDisplay()
         image.subImage(roi).write(filename, normalize)
 
-    def saveFig(self, basepath, geometry = None, scale = None,
+    def saveFig(self, basepath, roi = None, scale = None,
                 bgFilename = None, faceMeans = False):
         """display.saveFig(basepath,
-                           geometry=None, scale=None, bgFilename = None,
+                           roi=None, scale=None, bgFilename = None,
                            faceMeans = False)
 
         Saves an XFig file as <basepath>.fig (and the pixel background
-        as <basepath>_bg.png if bgFilename is not given) and returns
+        as <basepath>_bg.png if `bgFilename` is not given) and returns
         the FigExporter object.
 
-        If geometry is not None, it determines the ROI to be saved.
-        geometry can be a BoundingBox or Rect2D object, a string like
+        If `roi` is not None, it determines the ROI to be saved.
+        `roi` can be a BoundingBox or Rect2D object, a string like
         "10,10-40,30" (see fig.parseGeometry) or a tuple usable as
         Rect2D constructor arguments.
 
@@ -715,96 +785,25 @@ class MapDisplay(DisplaySettings):
         If bgFilename is given, it is supposed to be a background
         filename for the picture box in the XFig file, or False if no
         background is desired."""
+
+        if bgFilename == None and faceMeans:
+            bgFilename = False
+
+        fe = figexport.exportImageWindow(
+            self.imageWindow, basepath, roi = roi, scale = scale,
+            bgFilename = bgFilename,
+            overlayHandler = addMapOverlay)
         
-        figFilename = basepath + ".fig"
-        pngFilename = basepath + "_bg.png"
-
-        # determine ROI to be saved
-        if geometry == None:
-            geometry = Rect2D(self.image.size())
-        elif type(geometry) == tuple:
-            geometry = Rect2D(*geometry)
-        elif type(geometry) == str:
-            geometry = Rect2D(*fig.parseGeometry(geometry))
-
         if faceMeans in (None, True):
             faceMeans = self.faceMeans
-
-        if bgFilename == None and not faceMeans:
-            # create .png background
-            self.savePNG(pngFilename, geometry)
-            _, bgFilename = os.path.split(pngFilename)
-
-        # create .fig file
-        if scale == None:
-            scale = 20*450 / geometry.width() # default: 20cm width
-            print "auto-adjusted scale to %s." % (scale, )
-        roi = BoundingBox(geometry)
-        fe = figexport.FigExporter(scale, roi)
-        qtColor2figColor = figexport.qtColor2figColor
-        if bgFilename and not faceMeans:
-            fe.addBackgroundWithFrame(bgFilename, depth = 100, roi = roi)
-        else:
-            fe.addROIRect(depth = 100, roi = roi, lineWidth = 0)
 
         if faceMeans:
             fe.addMapFaces(self.map, faceMeans)
         
-        depth = 50
-        for overlay in self.viewer.overlays:
-            if not overlay.visible:
-                continue
-            # FIXME: str(type(overlay)).contains(...) instead?
-            if type(overlay) in (MapNodes, MapEdges):
-                extraZoom = float(overlay._zoom) / self.viewer.scale
-                oldScale, oldOffset, oldROI = fe.scale, fe.offset, fe.roi
-                fe.scale *= extraZoom
-                fe.roi = BoundingBox(fe.roi.begin() / extraZoom,
-                                     fe.roi.end() / extraZoom)
-                #fe.offset = fe.offset + Vector2(1, 1) * (extraZoom / 2.0 - 0.5)
-                if type(overlay) == MapNodes:
-                    radius = overlay.origRadius
-                    if not overlay.relativeRadius:
-                        radius /= float(overlay._zoom)
-                    color = qtColor2figColor(overlay.color, fe.f)
-                    fe.addMapNodes(self.map, radius,
-                                   fillColor = color, lineWidth = 0, depth = depth)
-                else:
-                    attr = {"depth" : depth}
-                    if not overlay.colors:
-                        attr["penColor"] = qtColor2figColor(overlay.color, fe.f)
-                    if overlay.width:
-                        attr["lineWidth"] = overlay.width
-                    if overlay.colors:
-                        for edge in overlay._map().edgeIter():
-                            edgeColor = overlay.colors[edge.label()]
-                            if edgeColor:
-                                parts = fe.addClippedPoly(edge,
-                                    penColor = qtColor2figColor(edgeColor, fe.f),
-                                    **attr)
-                    else:
-                        fe.addMapEdges(overlay._map(), **attr)
-                fe.scale, fe.offset, fe.roi = oldScale, oldOffset, oldROI
-            elif type(overlay) == PointOverlay:
-                fe.addPointOverlay(overlay, depth = depth)
-            elif type(overlay) == EdgeOverlay:
-                fe.addEdgeOverlay(overlay, depth = depth)
-            elif type(overlay) == CircleOverlay:
-                fe.addCircleOverlay(overlay, depth = depth)
-            elif type(overlay) == ROISelector:
-                color = qtColor2figColor(overlay.color, fe.f)
-                fe.addROIRect(overlay.roi, penColor = color, depth = depth)
-            else:
-                sys.stderr.write(
-                    "MapDisplay.saveFig: overlay type %s not handled!\n" % (
-                    type(overlay)))
-            depth -= 1
-        fe.save(figFilename)
-
         return fe
 
     def saveEPS(self, basepath, *args, **kwargs):
-        """display.saveEPS(basepath, geometry=None, scale=None)
+        """display.saveEPS(basepath, roi = None, scale = None)
 
         Saves an XFig file as <basepath>.fig (see saveFig()
         documentation for details) and calls fig2dev to create an
@@ -814,7 +813,7 @@ class MapDisplay(DisplaySettings):
         fe.f.fig2dev(lang = "eps")
 
     def savePDF(self, basepath, *args, **kwargs):
-        """display.savePDF(basepath, geometry=None, scale=None)
+        """display.savePDF(basepath, roi = None, scale = None)
 
         Saves an XFig file as <basepath>.fig (see saveFig()
         documentation for details) and calls fig2dev to create an
