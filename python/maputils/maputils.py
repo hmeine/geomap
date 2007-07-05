@@ -1,13 +1,10 @@
-import vigra, hourglass, sys, math, time
-from vigra import *
+import vigra, hourglass, sys, math, time, weakref
 
 import flag_constants
 
 # --------------------------------------------------------------------
 #                            edge protection
 # --------------------------------------------------------------------
-
-from weakref import ref
 
 class EdgeProtection(object):
     """Protects GeoMap Edges which have a protection flag set.
@@ -18,7 +15,7 @@ class EdgeProtection(object):
     def __init__(self, map):
         self._attach(map)
         # prevent cycles if this is an attribute of the map:
-        self._map = ref(map) # only needed for pickle support
+        self._map = weakref.ref(map) # only needed for pickle support
 
     def _attach(self, map):
         assert not hasattr(self, "_attachedHooks"), \
@@ -51,7 +48,7 @@ class EdgeProtection(object):
 
     def __setstate__(self, (map, )): # cf. __init__
         self._attach(map)
-        self._map = ref(map)
+        self._map = weakref.ref(map)
 
 def protectFace(face, protect = True, flag = flag_constants.PROTECTED_FACE):
     """Sets the PROTECTED_FACE flag of 'face' according to 'protect'.
@@ -279,7 +276,7 @@ def subpixelWatershedMap(
         siv = SIV(boundaryIndicator)
 
     if mask == None and saddleThreshold:
-        mask = transformImage(
+        mask = vigra.transformImage(
             boundaryIndicator, "\l x: x > %s ? 1 : 0" % (saddleThreshold/2, ))
 
     maxima, flowlines = subpixelWatershedData(
@@ -349,7 +346,7 @@ def addFlowLinesToMap(edges, map):
             if nearestNode:
                 diff = nearestNode.position() - pos
                 startNode = nearestNode
-                if dot(diff, pos - points[1]) >= 0: # don't jump back
+                if vigra.dot(diff, pos - points[1]) >= 0: # don't jump back
                     if diff.squaredMagnitude():
                         # include node position if not present
                         points.insert(0, nearestNode.position())
@@ -368,7 +365,7 @@ def addFlowLinesToMap(edges, map):
             if nearestNode:
                 diff = nearestNode.position() - pos
                 endNode = nearestNode
-                if dot(diff, pos - points[-2]) >= 0:
+                if vigra.dot(diff, pos - points[-2]) >= 0:
                     if diff.squaredMagnitude():
                         points.append(nearestNode.position())
                 else:
@@ -673,7 +670,7 @@ def checkLabelConsistency(map):
     labelimage, and that each face's pixelArea() is correct."""
     fl = _CLCFaceLookup(map)
     labelImage = map.labelImage()
-    inspectImage(labelImage, fl)
+    vigra.inspectImage(labelImage, fl)
     if fl.errorCount:
         sys.stderr.write("labelImage contains %d pixels with unknown faces!\n" % (
             fl.errorCount, ))
@@ -694,7 +691,7 @@ def checkLabelConsistency(map):
 def drawLabelImage(aMap, scale = 1):
     total = aMap.faceCount - 1
     done = 1
-    result = GrayImage(aMap.imageSize()*scale)
+    result = vigra.GrayImage(aMap.imageSize()*scale)
     holes = list(aMap.face(0).holeContours())
     # shift sampling points from middle of pixel (0.5, 0.5)
     # to middle of new, scaled pixel (scale/2, scale/2):
@@ -725,8 +722,8 @@ def checkLabelConsistencyThoroughly(aMap):
                 self.correct = self.correct and (label == shouldBe)
 
     return checkLabelConsistency(aMap) and \
-           inspectImage(aMap.labelImage(), drawLabelImage(aMap),
-                        AssertRightLabel()).correct
+           vigra.inspectImage(aMap.labelImage(), drawLabelImage(aMap),
+                              AssertRightLabel()).correct
 
 # --------------------------------------------------------------------
 
@@ -1150,8 +1147,7 @@ class AutomaticRegionMerger(object):
     def merge(self, maxCost = None):
         oldStep = self._step
         if maxCost:
-            while self._queue and self.nextCost() <= maxCost:
-                self.mergeStep()
+            self.mergeToCost(maxCost)
         else:
             while self._queue:
                 self.mergeStep()
@@ -1183,6 +1179,21 @@ class AutomaticRegionMerger(object):
             if self._costLog:
                 self._costLog.append(cost)
             self._step += 1
+
+    def mergeSteps(self, count):
+        return self.mergeToStep(self._step + count)
+
+    def mergeToStep(self, targetStep):
+        oldStep = self._step
+        while self._queue and self._step < targetStep:
+            self.mergeStep()
+        return self._step - oldStep
+
+    def mergeToCost(self, maxCost):
+        oldStep = self._step
+        while self._queue and self.nextCost() < maxCost:
+            self.mergeStep()
+        return self._step - oldStep
 
 def thresholdMergeCost(map, mergeCostMeasure, maxCost, costs = None, q = None):
     """thresholdMergeCost(map, mergeCostMeasure, maxCost, costs = None, q = None)
@@ -1468,23 +1479,21 @@ class SeededRegionGrowing(object):
             survivor.setFlag(flag_constants.SRG_SEED)
             self._addNeighborsToQueue(survivor)
             self._step += 1
-            return 1
-        return 0
 
     def growSteps(self, count):
-        result = 0
-        while self._queue and result < count:
-            result += self.growStep()
-        return result
+        return self.growToStep(self._step + count)
 
     def growToStep(self, targetStep):
-        return self.growSteps(targetStep - self._step)
+        oldStep = self._step
+        while self._queue and self._step < targetStep:
+            self.growStep()
+        return self._step - oldStep
 
     def growToCost(self, maxCost):
-        result = 0
+        oldStep = self._step
         while self._queue and self.nextCost() < maxCost:
-            result += self.growStep()
-        return result
+            self.growStep()
+        return self._step - oldStep
 
 def seededRegionGrowing(map, mergeCostMeasure, dynamic = False, stupidInit = False):
     """seededRegionGrowing(map, mergeCostMeasure, dynamic = False, stupidInit = False)
