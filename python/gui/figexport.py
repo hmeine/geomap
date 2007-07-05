@@ -488,6 +488,20 @@ def exportImageWindow(
     w, basepath, roi = None, scale = None,
     bgFilename = None,
     overlayHandler = addStandardOverlay):
+    """Exports the currently displayed contents of the ImageWindow `w`
+    as XFig file <basepath>.fig.
+
+    `roi` may be a specific ROI to save, or `True` to save the visible
+    image region.  The default (None) saves the whole image.
+
+    If `bgFilename` is not given, the displayed background image is
+    saved as <basepath>_bg.png and used as background.  The background
+    can be disabled entirely by setting `bgFilename` to `False`.
+
+    Overlays are saved using the given overlayHandler.  The default
+    handler (addStandardOverlay) can handle the standard vigrapyqt
+    point, edge, and circle overlays."""
+    
     figFilename = basepath + ".fig"
     pngFilename = basepath + "_bg.png"
 
