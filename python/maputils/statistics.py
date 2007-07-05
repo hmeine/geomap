@@ -630,6 +630,14 @@ def commonBoundaryDarts(dart):
             yield d
 
 class EdgeGradientStatistics(BoundaryIndicatorStatistics):
+    """Analyzes e.g. the gradient magnitude on the edge.
+
+    To be specific, manages statistics for each edge on the values
+    sampled from a SplineImageView (cf. constructor) at the edge's
+    support points.  Each edge has an associated `EdgeStatistics`
+    object which manages the average value and a list of sorted values
+    for quantile queries."""
+    
     def __init__(self, map, gmSiv, resample = 0.1):
         BoundaryIndicatorStatistics.__init__(self, map)
         for edge in map.edgeIter():
@@ -641,12 +649,15 @@ class EdgeGradientStatistics(BoundaryIndicatorStatistics):
         return self._functors[edgeLabel]
 
     def dartMin(self, dart):
+        """Returns the minimum gradient on the edge."""
         return self[dart.edgeLabel()].quantile(0.0)
 
     def dartMax(self, dart):
+        """Returns the maximum gradient on the edge."""
         return self[dart.edgeLabel()].quantile(1.0)
 
-    def dartQuantile(self, q):
+    def dartQuantile(self, q = 0.5):
+        """Returns a specific quantile of the sampled gradients."""
         def specificQuantile(dart):
             return self[dart.edgeLabel()].quantile(q)
         return specificQuantile
