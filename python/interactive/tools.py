@@ -319,6 +319,7 @@ class IntelligentScissors(qt.QObject):
         self._edgeColors = edgeColors
         self.connect(self._expandTimer, qt.SIGNAL("timeout()"),
                      self._expandBorder)
+        self.protect = True
 
         # connect viewer
         self.viewer = parent.viewer
@@ -409,7 +410,7 @@ class IntelligentScissors(qt.QObject):
         pathEdges = [dart.edge()
                      for dart in self._liveWire.pathDarts()]
         for edge in pathEdges:
-            edge.setFlag(SCISSOR_PROTECTION | CURRENT_CONTOUR)
+            edge.setFlag(SCISSOR_PROTECTION | CURRENT_CONTOUR, self.protect)
             self._edgeColors[edge.label()] = qt.Qt.green
         self._allEdges.extend(pathEdges)
 
