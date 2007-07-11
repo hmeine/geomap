@@ -1,8 +1,7 @@
 _cvsVersion = "$Id$" \
               .split(" ")[2:-2]
 
-import math, string, copy
-from weakref import ref
+import math, string, copy, weakref
 from vigra import *
 from hourglass import PositionedMap, EdgeStatistics, \
      FaceGrayStatistics, FaceRGBStatistics, \
@@ -11,10 +10,35 @@ import sivtools, flag_constants
 from map import arcLengthIter
 
 class DetachableStatistics(object):
+    """Base class for all dynamic statistics.
+
+    Manages a sequence of hooks in an attribute _attachedHooks,
+    allowing the user to call `detachHooks` for disconnecting from the
+    map.
+
+    Subclasses may provide a method _attachHooks() which should use
+    the weak reference self._map() for reconnecting the hooks.
+    This then allows proper pickle support (cf. `__getstate__` /
+    `__setstate__`, which manage the map and the reconnection of the
+    hooks)."""
+    
+    __slots__ = ["_attachedHooks", "_map"]
+    
+    def __init__(self, map):
+        # prevent cycles if this is an attribute of the map:
+        self._map = weakref.ref(map) # only needed for pickle support
+
     def detachHooks(self):
         for cb in self._attachedHooks:
             cb.disconnect()
         self._attachedHooks = ()
+
+    def __getstate__(self):
+        return (self._map(), )
+
+    def __setstate__(self, (map, )): # cf. __init__
+        self._map = weakref.ref(map)
+        self._attachHooks()
 
 def _combinedMeasure(dart, weightedMeasures):
     cost = 0.0
@@ -86,10 +110,10 @@ class FaceMeanFunctor(object):
             self.sum2 = otherStats.sum2
 
 class DynamicFaceStatistics(DetachableStatistics):
-    def attach(self, map):
+    def _attachHooks(self):
         self._attachedHooks = (
-            map.addMergeFacesCallbacks(self.preMergeFaces, self.postMergeFaces),
-            map.addAssociatePixelsCallback(self.associatePixels))
+            self._map().addMergeFacesCallbacks(self.preMergeFaces, self.postMergeFaces),
+            self._map().addAssociatePixelsCallback(self.associatePixels))
 
 from numpy import arange
 
@@ -117,8 +141,8 @@ class _FaceColorStatistics(DynamicFaceStatistics):
     def __init__(self, map, originalImage,
                  defaultValue = None, minSampleCount = 1,
                  SIV = SplineImageView5):
+        DynamicFaceStatistics.__init__(self, map)
         self.originalImage = originalImage
-        self.map = ref(map)
 
         if defaultValue == None:
             defaultValue = 0.0
@@ -151,7 +175,7 @@ class _FaceColorStatistics(DynamicFaceStatistics):
                     self.superSample(face, level)
         del self._origSIV # only needed for supersampling here in __init__
         del self._SIV
-        self.attach(map)
+        self._attachHooks()
 
     def bands(self):
         return self.originalImage.bands()
@@ -223,7 +247,7 @@ class _FaceColorStatistics(DynamicFaceStatistics):
                 return self._default
 
         if not labelImage:
-            labelImage = self.map().labelImage()
+            labelImage = self._map().labelImage()
         zeroPixel = Pixel(*((0.0, )*self.bands()))
         mlf = MeanLookupFunctor(self, zeroPixel)
         return transformImage(labelImage, mlf)
@@ -308,6 +332,7 @@ def faceAreaHomogenity(dart):
 # FIXME: still old API (see FaceColorStatistics)
 class FaceColorHistogram(DynamicFaceStatistics):
     def __init__(self, map, image):
+        DynamicFaceStatistics.__init__(self, map)
         self.image = image
         for face in map.faceIter():
             face._colorHistogram = MultiHistogram3()
@@ -329,7 +354,7 @@ class FaceColorHistogram(DynamicFaceStatistics):
         for face in map.faceIter():
             face._colorHistogram.gaussianSmoothing(2.2)
             face._colorHistogram2.gaussianSmoothing(2.2)
-        self.attach(map)
+        self._attachHooks()
 
     def preMergeFaces(self, dart):
         self.mergedHist = dart.leftFace()._colorHistogram
@@ -362,17 +387,23 @@ def faceHist2Diff(dart):
 # --------------------------------------------------------------------
 
 class DynamicEdgeStatistics(DetachableStatistics):
-    def attach(self, map):
-        self._attachedHooks = (map.addMergeEdgesCallbacks(
+    __slots__ = []
+    
+    def _attachHooks(self):
+        self._attachedHooks = (self._map().addMergeEdgesCallbacks(
             self.preMergeEdges, self.postMergeEdges), )
 
 class EdgeMergeTree(DynamicEdgeStatistics):
     """Actually, this is not a tree but it manages a list of edges
     that have been merged into each edge."""
+
+    __slots__ = ["_tree",
+                 "_merged"]
     
     def __init__(self, map):
+        DynamicEdgeStatistics.__init__(self, map)
         self._tree = range(map.maxEdgeLabel())
-        self.attach(map)
+        self._attachHooks()
     
     def preMergeEdges(self, dart):
         self._merged = dart.clone().nextSigma().edgeLabel()
@@ -401,17 +432,28 @@ class EdgeMergeTree(DynamicEdgeStatistics):
             edge = merged
         return result
 
+    def __getstate__(self):
+        return DynamicEdgeStatistics.__getstate__(self) + (
+            self._tree, )
+
+    def __setstate__(self, (map, tree)):
+        DynamicEdgeStatistics.__setstate__(self, (map, ))
+        self._tree = tree
+
 class DynamicEdgeIndices(DetachableStatistics):
+    __slots__ = ["_indices",
+                 "_mergedIndices", "_newIndices1", "_newIndices2"]
+    
     def __init__(self, map):
+        DetachableStatistics.__init__(self, map)
         self._indices = [[] for i in range(map.maxEdgeLabel())]
     
-    def attach(self, map):
+    def _attachHooks(self):
         self._attachedHooks = (
-            map.addMergeEdgesCallbacks(self.preMergeEdges,
-                                       self.postMergeEdges),
-            map.addSplitEdgeCallbacks(self.preSplitEdge,
-                                      self.postSplitEdge))
-        self._map = ref(map)
+            self._map().addMergeEdgesCallbacks(self.preMergeEdges,
+                                               self.postMergeEdges),
+            self._map().addSplitEdgeCallbacks(self.preSplitEdge,
+                                              self.postSplitEdge))
 
     def dartIndices(self, dart):
         edgeIndices = self._indices[dart.edgeLabel()]
@@ -430,41 +472,44 @@ class DynamicEdgeIndices(DetachableStatistics):
         if dart.label() < 0:
             # dart.edge() will be simply extend()ed
             el1 = len(edge1) - 1
-            self.mergedIndices = self.dartIndices(dart.clone().nextAlpha())
-            self.mergedIndices.extend([
+            self._mergedIndices = self.dartIndices(dart.clone().nextAlpha())
+            self._mergedIndices.extend([
                 el1 + i for i in self.dartIndices(dart.clone().nextSigma())
                 if i])
         else:
             # edge2 will be inserted before dart.edge():
             el2 = len(edge2) - 1
-            self.mergedIndices = self.dartIndices(
+            self._mergedIndices = self.dartIndices(
                 dart.clone().nextSigma().nextAlpha())
-            self.mergedIndices.extend([
+            self._mergedIndices.extend([
                 el2 + i for i in self.dartIndices(dart) if i])
 
         return True
 
     def postMergeEdges(self, survivor):
-        self._indices[survivor.label()] = self.mergedIndices
+        self._indices[survivor.label()] = self._mergedIndices
 
     def preSplitEdge(self, edge, segmentIndex, newPoint):
         oldIndices = self._indices[edge.label()]
 
-        self.newIndices1 = [i for i in oldIndices if i <= segmentIndex]
+        self._newIndices1 = [i for i in oldIndices if i <= segmentIndex]
 
         offset = -segmentIndex
         if newPoint:
             segmentIndex += 1
-        self.newIndices2 = [i+offset for i in oldIndices if i >= segmentIndex]
+        self._newIndices2 = [i+offset for i in oldIndices if i >= segmentIndex]
 
         return True
 
     def postSplitEdge(self, oldEdge, newEdge):
-        self._indices[oldEdge.label()] = self.newIndices1
+        self._indices[oldEdge.label()] = self._newIndices1
         assert len(self._indices) == newEdge.label()
-        self._indices.append(self.newIndices2)
+        self._indices.append(self._newIndices2)
 
 class WatershedStatistics(DynamicEdgeIndices):
+    __slots__ = ["_passValues", "_indices", "_gmSiv",
+                 "_mergedPV"]
+    
     def __init__(self, map, flowlines, gmSiv):
         DynamicEdgeIndices.__init__(self, map)
         self._passValues = [None] * map.maxEdgeLabel()
@@ -487,7 +532,17 @@ class WatershedStatistics(DynamicEdgeIndices):
             self._indices[edge.label()].append(saddleIndex)
 
         self._gmSiv = gmSiv
-        self.attach(map)
+        self._attachHooks()
+
+    def __getstate__(self):
+        return DynamicEdgeIndices.__getstate__(self) + (
+            self._passValues, self._indices)
+
+    def __setstate__(self, (map, passValues, indices)):
+        DynamicEdgeIndices.__setstate__(self, (map, ))
+        self._passValues = passValues
+        self._indices = indices
+        self._gmSiv = None
 
     def nonWatershedEdgesAdded(self):
         """wsStats.nonWatershedEdgesAdded()
@@ -507,7 +562,7 @@ class WatershedStatistics(DynamicEdgeIndices):
         edge1 = dart.edge()
         edge2 = dart.clone().nextSigma().edge()
 
-        self.mergedPV = None
+        self._mergedPV = None
 
         # do not allow merging of watersheds with border:
         if edge1.flag(flag_constants.BORDER_PROTECTION):
@@ -518,17 +573,20 @@ class WatershedStatistics(DynamicEdgeIndices):
         if not DynamicEdgeIndices.preMergeEdges(self, dart):
             return False
         
-        self.mergedPV = min(self._passValues[edge1.label()],
-                            self._passValues[edge2.label()])
+        self._mergedPV = min(self._passValues[edge1.label()],
+                             self._passValues[edge2.label()])
 
         return True
 
     def postMergeEdges(self, survivor):
         DynamicEdgeIndices.postMergeEdges(self, survivor)
 
-        self._passValues[survivor.label()] = self.mergedPV
+        self._passValues[survivor.label()] = self._mergedPV
 
     def _resetPassValue(self, edge):
+        # SIV cannot be pickled:
+        assert self._gmSiv, "cannot find correct passvalue after edge splitting without SplineImageView!"
+        
         ind = self._indices[edge.label()]
         if ind:
             self._passValues[edge.label()] = min([
@@ -570,7 +628,12 @@ class WatershedStatistics(DynamicEdgeIndices):
 #             self._basinDepth[edge.rightFaceLabel()])
 
 class WatershedBasinStatistics(DetachableStatistics):
+    __slots__ = ["_basinDepth",
+                 "_mergedDepth"]
+    
     def __init__(self, map, minima, gmSiv):
+        DetachableStatistics.__init__(self, map)
+
         self._basinDepth = [None] * map.maxFaceLabel()
         for mpos in minima:
             face = map.faceAt(mpos)
@@ -585,33 +648,44 @@ class WatershedBasinStatistics(DetachableStatistics):
                     face.label(), face.area(), face.contour().label())
                 self._basinDepth[face.label()] = 0.0 # FIXME: remove!?!
 
-        self.attach(map)
+        self._attachHooks()
 
-    def attach(self, map):
+    def _attachHooks(self):
         self._attachedHooks = (
-            map.addMergeFacesCallbacks(self.preMergeFaces,
-                                       self.postMergeFaces), )
+            self._map().addMergeFacesCallbacks(self.preMergeFaces,
+                                               self.postMergeFaces), )
 
     def preMergeFaces(self, dart):
-        self.mergedDepth = min(
+        self._mergedDepth = min(
             self._basinDepth[dart.leftFaceLabel()],
             self._basinDepth[dart.rightFaceLabel()])
         return True
 
     def postMergeFaces(self, survivor):
-        self._basinDepth[survivor.label()] = self.mergedDepth
+        self._basinDepth[survivor.label()] = self._mergedDepth
+
+    def __getstate__(self):
+        return DetachableStatistics.__getstate__(self) + (
+            self._basinDepth, )
+
+    def __setstate__(self, (map, basinDepth)):
+        DetachableStatistics.__setstate__(self, (map, ))
+        self._basinDepth = basinDepth
 
 def _makeAttrName(someStr):
     attrTrans = string.maketrans(".+-", "__n")
     return someStr.translate(attrTrans)
 
 class BoundaryIndicatorStatistics(DynamicEdgeStatistics):
+    __slots__ = ["_functors",
+                 "_mergedStats"]
+    
     def __init__(self, map):
         self._functors = [None] * map.maxEdgeLabel()
 
     def preMergeEdges(self, dart):
-        self.mergedStats = copy.copy(self._functors[dart.edgeLabel()])
-        self.mergedStats.merge(
+        self._mergedStats = copy.copy(self._functors[dart.edgeLabel()])
+        self._mergedStats.merge(
             self._functors[dart.clone().nextSigma().edgeLabel()])
         return True
 
@@ -621,7 +695,7 @@ class BoundaryIndicatorStatistics(DynamicEdgeStatistics):
         return self._functors[index]
 
     def postMergeEdges(self, survivor):
-        self._functors[survivor.label()] = self.mergedStats
+        self._functors[survivor.label()] = self._mergedStats
 
 def commonBoundaryDarts(dart):
     rightFaceLabel = dart.rightFaceLabel()
@@ -637,13 +711,15 @@ class EdgeGradientStatistics(BoundaryIndicatorStatistics):
     support points.  Each edge has an associated `EdgeStatistics`
     object which manages the average value and a list of sorted values
     for quantile queries."""
+
+    __slots__ = []
     
     def __init__(self, map, gmSiv, resample = 0.1):
         BoundaryIndicatorStatistics.__init__(self, map)
         for edge in map.edgeIter():
             poly = resample and resamplePolygon(edge, resample) or edge
             self._functors[edge.label()] = EdgeStatistics(poly, gmSiv)
-        self.attach(map)
+        self._attachHooks()
 
     def __getitem__(self, edgeLabel):
         return self._functors[edgeLabel]
@@ -728,7 +804,7 @@ class EdgeGradDirDotStatistics(BoundaryIndicatorStatistics):
 
             self._functors[edge.label()] = stats
 
-        self.attach(map)
+        self._attachHooks()
 
 def calcGradAngDisp(grad,n):
     ki = GrayImage(2*n+1,2*n+1)
@@ -753,7 +829,7 @@ class EdgeGradAngDispStatistics(BoundaryIndicatorStatistics):
         gad.siv = eval("SplineImageView%d(gad)" % (splineOrder, ))
         for edge in map.edgeIter():
             setattr(edge, self.attrName, EdgeStatistics(edge, gad.siv))
-        self.attach(map)
+        self._attachHooks()
 
 class EdgeMinimumDistance(DynamicEdgeStatistics):
     def __init__(self, map, minima):
@@ -768,7 +844,7 @@ class EdgeMinimumDistance(DynamicEdgeStatistics):
                 if near:
                     mindist2 = (near-p).squaredMagnitude()
             setattr(edge, self.attrName, math.sqrt(mindist2))
-        self.attach(map)
+        self._attachHooks()
 
     def preMergeEdges(self, dart):
         self.mergedStats = min(getattr(dart.edge(), self.attrName),
@@ -805,7 +881,7 @@ class EdgeGradScaleSum(BoundaryIndicatorStatistics):
         gms.siv=eval("SplineImageView%d(gms)" % (splineOrder, ))
         for edge in map.edgeIter():
             setattr(edge, self.attrName, EdgeStatistics(edge, gms.siv))
-        self.attach(map)
+        self._attachHooks()
 
 class EdgeSpatialStability(BoundaryIndicatorStatistics):
     def __init__(self, map, image, radius, propexp, splineOrder):
@@ -814,7 +890,7 @@ class EdgeSpatialStability(BoundaryIndicatorStatistics):
         ss.siv = eval("SplineImageView%d(ss)" % (splineOrder, ))
         for edge in map.edgeIter():
             setattr(edge, self.attrName, EdgeStatistics(edge, ss.siv))
-        self.attach(map)
+        self._attachHooks()
 
 def calcGradProd(image, sigma1, sigma2):
     ggv1 = gaussianGradientAsVector(image,sigma1)
@@ -843,7 +919,7 @@ class EdgeGradProd(BoundaryIndicatorStatistics):
         gp.siv = eval("SplineImageView%d(gp)" % (splineOrder, ))
         for edge in map.edgeIter():
             setattr(edge, self.attrName, EdgeStatistics(edge, gp.siv))
-        self.attach(map)
+        self._attachHooks()
 
 class EdgeColGradProd(BoundaryIndicatorStatistics):
     def __init__(self, map, image, sigma1, sigma2, splineOrder):
@@ -852,7 +928,7 @@ class EdgeColGradProd(BoundaryIndicatorStatistics):
         cgp.siv = eval("SplineImageView%d(cgp)" % (splineOrder, ))
         for edge in map.edgeIter():
             setattr(edge, self.attrName, EdgeStatistics(edge, cgp.siv))
-        self.attach(map)
+        self._attachHooks()
 
 def calcBTPhaseImage(image,scale):
     filterImage=getBTFilterResponses(image,scale)
@@ -883,7 +959,7 @@ class EdgePhase(DynamicEdgeStatistics):
             for i in range(len(scaleList)):
                 setattr(edge, self.attrNames[i], EdgeStatistics(edge,phaseSivs[i]))
             edge.phaseDiffSum = EdgeStatistics(edge,phaseDiffSumSiv)
-        self.attach(map)
+        self._attachHooks()
 
     def preMergeEdges(self, dart):
         self.mergedStats=[]
@@ -1105,7 +1181,7 @@ class EdgeTangents(DynamicEdgeStatistics):
         et = EdgeTangents(someMap, 4)"""
         if args:
             calculateTangentLists(map, *args)
-        self.attach(map)
+        self._attachHooks()
 
     def preMergeEdges(self, dart):
         import dartpath # prevent cyclic import
