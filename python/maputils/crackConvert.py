@@ -32,10 +32,10 @@ def crackEdgeMap(labelImage, initLabelImage = True):
     
     # mark the border edges:
     assert result.face(0).holeCount() == 1, "infinite face should have exactly one contour, not %d!?" % result.face(0).holeCount()
-# 	for dart in result.face(0).holeContours().next().anchor().phiOrbit():
-# 		edge = dart.edge()
-# 		if not edge.leftFaceLabel() or not edge.rightFaceLabel():
-# 			edge.setFlag(BORDER_PROTECTION)
+    for dart in result.face(0).holeContours().next().phiOrbit():
+        edge = dart.edge()
+        if not edge.leftFaceLabel() or not edge.rightFaceLabel():
+            edge.setFlag(BORDER_PROTECTION)
 
     sys.stdout.write("  done. (%ss)\n" % (time.clock()-c, ))
 
