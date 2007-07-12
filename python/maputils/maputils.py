@@ -1026,8 +1026,8 @@ class History(list):
     >>> history.replay(map2)"""
     
     @staticmethod
-    def load(self, filename):
-        return History(eval(file(history).read()))
+    def load(filename):
+        return History(eval(file(filename).read()))
     
     def save(self, filename):
         import pprint
