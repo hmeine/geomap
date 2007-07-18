@@ -65,6 +65,8 @@ class FigExporter:
         if type(roi) == Rect2D:
             self.roi = BoundingBox(Vector2(*roi.upperLeft()),
                                    Vector2(*roi.lowerRight()))
+        elif type(roi) == tuple:
+            self.roi = BoundingBox(*roi)
         self.offset = offset
 
     def position2Fig(self, pos):
@@ -184,6 +186,12 @@ class FigExporter:
             container = self.f
         if not self.roi:
             return [self.addEdge(polygon, container = container, **attr)]
+        
+        if type(polygon) != Polygon:
+            if not isinstance(polygon, list):
+                polygon = Polygon(list(polygon))
+            else:
+                polygon = Polygon(polygon)
 
         clipRect = BoundingBox(self.roi)
         o = self.offset + attr.get('offset', Vector2(0,0))
@@ -294,10 +302,6 @@ class FigExporter:
 
         result = fig.Compound(container)
         for edge in edges:
-            if isinstance(edge, list):
-                edge = Polygon(edge)
-            elif isinstance(edge, tuple):
-                edge = Polygon(list(edge))
             parts = self.addClippedPoly(edge, container = result, **attr)
         return result
 
@@ -390,7 +394,8 @@ class FigExporter:
 
         return result
 
-    def addMapFaces(self, geomap, faceMeans, returnFaces = False, container = True, **attr):
+    def addMapFaces(self, geomap, faceMeans, similarity = None,
+                    returnFaces = False, container = True, **attr):
         """fe.addMapFaces(geomap, faceMeans, ...)
 
         Adds and returns fig.Polygons for all map faces (or -parts,
@@ -405,7 +410,7 @@ class FigExporter:
 
         def getRGB(face):
             faceColor = faceMeans[face.label()]
-            return self.f.getColor(map(int, tuple(faceColor))) # , similarity
+            return self.f.getColor(map(int, tuple(faceColor)), similarity)
 
         getFaceColor = getGray
         if faceMeans.bands() == 3:
@@ -419,15 +424,15 @@ class FigExporter:
         attr["fillStyle"] = attr.get("fillStyle", fig.fillStyleSolid)
 
         compound = fig.Compound(container)
-        if returnIndices:
+        if returnFaces:
             result = []
         else:
             result = compound
 
         todo = [geomap.face(0)]
-        currentDepth = attr.get("depth", 100)
+        # +1 because the first iteration will not add any objects:
+        currentDepth = attr.get("depth", 100) + 1
         while todo:
-            currentDepth -= 1
             thisLayer = todo
             todo = []
             for face in thisLayer:
@@ -437,13 +442,16 @@ class FigExporter:
                     thisattr["depth"] = currentDepth
                     # FIXME: addClippedPoly does not work for closed
                     # contour polygons..
-                    o = self.addEdge(contourPoly(face.contour()), container = compound, **thisattr)
+                    o = self.addEdge(contourPoly(face.contour()),
+                                     container = compound, **thisattr)
 
                     if returnFaces:
                         result.append((face, o))
 
                 for anchor in face.holeContours():
                     todo.extend(maputils.holeComponent(anchor))
+
+            currentDepth -= 1
 
         return result
 
@@ -455,7 +463,12 @@ class FigExporter:
     def saveEPS(self, basename):
         """Save the resulting XFig file to [basename].{fig,eps} (cf. fig.File.save)."""
 
-        return self.f.saveEPS(basename)
+        return self.save(basename, fig2dev = "eps")
+
+    def savePDF(self, basename):
+        """Save the resulting XFig file to [basename].{fig,pdf} (cf. fig.File.save)."""
+
+        return self.save(basename, fig2dev = "pdf")
 
 # --------------------------------------------------------------------
 
