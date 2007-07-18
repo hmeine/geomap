@@ -228,7 +228,7 @@ class _FaceColorStatistics(DynamicFaceStatistics):
 
     def postMergeFaces(self, survivor):
         self._functors[survivor.label()] = self.mergedStats
-        self._superSampled[dart.rightFaceLabel()] = self.ssMerged
+        self._superSampled[survivor.label()] = self.ssMerged
 
     def associatePixels(self, face, positions):
         functor = self._functors[face.label()]
@@ -322,7 +322,8 @@ def FaceColorStatistics(map, originalImage, minSampleCount = 1):
     elif originalImage.bands() == 3:
         return FaceRGBStatistics(map, originalImage, minSampleCount)
     else:
-        return _FaceColorStatistics(map, originalImage, minSampleCount)
+        return _FaceColorStatistics(map, originalImage, minSampleCount,
+                                    SIV = sivtools.GradientSIVProxy)
 
 def faceAreaHomogenity(dart):
     a1 = dart.leftFace().area()
@@ -454,6 +455,11 @@ class DynamicEdgeIndices(DetachableStatistics):
                                                self.postMergeEdges),
             self._map().addSplitEdgeCallbacks(self.preSplitEdge,
                                               self.postSplitEdge))
+
+    def edgeIndices(self, edge):
+        if hasattr(edge, "label"):
+            edge = edge.label()
+        return list(self._indices[edge])
 
     def dartIndices(self, dart):
         edgeIndices = self._indices[dart.edgeLabel()]
@@ -681,6 +687,7 @@ class BoundaryIndicatorStatistics(DynamicEdgeStatistics):
                  "_mergedStats"]
     
     def __init__(self, map):
+        DynamicEdgeStatistics.__init__(self, map)
         self._functors = [None] * map.maxEdgeLabel()
 
     def preMergeEdges(self, dart):
