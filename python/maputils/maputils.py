@@ -99,7 +99,7 @@ def filterSaddlePoints(rawSaddles, biSIV, threshold, maxDist):
     return result
 
 def subpixelWatershedData(spws, biSIV = None, threshold = None, mask = None,
-                          minSaddleDist = 0.12, # sensible: ssMinDist
+                          minSaddleDist = 0.1, # sensible: ssMinDist
                           perpendicularDistEpsilon = 0.1, maxStep = 0.1):
     """subpixelWatershedData(spws, biSIV, threshold) -> tuple
 
@@ -150,6 +150,11 @@ def subpixelWatershedData(spws, biSIV = None, threshold = None, mask = None,
 
     saddles = filterSaddlePoints(rawSaddles, biSIV, threshold, minSaddleDist)
     prefix = "- following %d/%d edges.." % (len(saddles), len(rawSaddles))
+    if threshold:
+        prefix += " (threshold %s)" % (threshold, )
+    else:
+        prefix += " (no saddle threshold)"
+
     c = time.clock()
     flowlines = [None]
     percentGranularity = len(saddles) / 260 + 1
@@ -852,16 +857,16 @@ def mergeDegree2Nodes(map):
                 result += 1
     return result
 
-def removeUnProtectedEdges(map):
+def removeEdges(map, edgeLabels):
     result = 0
 
     bridges = []
-    for edge in map.edgeIter():
-        if not edge.flag(flag_constants.ALL_PROTECTION):
-            if edge.isBridge():
-                bridges.append(edge)
-            elif map.mergeFaces(edge.dart()):
-                result += 1
+    for edgeLabel in edgeLabels:
+        edge = map.edge(edgeLabel)
+        if edge.isBridge():
+            bridges.append(edge)
+        elif map.mergeFaces(edge.dart()):
+            result += 1
 
     while bridges:
         for edge in bridges:
@@ -885,6 +890,11 @@ def removeUnProtectedEdges(map):
     result += removeIsolatedNodes(map) # FIXME: depend on allowIsolatedNodes
     result += mergeDegree2Nodes(map)
     return result
+
+def removeUnProtectedEdges(map):
+    return removeEdges(map, [
+        edge.label() for edge in map.edgeIter()
+        if not edge.flag(flag_constants.ALL_PROTECTION)])
 
 def removeSmallRegions(map, minArea):
     result = 0
@@ -1225,11 +1235,13 @@ def thresholdMergeCost(map, mergeCostMeasure, maxCost, costs = None, q = None):
 
 # FIXME: split into classifyFaces... and classifyEdgesFromFaceClassification
 def classifyEdgesFromLabelImage(map, labelImage):
+    import statistics
     faceStats = statistics.FaceColorStatistics(map, labelImage)
+    faceStats.detachHooks()
 
     for face in map.faceIter(skipInfinite = True):
         l = faceStats[face.label()]
-        assert float(int(l)) == l, "each Face should be entirely within one region of the labelImage"
+        assert float(int(l)) == l, "each Face must be entirely within one region of the labelImage"
 
     good = []
     bad = []
@@ -1634,17 +1646,29 @@ def mst2map(mst, map):
     """Visualize a minimumSpanningTree() result as a GeoMap.  Note
     that the nodes are put in the bbox centers, which is wildly
     inaccurate, especially without edge splitting."""
+
     nodePositions = [None] * map.maxFaceLabel()
+#     for face in map.faceIter(skipInfinite = True):
+#         bbox = face.boundingBox()
+#         nodePositions[face.label()] = bbox.begin() + bbox.size() / 2
+    import statistics
+    mesh = vigra.meshGrid(range(map.imageSize()[0]),
+                          range(map.imageSize()[1]))
+    faceCenters = statistics.FaceColorStatistics(map, mesh)
+    faceCenters.detachHooks()
     for face in map.faceIter(skipInfinite = True):
-        bbox = face.boundingBox()
-        nodePositions[face.label()] = bbox.begin() + bbox.size() / 2
+        cx, cy = faceCenters[face.label()]
+        nodePositions[face.label()] = vigra.Vector2(cx, cy)
+    
     edgeTuples = [None]
     for edgeLabel in mst:
         edge = map.edge(edgeLabel)
         snl = edge.leftFaceLabel()
         enl = edge.rightFaceLabel()
         edgeTuples.append((snl, enl, [nodePositions[snl], nodePositions[enl]]))
+    
     result = hourglass.GeoMap(nodePositions, edgeTuples, map.imageSize())
+    removeIsolatedNodes(result)
     result.initializeMap(False)
     return result
 
