@@ -123,6 +123,52 @@ GeoMap::GeoMap(vigra::Size2D imageSize)
     edges_.push_back(NULL_PTR(Edge));
 }
 
+GeoMap::GeoMap(const GeoMap &other)
+: sigmaMappingArray_(other.sigmaMappingArray_.size(), 0),
+  sigmaInverseMappingArray_(other.sigmaInverseMappingArray_.size(), 0),
+  sigmaMapping_(sigmaMappingArray_.begin() + sigmaMappingArray_.size()/2),
+  sigmaInverseMapping_(sigmaInverseMappingArray_.begin()
+                       + sigmaInverseMappingArray_.size()/2),
+  nodeCount_(0),
+  edgeCount_(0),
+  faceCount_(0),
+  imageSize_(other.imageSize()),
+  labelImage_(NULL),
+  edgesSorted_(false)
+{
+    for(ConstNodeIterator it = other.nodesBegin(); it.inRange(); ++it)
+        addNode((*it)->position(), (*it)->label());
+    for(ConstEdgeIterator it = other.edgesBegin(); it.inRange(); ++it)
+    {
+        addEdge(*node((*it)->startNodeLabel()),
+                *node((*it)->startNodeLabel()),
+                *(*it),
+                (*it)->label())
+            ->setFlag((*it)->flags());
+    }
+
+    // slightly more efficient than calling setSigmaMapping():
+    std::copy(other.sigmaMappingArray_.begin(),
+              other.sigmaMappingArray_.end(),
+              sigmaMappingArray_.begin());
+    std::copy(other.sigmaInverseMappingArray_.begin(),
+              other.sigmaInverseMappingArray_.end(),
+              sigmaInverseMappingArray_.begin());
+    edgesSorted_ = other.edgesSorted_;
+
+    if(other.mapInitialized())
+    {
+        initializeMap(other.hasLabelImage());
+
+        for(ConstFaceIterator it = other.facesBegin(); it.inRange(); ++it)
+        {
+            unsigned int flags((*it)->flags() & ~0xf0000000);
+            CellLabel anchorLabel = (*it)->contour().label();
+            dart(anchorLabel).leftFace()->setFlag(flags);
+        }
+    }
+}
+
 GeoMap::~GeoMap()
 {
     // make sure the cells don't access this map anymore!
@@ -413,7 +459,7 @@ void sortEdgesInternal(const vigra::Vector2 &currentPos,
     {
         // Later, in order to get the merging of the split nodes
         // right, we need to know the sigma order we just found out
-        // here.  We do not do it then, because it becomes much more
+        // here.  We store it already here, because it becomes much more
         // complicated after the splitting.
 
         detail::PlannedSplits::iterator

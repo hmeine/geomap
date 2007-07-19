@@ -90,7 +90,7 @@ class PlannedSplits;
 /*                                                                  */
 /********************************************************************/
 
-class GeoMap : boost::noncopyable
+class GeoMap
 {
   public:
     class Node;
@@ -109,6 +109,12 @@ class GeoMap : boost::noncopyable
         EdgeIterator;
     typedef vigra::SafeFilterIterator<Faces::iterator, NotNull<Faces::value_type> >
         FaceIterator;
+    typedef vigra::SafeFilterIterator<Nodes::const_iterator, NotNull<Nodes::value_type> >
+        ConstNodeIterator;
+    typedef vigra::SafeFilterIterator<Edges::const_iterator, NotNull<Edges::value_type> >
+        ConstEdgeIterator;
+    typedef vigra::SafeFilterIterator<Faces::const_iterator, NotNull<Faces::value_type> >
+        ConstFaceIterator;
 
     typedef std::vector<int> SigmaMapping;
 
@@ -176,7 +182,7 @@ class GeoMap : boost::noncopyable
 
   public:
     GeoMap(vigra::Size2D imageSize);
-
+    GeoMap(const GeoMap &other);
     ~GeoMap();
 
     NodeIterator nodesBegin()
@@ -184,6 +190,15 @@ class GeoMap : boost::noncopyable
     NodeIterator nodesEnd()
         { return NodeIterator(nodes_.end(), nodes_.end()); }
     CELL_PTR(Node) node(CellLabel label)
+    {
+        vigra_precondition(label < nodes_.size(), "invalid node label!");
+        return nodes_[label];
+    }
+    ConstNodeIterator nodesBegin() const
+        { return ConstNodeIterator(nodes_.begin(), nodes_.end()); }
+    ConstNodeIterator nodesEnd() const
+        { return ConstNodeIterator(nodes_.end(), nodes_.end()); }
+    CELL_PTR(const Node) node(CellLabel label) const
     {
         vigra_precondition(label < nodes_.size(), "invalid node label!");
         return nodes_[label];
@@ -198,12 +213,30 @@ class GeoMap : boost::noncopyable
         vigra_precondition(label < edges_.size(), "invalid edge label!");
         return edges_[label];
     }
+    ConstEdgeIterator edgesBegin() const
+        { return ConstEdgeIterator(edges_.begin(), edges_.end()); }
+    ConstEdgeIterator edgesEnd() const
+        { return ConstEdgeIterator(edges_.end(), edges_.end()); }
+    CELL_PTR(const Edge) edge(CellLabel label) const
+    {
+        vigra_precondition(label < edges_.size(), "invalid edge label!");
+        return edges_[label];
+    }
 
     FaceIterator facesBegin()
         { return FaceIterator(faces_.begin(), faces_.end()); }
     FaceIterator facesEnd()
         { return FaceIterator(faces_.end(), faces_.end()); }
     CELL_PTR(Face) face(CellLabel label)
+    {
+        vigra_precondition(label < faces_.size(), "invalid face label!");
+        return faces_[label];
+    }
+    ConstFaceIterator facesBegin() const
+        { return ConstFaceIterator(faces_.begin(), faces_.end()); }
+    ConstFaceIterator facesEnd() const
+        { return ConstFaceIterator(faces_.end(), faces_.end()); }
+    CELL_PTR(const Face) face(CellLabel label) const
     {
         vigra_precondition(label < faces_.size(), "invalid face label!");
         return faces_[label];
@@ -238,6 +271,9 @@ class GeoMap : boost::noncopyable
                              UnsortableGroups &unsortable,
                              bool splitEdges);
     void splitParallelEdges();
+        // for debugging / paper writing only:
+    detail::PlannedSplits *internalSplitInfo()
+        { return splitInfo_.get(); }
 
     void setSigmaMapping(SigmaMapping const &sigmaMapping, bool sorted = true);
     const SigmaMapping &sigmaMapping()
@@ -1458,7 +1494,7 @@ struct DartPositionAngle
     struct SplitPos : public EdgePosition
     {
         int dartLabel, sigmaPos;
-        unsigned int splitGroup, newEdgeLabel;
+        unsigned int splitGroup;
 
         SplitPos(const EdgePosition &ep, int dl, unsigned int sg)
         : EdgePosition(ep),
