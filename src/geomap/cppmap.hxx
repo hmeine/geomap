@@ -117,6 +117,7 @@ class GeoMap
         ConstFaceIterator;
 
     typedef std::vector<int> SigmaMapping;
+    typedef std::vector<double> EdgePreferences;
 
     typedef vigra::ConstImageIterator<int> LabelImageIterator;
     struct LabelImageAccessor {
@@ -179,6 +180,7 @@ class GeoMap
 
     bool edgesSorted_;
     std::auto_ptr<detail::PlannedSplits> splitInfo_;
+    std::auto_ptr<EdgePreferences> edgePreferences_;
 
   public:
     GeoMap(vigra::Size2D imageSize);
@@ -270,6 +272,13 @@ class GeoMap
     void sortEdgesEventually(double stepDist, double minDist,
                              UnsortableGroups &unsortable,
                              bool splitEdges);
+    void setEdgePreferences(std::auto_ptr<EdgePreferences> edgePreferences)
+    {
+        vigra_precondition(
+            splitInfo_.get(),
+            "setting edge preferences futile - splitting impossible");
+        edgePreferences_ = edgePreferences;
+    }
     void splitParallelEdges();
         // for debugging / paper writing only:
     detail::PlannedSplits *internalSplitInfo()

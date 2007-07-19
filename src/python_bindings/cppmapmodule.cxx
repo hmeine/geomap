@@ -658,7 +658,22 @@ struct GeoMapPickleSuite : bp::pickle_suite
     }
 };
 
-bp::object internalSplitInfo(GeoMap &geoMap)
+void GeoMap_setEdgePreferences(GeoMap &geomap,
+                               bp::list edgePreferences)
+{
+    std::auto_ptr<GeoMap::EdgePreferences> cppep(
+        new GeoMap::EdgePreferences(len(edgePreferences)));
+
+    for(int i = 0; i < cppep->size(); ++i)
+    {
+        double pref = bp::extract<double>(edgePreferences[i])();
+        (*cppep)[i] = pref;
+    }
+
+    geomap.setEdgePreferences(cppep);
+}
+
+bp::object GeoMap_internalSplitInfo(GeoMap &geoMap)
 {
     const detail::PlannedSplits *splitInfo = geoMap.internalSplitInfo();
     if(!splitInfo)
@@ -1077,7 +1092,14 @@ void defMap()
                  "`sortEdgesDirectly`/`sortEdgesEventually`/`setSigmaMapping`\n"
                  "has been used.")
             .def("splitParallelEdges", &GeoMap::splitParallelEdges)
-            .def("_internalSplitInfo", &internalSplitInfo,
+            .def("setEdgePreferences", &GeoMap_setEdgePreferences,
+                 "setEdgePreferences(list)\n\n"
+                 "Set edge preferences (one float per edge).  This is used for\n"
+                 "deciding upon the survivor when merging parallel darts in\n"
+                 "`splitParallelEdges()`; edges with higher values are more likely\n"
+                 "to be preserved.  (If no preferences are given, the dart with\n"
+                 "the smallest curvature around the split node survives.)")
+            .def("_internalSplitInfo", &GeoMap_internalSplitInfo,
                  "for debugging / paper writing only\n"
                  "list of (segmentIndex, arcLength, position, dartLabel, sigmaPos, splitGroup)")
             .def("initializeMap", &GeoMap::initializeMap, (arg("initLabelImage") = true),

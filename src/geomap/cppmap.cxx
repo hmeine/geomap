@@ -569,6 +569,13 @@ void GeoMap::splitParallelEdges()
 
     std::sort(splitInfo_->begin(), splitInfo_->end());
 
+    if(edgePreferences_.get())
+    {
+        vigra_invariant(edgePreferences_->size() == edges_.size(),
+                        "edge preferences given, but not exactly one per edge");
+        edgePreferences_->resize(edges_.size() + splitInfo_->size());
+    }
+
     typedef std::vector<MergeDart> MergeDarts;
     MergeDarts mergeDarts(splitInfo_->size());
     for(detail::PlannedSplits::iterator it = splitInfo_->begin();
@@ -578,6 +585,10 @@ void GeoMap::splitParallelEdges()
             splitEdge(*edge(abs(it->dartLabel)),
                       it->segmentIndex, it->position)->label();
 
+        if(edgePreferences_.get())
+            (*edgePreferences_)[newEdgeLabel] =
+                (*edgePreferences_)[abs(it->dartLabel)];
+
         detail::PlannedSplits::difference_type &pos(
             groupPositions[it->splitGroup]);
 
@@ -585,6 +596,12 @@ void GeoMap::splitParallelEdges()
             MergeDart((int)newEdgeLabel, it->dartLabel > 0, it->sigmaPos);
 
         ++pos;
+    }
+
+    if(edgePreferences_.get())
+    {
+        vigra_invariant(edgePreferences_->size() == edges_.size(),
+                        "edge preferences should be exactly one per edge");
     }
 
     splitInfo_.reset(); // splitting finished, free memory
@@ -609,30 +626,46 @@ void GeoMap::splitParallelEdges()
         double bestContinuationValue = 0.0;
         int bestContinuationIndex = 0;
 
-        for(MergeDarts::iterator it = mergeDartsGroupBegin;
-            it != mergeDartsGroupEnd; ++it)
+        if(edgePreferences_.get())
         {
-            GeoMap::Dart d(dart(it->dartLabel));
-            vigra::Vector2 nodePos(d.startNode()->position());
-
-            // intersect checkSurvivorDist-circle with dart
-            DartPosition dp1(d);
-            dp1.leaveCircle(nodePos, checkSurvivorDist2);
-            d.nextSigma();
-            DartPosition dp2(d);
-            dp2.leaveCircle(nodePos, checkSurvivorDist2);
-
-            // determine vectors between node pos. & intersections..
-            vigra::Vector2
-                v1(dp1() - nodePos),
-                v2(nodePos - dp2());
-
-            // ..and choose dart with smallest enclosed angle:
-            double cont = dot(v1, v2)/(v1.magnitude()*v2.magnitude());
-            if(cont > bestContinuationValue)
+            for(MergeDarts::iterator it = mergeDartsGroupBegin;
+                it != mergeDartsGroupEnd; ++it)
             {
-                bestContinuationValue = cont;
-                bestContinuationIndex = it - mergeDartsGroupBegin;
+                double pref = (*edgePreferences_)[abs(it->dartLabel)];
+                if(pref > bestContinuationValue)
+                {
+                    bestContinuationValue = pref;
+                    bestContinuationIndex = it - mergeDartsGroupBegin;
+                }
+            }            
+        }
+        else
+        {
+            for(MergeDarts::iterator it = mergeDartsGroupBegin;
+                it != mergeDartsGroupEnd; ++it)
+            {
+                GeoMap::Dart d(dart(it->dartLabel));
+                vigra::Vector2 nodePos(d.startNode()->position());
+
+                // intersect checkSurvivorDist-circle with dart
+                DartPosition dp1(d);
+                dp1.leaveCircle(nodePos, checkSurvivorDist2);
+                d.nextSigma();
+                DartPosition dp2(d);
+                dp2.leaveCircle(nodePos, checkSurvivorDist2);
+
+                // determine vectors between split node pos. & intersections..
+                vigra::Vector2
+                    v1(dp1() - nodePos),
+                    v2(nodePos - dp2());
+
+                // ..and choose dart with smallest enclosed angle:
+                double cont = dot(v1, v2)/(v1.magnitude()*v2.magnitude());
+                if(cont > bestContinuationValue)
+                {
+                    bestContinuationValue = cont;
+                    bestContinuationIndex = it - mergeDartsGroupBegin;
+                }
             }
         }
 
