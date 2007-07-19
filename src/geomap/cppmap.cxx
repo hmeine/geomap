@@ -609,7 +609,6 @@ void GeoMap::splitParallelEdges()
         double bestContinuationValue = 0.0;
         int bestContinuationIndex = 0;
 
-        std::vector<DartPosition> dps;
         for(MergeDarts::iterator it = mergeDartsGroupBegin;
             it != mergeDartsGroupEnd; ++it)
         {
