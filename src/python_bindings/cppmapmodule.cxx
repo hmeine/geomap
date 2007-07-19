@@ -532,8 +532,16 @@ bp::list GeoMap_sigmaMapping(GeoMap &map)
 {
     bp::list result;
     const GeoMap::SigmaMapping &sigmaMapping(map.sigmaMapping());
-    for(GeoMap::SigmaMapping::const_iterator it = sigmaMapping.begin();
-        it != sigmaMapping.end(); ++it)
+    GeoMap::SigmaMapping::const_iterator
+        first = sigmaMapping.begin(),
+        last = sigmaMapping.end();
+    while(*first == 0 && last[-1] == 0 && last >= first + 3)
+    {
+        ++first;
+        --last;
+    }
+    for(GeoMap::SigmaMapping::const_iterator it = first;
+        it != last; ++it)
     {
         if(map.edge(abs(*it)))
             result.append(*it);
@@ -649,6 +657,22 @@ struct GeoMapPickleSuite : bp::pickle_suite
         bp::extract<bp::dict>(pyMap.attr("__dict__"))().update(__dict__);
     }
 };
+
+bp::object internalSplitInfo(GeoMap &geoMap)
+{
+    const detail::PlannedSplits *splitInfo = geoMap.internalSplitInfo();
+    if(!splitInfo)
+        return bp::object();
+    bp::list result;
+    for(unsigned int i = 0; i < splitInfo->size(); ++i)
+    {
+        const detail::PlannedSplits::value_type &si((*splitInfo)[i]);
+        result.append(bp::make_tuple(
+                          si.segmentIndex, si.arcLength, si.position,
+                          si.dartLabel, si.sigmaPos, si.splitGroup));
+    }
+    return result;
+}
 
 std::string Node__repr__(GeoMap::Node const &node)
 {
@@ -909,21 +933,21 @@ void defMap()
                      (arg("nodePositions") = list(),
                       arg("edgeTuples") = list(),
                       arg("imageSize") = vigra::Size2D(0, 0))))
-            .def("node", &GeoMap::node, crp,
+            .def("node", (CELL_PTR(GeoMap::Node)(GeoMap::*)(CellLabel))&GeoMap::node, crp,
                  "node(label) -> Node\n\n"
                  "Return Node object for the given label.")
-            .def("nodeIter", &GeoMap::nodesBegin,
+            .def("nodeIter", (GeoMap::NodeIterator(GeoMap::*)())&GeoMap::nodesBegin,
                  "Iterates over all existing nodes.\n\n"
                  ">>> for node in amap.nodeIter():\n"
                  "...     print node.label(), node.degree(), node.anchor()")
-            .def("edge", &GeoMap::edge, crp,
+            .def("edge", (CELL_PTR(GeoMap::Edge)(GeoMap::*)(CellLabel))&GeoMap::edge, crp,
                  "edge(label) -> Edge\n\n"
                  "Return Edge object for the given label.")
-            .def("edgeIter", &GeoMap::edgesBegin,
+            .def("edgeIter", (GeoMap::EdgeIterator(GeoMap::*)())&GeoMap::edgesBegin,
                  "Iterates over all existing edges.\n\n"
                  ">>> for edge in amap.edgeIter():\n"
                  "...     print \"Edge %d has %d points\" % len(edge)")
-            .def("face", &GeoMap::face, crp,
+            .def("face", (CELL_PTR(GeoMap::Face)(GeoMap::*)(CellLabel))&GeoMap::face, crp,
                  "face(label) -> Face\n\n"
                  "Return Face object for the given label.")
             .def("faceIter", &faceIter, arg("skipInfinite") = false,
@@ -1053,6 +1077,9 @@ void defMap()
                  "`sortEdgesDirectly`/`sortEdgesEventually`/`setSigmaMapping`\n"
                  "has been used.")
             .def("splitParallelEdges", &GeoMap::splitParallelEdges)
+            .def("_internalSplitInfo", &internalSplitInfo,
+                 "for debugging / paper writing only\n"
+                 "list of (segmentIndex, arcLength, position, dartLabel, sigmaPos, splitGroup)")
             .def("initializeMap", &GeoMap::initializeMap, (arg("initLabelImage") = true),
                  "initializeMap(initLabelImage = True) -> None\n\n"
                  "This finishes the initialization of a GeoMap.  Call this after\n"
