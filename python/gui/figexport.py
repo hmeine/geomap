@@ -67,7 +67,7 @@ class FigExporter:
                                    Vector2(*roi.lowerRight()))
         elif type(roi) == tuple:
             self.roi = BoundingBox(*roi)
-        self.offset = offset
+        self.offset = Vector2(*offset)
 
     def position2Fig(self, pos):
         """fe.position2Fig(Vector2 pos) -> Vector2
@@ -93,7 +93,13 @@ class FigExporter:
         if container == True:
             container = self.f
 
-        roi = BoundingBox(roi) # convert to BoundingBox if necessary
+        # convert to BoundingBox if necessary and don't modify in-place
+        if isinstance(roi, Rect2D):
+            roi = BoundingBox(roi)
+        else:
+            roi = BoundingBox(roi) 
+            roi.moveBy((0.5, 0.5))
+
         if self.roi:
             roi.moveBy(-self.roi.begin())
 
@@ -121,11 +127,11 @@ class FigExporter:
             container = self.f
         if not params.has_key("roi"):
             if self.roi:
-                params["roi"] = self.roi
+                params["roi"] = BoundingBox(self.roi)
+                params["roi"].moveBy((-0.5, -0.5))
             else:
                 size = readImage(bgImageFilename).size()
-                params["roi"] = BoundingBox(
-                    Vector2(0, 0), Vector2(size[0], size[1]))
+                params["roi"] = Rect2D(size)
 
         if not params.has_key("depth"):
             params["depth"] = 1
