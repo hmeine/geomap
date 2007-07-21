@@ -136,6 +136,15 @@ def sampleRegions(map, image, functors):
     inspectImage(map.labelImage(), image,
                  LookupFaceFunctors(functors))
 
+def superSample(face, level = 2):
+    bbox = face.boundingBox()
+    xRange = arange(bbox.begin()[0], bbox.end()[0], 1.0/level)
+    for y in arange(bbox.begin()[1], bbox.end()[1], 1.0/level):
+        for x in xRange:
+            pos = Vector2(x, y)
+            if face.contains(pos):
+                yield pos
+
 # new API: does not touch the Face objects themselves
 class _FaceColorStatistics(DynamicFaceStatistics):
     def __init__(self, map, originalImage,
@@ -196,12 +205,8 @@ class _FaceColorStatistics(DynamicFaceStatistics):
                 self._origSIV = sivtools.ThreeBandSIVProxy(self.originalImage, self._SIV)
             else:
                 self._origSIV = self._SIV(self.originalImage)
-        bbox = face.boundingBox()
-        xRange = arange(bbox.begin()[0], bbox.end()[0], 1.0/level)
-        for y in arange(bbox.begin()[1], bbox.end()[1], 1.0/level):
-            for x in xRange:
-                if face.contains(Vector2(x, y)):
-                    self._functors[face.label()](self._origSIV[Vector2(x, y)])
+        for pos in superSample(face, level):
+            self._functors[face.label()](self._origSIV[pos])
         self._superSampled[face.label()] = level
 
     def preMergeFaces(self, dart):
@@ -441,6 +446,14 @@ class EdgeMergeTree(DynamicEdgeStatistics):
         DynamicEdgeStatistics.__setstate__(self, (map, ))
         self._tree = tree
 
+    def level0Labels(self):
+        """Return a list of level0 edges (resp. their labels) the
+        currently existing edges are composed of."""
+        result = []
+        for edge in self._map().edgeIter():
+            result.extend(self[edge])
+        return result
+
 class DynamicEdgeIndices(DetachableStatistics):
     __slots__ = ["_indices",
                  "_mergedIndices", "_newIndices1", "_newIndices2"]
@@ -623,15 +636,15 @@ class WatershedStatistics(DynamicEdgeIndices):
         return min([self.dartPassValue(d)
                     for d in commonBoundaryDarts(dart)])
 
-#     def dynamic(self, edge):
-#         if hasattr(edge, "label"):
-#             edgeLabel = edge.label()
-#         else:
-#             edgeLabel = edge
-#             edge = self._map().edge(edgeLabel)
-#         return self._passValues[edgeLabel] - min(
-#             self._basinDepth[edge.leftFaceLabel()],
-#             self._basinDepth[edge.rightFaceLabel()])
+    def dynamic(self, edge):
+        if hasattr(edge, "label"):
+            edgeLabel = edge.label()
+        else:
+            edgeLabel = edge
+            edge = self._map().edge(edgeLabel)
+        return self._passValues[edgeLabel] - min(
+            self._basinDepth[edge.leftFaceLabel()],
+            self._basinDepth[edge.rightFaceLabel()])
 
 class WatershedBasinStatistics(DetachableStatistics):
     __slots__ = ["_basinDepth",
@@ -643,18 +656,41 @@ class WatershedBasinStatistics(DetachableStatistics):
         self._basinDepth = [None] * map.maxFaceLabel()
         for mpos in minima:
             face = map.faceAt(mpos)
+            if face.label() == 0:
+                continue
             depth = gmSiv[mpos]
             fDepth = self._basinDepth[face.label()]
+            if fDepth != None:
+                sys.stderr.write(
+                    "Face %d (area %s) contains more than one minimum!\n" % (
+                    face.label(), face.area()))
             if fDepth == None or fDepth > depth:
                 self._basinDepth[face.label()] = depth
 
-        for face in map.faceIter():
+        for face in map.faceIter(skipInfinite = True):
             if self._basinDepth[face.label()] == None:
-                print "Face %d (area %s, anchor %d) contains no minimum!" % (
-                    face.label(), face.area(), face.contour().label())
-                self._basinDepth[face.label()] = 0.0 # FIXME: remove!?!
+                sys.stderr.write(
+                    "Face %d (area %s, anchor %d) contains no minimum!\n" % (
+                    face.label(), face.area(), face.contour().label()))
+                level = 2
+                while True:
+                    level += 1
+                    samples = [gmSiv[pos] for pos in superSample(face, level)]
+                    if len(samples) > 10:
+                        break
+                self._basinDepth[face.label()] = min(samples)
 
         self._attachHooks()
+
+    def superSample(self, face, level = 2):
+        if not self._origSIV:
+            if self.bands() == 3:
+                self._origSIV = sivtools.ThreeBandSIVProxy(self.originalImage, self._SIV)
+            else:
+                self._origSIV = self._SIV(self.originalImage)
+        for pos in superSample(face, level):
+            self._functors[face.label()](self._origSIV[pos])
+        self._superSampled[face.label()] = level
 
     def _attachHooks(self):
         self._attachedHooks = (
