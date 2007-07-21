@@ -869,22 +869,30 @@ def removeEdges(map, edgeLabels):
             result += 1
 
     while bridges:
-        for edge in bridges:
+        # search for bridge with endnode of degree 1:
+        for i, edge in enumerate(bridges):
             dart = edge.dart()
             if dart.endNode().degree() == 1:
                 dart.nextAlpha()
                 break
-            if dart.startNode().degree() == 1:
+            # degree 1?
+            if dart.clone().nextSigma() == dart:
                 break
+        
         while True:
+            del bridges[i]
             next = dart.clone().nextPhi()
-            bridges.remove(dart.edge())
             if map.removeBridge(dart):
                 result += 1
+            if not next.edge():
+                break
+            # degree 1?
             if next.clone().nextSigma() != next:
                 break
             dart = next
-            if not dart.edge():
+            try:
+                i = bridges.index(dart.edge())
+            except ValueError:
                 break
 
     result += removeIsolatedNodes(map) # FIXME: depend on allowIsolatedNodes
