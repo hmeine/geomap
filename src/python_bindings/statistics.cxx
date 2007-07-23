@@ -19,25 +19,31 @@ class PolylineStatistics
   public:
     PolylineStatistics()
     : weightedSum_(0),
-      length_(0)
+      length_(0),
+      min_(0),
+      max_(0)
     {}
 
-    PolylineStatistics(const PointArray<Vector2> &poly, object siv)
-    : weightedSum_(0),
-      length_(0)
-    {
-        for(unsigned int i = 0; i < poly.size() - 1; ++i)
-        {
-            Vector2 segment(poly[i+1]-poly[i]);
-            __call__(extract<double>(siv[poly[i] + 0.5*segment])(),
-                     segment.magnitude());
-        }
-    }
+//     PolylineStatistics(const PointArray<Vector2> &poly, object siv)
+//     : weightedSum_(0),
+//       length_(0),
+//       min_(0),
+//       max_(0)
+//     {
+//         for(unsigned int i = 0; i < poly.size() - 1; ++i)
+//         {
+//             Vector2 segment(poly[i+1]-poly[i]);
+//             __call__(extract<double>(siv[poly[i] + 0.5*segment])(),
+//                      segment.magnitude());
+//         }
+//     }
 
     PolylineStatistics(const PointArray<Vector2> &poly,
                        const SplineImageView<5, GrayValue> &siv)
     : weightedSum_(0),
-      length_(0)
+      length_(0),
+      min_(0),
+      max_(0)
     {
         for(unsigned int i = 0; i < poly.size() - 1; ++i)
         {
@@ -51,6 +57,18 @@ class PolylineStatistics
     void __call__(double value, double length)
     {
         weightedSum_ += value*length;
+        if(!length_)
+        {
+            min_ = value;
+            max_ = value;
+        }
+        else
+        {
+            if(min_ > value)
+                min_ = value;
+            if(max_ < value)
+                max_ = value;
+        }
         length_ += length;
     }
 
@@ -61,14 +79,28 @@ class PolylineStatistics
         return 0;
     }
 
+    double min() const
+    {
+        return min_;
+    }
+
+    double max() const
+    {
+        return max_;
+    }
+
     void merge(const PolylineStatistics &otherStats)
     {
         weightedSum_ += otherStats.weightedSum_;
+        if(!length_ || min_ > otherStats.min_)
+            min_ = otherStats.min_;
+        if(!length_ || max_ < otherStats.max_)
+            max_ = otherStats.max_;
         length_ += otherStats.length_;
     }
 
   protected:
-    double weightedSum_, length_;
+    double weightedSum_, length_, min_, max_;
 };
 
 class QuantileStatistics : public PolylineStatistics
@@ -174,6 +206,8 @@ void defStatistics()
                   const SplineImageView<5, GrayValue> &>())
         .def("__call__", &PolylineStatistics::__call__)
         .def("average", &PolylineStatistics::average)
+        .def("min", &PolylineStatistics::min)
+        .def("max", &PolylineStatistics::max)
         .def("merge", &PolylineStatistics::merge)
     ;
 
