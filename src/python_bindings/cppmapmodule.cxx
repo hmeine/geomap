@@ -457,6 +457,33 @@ createGeoMap(bp::list nodePositions,
     return result;
 }
 
+bp::object
+GeoMap__copy__(bp::object map)
+{
+    GeoMap *newMap(new GeoMap(bp::extract<const GeoMap &>(map)));
+    bp::object result(bp::detail::new_reference(bp::managingPyObject(newMap)));
+
+    bp::extract<bp::dict>(result.attr("__dict__"))().update(
+        map.attr("__dict__"));
+
+    return result;
+}
+
+bp::object
+GeoMap__deepcopy__(bp::object map, bp::dict memo)
+{
+    bp::object copyMod = bp::import("copy");
+    bp::object deepcopy = copyMod.attr("deepcopy");
+
+    GeoMap *newMap(new GeoMap(bp::extract<const GeoMap &>(map)));
+    bp::object result(bp::detail::new_reference(bp::managingPyObject(newMap)));
+
+    bp::extract<bp::dict>(result.attr("__dict__"))().update(
+        deepcopy(bp::extract<bp::dict>(map.attr("__dict__"))(), memo));
+
+    return result;
+}
+
 CELL_PTR(GeoMap::Edge) addEdgeBackwardCompatibility(
     GeoMap &geomap,
     CellLabel startNodeLabel, CellLabel endNodeLabel,
@@ -664,7 +691,7 @@ void GeoMap_setEdgePreferences(GeoMap &geomap,
     std::auto_ptr<GeoMap::EdgePreferences> cppep(
         new GeoMap::EdgePreferences(len(edgePreferences)));
 
-    for(int i = 0; i < cppep->size(); ++i)
+    for(unsigned int i = 0; i < cppep->size(); ++i)
     {
         double pref = bp::extract<double>(edgePreferences[i])();
         (*cppep)[i] = pref;
@@ -948,6 +975,8 @@ void defMap()
                      (arg("nodePositions") = list(),
                       arg("edgeTuples") = list(),
                       arg("imageSize") = vigra::Size2D(0, 0))))
+            .def("__copy__", &GeoMap__copy__)
+            .def("__deepcopy__", &GeoMap__deepcopy__)
             .def("node", (CELL_PTR(GeoMap::Node)(GeoMap::*)(CellLabel))&GeoMap::node, crp,
                  "node(label) -> Node\n\n"
                  "Return Node object for the given label.")
