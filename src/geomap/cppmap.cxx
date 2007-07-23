@@ -576,6 +576,16 @@ void GeoMap::splitParallelEdges()
         edgePreferences_->resize(edges_.size() + splitInfo_->size());
     }
 
+    bool hasPreferences = edgePreferences_.get();
+
+    // define radius of circle for curvature detection if !hasPreferences:
+    const double checkSurvivorDist  = 0.5;
+    const double checkSurvivorDist2 = checkSurvivorDist*checkSurvivorDist;
+    if(!hasPreferences)
+        edgePreferences_ = std::auto_ptr<EdgePreferences>(
+            new EdgePreferences(edges_.size() + splitInfo_->size()));
+    EdgePreferences *edgePreferences = edgePreferences_.get();
+
     typedef std::vector<MergeDart> MergeDarts;
     MergeDarts mergeDarts(splitInfo_->size());
     for(detail::PlannedSplits::iterator it = splitInfo_->begin();
@@ -585,9 +595,32 @@ void GeoMap::splitParallelEdges()
             splitEdge(*edge(abs(it->dartLabel)),
                       it->segmentIndex, it->position)->label();
 
-        if(edgePreferences_.get())
-            (*edgePreferences_)[newEdgeLabel] =
-                (*edgePreferences_)[abs(it->dartLabel)];
+        if(hasPreferences)
+        {
+            (*edgePreferences)[newEdgeLabel] =
+                (*edgePreferences)[abs(it->dartLabel)];
+        }
+        else
+        {
+            GeoMap::Dart d(dart(newEdgeLabel));
+            vigra::Vector2 nodePos(d.startNode()->position());
+
+            // intersect checkSurvivorDist-circle with dart
+            DartPosition dp1(d);
+            dp1.leaveCircle(nodePos, checkSurvivorDist2);
+            d.nextSigma();
+            DartPosition dp2(d);
+            dp2.leaveCircle(nodePos, checkSurvivorDist2);
+
+            // determine vectors between split node pos. & intersections..
+            vigra::Vector2
+                v1(dp1() - nodePos),
+                v2(nodePos - dp2());
+
+            // ..and choose dart with smallest enclosed angle:
+            (*edgePreferences)[newEdgeLabel] =
+                dot(v1, v2)/(v1.magnitude()*v2.magnitude());
+        }
 
         detail::PlannedSplits::difference_type &pos(
             groupPositions[it->splitGroup]);
@@ -598,18 +631,12 @@ void GeoMap::splitParallelEdges()
         ++pos;
     }
 
-    if(edgePreferences_.get())
-    {
-        vigra_invariant(edgePreferences_->size() == edges_.size(),
-                        "edge preferences should be exactly one per edge");
-    }
+    vigra_invariant(edgePreferences->size() == edges_.size(),
+                    "edge preferences should be exactly one per edge");
 
     splitInfo_.reset(); // splitting finished, free memory
 
     // for each split group, merge the resulting nodes:
-    const double checkSurvivorDist  = 0.5;
-    const double checkSurvivorDist2 = checkSurvivorDist*checkSurvivorDist;
-
     MergeDarts::iterator mergeDartsGroupEnd = mergeDarts.begin();
     for(unsigned int i = 0; i < groupPositions.size(); ++i)
     {
@@ -626,46 +653,14 @@ void GeoMap::splitParallelEdges()
         double bestContinuationValue = 0.0;
         int bestContinuationIndex = 0;
 
-        if(edgePreferences_.get())
+        for(MergeDarts::iterator it = mergeDartsGroupBegin;
+            it != mergeDartsGroupEnd; ++it)
         {
-            for(MergeDarts::iterator it = mergeDartsGroupBegin;
-                it != mergeDartsGroupEnd; ++it)
+            double pref = (*edgePreferences)[abs(it->dartLabel)];
+            if(pref > bestContinuationValue)
             {
-                double pref = (*edgePreferences_)[abs(it->dartLabel)];
-                if(pref > bestContinuationValue)
-                {
-                    bestContinuationValue = pref;
-                    bestContinuationIndex = it - mergeDartsGroupBegin;
-                }
-            }            
-        }
-        else
-        {
-            for(MergeDarts::iterator it = mergeDartsGroupBegin;
-                it != mergeDartsGroupEnd; ++it)
-            {
-                GeoMap::Dart d(dart(it->dartLabel));
-                vigra::Vector2 nodePos(d.startNode()->position());
-
-                // intersect checkSurvivorDist-circle with dart
-                DartPosition dp1(d);
-                dp1.leaveCircle(nodePos, checkSurvivorDist2);
-                d.nextSigma();
-                DartPosition dp2(d);
-                dp2.leaveCircle(nodePos, checkSurvivorDist2);
-
-                // determine vectors between split node pos. & intersections..
-                vigra::Vector2
-                    v1(dp1() - nodePos),
-                    v2(nodePos - dp2());
-
-                // ..and choose dart with smallest enclosed angle:
-                double cont = dot(v1, v2)/(v1.magnitude()*v2.magnitude());
-                if(cont > bestContinuationValue)
-                {
-                    bestContinuationValue = cont;
-                    bestContinuationIndex = it - mergeDartsGroupBegin;
-                }
+                bestContinuationValue = pref;
+                bestContinuationIndex = it - mergeDartsGroupBegin;
             }
         }
 
@@ -764,6 +759,8 @@ void GeoMap::splitParallelEdges()
             removeIsolatedNode(mergedNode);
         }
     }
+
+    edgePreferences_.reset();
 }
 
 void GeoMap::setSigmaMapping(SigmaMapping const &sigmaMapping, bool sorted)
