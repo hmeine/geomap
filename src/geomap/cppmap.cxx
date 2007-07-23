@@ -1,6 +1,5 @@
 #include "cppmap.hxx"
 #include <vigra/tinyvector.hxx>
-#include <iostream>
 #include <algorithm>
 #include <cmath>
 
@@ -141,7 +140,7 @@ GeoMap::GeoMap(const GeoMap &other)
     for(ConstEdgeIterator it = other.edgesBegin(); it.inRange(); ++it)
     {
         addEdge(*node((*it)->startNodeLabel()),
-                *node((*it)->startNodeLabel()),
+                *node((*it)->endNodeLabel()),
                 *(*it),
                 (*it)->label())
             ->setFlag((*it)->flags());
