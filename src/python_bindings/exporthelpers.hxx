@@ -67,7 +67,6 @@ Array__setitem__(Array & a, int i, typename Array::value_type v)
     a[i] = v;
 }
 
-
 /********************************************************************/
 
 template<class ITERATOR>
@@ -133,5 +132,23 @@ struct RangeIterWrapper
         return *v++;
     }
 };
+
+/********************************************************************/
+
+template<class Array>
+STLIterWrapper<typename Array::const_iterator>
+Array__iter__(const Array &a)
+{
+    return STLIterWrapper<typename Array::const_iterator>(
+        a.begin(), a.end());
+}
+
+template<class Array>
+STLIterWrapper<typename Array::const_reverse_iterator>
+Array__reviter__(const Array &a)
+{
+    return STLIterWrapper<typename Array::const_reverse_iterator>(
+        a.rbegin(), a.rend());
+}
 
 #endif // EXPORTHELPERS_HXX

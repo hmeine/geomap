@@ -193,22 +193,6 @@ void defIter(const char *name)
 }
 
 template<class Array>
-STLIterWrapper<typename Array::const_iterator>
-__iter__(const Array &a)
-{
-    return STLIterWrapper<typename Array::const_iterator>(
-        a.begin(), a.end());
-}
-
-template<class Array>
-STLIterWrapper<typename Array::const_reverse_iterator>
-__reviter__(const Array &a)
-{
-    return STLIterWrapper<typename Array::const_reverse_iterator>(
-        a.rbegin(), a.rend());
-}
-
-template<class Array>
 list arcLengthList(const Array &a)
 {
     list result;
@@ -1850,8 +1834,8 @@ void defPolygon()
         .def("__getitem__", &Array__getitem_slice__<Vector2Array>)
         .def("__getitem__", &Array__getitem__<Vector2Array>)
         .def("__setitem__", &Array__setitem__<Vector2Array>)
-        .def("__iter__", &__iter__<Vector2Array>)
-        .def("__reviter__", &__reviter__<Vector2Array>)
+        .def("__iter__",    &Array__iter__<Vector2Array>)
+        .def("__reviter__", &Array__reviter__<Vector2Array>)
         .def("insert", &insert<Vector2Array>)
         .def(self * double())
         .def(self + Vector2())
@@ -1874,8 +1858,8 @@ void defPolygon()
         .def("__getitem__", &Array__getitem_slice__<Point2DArray>)
         .def("__getitem__", &Array__getitem__<Point2DArray>)
         .def("__setitem__", &Array__setitem__<Point2DArray>)
-        .def("__iter__", &__iter__<Point2DArray>)
-        .def("__reviter__", &__reviter__<Point2DArray>)
+        .def("__iter__",    &Array__iter__<Point2DArray>)
+        .def("__reviter__", &Array__reviter__<Point2DArray>)
         .def("insert", &insert<Point2DArray>)
     ;
     register_ptr_to_python< std::auto_ptr<Point2DArray> >();
