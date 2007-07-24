@@ -232,8 +232,10 @@ def subpixelWatershedMapFromData(
         print " (%ss)" % (time.clock()-c, )
 
     if performEdgeSplits:
-        print "  splitting & joining parallel edges..."
+        c = time.clock()
+        print "  splitting & joining parallel edges...",
         spmap.splitParallelEdges()
+        print " (%ss)" % (time.clock()-c, )
 
     spmap.initializeMap()
 
@@ -694,6 +696,12 @@ def checkLabelConsistency(map):
     return result
 
 def drawLabelImage(aMap, scale = 1):
+    """Return freshly drawn label image.  Should be identical to
+    aMap.labelImage() if aMap.hasLabelImage() and scale == 1.  scale
+    may be used to draw a label image with a different resolution;
+    e.g. scale = 2 means that the returned image is (2w x 2h)
+    where w,h = aMap.imageSize()."""
+
     total = aMap.faceCount - 1
     done = 1
     result = vigra.GrayImage(aMap.imageSize()*scale)
@@ -729,6 +737,56 @@ def checkLabelConsistencyThoroughly(aMap):
     return checkLabelConsistency(aMap) and \
            vigra.inspectImage(aMap.labelImage(), drawLabelImage(aMap),
                               AssertRightLabel()).correct
+
+def checkCachedPropertyConsistency(aMap):
+    """Check whether edge and face bounds and areas are valid."""
+    result = True
+    realPolys = mapValidEdges(lambda edge: hourglass.Polygon(list(edge)), aMap)
+    for edge in aMap.edgeIter():
+        poly = realPolys[edge.label()]
+        if abs(poly.length() - edge.length()) > 1e-6:
+            sys.stderr.write("Edge %d has cached length %s instead of %s!\n" % (
+                edge.label(), edge.length(), poly.length()))
+            result = False
+        if poly.boundingBox() != edge.boundingBox():
+            sys.stderr.write("Edge %d has cached boundingBox %s instead of %s!\n" % (
+                edge.label(), edge.boundingBox(), poly.boundingBox()))
+            result = False
+        if abs(poly.partialArea() - edge.partialArea()) > 1e-5:
+            sys.stderr.write("Edge %d has cached partialArea %s instead of %s!\n" % (
+                edge.label(), edge.partialArea(), poly.partialArea()))
+            result = False
+    for face in aMap.faceIter():
+        bbox = hourglass.BoundingBox()
+        area = 0.0
+        for dart in face.contour().phiOrbit():
+            edge = realPolys[dart.edgeLabel()]
+            bbox |= edge.boundingBox()
+            if dart.edge().isBridge():
+                continue
+            if dart.label() > 0:
+                area += edge.partialArea()
+            else:
+                area -= edge.partialArea()
+        
+        if face.label() and bbox != face.boundingBox():
+            sys.stderr.write("Face %d has cached bounding box %s instead of %s!\n" % (
+                face.label(), face.boundingBox(), bbox))
+            result = False
+        if abs(area - face.area()) > 1e-5:
+            sys.stderr.write("Face %d has cached area %s instead of %s!\n" % (
+                face.label(), face.area(), area))
+            result = False
+    return result
+
+def checkAllConsistency(aMap):
+    """Return whether aMap.checkConsistency(),
+    checkCachedPropertyConsistency(aMap), and
+    checkLabelConsistencyThoroughly(aMap) succeed (the latter in turn
+    calls checkLabelConsistency(aMap)."""
+    return aMap.checkConsistency() and \
+           checkCachedPropertyConsistency(aMap) and \
+           checkLabelConsistencyThoroughly(aMap)
 
 # --------------------------------------------------------------------
 
@@ -858,6 +916,9 @@ def mergeDegree2Nodes(map):
     return result
 
 def removeEdges(map, edgeLabels):
+    """Removes all edges whose labels are in `edgeLabels`.
+    Uses an optimized sequence of basic Euler operations."""
+    
     result = 0
 
     bridges = []
@@ -1241,16 +1302,31 @@ def thresholdMergeCost(map, mergeCostMeasure, maxCost, costs = None, q = None):
 
 # --------------------------------------------------------------------
 
-# FIXME: split into classifyFaces... and classifyEdgesFromFaceClassification
-def classifyEdgesFromLabelImage(map, labelImage):
+def classifyFacesFromLabelImage(map, labelImage):
+    """Given a labelImage, returns the label of each Face within that
+    image.  This assumes that each region contains only pixels of the
+    same label; otherwise an assertion will be triggered."""
+    
     import statistics
     faceStats = statistics.FaceColorStatistics(map, labelImage)
     faceStats.detachHooks()
 
+    result = [None] * map.maxFaceLabel()
     for face in map.faceIter(skipInfinite = True):
         l = faceStats[face.label()]
         assert float(int(l)) == l, "each Face must be entirely within one region of the labelImage"
+        result[face.label()] = int(l)
 
+    return result
+
+def classifyEdgesFromLabelImage(map, labelImage):
+    """FIXME: I think this API is old and should be deprecated.
+    Should edge flags be used?  After all, it's a binary decision.
+    Else, should one sequence of bools be returned?
+    Or should it stay like this?
+    The result should be easily passable to removeEdges() IMO."""
+    faceLabels = classifyFacesFromLabelImage(map, labelImage)
+    
     good = []
     bad = []
     for edge in map.edgeIter():
@@ -1353,6 +1429,15 @@ def nodeAtBorder(node):
         if edgeAtBorder(dart.edge()):
             return True
     return False
+
+def mapValidEdges(function, geomap, default = None):
+    """Similar to map(function, geomap.edgeIter()), but preserves
+    labels.  I.e., equivalent to [default] * geomap.maxEdgeLabel() and
+    a successive filling in of function results for valid edges."""
+    result = [default] * geomap.maxEdgeLabel()
+    for edge in geomap.edgeIter():
+        result[edge.label()] = function(edge)
+    return result
 
 # --------------------------------------------------------------------
 #                       Seeded Region Growing
