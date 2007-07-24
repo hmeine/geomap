@@ -1,5 +1,6 @@
 #include "cppmap.hxx"
 #include <vigra/tinyvector.hxx>
+#include <vigra/multi_pointoperators.hxx>
 #include <algorithm>
 #include <cmath>
 
@@ -974,6 +975,23 @@ void GeoMap::embedFaces(bool initLabelImage)
     }
 }
 
+class LookupNewLabel
+{
+    const std::vector<CellLabel> &newLabels_;
+
+  public:
+    LookupNewLabel(const std::vector<CellLabel> &newLabels)
+    : newLabels_(newLabels)
+    {}
+
+    int operator()(int label) const
+    {
+        if(label >= 0)
+            return (int)newLabels_[label];
+        return label;
+    }
+};
+
 void GeoMap::changeFaceLabels(
     const std::vector<CellLabel> &newFaceLabels,
     CellLabel maxFaceLabel)
@@ -995,6 +1013,14 @@ void GeoMap::changeFaceLabels(
     {
         (*it)->leftFaceLabel_ = newFaceLabels[(*it)->leftFaceLabel_];
         (*it)->rightFaceLabel_ = newFaceLabels[(*it)->rightFaceLabel_];
+    }
+
+    if(hasLabelImage())
+    {
+        transformMultiArray(srcMultiArrayRange(*labelImage_, labelAccessor()),
+                            destMultiArray(*labelImage_),
+                            LookupNewLabel(newFaceLabels));
+        faceLabelLUT_.initIdentity(faces_.size());
     }
 }
 
