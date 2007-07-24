@@ -165,6 +165,15 @@ GeoMap::GeoMap(const GeoMap &other)
             CellLabel anchorLabel = (*it)->contour().label();
             dart(anchorLabel).leftFace()->setFlag(flags);
         }
+
+        std::vector<CellLabel> newFaceLabels(faces_.size());
+        for(FaceIterator it = facesBegin(); it.inRange(); ++it)
+        {
+            newFaceLabels[(*it)->label()] =
+                const_cast<GeoMap &>(other).dart( // FIXME: see constdart.diff
+                    (*it)->contour().label()).leftFaceLabel();
+        }
+        changeFaceLabels(newFaceLabels, other.faces_.size());
     }
 }
 
@@ -962,6 +971,30 @@ void GeoMap::embedFaces(bool initLabelImage)
         for(EdgeIterator it = edgesBegin(); it.inRange(); ++it)
             markEdgeInLabelImage((*it)->scanLines(),
                                  *labelImage_);
+    }
+}
+
+void GeoMap::changeFaceLabels(
+    const std::vector<CellLabel> &newFaceLabels,
+    CellLabel maxFaceLabel)
+{
+    vigra_precondition(newFaceLabels.size() == faces_.size(),
+        "changeFaceLabels(): 1-to-1 mapping expected (wrong newFaceLabels size)");
+
+    GeoMap::Faces newFaces(maxFaceLabel);
+    for(CellLabel l = 0; l < newFaceLabels.size(); ++l)
+    {
+        if(!faces_[l])
+            continue;
+        newFaces[newFaceLabels[l]] = faces_[l];
+        faces_[l]->label_ = newFaceLabels[l];
+    }
+    std::swap(faces_, newFaces);
+
+    for(EdgeIterator it = edgesBegin(); it.inRange(); ++it)
+    {
+        (*it)->leftFaceLabel_ = newFaceLabels[(*it)->leftFaceLabel_];
+        (*it)->rightFaceLabel_ = newFaceLabels[(*it)->rightFaceLabel_];
     }
 }
 

@@ -320,6 +320,9 @@ class GeoMap
   protected:
     void initContours();
     void embedFaces(bool initLabelImage);
+        // maxFaceLabel is to be +1 here, too:
+    void changeFaceLabels(const std::vector<CellLabel> &newFaceLabels,
+                          CellLabel maxFaceLabel);
     void resizeSigmaMapping(SigmaMapping::size_type newSize);
     void insertSigmaPredecessor(int successor, int newPredecessor);
     void detachDart(int dartLabel);
@@ -1206,6 +1209,7 @@ inline unsigned int GeoMap::Node::degree() const
         ++result;
     }
     while(d.nextSigma().label() != anchor_);
+
     return result;
 }
 
