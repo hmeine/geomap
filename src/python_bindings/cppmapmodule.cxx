@@ -634,7 +634,7 @@ struct GeoMapPickleSuite : bp::pickle_suite
         bp::list faceFlags, faceAnchors;
         for(GeoMap::FaceIterator it = map.facesBegin(); it.inRange(); ++it)
         {
-            faceFlags.append((*it)->flags() & ~0xf0000000);
+            faceFlags.append((*it)->flags() & ~0xf0000000U);
             faceAnchors.append((*it)->contour().label());
         }
 
@@ -676,9 +676,12 @@ struct GeoMapPickleSuite : bp::pickle_suite
 
         for(i = 0; i < map.faceCount(); ++i)
         {
-            int anchorLabel = bp::extract<unsigned int>(faceAnchors[i])();
-            map.dart(anchorLabel).leftFace()->setFlag(
-                bp::extract<unsigned int>(faceFlags[i])());
+            if(faceFlags[i])
+            {
+                int anchorLabel = bp::extract<unsigned int>(faceAnchors[i])();
+                map.dart(anchorLabel).leftFace()->setFlag(
+                    bp::extract<unsigned int>(faceFlags[i])() & ~0xf0000000U);
+            }
         }
 
         bp::extract<bp::dict>(pyMap.attr("__dict__"))().update(__dict__);
