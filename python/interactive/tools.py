@@ -331,6 +331,7 @@ class IntelligentScissors(qt.QObject):
                      self.mouseReleased)
         self.connect(self.viewer, qt.PYSIGNAL("mouseDoubleClicked"),
                      self.mouseDoubleClicked)
+        self.viewer.installEventFilter(self)
         self.overlayIndex = self.viewer.addOverlay(
             PointOverlay([], qt.Qt.green, 1))
 
@@ -344,6 +345,15 @@ class IntelligentScissors(qt.QObject):
         self.disconnect(self.viewer, qt.PYSIGNAL("mouseDoubleClicked"),
                         self.mouseDoubleClicked)
         self.viewer.removeOverlay(self.overlayIndex)
+        self.viewer.removeEventFilter(self)
+
+    def eventFilter(self, watched, e):
+        if e.type() in (qt.QEvent.KeyPress, qt.QEvent.KeyRelease,
+                        qt.QEvent.MouseButtonPress, qt.QEvent.MouseButtonRelease,
+                        qt.QEvent.MouseButtonDblClick, qt.QEvent.MouseMove):
+            self._keyState = e.stateAfter()
+            self.protect = not self._keyState & qt.Qt.ControlButton
+        return False
 
     def startSearch(self):
         """Starts a search at self._startNodeLabel.  Initialized the
