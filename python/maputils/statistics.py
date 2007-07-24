@@ -527,6 +527,7 @@ class DynamicEdgeIndices(DetachableStatistics):
 
 class WatershedStatistics(DynamicEdgeIndices):
     __slots__ = ["_passValues", "_indices", "_gmSiv",
+                 "_basinDepth",
                  "_mergedPV"]
     
     def __init__(self, map, flowlines, gmSiv):
@@ -636,6 +637,9 @@ class WatershedStatistics(DynamicEdgeIndices):
         return min([self.dartPassValue(d)
                     for d in commonBoundaryDarts(dart)])
 
+    def setBasins(self, basinStatistics):
+        self._basinDepth = basinStatistics._basinDepth
+
     def dynamic(self, edge):
         if hasattr(edge, "label"):
             edgeLabel = edge.label()
@@ -660,10 +664,15 @@ class WatershedBasinStatistics(DetachableStatistics):
                 continue
             depth = gmSiv[mpos]
             fDepth = self._basinDepth[face.label()]
-            if fDepth != None:
-                sys.stderr.write(
-                    "Face %d (area %s) contains more than one minimum!\n" % (
-                    face.label(), face.area()))
+
+            # multiple minima may happen "legally" through saddle
+            # filtering (by proximity / saddleThreshold)!
+            # (also, for face 0 without border closing!)
+#             if fDepth != None:
+#                 sys.stderr.write(
+#                     "Face %d (area %s) contains more than one minimum!\n" % (
+#                     face.label(), face.area()))
+
             if fDepth == None or fDepth > depth:
                 self._basinDepth[face.label()] = depth
 
@@ -673,12 +682,15 @@ class WatershedBasinStatistics(DetachableStatistics):
                     "Face %d (area %s, anchor %d) contains no minimum!\n" % (
                     face.label(), face.area(), face.contour().label()))
                 level = 2
-                while True:
+                while level < 20: # prevent endless loop
                     level += 1
                     samples = [gmSiv[pos] for pos in superSample(face, level)]
                     if len(samples) > 10:
                         break
+                print "  (got %d samples at supersampling level %d)" % (
+                    len(samples), level)
                 self._basinDepth[face.label()] = min(samples)
+                assert self._basinDepth[face.label()] != None, str(samples)
 
         self._attachHooks()
 
@@ -769,11 +781,11 @@ class EdgeGradientStatistics(BoundaryIndicatorStatistics):
 
     def dartMin(self, dart):
         """Returns the minimum gradient on the edge."""
-        return self[dart.edgeLabel()].quantile(0.0)
+        return self[dart.edgeLabel()].min()
 
     def dartMax(self, dart):
         """Returns the maximum gradient on the edge."""
-        return self[dart.edgeLabel()].quantile(1.0)
+        return self[dart.edgeLabel()].max()
 
     def dartQuantile(self, q = 0.5):
         """Returns a specific quantile of the sampled gradients."""
@@ -791,10 +803,10 @@ class EdgeGradientStatistics(BoundaryIndicatorStatistics):
         return result
 
     def min(self, dart):
-        return self.combinedStatistics(dart).quantile(0.0)
+        return self.combinedStatistics(dart).min()
 
     def max(self, dart):
-        return self.combinedStatistics(dart).quantile(1.0)
+        return self.combinedStatistics(dart).max()
 
     def quantile(self, q):
         def specificQuantile(dart):
