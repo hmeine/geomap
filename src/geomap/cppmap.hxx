@@ -981,8 +981,8 @@ class GeoMap::Face : boost::noncopyable
     mutable double       area_;
     unsigned int         pixelArea_;
 
-    static const unsigned int BOUNDING_BOX_VALID = 0x8000000;
-    static const unsigned int AREA_VALID         = 0x4000000;
+    static const unsigned int BOUNDING_BOX_VALID = 0x80000000;
+    static const unsigned int AREA_VALID         = 0x40000000;
 
     friend class GeoMap; // give access to pixelArea_ and anchors_ (Euler ops...)
 
