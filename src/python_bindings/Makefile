@@ -8,8 +8,9 @@ include $(INT2BUILDDIR)/config/Makefile.include
 # at KOGS, try: module add pkgconfig libsigc++
 LOCAL_CPPFLAGS = -I. -I../cellimage `pkg-config --cflags sigc++-2.0`
 
-#CXXFLAGS += -Wall -g -W
-CXXFLAGS += -Wall -O3 -DNDEBUG
+CXXFLAGS += -Wall -Wno-strict-aliasing
+#CXXFLAGS += -g -W
+CXXFLAGS += -O3 -DNDEBUG
 CPPFLAGS += $(LOCAL_CPPFLAGS)
 LIBCPPFLAGS += $(LOCAL_CPPFLAGS)
 TARGET = hourglassmodule.la
