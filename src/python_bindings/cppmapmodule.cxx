@@ -631,11 +631,12 @@ struct GeoMapPickleSuite : bp::pickle_suite
             edgeFlags.append((*it)->flags());
         }
 
-        bp::list faceFlags, faceAnchors;
+        bp::list faceFlags, faceAnchors, faceLabels;
         for(GeoMap::FaceIterator it = map.facesBegin(); it.inRange(); ++it)
         {
             faceFlags.append((*it)->flags() & ~0xf0000000U);
             faceAnchors.append((*it)->contour().label());
+            faceLabels.append((*it)->label());
         }
 
         return bp::make_tuple(
@@ -644,7 +645,7 @@ struct GeoMapPickleSuite : bp::pickle_suite
             map.mapInitialized(),
             map.hasLabelImage(),
             edgeFlags,
-            faceFlags, faceAnchors,
+            faceFlags, faceAnchors, make_tuple(faceLabels, map.maxFaceLabel()),
             pyMap.attr("__dict__"));
     }
 
@@ -662,7 +663,15 @@ struct GeoMapPickleSuite : bp::pickle_suite
         bp::list edgeFlags = bp::extract<bp::list>(state[4])();
         bp::list faceFlags = bp::extract<bp::list>(state[5])();
         bp::list faceAnchors = bp::extract<bp::list>(state[6])();
-        bp::object __dict__ = state[7];
+        bool hasLabels = len(state) > 8; // backward compat.
+        bp::list faceLabels;
+        CellLabel newMaxFaceLabel = 0;
+        if(hasLabels)
+        {
+            faceLabels = bp::extract<bp::list>(state[7][0])();
+            newMaxFaceLabel = bp::extract<CellLabel>(state[7][1])();
+        }
+        bp::object __dict__ = state[-1];
 
         GeoMap_setSigmaMapping(map, pySigmaMapping, edgesSorted);
         if(mapInitialized)
@@ -674,15 +683,20 @@ struct GeoMapPickleSuite : bp::pickle_suite
             (*it)->setFlag(bp::extract<unsigned int>(edgeFlags[i])());
         }
 
+        std::vector<CellLabel> newFaceLabels(map.maxFaceLabel());
         for(i = 0; i < map.faceCount(); ++i)
         {
-            if(faceFlags[i])
-            {
-                int anchorLabel = bp::extract<unsigned int>(faceAnchors[i])();
-                map.dart(anchorLabel).leftFace()->setFlag(
-                    bp::extract<unsigned int>(faceFlags[i])() & ~0xf0000000U);
-            }
+            GeoMap::Dart anchor =
+                map.dart(bp::extract<unsigned int>(faceAnchors[i])());
+            anchor.leftFace()->setFlag(
+                bp::extract<unsigned int>(faceFlags[i])() & ~0xf0000000U);
+            if(hasLabels)
+                newFaceLabels[anchor.leftFaceLabel()] =
+                    bp::extract<CellLabel>(faceLabels[i])();
         }
+
+        if(hasLabels)
+            map.changeFaceLabels(newFaceLabels, newMaxFaceLabel);
 
         bp::extract<bp::dict>(pyMap.attr("__dict__"))().update(__dict__);
     }

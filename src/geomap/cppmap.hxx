@@ -317,12 +317,13 @@ class GeoMap
                             labelAccessor());
     }
 
-  protected:
-    void initContours();
-    void embedFaces(bool initLabelImage);
         // maxFaceLabel is to be +1 here, too:
     void changeFaceLabels(const std::vector<CellLabel> &newFaceLabels,
                           CellLabel maxFaceLabel);
+
+  protected:
+    void initContours();
+    void embedFaces(bool initLabelImage);
     void resizeSigmaMapping(SigmaMapping::size_type newSize);
     void insertSigmaPredecessor(int successor, int newPredecessor);
     void detachDart(int dartLabel);
