@@ -20,15 +20,15 @@ class PolylineStatistics
     PolylineStatistics()
     : weightedSum_(0),
       length_(0),
-      min_(0),
-      max_(0)
+      min_(vigra::NumericTraits<double>::max()),
+      max_(vigra::NumericTraits<double>::min())
     {}
 
 //     PolylineStatistics(const PointArray<Vector2> &poly, object siv)
 //     : weightedSum_(0),
 //       length_(0),
-//       min_(0),
-//       max_(0)
+//       min_(vigra::NumericTraits<double>::max()),
+//       max_(vigra::NumericTraits<double>::min())
 //     {
 //         for(unsigned int i = 0; i < poly.size() - 1; ++i)
 //         {
@@ -42,8 +42,8 @@ class PolylineStatistics
                        const SplineImageView<5, GrayValue> &siv)
     : weightedSum_(0),
       length_(0),
-      min_(0),
-      max_(0)
+      min_(vigra::NumericTraits<double>::max()),
+      max_(vigra::NumericTraits<double>::min())
     {
         for(unsigned int i = 0; i < poly.size() - 1; ++i)
         {
@@ -57,18 +57,10 @@ class PolylineStatistics
     void __call__(double value, double length)
     {
         weightedSum_ += value*length;
-        if(!length_)
-        {
+        if(min_ > value)
             min_ = value;
+        if(max_ < value)
             max_ = value;
-        }
-        else
-        {
-            if(min_ > value)
-                min_ = value;
-            if(max_ < value)
-                max_ = value;
-        }
         length_ += length;
     }
 
@@ -92,9 +84,9 @@ class PolylineStatistics
     void merge(const PolylineStatistics &otherStats)
     {
         weightedSum_ += otherStats.weightedSum_;
-        if(!length_ || min_ > otherStats.min_)
+        if(min_ > otherStats.min_)
             min_ = otherStats.min_;
-        if(!length_ || max_ < otherStats.max_)
+        if(max_ < otherStats.max_)
             max_ = otherStats.max_;
         length_ += otherStats.length_;
     }
