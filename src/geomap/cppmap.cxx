@@ -762,6 +762,10 @@ void GeoMap::splitParallelEdges()
             detachDart(relocateDart.label());
             insertSigmaPredecessor(sigmaNeighborLabel, relocateDart.label());
 
+            // propagate flags set on any of the merged edges to the
+            // surviving, merged edge
+            survivor.edge()->setFlag(mergeDart.edge()->flags());
+
             // remove mergeDart and its startNode:
             GeoMap::Node &mergedNode(*mergeDart.startNode());
             removeEdge(mergeDart);
