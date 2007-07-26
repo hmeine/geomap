@@ -40,12 +40,15 @@ class RangeTicker(object):
 import sys, time
 
 class StatusMessage(object):
-    def __init__(self, message, stream = sys.stdout):
+    def __init__(self, message, stream = None):
         self._message = message
-        self._promille = None
+        self._promille = 0
         self._startClock = time.clock()
+        if stream is None:
+            stream = sys.stdout
         self._stream = stream
-        self(0.0)
+        self._stream.write("\r%s... " % (self._message, ))
+        self._stream.flush()
 
     def __del__(self):
         self.finish()
@@ -62,7 +65,7 @@ class StatusMessage(object):
         return self._totalTime
 
     def finish(self):
-        if self._promille:
+        if self._promille is not None:
             self._totalTime = time.clock() - self._startClock
             self._stream.write("\r%s... done. (%ss.)\n" % (
                 self._message, self._totalTime))
