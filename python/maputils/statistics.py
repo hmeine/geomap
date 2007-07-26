@@ -630,8 +630,8 @@ class WatershedStatistics(DynamicEdgeIndices):
             edge = self._map().edge(edgeLabel)
         return [edge[i] for i in self._indices[edgeLabel]]
 
-    def dartPassValue(self, dart):
-        return self._passValues[dart.edgeLabel()]
+    def dartPassValue(self, dartOrEdge):
+        return self._passValues[abs(dartOrEdge.label())]
 
     def passValue(self, dart):
         return min([self.dartPassValue(d)
@@ -640,7 +640,7 @@ class WatershedStatistics(DynamicEdgeIndices):
     def setBasins(self, basinStatistics):
         self._basinDepth = basinStatistics._basinDepth
 
-    def dynamic(self, edge):
+    def dynamics(self, edge):
         if hasattr(edge, "label"):
             edgeLabel = edge.label()
         else:
