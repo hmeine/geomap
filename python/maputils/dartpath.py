@@ -2,7 +2,6 @@ _cvsVersion = "$Id$" \
               .split(" ")[2:-2]
 
 from hourglass import composeTangentLists, Polygon
-from statistics import dartTangents
 
 class Path(list):
     """Represents a dart path.  In addition to being a list of darts,
@@ -21,11 +20,11 @@ class Path(list):
             dart.nextAlpha()
         super(Path, self).reverse()
 
-    def tangents(self):
-        """path.tangents() -> tangent list
+    def tangents(self, dartTangents):
+        """path.tangents(dartTangents) -> tangent list
 
         Returns a composed tangentList for all darts in the given
-        path.  Calls statistics.dartTangents on each dart and uses
+        path.  Calls dartTangents on each dart and uses
         composeTangentLists to return a single tangent list."""
 
         result = []
