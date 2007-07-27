@@ -3,9 +3,11 @@ _cvsVersion = "$Id$" \
 
 import math, string, copy, weakref
 from vigra import *
-from hourglass import PositionedMap, EdgeStatistics, \
+import hourglass
+from hourglass import \
      FaceGrayStatistics, FaceRGBStatistics, \
-     spatialStabilityImage, tangentList, resamplePolygon
+     spatialStabilityImage, resamplePolygon, \
+     tangentList, tangentListGaussianReflective
 import sivtools, flag_constants
 
 class DetachableStatistics(object):
@@ -762,20 +764,61 @@ class EdgeGradientStatistics(BoundaryIndicatorStatistics):
 
     To be specific, manages statistics for each edge on the values
     sampled from a SplineImageView (cf. constructor) at the edge's
-    support points.  Each edge has an associated `EdgeStatistics`
-    object which manages the average value and a list of sorted values
-    for quantile queries."""
+    support points.  Each edge has an associated object which manages
+    the average value (and possibly a list of sorted values for
+    quantile queries).  This functor object can be of any
+    user-specified type (see constructor)."""
 
     __slots__ = []
     
-    def __init__(self, map, gmSiv, resample = 0.1):
+    def __init__(self, map, gmSiv, resample = 0.1, tangents = None,
+                 Functor = hourglass.PolylineStatistics):
+        """Init statistics for each edge.  Possible values for Functor
+        are: hourglass.PolylineStatistics (default) and
+        hourglass.QuantileStatistics (needed if you want to use
+        `quantile` or `dartQuantile`).  The latter needs much more
+        memory, that's why it's not the default.
+
+        If `tangents` are given, this replaces the former
+        EdgeGradDirDotStatistics.  I.e. instead of sampling a simple
+        SplineImageView (gmSiv) at the polyline points, the `gmSiv`
+        parameter is assumed to give gradient *vector* output
+        (cf. GradientSIVProxy) that is sampled at the tangent
+        positions and multiplied with tangent unit vectors.  Note that
+        ATM, the values are not weighted in this mode."""
+        
         BoundaryIndicatorStatistics.__init__(self, map)
+
+        if tangents and resample:
+            sys.stderr.write("EdgeGradientStatistics: cannot resample tangents. resample argument (%s) ignored.\n" % (
+                resample == 0.1 and "default = 0.1" or resample, ))
+        
         for edge in map.edgeIter():
-            poly = resample and resamplePolygon(edge, resample) or edge
-            self._functors[edge.label()] = EdgeStatistics(poly, gmSiv)
+            if not tangents:
+                poly = resample and resamplePolygon(edge, resample) or edge
+                self._functors[edge.label()] = Functor(poly, gmSiv)
+            else:
+                stats = Functor()
+
+                dp = hourglass.DartPosition(edge.dart())
+                for al, theta in tangents[edge.label()]:
+                    dp.gotoArcLength(al)
+
+                    gradDir = gradSiv[dp()]
+                    gradDir /= gradDir.magnitude()
+
+                    segment = Vector2(math.cos(theta), math.sin(theta))
+
+                    # FIXME: QuantileStatistics expects segment length,
+                    # we give always 1.0:
+                    stats(1.0 - abs(dot(gradDir, segment)), 1.0)
+
+                self._functors[edge.label()] = stats
+
         self._attachHooks()
 
     def __getitem__(self, edgeLabel):
+        """Return the functor for the given edge label."""
         return self._functors[edgeLabel]
 
     def dartMin(self, dart):
@@ -793,26 +836,36 @@ class EdgeGradientStatistics(BoundaryIndicatorStatistics):
         return specificQuantile
 
     def dartAverage(self, dart):
+        """Return the average gradient on the edge (properly weighted
+        by polyline segment length)."""
         return self[dart.edgeLabel()].average()
 
     def combinedStatistics(self, dart):
+        """Mostly internal; return a functor for all common edges of
+        the faces adjacent to `dart`."""
         result = EdgeStatistics()
         for d in commonBoundaryDarts(dart):
             result.merge(self[d.edgeLabel()])
         return result
 
     def min(self, dart):
+        """Returns the minimum gradient on this common contour."""
         return self.combinedStatistics(dart).min()
 
     def max(self, dart):
+        """Returns the maximum gradient on this common contour."""
         return self.combinedStatistics(dart).max()
 
     def quantile(self, q):
+        """Returns a specific quantile of the sampled gradients on the
+        common contour."""
         def specificQuantile(dart):
             return self.combinedStatistics(dart).quantile(q)
         return specificQuantile
 
     def average(self, dart):
+        """Return the average gradient on this common contour
+        (properly weighted by polyline segment length)."""
         return self.combinedStatistics(dart).average()
 
 # USAGE:
@@ -822,39 +875,6 @@ class EdgeGradientStatistics(BoundaryIndicatorStatistics):
 # 1.178475851870056
 # >>> egs[100].quantile(0.4)
 # 1.1785515546798706
-
-class EdgeGradDirDotStatistics(BoundaryIndicatorStatistics):
-    def __init__(self, map, gradSiv, tangents):
-        BoundaryIndicatorStatistics.__init__(self, map)
-
-        for edge in map.edgeIter():
-            stats = EdgeStatistics()
-
-            ali = itertools.izip(edge.arcLengthList(), edge)
-            prevPoint = ali.next()
-            curPoint = ali.next()
-            for al, theta in tangents[edge.label()]:
-                # seek to the right edge segment:
-                while al > curPoint[0]:
-                    prevPoint = curPoint
-                    curPoint = ali.next()
-                    
-                # linearly interpolate to the desired arclength (al):
-                pos = prevPoint[1] + \
-                      (al - prevPoint[0])/(curPoint[0] - prevPoint[0]) * \
-                      (curPoint[1] - prevPoint[1])
-
-                gradDir = gradSiv[pos]
-                gradDir /= gradDir.magnitude()
-
-                # FIXME: QuantileStatistics expects segment length,
-                # we give always 1.0:
-                segment = Vector2(math.cos(theta), math.sin(theta))
-                stats(1.0 - abs(dot(gradDir, segment)), 1.0)
-
-            self._functors[edge.label()] = stats
-
-        self._attachHooks()
 
 def calcGradAngDisp(grad,n):
     ki = GrayImage(2*n+1,2*n+1)
@@ -884,7 +904,7 @@ class EdgeGradAngDispStatistics(BoundaryIndicatorStatistics):
 class EdgeMinimumDistance(DynamicEdgeStatistics):
     def __init__(self, map, minima):
         self.attrName = "minDist"
-        minimaMap = PositionedMap()
+        minimaMap = hourglass.PositionedMap()
         for min in minima:
             minimaMap.insert(min, min)
         for edge in map.edgeIter():
