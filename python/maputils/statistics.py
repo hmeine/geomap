@@ -771,7 +771,7 @@ class EdgeGradientStatistics(BoundaryIndicatorStatistics):
 
     __slots__ = []
     
-    def __init__(self, map, gmSiv, resample = 0.1, tangents = None,
+    def __init__(self, map, gradSiv, resample = 0.1, tangents = None,
                  Functor = hourglass.PolylineStatistics):
         """Init statistics for each edge.  Possible values for Functor
         are: hourglass.PolylineStatistics (default) and
@@ -781,7 +781,7 @@ class EdgeGradientStatistics(BoundaryIndicatorStatistics):
 
         If `tangents` are given, this replaces the former
         EdgeGradDirDotStatistics.  I.e. instead of sampling a simple
-        SplineImageView (gmSiv) at the polyline points, the `gmSiv`
+        SplineImageView (gradSiv) at the polyline points, the `gradSiv`
         parameter is assumed to give gradient *vector* output
         (cf. GradientSIVProxy) that is sampled at the tangent
         positions and multiplied with tangent unit vectors.  Note that
@@ -796,7 +796,7 @@ class EdgeGradientStatistics(BoundaryIndicatorStatistics):
         for edge in map.edgeIter():
             if not tangents:
                 poly = resample and resamplePolygon(edge, resample) or edge
-                self._functors[edge.label()] = Functor(poly, gmSiv)
+                self._functors[edge.label()] = Functor(poly, gradSiv)
             else:
                 stats = Functor()
 
@@ -805,13 +805,13 @@ class EdgeGradientStatistics(BoundaryIndicatorStatistics):
                     dp.gotoArcLength(al)
 
                     gradDir = gradSiv[dp()]
-                    gradDir /= gradDir.magnitude()
+                    #gradDir /= gradDir.magnitude()
 
-                    segment = Vector2(math.cos(theta), math.sin(theta))
+                    segment = Vector2(-math.sin(theta), math.cos(theta))
 
                     # FIXME: QuantileStatistics expects segment length,
                     # we give always 1.0:
-                    stats(1.0 - abs(dot(gradDir, segment)), 1.0)
+                    stats(abs(dot(gradDir, segment)), 1.0)
 
                 self._functors[edge.label()] = stats
 
