@@ -7,7 +7,6 @@ from hourglass import PositionedMap, EdgeStatistics, \
      FaceGrayStatistics, FaceRGBStatistics, \
      spatialStabilityImage, tangentList, resamplePolygon
 import sivtools, flag_constants
-from map import arcLengthIter
 
 class DetachableStatistics(object):
     """Base class for all dynamic statistics.
@@ -526,12 +525,13 @@ class DynamicEdgeIndices(DetachableStatistics):
         self._indices.append(self._newIndices2)
 
 class WatershedStatistics(DynamicEdgeIndices):
+    __base = DynamicEdgeIndices
     __slots__ = ["_passValues", "_indices", "_gmSiv",
                  "_basinDepth",
                  "_mergedPV"]
     
     def __init__(self, map, flowlines, gmSiv):
-        DynamicEdgeIndices.__init__(self, map)
+        self.__base.__init__(self, map)
         self._passValues = [None] * map.maxEdgeLabel()
         for edge in map.edgeIter():
             if edge.flag(flag_constants.BORDER_PROTECTION):
@@ -555,11 +555,11 @@ class WatershedStatistics(DynamicEdgeIndices):
         self._attachHooks()
 
     def __getstate__(self):
-        return DynamicEdgeIndices.__getstate__(self) + (
+        return self.__base.__getstate__(self) + (
             self._passValues, self._indices)
 
     def __setstate__(self, (map, passValues, indices)):
-        DynamicEdgeIndices.__setstate__(self, (map, ))
+        self.__base.__setstate__(self, (map, ))
         self._passValues = passValues
         self._indices = indices
         self._gmSiv = None
@@ -577,8 +577,6 @@ class WatershedStatistics(DynamicEdgeIndices):
                                   range(mel - len(self._passValues))])
 
     def preMergeEdges(self, dart):
-        DynamicEdgeIndices.preMergeEdges(self, dart)
-
         edge1 = dart.edge()
         edge2 = dart.clone().nextSigma().edge()
 
@@ -590,7 +588,7 @@ class WatershedStatistics(DynamicEdgeIndices):
         if edge2.flag(flag_constants.BORDER_PROTECTION):
             return edge1.flag(flag_constants.BORDER_PROTECTION)
 
-        if not DynamicEdgeIndices.preMergeEdges(self, dart):
+        if not self.__base.preMergeEdges(self, dart):
             return False
         
         self._mergedPV = min(self._passValues[edge1.label()],
@@ -599,7 +597,7 @@ class WatershedStatistics(DynamicEdgeIndices):
         return True
 
     def postMergeEdges(self, survivor):
-        DynamicEdgeIndices.postMergeEdges(self, survivor)
+        self.__base.postMergeEdges(self, survivor)
 
         self._passValues[survivor.label()] = self._mergedPV
 
@@ -651,11 +649,12 @@ class WatershedStatistics(DynamicEdgeIndices):
             self._basinDepth[edge.rightFaceLabel()])
 
 class WatershedBasinStatistics(DetachableStatistics):
+    __base = DetachableStatistics
     __slots__ = ["_basinDepth",
                  "_mergedDepth"]
     
     def __init__(self, map, minima, gmSiv):
-        DetachableStatistics.__init__(self, map)
+        self.__base.__init__(self, map)
 
         self._basinDepth = [None] * map.maxFaceLabel()
         for mpos in minima:
@@ -719,11 +718,11 @@ class WatershedBasinStatistics(DetachableStatistics):
         self._basinDepth[survivor.label()] = self._mergedDepth
 
     def __getstate__(self):
-        return DetachableStatistics.__getstate__(self) + (
+        return self.__base.__getstate__(self) + (
             self._basinDepth, )
 
     def __setstate__(self, (map, basinDepth)):
-        DetachableStatistics.__setstate__(self, (map, ))
+        self.__base.__setstate__(self, (map, ))
         self._basinDepth = basinDepth
 
 def _makeAttrName(someStr):
@@ -825,20 +824,16 @@ class EdgeGradientStatistics(BoundaryIndicatorStatistics):
 # 1.1785515546798706
 
 class EdgeGradDirDotStatistics(BoundaryIndicatorStatistics):
-    def __init__(self, map, bi):
+    def __init__(self, map, gradSiv, tangents):
         BoundaryIndicatorStatistics.__init__(self, map)
 
-        assert hasattr(map.edgeIter().next(), "tangents"), \
-               """Edge does not have 'tangents' attribute!
-               Use calculateTangentLists(myMap[, ...]) to initialize tangent lists!"""
-        
         for edge in map.edgeIter():
             stats = EdgeStatistics()
 
-            ali = arcLengthIter(edge)
+            ali = itertools.izip(edge.arcLengthList(), edge)
             prevPoint = ali.next()
             curPoint = ali.next()
-            for al, theta in edge.tangents:
+            for al, theta in tangents[edge.label()]:
                 # seek to the right edge segment:
                 while al > curPoint[0]:
                     prevPoint = curPoint
@@ -849,7 +844,7 @@ class EdgeGradDirDotStatistics(BoundaryIndicatorStatistics):
                       (al - prevPoint[0])/(curPoint[0] - prevPoint[0]) * \
                       (curPoint[1] - prevPoint[1])
 
-                gradDir = bi.grad.siv[pos]
+                gradDir = gradSiv[pos]
                 gradDir /= gradDir.magnitude()
 
                 # FIXME: QuantileStatistics expects segment length,
@@ -1173,30 +1168,33 @@ def calculateTangentLists(map, dx = 5, skipPoints = 1):
     care is taken to ensure that the list will never be empty (by
     reducing the dx or finally set skipPoints to zero to get at least
     one tangent)."""
-    
-    assert not skipPoints > 1, "why that??"
-    result = 0
+
+    result = [None] * map.maxEdgeLabel()
+    badCount = 0
     for edge in map.edgeIter():
         size = len(edge)
         if size >= 2*dx + 2*skipPoints + 1:
-            edge.tangents = tangentList(edge, dx, skipPoints)
+            tangents = tangentList(edge, dx, skipPoints)
         else:
             #print "too short:", edge
-            result += 1
+            badCount += 1
             if size < 3:
                 edx, edy = edge[1] - edge[0]
-                edge.tangents = [(edge.length()/2, math.atan2(edy, edx))]
+                tangents = [(edge.length()/2, math.atan2(edy, edx))]
             elif size < 3 + 2*skipPoints:
                 # we cannot afford skipping points
-                edge.tangents = tangentList(edge, 1, 0)
+                tangents = tangentList(edge, 1, 0)
             else:
                 # we can skip the end points (if desired), but we have
                 # to reduce dx:
                 maxDx = (size-2*skipPoints-1)/2
-                edge.tangents = tangentList(edge, maxDx, skipPoints)
-        assert len(edge.tangents), "all edges should have tangents now"
-    print "calculateTangentLists: %d/%d edges were done with " \
-          "different parameters (too short)" % (result, map.edgeCount)
+                tangents = tangentList(edge, maxDx, skipPoints)
+        assert len(tangents), "all edges should have tangents now"
+        result[edge.label()] = tangents
+
+    if badCount:
+        print "calculateTangentLists: %d/%d edges were done with " \
+              "different parameters (too short)" % (badCount, map.edgeCount)
     return result
 
 def calculateTangentListsGaussianReflective(map, sigma, diff=0.0):
@@ -1206,36 +1204,24 @@ def calculateTangentListsGaussianReflective(map, sigma, diff=0.0):
     parameters.  Note that all edges which are too small will have an
     empty 'tangents' list."""
     
+    result = [None] * map.maxEdgeLabel()
     for edge in map.edgeIter():
         try:
-            edge.tangents = tangentListGaussianReflective(edge, sigma, diff)
+            result[edge.label()] = tangentListGaussianReflective(edge, sigma, diff)
         except RuntimeError:
-            edge.tangents = []
-            print "too short:", edge
-
-def dartTangents(dart):
-    """dartTangents(dart)
-
-    Returns (tangents, dirLength) pair, where dirLength is
-    negative if dart.label > 0 (the darts are supposed to be
-    reversed for composeTangentLists)"""
-
-    e = dart.edge()
-    if dart.label() > 0:
-        return (e.tangents,  e.length())
-    else:
-        return (e.tangents, -e.length())
+            sys.stderr.write("calculateTangentListsGaussianReflective: %s too short!\n" % edge)
+    return result
 
 class EdgeTangents(DynamicEdgeStatistics):
-    """Calls calculateTangentLists with the constructor parameters (if
-    given) and merges tangent lists when merging edges."""
+    """Calls calculateTangentLists with the constructor parameters and
+    merges tangent lists when merging edges."""
+
+    __slots__ = ["tangents",
+                 "_mergedTangents"]
     
     def __init__(self, map, *args):
-        """Either make sure to call calculateTangentLists() or one of
-        its friends on the map by hand, or pass parameters like this:
-        et = EdgeTangents(someMap, 4)"""
-        if args:
-            calculateTangentLists(map, *args)
+        DynamicEdgeStatistics.__init__(self, map)
+        self.tangents = calculateTangentLists(map, *args)
         self._attachHooks()
 
     def preMergeEdges(self, dart):
@@ -1244,7 +1230,20 @@ class EdgeTangents(DynamicEdgeStatistics):
             [dart.clone().nextAlpha(), dart.clone().nextSigma()])
         if path[0].label() < 0:
             path.reverse()
-        self.newTangents = path.tangents()
+        self._mergedTangents = path.tangents(self.dartTangents)
+        return True
 
     def postMergeEdges(self, survivor):
-        survivor.tangents = self.newTangents
+        survivor.tangents = self._mergedTangents
+
+    def dartTangents(self, dart):
+        """Return (tangents, dirLength) pair, where dirLength is
+        negative if dart.label > 0 (the darts are supposed to be
+        reversed for composeTangentLists)"""
+
+        e = dart.edge()
+        t = self.tangents[e.label()]
+        if dart.label() > 0:
+            return (t,  e.length())
+        else:
+            return (t, -e.length())
