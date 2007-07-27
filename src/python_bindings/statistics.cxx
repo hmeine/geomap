@@ -92,8 +92,29 @@ class PolylineStatistics
     }
 
   protected:
+    friend class PolylineStatisticsPickleSuite;
+
     double weightedSum_, length_, min_, max_;
 };
+
+class PolylineStatisticsPickleSuite : public boost::python::pickle_suite
+{
+  public:
+    static tuple getstate(const PolylineStatistics& w)
+    {
+        return make_tuple(w.weightedSum_, w.length_, w.min_, w.max_);
+    }
+
+    static void setstate(PolylineStatistics& w, boost::python::tuple state)
+    {
+        w.weightedSum_ = extract<double>(state[0])();
+        w.length_ = extract<double>(state[1])();
+        w.min_ = extract<double>(state[2])();
+        w.max_ = extract<double>(state[3])();
+    }
+};
+
+/********************************************************************/
 
 class QuantileStatistics : public PolylineStatistics
 {
@@ -149,9 +170,9 @@ class QuantileStatistics : public PolylineStatistics
         sorted_ = false;
     }
 
-    friend class QuantilePickleSuite;
-
   protected:
+    friend class QuantileStatisticsPickleSuite;
+
     void ensureOrdering() const
     {
         if(!sorted_)
@@ -165,35 +186,37 @@ class QuantileStatistics : public PolylineStatistics
     mutable bool sorted_;
 };
 
-class QuantilePickleSuite : public boost::python::pickle_suite
+class QuantileStatisticsPickleSuite : public boost::python::pickle_suite
 {
   public:
     static tuple getstate(const QuantileStatistics& w)
     {
+        tuple result = PolylineStatisticsPickleSuite::getstate(w);
+
         list segments;
         for(unsigned int i = 0; i < w.segments_.size(); ++i)
             segments.append(make_tuple(w.segments_[i].first,
                                        w.segments_[i].second));
-        return make_tuple(w.weightedSum_, w.length_, segments);
+        return extract<tuple>(result + make_tuple(segments))();
     }
 
     static void setstate(QuantileStatistics& w, boost::python::tuple state)
     {
-        w.weightedSum_ = extract<double>(state[0])();
-        w.length_ = extract<double>(state[1])();
-        w.segments_.resize(len(state[2]));
+        PolylineStatisticsPickleSuite::setstate(w, state);
+        list segments = extract<list>(state[2])();
+        w.segments_.resize(len(segments));
         for(unsigned int i = 0; i < w.segments_.size(); ++i)
         {
-            //tuple valueLength(extract<tuple>(state[2][i])());
-            w.segments_[i].first = extract<double>(state[2][i][0])();
-            w.segments_[i].second = extract<double>(state[2][i][1])();
+            //tuple valueLength(extract<tuple>(segments[i])());
+            w.segments_[i].first = extract<double>(segments[i][0])();
+            w.segments_[i].second = extract<double>(segments[i][1])();
         }
     }
 };
 
 void defStatistics()
 {
-    class_<PolylineStatistics>("EdgeAverage")
+    class_<PolylineStatistics>("PolylineStatistics")
         .def(init<const PointArray<Vector2> &,
                   const SplineImageView<5, GrayValue> &>())
         .def("__call__", &PolylineStatistics::__call__)
@@ -201,14 +224,15 @@ void defStatistics()
         .def("min", &PolylineStatistics::min)
         .def("max", &PolylineStatistics::max)
         .def("merge", &PolylineStatistics::merge)
+        .def_pickle(PolylineStatisticsPickleSuite())
     ;
 
-    class_<QuantileStatistics, bases<PolylineStatistics> >("EdgeStatistics")
+    class_<QuantileStatistics, bases<PolylineStatistics> >("QuantileStatistics")
         .def(init<const PointArray<Vector2> &,
                   const SplineImageView<5, GrayValue> &>())
         .def("__call__", &QuantileStatistics::__call__)
         .def("quantile", &QuantileStatistics::quantile)
         .def("merge", &QuantileStatistics::merge)
-        .def_pickle(QuantilePickleSuite())
+        .def_pickle(QuantileStatisticsPickleSuite())
     ;
 }
