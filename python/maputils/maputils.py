@@ -1,6 +1,6 @@
 import vigra, hourglass, sys, math, time, weakref
 
-import flag_constants
+import flag_constants, progress
 
 # --------------------------------------------------------------------
 #                            edge protection
@@ -149,7 +149,7 @@ def subpixelWatershedData(spws, biSIV = None, threshold = None, mask = None,
         return (sn, en, poly, saddleIndex, index)
 
     saddles = filterSaddlePoints(rawSaddles, biSIV, threshold, minSaddleDist)
-    prefix = "- following %d/%d edges.." % (len(saddles), len(rawSaddles))
+    prefix = "- following %d/%d edges.." % (len(saddles), len(rawSaddles)-1)
     if threshold:
         prefix += " (threshold %s)" % (threshold, )
     else:
@@ -206,7 +206,11 @@ def subpixelWatershedMapFromData(
     wsStatsSpline = None,
     minima = None,
     Map = hourglass.GeoMap):
+    """`performEdgeSplits` may be a callable that is called before
+    splitting edges, with the complete locals() dict as parameter
+    (useful keys are 'spmap' and all parameters of this function)."""
 
+    print "- initializing GeoMap from flowlines..."
     spmap = Map(maxima, [], imageSize)
 
     deleted = addFlowLinesToMap(flowlines, spmap)
@@ -220,34 +224,33 @@ def subpixelWatershedMapFromData(
 
     removeIsolatedNodes(spmap)
     unsortable = spmap.sortEdgesEventually(
-        ssStepDist, ssMinDist, performEdgeSplits)
+        ssStepDist, ssMinDist, bool(performEdgeSplits))
     _handleUnsortable(spmap, unsortable)
 
     if wsStatsSpline:
-        c = time.clock()
-        print "  initializing watershed statistics...",
+        p = progress.StatusMessage("  initializing watershed statistics")
         from statistics import WatershedStatistics
         spmap.wsStats = WatershedStatistics(
             spmap, flowlines, wsStatsSpline)
-        print " (%ss)" % (time.clock()-c, )
+        p.finish()
 
     if performEdgeSplits:
-        c = time.clock()
-        print "  splitting & joining parallel edges...",
+        if not isinstance(performEdgeSplits, int):
+            performEdgeSplits(locals())
+        p = progress.StatusMessage("  splitting & joining parallel edges")
         spmap.splitParallelEdges()
-        print " (%ss)" % (time.clock()-c, )
+        p.finish()
 
     spmap.initializeMap()
 
     if minima:
         assert wsStatsSpline, \
             "minima given, but basin statistics need a wsStatsSpline, too"
-        c = time.clock()
-        print "  initializing watershed basin statistics...",
+        p = progress.StatusMessage("  initializing watershed basin statistics")
         from statistics import WatershedBasinStatistics
         spmap.wsBasinStats = WatershedBasinStatistics(
             spmap, minima[1:], wsStatsSpline)
-        print " (%ss)" % (time.clock()-c, )
+        p.finish()
 
     return spmap
 
@@ -683,7 +686,7 @@ def checkLabelConsistency(map):
             fl.errorCount, ))
         sys.stderr.write("  unknown face labels found: %s\n" % (fl.errorLabels, ))
         if fl.errorCount < 40:
-            for p in labelImage.size():
+            for p in vigra.meshIter(labelImage.size()):
                 if int(labelImage[p]) in fl.errorLabels:
                     print "   label %d at %s" % (int(labelImage[p]), p)
     result = (fl.errorCount == 0)
@@ -695,7 +698,7 @@ def checkLabelConsistency(map):
             result = False
     return result
 
-def drawLabelImage(aMap, scale = 1):
+def drawLabelImage(aMap, scale = 1, verbose = True):
     """Return freshly drawn label image.  Should be identical to
     aMap.labelImage() if aMap.hasLabelImage() and scale == 1.  scale
     may be used to draw a label image with a different resolution;
@@ -711,13 +714,14 @@ def drawLabelImage(aMap, scale = 1):
     offset = vigra.Vector2(scale / 2.0 - 0.5, scale / 2.0 - 0.5)
     for contour in holes:
         for hole in holeComponent(contour):
-            if done % 23 == 0:
+            if verbose and done % 23 == 0:
                 sys.stdout.write("\r[%d%%] Face %d/%d" % (
                     done*100/total, done, total))
                 sys.stdout.flush()
-            poly = Polygon(hole.contour().polygon() * scale + offset)
-            sl = scanPoly(poly, result.height())
-            fillScannedPoly(sl, result, hole.faceLabel())
+            poly = hourglass.Polygon(
+                hourglass.contourPoly(hole.contour()) * scale + offset)
+            sl = hourglass.scanPoly(poly, result.height())
+            hourglass.fillScannedPoly(sl, result, hole.label())
             holes.extend(hole.holeContours())
             done += 1
     return result
@@ -735,7 +739,8 @@ def checkLabelConsistencyThoroughly(aMap):
                 self.correct = self.correct and (label == shouldBe)
 
     return checkLabelConsistency(aMap) and \
-           vigra.inspectImage(aMap.labelImage(), drawLabelImage(aMap),
+           vigra.inspectImage(aMap.labelImage(),
+                              drawLabelImage(aMap, verbose = False),
                               AssertRightLabel()).correct
 
 def checkCachedPropertyConsistency(aMap):
@@ -786,7 +791,7 @@ def checkAllConsistency(aMap):
     calls checkLabelConsistency(aMap)."""
     return aMap.checkConsistency() and \
            checkCachedPropertyConsistency(aMap) and \
-           checkLabelConsistencyThoroughly(aMap)
+           (not aMap.hasLabelImage() or checkLabelConsistencyThoroughly(aMap))
 
 # --------------------------------------------------------------------
 
@@ -1080,14 +1085,8 @@ def mergeFacesByLabel(map, label1, label2, removeDegree2Nodes = True):
     
     face1 = map.face(label1)
     face2 = map.face(label2)
-    if not face1:
-        sys.stderr.write("mergeFacesByLabel: face with label1 = %d does not exist!\n"
-                         % (label1, ))
-        return
-    if not face2:
-        sys.stderr.write("mergeFacesByLabel: face with label2 = %d does not exist!\n"
-                         % (label2, ))
-        return
+    assert face1, "mergeFacesByLabel: face with label1 = %d does not exist!" % (label1, )
+    assert face2, "mergeFacesByLabel: face with label2 = %d does not exist!" % (label2, )
     dart = findCommonDart(face1, face2)
     return dart and mergeFacesCompletely(dart, removeDegree2Nodes)
 
@@ -1233,13 +1232,18 @@ class AutomaticRegionMerger(object):
         return self._step - oldStep
 
     def mergeStep(self):
+        """Fetch next edge from cost queue and remove it from the map.
+        If the edge is protected, do nothing and return None.
+        Else, return the surviving Face."""
+        
         while True:
             edgeLabel, cost = self._queue.pop()
             edge = self._map.edge(edgeLabel)
-            if edge and not edge.flag(flag_constants.ALL_PROTECTION):
+            if edge:
                 break
 
-        assert edge, "no more mergeable faces found"
+        if edge.flag(flag_constants.ALL_PROTECTION):
+            return
 
         d = edge.dart()
         if edge.isBridge():
@@ -1255,9 +1259,11 @@ class AutomaticRegionMerger(object):
                     q.setCost(dart.edgeLabel(), mcm(dart))
 
         if survivor:
-            if self._costLog:
+            if self._costLog is not None:
                 self._costLog.append(cost)
             self._step += 1
+
+        return survivor
 
     def mergeSteps(self, count):
         return self.mergeToStep(self._step + count)
