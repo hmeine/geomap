@@ -24,7 +24,7 @@
 				AdditionalOptions="/Zm200 "
 				Optimization="0"
 				AdditionalIncludeDirectories="..\..\interactive2\include;..\..\current\include;&quot;$(PYTHON_ROOT)\include&quot;;C:\include;&quot;C:\include\boost-1_32&quot;"
-				-vc71.vcproj
+				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_USRDLL;VIGRACORE_EXPORTS;_CRT_SECURE_NO_DEPRECATE;_SECURE_SCL=0"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="3"
 				RuntimeTypeInfo="TRUE"
@@ -92,7 +92,7 @@
 				Optimization="2"
 				InlineFunctionExpansion="0"
 				AdditionalIncludeDirectories="..\..\interactive2\include;..\..\current\include;c:\Programme\Python24\include;C:\include;&quot;C:\include\boost-1_33_1&quot;"
-				-vc71.vcproj
+				PreprocessorDefinitions="NDEBUG;WIN32;_WINDOWS;_USRDLL;VIGRACORE_EXPORTS;_CRT_SECURE_NO_DEPRECATE;_SECURE_SCL=0"
 				StringPooling="TRUE"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="TRUE"
