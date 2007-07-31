@@ -1,6 +1,6 @@
 import vigra, hourglass, sys, math, time, weakref
 
-import flag_constants, progress
+import flag_constants, progress, sivtools
 
 # --------------------------------------------------------------------
 #                            edge protection
@@ -65,15 +65,81 @@ def protectFace(face, protect = True, flag = flag_constants.PROTECTED_FACE):
 #                      subpixel watershed functions
 # --------------------------------------------------------------------
 
-def filterSaddlePoints(rawSaddles, biSIV, threshold, maxDist):
-    """filterSaddlePoints(rawSaddles, biSIV, threshold, maxDist) -> list
+class PassValueFilter(object):
+    def __init__(self, biSIV, threshold):
+        self._biSIV = biSIV
+        self._threshold = threshold
 
-    Filters saddle points first by checking the threshold in the
+    def __call__(self, position):
+        return self._biSIV[position] >= self._threshold
+
+    def __str__(self):
+        return "pass value >= %s" % self._threshold
+
+class SaddleTensorFeature(object):
+    def __init__(self, gmSIV, stSIV):
+        self._hessian = sivtools.HessianSIVProxy(gmSIV)
+        self._stSIV = stSIV
+
+    def saddleDir(self, position):
+        """Return tangent direction of flowline starting at the given
+        saddle position.  (Direction of larger eigenvector.)"""
+        gxx, gxy, gyy = self._hessian[position]
+        return 0.5 * math.atan2(-2.0*gxy, gxx-gyy)
+
+    def _orthoGrad2(self, position, onlyDir = False):
+        # tangent angle of flowline:
+        ta_fl = self.saddleDir(position)
+        c = math.cos(ta_fl)
+        s = math.sin(ta_fl)
+
+        # component of structure tensor in normal direction:
+        s11, s12, s22 = self._stSIV[position]
+        og2 = s11*vigra.sq(s) - 2*s12*c*s + s22*vigra.sq(c)
+
+        if onlyDir:
+            # large eigenvalue of structure tensor:
+            ev = 0.5 * (s11 + s22 + math.sqrt(vigra.sq(s11 - s22)
+                                              + 4.0*vigra.sq(s12)))
+            return og2 / ev
+
+        return og2
+
+    def orthogonalGradient(self, position):
+        return math.sqrt(self._orthoGrad2(position))
+
+    def directionMatch(self, position):
+        return self._orthoGrad2(position, True)
+
+class SaddleOrthogonalGradientFilter(SaddleTensorFeature):
+    def __init__(self, gmSIV, stSIV, threshold):
+        SaddleTensorFeature.__init__(self, gmSIV, stSIV)
+        self._threshold = threshold
+
+    def __call__(self, position):
+        return math.sqrt(self._orthoGrad2(position)) >= self._threshold
+
+    def __str__(self):
+        return "orthogonal gradient >= %s" % self._threshold
+
+class SaddleDirectionMatchFilter(SaddleTensorFeature):
+    def __init__(self, gmSIV, stSIV, threshold):
+        SaddleTensorFeature.__init__(self, gmSIV, stSIV)
+        self._threshold = threshold
+
+    def __call__(self, position):
+        return self._orthoGrad2(position, True) >= self._threshold
+
+    def __str__(self):
+        return "direction match >= %s" % self._threshold
+
+def filterSaddlePoints(rawSaddles, biSIV, filter, maxDist):
+    """Filter saddle points first by checking the passValue in the
     boundary indicator SplineImageView 'biSIV', then by removing
     duplicates (points which are nearer to previous points than
     maxDist - IOW: Points that come first win.)
 
-    Returns a list of the remaining points together with their indices
+    Return a list of the remaining points together with their indices
     in the original array (in enumerate() fashion)."""
 
     maxSquaredDist = math.sq(maxDist)
@@ -83,10 +149,9 @@ def filterSaddlePoints(rawSaddles, biSIV, threshold, maxDist):
         if k == 0:
             assert not saddle, "rawSaddles[0] expected to be None"
             continue
-        v = biSIV[saddle]
-        if threshold and v < threshold:
+        if filter and not filter(saddle):
             continue
-        sorted.append((-v, k, saddle))
+        sorted.append((-biSIV[saddle], k, saddle))
 
     sorted.sort()
 
@@ -98,12 +163,10 @@ def filterSaddlePoints(rawSaddles, biSIV, threshold, maxDist):
 
     return result
 
-def subpixelWatershedData(spws, biSIV = None, threshold = None, mask = None,
+def subpixelWatershedData(spws, biSIV, filter = None, mask = None,
                           minSaddleDist = 0.1, # sensible: ssMinDist
                           perpendicularDistEpsilon = 0.1, maxStep = 0.1):
-    """subpixelWatershedData(spws, biSIV, threshold) -> tuple
-
-    Calculates and returns a pair with a list of maxima and a list of
+    """Calculates and returns a pair with a list of maxima and a list of
     edges (composed flowline pairs) from the SubPixelWatersheds object
     'spws'.  Each edge is represented with a quadrupel of
     startNodeIndex, endNodeIndex, edge polygon and the index of the
@@ -111,11 +174,9 @@ def subpixelWatershedData(spws, biSIV = None, threshold = None, mask = None,
     That output is suitable and intended for addFlowLinesToMap().
 
     Gives verbose output during operation and uses filterSaddlePoints
-    to filter out saddle points below the threshold within the
-    SplineImageView 'biSIV' which should contain the boundary
-    indicator and to filter out duplicate saddlepoints (pass the
-    optional argument 'minSaddleDist' to change the default of 0.1
-    here).
+    to filter out saddle points using the given filter criterion and
+    to filter out duplicate saddlepoints (pass the optional argument
+    'minSaddleDist' to change the default of 0.1 here).
 
     Each found edge polygon is simplified using simplifyPolygon with
     perpendicularDistEpsilon = 0.1 and maxStep = 0.1 (use the optional
@@ -148,10 +209,10 @@ def subpixelWatershedData(spws, biSIV = None, threshold = None, mask = None,
             saddleIndex = newSaddleIndex
         return (sn, en, poly, saddleIndex, index)
 
-    saddles = filterSaddlePoints(rawSaddles, biSIV, threshold, minSaddleDist)
+    saddles = filterSaddlePoints(rawSaddles, biSIV, filter, minSaddleDist)
     prefix = "- following %d/%d edges.." % (len(saddles), len(rawSaddles)-1)
-    if threshold:
-        prefix += " (threshold %s)" % (threshold, )
+    if filter:
+        prefix += " (%s)" % (filter, )
     else:
         prefix += " (no saddle threshold)"
 
@@ -257,6 +318,7 @@ def subpixelWatershedMapFromData(
 def subpixelWatershedMap(
     boundaryIndicator, splineOrder = 5,
     saddleThreshold = None, mask = None,
+    saddleOrthoGrad = None, saddleDirMatch = None, biTensor = None,
     perpendicularDistEpsilon = 0.1, maxStep = 0.1,
     borderConnectionDist = 0.1,
     ssStepDist = 0.2, ssMinDist = 0.12,
@@ -282,16 +344,28 @@ def subpixelWatershedMap(
     if hasattr(boundaryIndicator, "siv"):
         siv = boundaryIndicator.siv
     else:
-        SIV = getattr(vigra, "SplineImageView%d" % splineOrder)
+        SIV = sivtools.sivByOrder(splineOrder)
         siv = SIV(boundaryIndicator)
 
-    if mask == None and saddleThreshold:
+    if mask == None and saddleThreshold or saddleOrthoGrad:
+        threshold = saddleThreshold or saddleOrthoGrad
         mask = vigra.transformImage(
-            boundaryIndicator, "\l x: x > %s ? 1 : 0" % (saddleThreshold/2, ))
+            boundaryIndicator, "\l x: x > %s ? 1 : 0" % (threshold/2, ))
+
+    filter = None
+    if saddleThreshold:
+        filter = PassValueFilter(siv, saddleThreshold)
+    elif saddleOrthoGrad or saddleDirMatch:
+        assert biTensor, "for saddle filtering using SOG/SDM, biTensor is needed!"
+        if not hasattr(biTensor, "siv"):
+            biTensor.siv = sivtools.TensorSIVProxy(biTensor)
+        if saddleOrthoGrad:
+            filter = SaddleOrthogonalGradientFilter(siv, biTensor, saddleOrthoGrad)
+        else:
+            filter = SaddleDirectionMatchFilter(siv, biTensor, saddleDirMatch)
 
     maxima, flowlines = subpixelWatershedData(
-        spws,
-        biSIV = siv, threshold = saddleThreshold, mask = mask,
+        spws, siv, filter, mask,
         minSaddleDist = ssMinDist,
         perpendicularDistEpsilon = perpendicularDistEpsilon, maxStep = maxStep)
     
