@@ -33,8 +33,8 @@ class HessianSIVProxy(object):
         self.siv = siv
     
     def __getitem__(self, pos):
-        return vigra.Vector(self.siv.dxx(*pos),
-                            self.siv.dxy(*pos),
-                            self.siv.dyy(*pos))
+        return vigra.Vector(self.siv.dxx(pos[0], pos[1]),
+                            self.siv.dxy(pos[0], pos[1]),
+                            self.siv.dyy(pos[0], pos[1]))
 
 TensorSIVProxy = ThreeBandSIVProxy
