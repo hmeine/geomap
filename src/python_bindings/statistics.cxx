@@ -203,7 +203,7 @@ class QuantileStatisticsPickleSuite : public boost::python::pickle_suite
     static void setstate(QuantileStatistics& w, boost::python::tuple state)
     {
         PolylineStatisticsPickleSuite::setstate(w, state);
-        list segments = extract<list>(state[2])();
+        list segments = extract<list>(state[-1])();
         w.segments_.resize(len(segments));
         for(unsigned int i = 0; i < w.segments_.size(); ++i)
         {
