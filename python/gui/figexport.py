@@ -89,7 +89,8 @@ class FigExporter:
         
         assert roi or self.roi, "addROIRect(): no ROI given!?"
         if roi == None:
-            roi = self.roi
+            roi = BoundingBox(self.roi)
+            roi.moveBy((-0.5, -0.5))
         if container == True:
             container = self.f
 
@@ -97,7 +98,7 @@ class FigExporter:
         if isinstance(roi, Rect2D):
             roi = BoundingBox(roi)
         else:
-            roi = BoundingBox(roi) 
+            roi = BoundingBox(roi)
             roi.moveBy((0.5, 0.5))
 
         if self.roi:
@@ -125,13 +126,9 @@ class FigExporter:
         
         if container == True:
             container = self.f
-        if not params.has_key("roi"):
-            if self.roi:
-                params["roi"] = BoundingBox(self.roi)
-                params["roi"].moveBy((-0.5, -0.5))
-            else:
-                size = readImage(bgImageFilename).size()
-                params["roi"] = Rect2D(size)
+        if not params.has_key("roi") and not self.roi:
+            size = readImage(bgImageFilename).size()
+            params["roi"] = Rect2D(size)
 
         if not params.has_key("depth"):
             params["depth"] = 1
