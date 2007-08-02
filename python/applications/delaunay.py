@@ -13,6 +13,7 @@ from flag_constants import *
 try:
     import triangle
 except ImportError:
+    sys.stderr.write("WARNING: 'triangle' module not found. CDT will be (not very well) faked.\n")
     triangle = None
 
 def _delaunayMapFromData(nodePositions, edgeData, imageSize, sigmaOrbits = None):
