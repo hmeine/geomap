@@ -1529,9 +1529,9 @@ void defMap()
         "Returns the length of contourPoly(anchor) (is however much faster than\n"
         "using that function, since it simply sums up all length()s of the\n"
         "darts in the phi orbit.");
-    def("isoperimeter", &isoperimeter,
-        "isoperimeter(anchor) -> length\n\n"
-        "Returns a the isoperimetric ratio for contourPoly(anchor).\n"
+    def("isoperimetricQuotient", &isoperimetricQuotient,
+        "isoperimetricQuotient(anchor) -> length\n\n"
+        "Returns the isoperimetric quotient for contourPoly(anchor).\n"
         "This is defined by sq(contourLength(anchor))/(4*pi*contourArea(anchor)).");
     def("contourPoly", &contourPoly,
         "contourPoly(anchor) -> Polygon\n\n"

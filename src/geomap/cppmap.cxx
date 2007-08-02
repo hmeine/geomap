@@ -52,7 +52,7 @@ double contourLength(const GeoMap::Dart &dart)
     return result;
 }
 
-double isoperimeter(const GeoMap::Dart &dart)
+double isoperimetricQuotient(const GeoMap::Dart &dart)
 {
     double area = 0.0, length = 0.0;
 
