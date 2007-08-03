@@ -169,7 +169,7 @@ class FigExporter:
         container.append(fp)
         return fp
 
-    def addClippedPoly(self, polygon, container = True, **attr):
+    def addClippedPoly(self, polygon, **attr):
         """fe.addClippedPoly(polygon, ...)
 
         Adds and returns exactly fig.Polygon objects for each part of
@@ -234,7 +234,6 @@ class FigExporter:
         if container == True:
             container = self.f
 
-        radius *= self.scale
         attr = dict(attr)
         if "fillStyle" not in attr:
             attr["fillStyle"] = fig.fillStyleSolid
@@ -250,10 +249,14 @@ class FigExporter:
         o = self.offset + attr.get('offset', Vector2(0,0))
         o2 = self.roi and o - self.roi.begin() or o
         for i, point in enumerate(points):
-            if self.roi and not self.roi.contains(point + o):
-                continue
+            if self.roi:
+                radiusOff = Vector2(radius, radius)
+                circleBounds = BoundingBox(
+                    point + o - radiusOff, point + o + radiusOff)
+                if not self.roi.contains(circleBounds):
+                    continue # FIXME: add arcs if intersects
             p = intPos((Vector2(point[0], point[1]) + o2) * self.scale)
-            dc = fig.Circle(p, radius)
+            dc = fig.Circle(p, radius*self.scale)
             for a in attr:
                 setattr(dc, a, attr[a])
             if returnIndices:
@@ -392,8 +395,6 @@ class FigExporter:
 
             if returnEdges:
                 result.extend([(edge, part) for part in parts])
-            else:
-                result.extend(parts)
 
         return result
 
