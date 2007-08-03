@@ -185,10 +185,8 @@ class FigExporter:
         anyways)."""
 
         # no ROI to clip to?
-        if container == True:
-            container = self.f
         if not self.roi:
-            return [self.addEdge(polygon, container = container, **attr)]
+            return [self.addEdge(polygon, **attr)]
         
         if type(polygon) != Polygon:
             if not isinstance(polygon, list):
@@ -204,13 +202,13 @@ class FigExporter:
         if not clipRect.intersects(polygon.boundingBox()):
             return []
         if clipRect.contains(polygon.boundingBox()):
-            return [self.addEdge(polygon, container = container, **attr)]
+            return [self.addEdge(polygon, **attr)]
 
         # general case: perform clipping, add parts one-by-one:
         result = [] # fig.Compound(container) - I dont't dare grouping here..
         for part in clipPoly(polygon, clipRect):
             if part.length(): # don't add zero-length polygons
-                result.append(self.addEdge(part, container = container, **attr))
+                result.append(self.addEdge(part, **attr))
         return result
 
     def addPointCircles(self, points, radius, returnIndices = False, container = True, **attr):
@@ -394,6 +392,8 @@ class FigExporter:
 
             if returnEdges:
                 result.extend([(edge, part) for part in parts])
+            else:
+                result.extend(parts)
 
         return result
 
@@ -443,13 +443,12 @@ class FigExporter:
                     thisattr = dict(attr)
                     thisattr["fillColor"] = getFaceColor(face)
                     thisattr["depth"] = currentDepth
-                    # FIXME: addClippedPoly does not work for closed
-                    # contour polygons..
-                    o = self.addEdge(contourPoly(face.contour()),
-                                     container = compound, **thisattr)
+                    parts = self.addClippedPoly(
+                        contourPoly(face.contour()),
+                        container = compound, **thisattr)
 
                     if returnFaces:
-                        result.append((face, o))
+                        result.extend([(face, part) for part in parts])
 
                 for anchor in face.holeContours():
                     todo.extend(maputils.holeComponent(anchor))
@@ -489,7 +488,7 @@ def _exportOverlays(fe, overlays, overlayHandler, startDepth = 100):
     for overlay in overlays:
         if hasattr(overlay, 'visible') and not overlay.visible:
             continue
-        if not overlayHandler(fe, overlay, depth = depth):
+        if overlayHandler(fe, overlay, depth = depth) == None:
             if isinstance(overlay, vigrapyqt.OverlayGroup):
                 depth = _exportOverlays(
                     fe, overlay.overlays, overlayHandler, startDepth = depth)
