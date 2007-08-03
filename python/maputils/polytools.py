@@ -83,11 +83,16 @@ def clipPoly(polygon, clipRect):
     if part:
         parts.append((startBorder, part, None))
 
+    if not parts:
+        return []
+
     if not closed(polygon):
         result = [p[1] for p in parts]
     else:
-        if len(parts) > 1 and (parts[0][1][0] == parts[-1][1][-1]):
+        if parts[0][1][0] == parts[-1][1][-1]:
             assert parts[0][0] is None and parts[-1][-1] is None
+            if len(parts) == 1: # polygon is entirely within clipRect
+                return [parts[0][1]]
             parts[-1][1].extend(parts[0][1])
             parts[0] = (parts[-1][0], parts[-1][1], parts[0][2])
             del parts[-1]
@@ -123,8 +128,10 @@ def clipPoly(polygon, clipRect):
                    clipRect.end(),
                    clipRect.begin()+(clipRect.size()[0], 0))
 
+        #print; print map(len, sides)
         for side, end in zip(sides, corners):
             for _, poly, outside in sorted(side):
+                #print poly, outside, prevPoly, lastPoly
                 assert outside != prevOutside; prevOutside = outside
                 if outside == isCCW:
                     prevPoly = poly
@@ -144,13 +151,10 @@ def clipPoly(polygon, clipRect):
             if prevPoly:
                 mergeRoot(prevPoly).append(end)
 
-        if prevPoly:
-            assert lastPoly
-            #prevPoly.extend(lastPoly)
-            prevPoly.append(prevPoly[0])
-            result.append(prevPoly)
-        else:
-            assert not lastPoly
+        if lastPoly:
+            assert prevPoly
+            lastPoly.append(lastPoly[0])
+            result.append(lastPoly)
 
     return result
 
