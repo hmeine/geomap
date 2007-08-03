@@ -579,6 +579,9 @@ class WatershedStatistics(DynamicEdgeIndices):
                                   range(mel - len(self._passValues))])
 
     def preMergeEdges(self, dart):
+        if not self.__base.preMergeEdges(self, dart):
+            return False
+        
         edge1 = dart.edge()
         edge2 = dart.clone().nextSigma().edge()
 
@@ -590,9 +593,6 @@ class WatershedStatistics(DynamicEdgeIndices):
         if edge2.flag(flag_constants.BORDER_PROTECTION):
             return edge1.flag(flag_constants.BORDER_PROTECTION)
 
-        if not self.__base.preMergeEdges(self, dart):
-            return False
-        
         self._mergedPV = min(self._passValues[edge1.label()],
                              self._passValues[edge2.label()])
 
