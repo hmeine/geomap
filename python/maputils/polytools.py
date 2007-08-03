@@ -63,12 +63,61 @@ def clipPoly(polygon, clipRect):
             relPos |= BOTTOM
 
         if relPos: # outside
-            if not part:
+            if not i:
                 continue
-            # close current part:
-            endBorder, ip = _intersectLine(polygon[i-1], p, clipRect)
-            part.append(ip)
-            parts.append((startBorder, part, endBorder))
+
+            if prevRP & relPos:
+                continue
+
+            # calculate leaving intersection
+            diff = polygon[i-1] - p
+            l = 2.0
+            if relPos & LEFT:
+                l = min(l, (x1 - p[0]) / diff[0])
+                endBorder = LEFT
+            if relPos & RIGHT:
+                l = min(l, (x2 - p[0]) / diff[0])
+                endBorder = RIGHT
+            if relPos & TOP:
+                nl = (y1 - p[1]) / diff[1]
+                if nl < l:
+                    l = nl
+                    endBorder = TOP
+            if relPos & BOTTOM:
+                nl = (y2 - p[1]) / diff[1]
+                if nl < l:
+                    l = nl
+                    endBorder = BOTTOM
+            ip = p + l * diff
+
+            if prevRP:
+                # segment may cross cliprect, calc. start intersection
+                pl = -1.0
+                if prevRP & LEFT:
+                    pl = max(pl, (x1 - p[0]) / diff[0])
+                    startBorder = LEFT
+                if prevRP & RIGHT:
+                    pl = max(pl, (x2 - p[0]) / diff[0])
+                    startBorder = RIGHT
+                if prevRP & TOP:
+                    npl = (y1 - p[1]) / diff[1]
+                    if npl >= pl:
+                        pl = npl
+                        startBorder = TOP
+                if prevRP & BOTTOM:
+                    npl = (y2 - p[1]) / diff[1]
+                    if npl >= pl:
+                        pl = npl
+                        startBorder = BOTTOM
+                if pl <= l:
+                    continue
+                pip = p + pl * diff
+                part = Polygon([pip, ip])
+            else:
+                part.append(ip)
+
+            if part.length():
+                parts.append((startBorder, part, endBorder))
             part = None
             continue
 
@@ -80,7 +129,7 @@ def clipPoly(polygon, clipRect):
 
         part.append(p)
 
-    if part:
+    if part and part.length():
         parts.append((startBorder, part, None))
 
     if not parts:
