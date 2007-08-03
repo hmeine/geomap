@@ -182,6 +182,16 @@ Polygon split(Polygon & p, int pos)
     return p.split(pos);
 }
 
+template<class Polygon>
+std::string Polygon__repr__(Polygon const &polygon)
+{
+    std::stringstream s;
+    s.precision(3);
+    s << "<Polygon (" << polygon.size() << " points, length: " << polygon.length()
+      << " px.)>";
+    return s.str();
+}
+
 template<class Iterator>
 void defIter(const char *name)
 {
@@ -1884,6 +1894,7 @@ void defPolygon()
         .def("nearestPoint", &PythonPolygon::nearestPoint)
         .def("invalidateProperties", &PythonPolygon::invalidateProperties)
         .def("arcLengthList", &arcLengthList<PythonPolygon>)
+        .def("__repr__", &Polygon__repr__<PythonPolygon>)
         .def_pickle(ArrayPickleSuite<PythonPolygon>())
     ;
     PolygonFromPython<PythonPolygon>();
