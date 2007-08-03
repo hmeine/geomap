@@ -1,20 +1,29 @@
 from vigra import Vector2, dot
 from hourglass import Polygon
 
+LEFT = 1
+RIGHT = 2
+TOP = 4
+BOTTOM = 8
+
 def _intersectLine(inside, outside, clipRect):
     if outside[1] > clipRect.end()[1]:
+        border = BOTTOM
         outside = inside + (outside-inside) * \
                  (clipRect.end()[1]-inside[1])/(outside[1]-inside[1])
     elif outside[1] < clipRect.begin()[1]:
+        border = TOP
         outside = inside + (outside-inside) * \
                  (clipRect.begin()[1]-inside[1])/(outside[1]-inside[1])
     if outside[0] > clipRect.end()[0]:
-        return inside + (outside-inside) * \
+        border = RIGHT
+        outside = inside + (outside-inside) * \
                (clipRect.end()[0]-inside[0])/(outside[0]-inside[0])
     elif outside[0] < clipRect.begin()[0]:
-        return inside + (outside-inside) * \
+        border = LEFT
+        outside = inside + (outside-inside) * \
                (clipRect.begin()[0]-inside[0])/(outside[0]-inside[0])
-    return outside
+    return border, outside
 
 def clipPoly(polygon, clipRect):
     """clipPoly(polygon, clipRect)
@@ -33,31 +42,115 @@ def clipPoly(polygon, clipRect):
     def closed(polygon):
         return polygon[0] == polygon[-1]
 
-    i = 0
-    while i < len(polygon):
-        while i < len(polygon) and not clipRect.contains(polygon[i]):
-            i += 1
-        if i >= len(polygon):
-            break
+    x1, y1 = clipRect.begin()
+    x2, y2 = clipRect.end()
 
-        p = Polygon()
+    part = None
+    startBorder = None
+    parts = []
 
-        if i > 0 and i < len(polygon):
-            p.append(_intersectLine(polygon[i], polygon[i-1], clipRect))
+    relPos = None
+    for i, p in enumerate(polygon):
+        prevRP = relPos
+        relPos = 0
+        if p[0] < x1:
+            relPos |= LEFT
+        elif p[0] > x2:
+            relPos |= RIGHT
+        if p[1] < y1:
+            relPos |= TOP
+        elif p[1] > y2:
+            relPos |= BOTTOM
 
-        while i < len(polygon) and clipRect.contains(polygon[i]):
-            p.append(polygon[i])
-            i += 1
+        if relPos: # outside
+            if not part:
+                continue
+            # close current part:
+            endBorder, ip = _intersectLine(polygon[i-1], p, clipRect)
+            part.append(ip)
+            parts.append((startBorder, part, endBorder))
+            part = None
+            continue
 
-        if i < len(polygon):
-            p.append(_intersectLine(polygon[i-1], polygon[i], clipRect))
+        if not part:
+            part = Polygon()
+            if i:
+                startBorder, ip = _intersectLine(p, polygon[i-1], clipRect)
+                part.append(ip)
 
-        result.append(p)
+        part.append(p)
 
-    if closed(polygon):
-        if len(result) > 1 and (result[0][0] == result[-1][-1]):
-            result[-1].extend(result[0])
-            del result[0]
+    if part:
+        parts.append((startBorder, part, None))
+
+    if not closed(polygon):
+        result = [p[1] for p in parts]
+    else:
+        if len(parts) > 1 and (parts[0][1][0] == parts[-1][1][-1]):
+            assert parts[0][0] is None and parts[-1][-1] is None
+            parts[-1][1].extend(parts[0][1])
+            parts[0] = (parts[-1][0], parts[-1][1], parts[0][2])
+            del parts[-1]
+
+        isCCW = polygon.partialArea() > 0
+        merged = {}
+        def mergeRoot(poly):
+            while True:
+                result = merged.get(poly, poly)
+                if result is poly:
+                    break
+                poly = result
+            return result
+#             while poly in merged:
+#                 poly = merged[poly]
+#             return poly
+        
+        lastPoly = None
+        prevPoly = None
+        prevOutside = None
+
+        sides = (
+            ([(-p[1][-1][0], p[1], True ) for p in parts if p[2] == TOP] +
+             [(-p[1][ 0][0], p[1], False) for p in parts if p[0] == TOP]),
+            ([( p[1][-1][1], p[1], True ) for p in parts if p[2] == LEFT] +
+             [( p[1][ 0][1], p[1], False) for p in parts if p[0] == LEFT]),
+            ([( p[1][-1][0], p[1], True ) for p in parts if p[2] == BOTTOM] +
+             [( p[1][ 0][0], p[1], False) for p in parts if p[0] == BOTTOM]),
+            ([(-p[1][-1][1], p[1], True ) for p in parts if p[2] == RIGHT] +
+             [(-p[1][ 0][1], p[1], False) for p in parts if p[0] == RIGHT]))
+        corners = (clipRect.begin(),
+                   clipRect.begin()+(0, clipRect.size()[1]),
+                   clipRect.end(),
+                   clipRect.begin()+(clipRect.size()[0], 0))
+
+        for side, end in zip(sides, corners):
+            for _, poly, outside in sorted(side):
+                assert outside != prevOutside; prevOutside = outside
+                if outside == isCCW:
+                    prevPoly = poly
+                else:
+                    if prevPoly == None:
+                        lastPoly = poly
+                        continue
+                    prevPoly = mergeRoot(prevPoly)
+                    if prevPoly == poly:
+                        poly.append(poly[0])
+                        result.append(poly)
+                    else:
+                        prevPoly.extend(poly)
+                        merged[poly] = prevPoly
+                    prevPoly = None
+
+            if prevPoly:
+                mergeRoot(prevPoly).append(end)
+
+        if prevPoly:
+            assert lastPoly
+            #prevPoly.extend(lastPoly)
+            prevPoly.append(prevPoly[0])
+            result.append(prevPoly)
+        else:
+            assert not lastPoly
 
     return result
 
@@ -124,3 +217,26 @@ def shrinkPoly(poly, offset):
                       for i in range(len(lines))])
     result.append(result[0])
     return result
+
+if __name__ == "__main__":
+    import fig, hourglass
+    f = fig.File("cliptest.fig")
+    cr = hourglass.BoundingBox((0, 0), (4500, 4500))
+    f.layer(1).remove()
+    for o in f.findObjects(type = fig.PolylineBase, depth = 42):
+        p = Polygon(o.points)
+        if o.closed():
+            p.append(p[0])
+        pp = clipPoly(p, cr)
+        for p in pp:
+            no = fig.Polygon(p, p[0] == p[-1])
+            no.depth = 1
+            no.lineWidth = 3
+            if no.closed():
+                no.fillStyle = fig.fillStyleSolid
+                no.fillColor = f.getColor(0.5)
+            else:
+                no.forwardArrow = fig.Arrow()
+            f.append(no)
+    f.save(fig2dev = "eps")
+
