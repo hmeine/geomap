@@ -6,25 +6,6 @@ RIGHT = 2
 TOP = 4
 BOTTOM = 8
 
-def _intersectLine(inside, outside, clipRect):
-    if outside[1] > clipRect.end()[1]:
-        border = BOTTOM
-        outside = inside + (outside-inside) * \
-                 (clipRect.end()[1]-inside[1])/(outside[1]-inside[1])
-    elif outside[1] < clipRect.begin()[1]:
-        border = TOP
-        outside = inside + (outside-inside) * \
-                 (clipRect.begin()[1]-inside[1])/(outside[1]-inside[1])
-    if outside[0] > clipRect.end()[0]:
-        border = RIGHT
-        outside = inside + (outside-inside) * \
-               (clipRect.end()[0]-inside[0])/(outside[0]-inside[0])
-    elif outside[0] < clipRect.begin()[0]:
-        border = LEFT
-        outside = inside + (outside-inside) * \
-               (clipRect.begin()[0]-inside[0])/(outside[0]-inside[0])
-    return border, outside
-
 def clipPoly(polygon, clipRect):
     """clipPoly(polygon, clipRect)
 
@@ -63,10 +44,11 @@ def clipPoly(polygon, clipRect):
             relPos |= BOTTOM
 
         if relPos: # outside
-            if not i:
+            if not i: # incomplete first segment
                 continue
 
             if prevRP & relPos:
+                # complete segment outside
                 continue
 
             # calculate leaving intersection
@@ -124,7 +106,26 @@ def clipPoly(polygon, clipRect):
         if not part:
             part = Polygon()
             if i:
-                startBorder, ip = _intersectLine(p, polygon[i-1], clipRect)
+                # calculate entering intersection:
+                diff = polygon[i-1] - p
+                l = -1.0
+                if prevRP & LEFT:
+                    l = max(l, (x1 - p[0]) / diff[0])
+                    startBorder = LEFT
+                if prevRP & RIGHT:
+                    l = max(l, (x2 - p[0]) / diff[0])
+                    startBorder = RIGHT
+                if prevRP & TOP:
+                    nl = (y1 - p[1]) / diff[1]
+                    if nl >= l:
+                        l = nl
+                        startBorder = TOP
+                if prevRP & BOTTOM:
+                    nl = (y2 - p[1]) / diff[1]
+                    if nl >= l:
+                        l = nl
+                        startBorder = BOTTOM
+                ip = p + l * diff
                 part.append(ip)
 
         part.append(p)
@@ -163,6 +164,7 @@ def clipPoly(polygon, clipRect):
         prevPoly = None
         prevOutside = None
 
+        # compose counterclockwise list of intersection points at clip border:
         sides = (
             ([(-p[1][-1][0], p[1], True ) for p in parts if p[2] == TOP] +
              [(-p[1][ 0][0], p[1], False) for p in parts if p[0] == TOP]),
@@ -172,6 +174,8 @@ def clipPoly(polygon, clipRect):
              [( p[1][ 0][0], p[1], False) for p in parts if p[0] == BOTTOM]),
             ([(-p[1][-1][1], p[1], True ) for p in parts if p[2] == RIGHT] +
              [(-p[1][ 0][1], p[1], False) for p in parts if p[0] == RIGHT]))
+
+        # counterclockwise list of corner positions:
         corners = (clipRect.begin(),
                    clipRect.begin()+(0, clipRect.size()[1]),
                    clipRect.end(),
