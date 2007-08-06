@@ -637,6 +637,23 @@ class BBoxPolygon : public Polygon<POINT>
 
 /********************************************************************/
 
+template<class Point>
+Point centroid(const Polygon<Point> &polygon)
+{
+    vigra_precondition(polygon[polygon.size()-1] == polygon[0],
+                       "centroid() expects a closed polygon");
+    double a = 0.0;
+    TinyVector<double, 2> result;
+    for(unsigned int i = 0; i < polygon.size()-1; ++i)
+    {
+        double pa = (polygon[i][0]*polygon[i+1][1] -
+                     polygon[i][1]*polygon[i+1][0]);
+        a += pa;
+        result += (polygon[i] + polygon[i+1])*pa;
+    }
+    return result / (12*a);
+}
+
 template<bool useMaxStep, class PointIterator, class TargetArray>
 void simplifyPolygonHelper(
     const PointIterator &polyBegin, const PointIterator &polyEnd,
@@ -1608,6 +1625,23 @@ struct Scanlines
 
     Scanlines &operator+=(const Scanlines &other)
     {
+        merge(other);
+        normalize();
+        return *this;
+    }
+
+    void reverse()
+    {
+        for(unsigned int i = 0; i < size(); ++i)
+        {
+            Scanlines::Scanline &scanline(scanLines_[i]);
+            for(unsigned int j = 0; j < scanline.size(); ++j)
+                scanline[j].direction = -scanline[j].direction;
+        }
+    }
+
+    void merge(const Scanlines &other)
+    {
         // ensure that other's line domain is contained in this one's:
         int missingAtStart = startIndex() - other.startIndex();
         if(missingAtStart > 0)
@@ -1623,7 +1657,7 @@ struct Scanlines
             scanLines_.resize(scanLines_.size() + missingAtEnd);
         }
 
-        // now add other's data and re-normalize:
+        // now add other's data (without re-normalizing!):
         std::vector<Scanline>::iterator
             destLine(scanLines_.begin() + (other.startIndex() - startIndex()));
         for(std::vector<Scanline>::const_iterator srcLine = other.scanLines_.begin();
@@ -1631,9 +1665,6 @@ struct Scanlines
         {
             destLine->insert(destLine->end(), srcLine->begin(), srcLine->end());
         }
-        normalize();
-
-        return *this;
     }
 
     void normalize()

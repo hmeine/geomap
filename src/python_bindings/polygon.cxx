@@ -300,6 +300,13 @@ unsigned int pyDrawScannedPoly(
                            StandardValueAccessor<GrayValue>());
 }
 
+// needed for signature conversion only (bbox poly vs. poly)
+template<class Polygon>
+Vector2 pyCentroid(const Polygon &p)
+{
+    return centroid(p);
+}
+
 template<class Array>
 list curvatureList(const Array &p, int dx = 5, unsigned int skip = 0)
 {
@@ -2001,6 +2008,8 @@ void defPolygon()
         args("polygon", "segmentCount"));
 
     def("spline3Integral", vigra::detail::spline3Integral<Vector2>);
+
+    def("centroid", &pyCentroid<PythonPolygon>);
 
     def("curvatureList", &curvatureList<Vector2Array>,
         (arg("pointArray"), arg("dx") = 5, arg("skipPoints") = 1),
