@@ -651,7 +651,7 @@ Point centroid(const Polygon<Point> &polygon)
         a += pa;
         result += (polygon[i] + polygon[i+1])*pa;
     }
-    return result / (12*a);
+    return result / (3*a);
 }
 
 template<bool useMaxStep, class PointIterator, class TargetArray>
