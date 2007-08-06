@@ -881,8 +881,8 @@ void GeoMap::embedFaces(bool initLabelImage)
 
             if(initLabelImage)
             {
-                std::auto_ptr<vigra::Scanlines> scanlines(
-                    scanPoly(contourPoly(anchor), imageSize().height()));
+                std::auto_ptr<vigra::Scanlines> scanlines =
+                    contour.scanLines();
                 contour.pixelArea_ =
                     fillScannedPoly(*scanlines, (int)contour.label(),
                                     destMultiArrayRange(*labelImage_));

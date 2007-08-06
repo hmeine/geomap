@@ -1088,6 +1088,35 @@ class GeoMap::Face : boost::noncopyable
         return area_;
     }
 
+    std::auto_ptr<vigra::Scanlines> scanLines() const
+    {
+        int startIndex = (int)floor(boundingBox().begin()[1] + 0.5);
+        int endIndex = (int)floor(boundingBox_.end()[1] + 0.5);
+
+        std::auto_ptr<vigra::Scanlines> result(
+            new vigra::Scanlines(startIndex, endIndex - startIndex + 1));
+
+        Dart anchor(anchors_[0]), dart(anchor);
+        do
+        {
+            if(dart.label() > 0)
+            {
+                result->merge(dart.edge()->scanLines());
+            }
+            else
+            {
+                vigra::Scanlines sl(dart.edge()->scanLines());
+                sl.reverse();
+                result->merge(sl);
+            }
+        }
+        while(dart.nextPhi() != anchor);
+
+        result->normalize();
+
+        return result;
+    }
+
     unsigned int pixelArea() const
     {
         return pixelArea_;
