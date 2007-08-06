@@ -3,7 +3,6 @@ _cvsVersion = "$Id$" \
               .split(" ")[2:-2]
 
 import math, sys, vigra, hourglass, numpy
-from hourglass import Polygon, simplifyPolygon, resamplePolygon
 #from map import GeoMap, contourPoly
 from hourglass import GeoMap, contourPoly
 from maputils import removeEdge
@@ -29,6 +28,16 @@ def _delaunayMapFromData(nodePositions, edgeData, imageSize, sigmaOrbits = None)
     return result
 
 def _pointInHole(polygon, level = 2):
+    sl = hourglass.scanPoly(polygon)
+    for y in range(sl.startIndex(), sl.endIndex()):
+        for seg in sl[y]:
+            for x in range(seg.begin, seg.end):
+                return Vector2(x, y)
+
+    result = centroid(polygon)
+    if polygon.contains(result):
+        return result
+    
     result = []
     bbox = polygon.boundingBox()
     midPoint = (bbox.begin() + bbox.end())/2
@@ -211,9 +220,9 @@ def faceCDTMap(face, imageSize,
 
     polygons = [contourPoly(c) for c in face.contours()]
     if resample:
-        polygons = [resamplePolygon(p, resample) for p in polygons]
+        polygons = [hourglass.resamplePolygon(p, resample) for p in polygons]
     if simplifyEpsilon != None:
-        polygons = [simplifyPolygon(p, simplifyEpsilon) for p in polygons]
+        polygons = [hourglass.simplifyPolygon(p, simplifyEpsilon) for p in polygons]
 
     if triangle:
         result = constrainedDelaunayMap(polygons, imageSize)
