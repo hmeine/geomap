@@ -30,11 +30,15 @@ def _delaunayMapFromData(nodePositions, edgeData, imageSize, sigmaOrbits = None)
 def _pointInHole(polygon, level = 2):
     sl = hourglass.scanPoly(polygon)
     for y in range(sl.startIndex(), sl.endIndex()):
+        inside = 0
+        x = 0
         for seg in sl[y]:
-            for x in range(seg.begin, seg.end):
+            if inside and x < seg.begin:
                 return Vector2(x, y)
+            x = seg.end
+            inside += seg.direction
 
-    result = centroid(polygon)
+    result = hourglass.centroid(polygon)
     if polygon.contains(result):
         return result
     
