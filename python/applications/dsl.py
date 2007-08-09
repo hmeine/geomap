@@ -1,6 +1,5 @@
 import copy
-from vigra import Point2D, Vector2, Rational
-from math import sq
+from vigra import Point2D, Vector2, Rational, sq
 
 def freeman(crackEdge):
     """freeman(crackEdge) -> list
@@ -108,6 +107,8 @@ def searchTangentQuadrant(freemanCodes, pointIndex, closed = True):
         return c1
 
 def straightPoints(poly):
+    """Return list of points where forward- and backwards-quadrants
+    are different."""
     closed = poly[0] == poly[-1]
     freemanCodes = freeman(poly)
     result = []
@@ -143,14 +144,6 @@ class PyDigitalStraightLine(object):
             pos += self.width()-1
         return -pos / self.b
     
-    def plotEquation(self, leaningType = 0):
-        return ("%s*x + (%s)" % (self.slope(), self.axisIntercept(leaningType))).replace("/", "./")
-    
-    def plotItems(self):
-        return [Gnuplot.Func(self.plotEquation(), title = "center line"),
-                Gnuplot.Func(self.plotEquation(1), title = "lower leaning line"),
-                Gnuplot.Func(self.plotEquation(2), title = "upper leaning line")]
-    
     def __call__(self, x, y):
         return self.a*x - self.b*y
     
@@ -168,7 +161,7 @@ class PyDigitalStraightLine(object):
             return abs(self.a) + abs(self.b)
     
     def __repr__(self):
-        return "DigitalStraightLine(%d, %d, %d)" % (self.a, self.b, self.pos)
+        return "PyDigitalStraightLine(%d, %d, %d)" % (self.a, self.b, self.pos)
     
     def addPoint(self, x, y):
         """works only for 8-connected lines in 1st octant"""
@@ -260,9 +253,9 @@ def DigitalStraightLine_plotEquation(self, leaningType = LeaningType.CenterLine)
     return ("%s*x + (%s)" % (self.slope(), self.axisIntercept(leaningType))).replace("/", "./")
 
 def DigitalStraightLine_plotItems(self):
-    return [Gnuplot.Func(self.plotEquation(), title = "center line"),
-            Gnuplot.Func(self.plotEquation(LeaningType.LowerLeaningLine), title = "lower leaning line"),
-            Gnuplot.Func(self.plotEquation(LeaningType.UpperLeaningLine), title = "upper leaning line")]
+    return [Gnuplot.Func(self.plotEquation(), title = "center line", with = "l 1"),
+            Gnuplot.Func(self.plotEquation(LeaningType.LowerLeaningLine), title = "lower leaning line", with = "l 4"),
+            Gnuplot.Func(self.plotEquation(LeaningType.UpperLeaningLine), title = "upper leaning line", with = "l 5")]
 
 def DigitalStraightLine8__repr__(self):
     return "DigitalStraightLine8(%d, %d, %d)" % (self.a, self.b, self.pos)
@@ -270,6 +263,8 @@ def DigitalStraightLine8__repr__(self):
 def DigitalStraightLine4__repr__(self):
     return "DigitalStraightLine4(%d, %d, %d)" % (self.a, self.b, self.pos)
 
+PyDigitalStraightLine.plotEquation = DigitalStraightLine_plotEquation
+PyDigitalStraightLine.plotItems = DigitalStraightLine_plotItems
 hourglass.DigitalStraightLine8.plotEquation = DigitalStraightLine_plotEquation
 hourglass.DigitalStraightLine8.plotItems = DigitalStraightLine_plotItems
 hourglass.DigitalStraightLine8.__repr__ = DigitalStraightLine8__repr__
@@ -350,56 +345,10 @@ def tangentDSL(freemanCodes, pointIndex, closed, allowed = None):
         #print "added %s and %s: %s" % (point1, point2, dsl)
     return result, ffmi.gi_frame.f_locals["i"]-pointIndex # FIXME: hack & wrong if closed
 
-def quadrant(fc1, fc2):
-    """quadrant(fc1, fc2) -> 0..3
-
-    Given the two different freeman codes fc1 and fc2, returns the
-    number of the respective quadrant."""
-    
-    if fc2 < fc1:
-        fc1, fc2 = fc2, fc1
-    if fc1 > 0:
-        return fc1
-    if fc2 > 1:
-        return 3
-    return 0
-
-def offset(freemanCodes, pointIndex, closed = True):
-    if closed:
-        pointIndex = pointIndex % len(freemanCodes)
-
-    dsl, ofs = hourglass.tangentDSL(freemanCodes, pointIndex, closed)
-
-    fc1 = freemanCodes[pointIndex - ofs]
-    count = len(freemanCodes)
-    for crackIndex in range(pointIndex - ofs + 1, pointIndex + ofs):
-        fc2 = freemanCodes[crackIndex % count]
-        if fc2 != fc1:
-            break
-
-    alpha = (2.*dsl.pos+dsl.b-1)/(2*dsl.b)
-    q = quadrant(fc1, fc2)
-    if q == 0:
-        return Vector2( alpha, -alpha)
-    elif q == 1:
-        return Vector2(-alpha, -alpha)
-    elif q == 2:
-        return Vector2(-alpha,  alpha)
-    else:
-        return Vector2( alpha,  alpha)
-
-def offset2(freemanCodes, pointIndex, closed = True):
-    """My own derivation of the necessary offset(), perpendicular to
-    the tangent - gives different, but nearly indistinguishable
-    results.  The RMSE of the points' radii in the circle example from
-    __main__ is 0.4 percent lower, so this is the default / used in
-    euclideanPath. ;-)"""
-    
-    if closed:
-        pointIndex = pointIndex % len(freemanCodes)
+def crackEdgeTangent(freemanCodes, pointIndex, closed):
     dsl, ofs = hourglass.tangentDSL(freemanCodes, pointIndex, closed)
     if not ofs:
-        return Vector2(0, 0)
+        return dsl, ofs
     
     dsl = dsl.convertToFourConnected()
 
@@ -419,6 +368,59 @@ def offset2(freemanCodes, pointIndex, closed = True):
         dsl.mirrorXY()
     else:
         dsl.mirrorY()
+    return dsl, ofs
+
+def quadrant(fc1, fc2):
+    """quadrant(fc1, fc2) -> 0..3
+
+    Given the two different freeman codes fc1 and fc2, returns the
+    number of the respective quadrant."""
+    
+    if fc2 < fc1:
+        fc1, fc2 = fc2, fc1
+    if fc1 > 0:
+        return fc1
+    if fc2 > 1:
+        return 3
+    return 0
+
+def offset(freemanCodes, pointIndex, closed = True):
+    if closed:
+        pointIndex = pointIndex % len(freemanCodes)
+
+    dsl, ofs = hourglass.tangentDSL(freemanCodes, pointIndex, closed)
+    if not ofs:
+        return Vector2(0, 0)
+
+    fc1 = freemanCodes[pointIndex - ofs]
+    count = len(freemanCodes)
+    for crackIndex in range(pointIndex - ofs + 1, pointIndex + ofs):
+        fc2 = freemanCodes[crackIndex % count]
+        if fc2 != fc1:
+            break
+
+    q = quadrant(fc1, fc2)
+    alpha = (2.*dsl.pos+dsl.b-1)/(2*dsl.b)
+    if q == 0:
+        return Vector2( alpha, -alpha)
+    elif q == 1:
+        return Vector2(-alpha, -alpha)
+    elif q == 2:
+        return Vector2(-alpha,  alpha)
+    else:
+        return Vector2( alpha,  alpha)
+
+def offset2(freemanCodes, pointIndex, closed = True):
+    """My own derivation of the necessary offset(), perpendicular to
+    the tangent - gives different, but nearly indistinguishable
+    results.  The RMSE of the points' radii in the circle example from
+    __main__ is 0.4 percent lower, so this is the default / used in
+    euclideanPath. ;-)"""
+    
+    if closed:
+        pointIndex = pointIndex % len(freemanCodes)
+
+    dsl, ofs = crackEdgeTangent(freemanCodes, pointIndex, closed)
 
     cp = Rational(2*dsl.pos+dsl.width()-1, 2*(sq(dsl.a) + sq(dsl.b)))
     return Vector2(float(dsl.a*cp), float(-dsl.b*cp))
@@ -426,6 +428,10 @@ def offset2(freemanCodes, pointIndex, closed = True):
 from hourglass import Polygon
 
 def euclideanPath(crackPoly, closed = None):
+    """Return tangent-driven Euclidean Path for the given `crackPoly`.
+    If the polygon is not `closed` (default/None: auto-detect), the
+    first and last points will not be changed (no tangent known)."""
+
     fc = freeman(crackPoly)
     if closed == None:
         closed = crackPoly[-1] == crackPoly[0]
@@ -439,10 +445,11 @@ def euclideanPath(crackPoly, closed = None):
     return result
 
 def crackEdges2EuclideanPaths(crackEdgeMap):
-    import maputils
+    import maputils, flag_constants
     return maputils.copyMapContents(
         crackEdgeMap, None, edgeTransform = \
-        lambda e: euclideanPath(e, e.isLoop() and e.startNode().degree() == 2))[0]
+        lambda e: e.flag(flag_constants.BORDER_PROTECTION) and e or \
+        euclideanPath(e, e.isLoop() and e.startNode().degree() == 2))[0]
 
 class DSLExperiment(object):
     def __init__(self, reverse = False):
@@ -457,7 +464,7 @@ class DSLExperiment(object):
         self.code2 = None
         self.freeman2Diff = reverse and freeman2Diff8ConnThirdQuadrant or freeman2Diff8ConnFirstQuadrant
     
-    def __call__(self, code):
+    def __call__(self, code, plot = True):
         if self.dsl == None:
             self.dsl = DigitalStraightLine(code % 2 and 1 or 0, 1, 0)
             self.code1 = code
@@ -469,16 +476,19 @@ class DSLExperiment(object):
         if self.dsl.addPoint(*newPos):
             self.pos = newPos
             self.points.append(newPos)
-            return self.plot()
+            return self.plot(plot)
         return False
     
-    def plot(self):
+    def plot(self, plot = True):
         result = True
         for point in self.points:
             if not self.dsl.contains(point[0], point[1]):
                 print "%s lost (no longer in DSL!)" % point
                 result = False
-        self.g.plot(self.points, *self.dsl.plotItems())
+        if plot:
+            self.g.plot(Gnuplot.Data(self.points,
+                                     title = "discrete line", with = "lp 3"),
+                        *self.dsl.plotItems())
         return result
 
 if __name__ == "__main__":
