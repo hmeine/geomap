@@ -6,7 +6,7 @@ RIGHT = 2
 TOP = 4
 BOTTOM = 8
 
-def clipPoly(polygon, clipRect):
+def clipPoly(polygon, clipRect, closeAtBorder = None):
     """clipPoly(polygon, clipRect)
 
     Clips away those parts of polygon which are not in clipRect.
@@ -20,8 +20,8 @@ def clipPoly(polygon, clipRect):
 #     print "clipPoly(%s..%s)" % (clipRect.begin(), clipRect.end())
 #     print list(polygon)
 
-    def closed(polygon):
-        return polygon[0] == polygon[-1]
+    if closeAtBorder is None:
+        closeAtBorder = (polygon[0] == polygon[-1])
 
     x1, y1 = clipRect.begin()
     x2, y2 = clipRect.end()
@@ -136,7 +136,7 @@ def clipPoly(polygon, clipRect):
     if not parts:
         return []
 
-    if not closed(polygon):
+    if polygon[0] != polygon[-1]:
         result = [p[1] for p in parts]
     else:
         if parts[0][1][0] == parts[-1][1][-1]:
@@ -146,6 +146,9 @@ def clipPoly(polygon, clipRect):
             parts[-1][1].extend(parts[0][1])
             parts[0] = (parts[-1][0], parts[-1][1], parts[0][2])
             del parts[-1]
+
+        if not closeAtBorder:
+            return [p[1] for p in parts]
 
         isCCW = polygon.partialArea() > 0
         merged = {}
@@ -205,9 +208,9 @@ def clipPoly(polygon, clipRect):
                 mergeRoot(prevPoly).append(end)
 
         if lastPoly:
-            assert prevPoly
             lastPoly.append(lastPoly[0])
-            result.append(lastPoly)
+            if lastPoly.length():
+                result.append(lastPoly)
 
     return result
 
