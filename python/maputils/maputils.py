@@ -1830,22 +1830,13 @@ def waterfall(map, edgeCosts, mst = None):
     print "  total waterfall() time: %ss." % (time.clock() - c, )
 
 def mst2map(mst, map):
-    """Visualize a minimumSpanningTree() result as a GeoMap.  Note
-    that the nodes are put in the bbox centers, which is wildly
-    inaccurate, especially without edge splitting."""
+    """Visualize a minimumSpanningTree() result as a GeoMap.
+    Note that the nodes are located at the centroids of the faces,
+    which is only a heuristic."""
 
     nodePositions = [None] * map.maxFaceLabel()
-#     for face in map.faceIter(skipInfinite = True):
-#         bbox = face.boundingBox()
-#         nodePositions[face.label()] = bbox.begin() + bbox.size() / 2
-    import statistics
-    mesh = vigra.meshGrid(range(map.imageSize()[0]),
-                          range(map.imageSize()[1]))
-    faceCenters = statistics.FaceColorStatistics(map, mesh)
-    faceCenters.detachHooks()
     for face in map.faceIter(skipInfinite = True):
-        cx, cy = faceCenters[face.label()]
-        nodePositions[face.label()] = vigra.Vector2(cx, cy)
+        nodePositions[face.label()] = centroid(contourPoly(face.contour()))
     
     edgeTuples = [None]
     for edgeLabel in mst:
