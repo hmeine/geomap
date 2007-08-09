@@ -72,7 +72,8 @@ class MapEdges(object):
     def _updateEdgeROI(self, edge):
         """FIXME: only used by changeColor so far, similar to setEdgePoints"""
         result = self._getZoomedEdge(edge).boundingRect()
-        result.moveBy(self.viewer.x, self.viewer.y)
+        result.moveBy(self.viewer.upperLeft().x(),
+                      self.viewer.upperLeft().y())
         self.viewer.update(result)
 
     def _calculatePoints(self):
@@ -154,7 +155,8 @@ class MapEdges(object):
         else:
             self._zoomedEdges[index] = None
 
-        updateROI.moveBy(self.viewer.x, self.viewer.y)
+        updateROI.moveBy(self.viewer.upperLeft().x(),
+                         self.viewer.upperLeft().y())
         self.viewer.update(updateROI)
 
     def preRemoveEdgeHook(self, dart):
@@ -193,7 +195,8 @@ class MapEdges(object):
         if not self._map():
             return
         r = p.clipRegion().boundingRect()
-        r.moveBy(-self.viewer.x, -self.viewer.y)
+        r.moveBy(-self.viewer.upperLeft().x(),
+                 -self.viewer.upperLeft().y())
         bbox = BoundingBox(Vector2(r.left() / self._zoom - 0.5,
                                    r.top() / self._zoom - 0.5),
                            Vector2(r.right() / self._zoom + 0.5,
@@ -270,7 +273,8 @@ class MapNodes(object):
                 return
             if self.visible:
                 ur = qt.QRect(self._qpointlist[nodeLabel], self.s)
-                ur.moveBy(self.viewer.x, self.viewer.y)
+                ur.moveBy(self.viewer.upperLeft().x(),
+                          self.viewer.upperLeft().y())
                 self.viewer.update(ur)
             self._qpointlist[nodeLabel] = None
         return True
@@ -380,7 +384,7 @@ class DartHighlighter(object):
 
 def addMapOverlay(fe, overlay, **attr):
     qtColor2figColor = figexport.qtColor2figColor
-    
+
     # FIXME: str(type(overlay)).contains(...) instead?
     if isinstance(overlay, ROISelector):
         color = qtColor2figColor(overlay.color, fe.f)
@@ -388,7 +392,7 @@ def addMapOverlay(fe, overlay, **attr):
     elif isinstance(overlay, (MapNodes, MapEdges)):
         oldScale, oldOffset, oldROI = fe.scale, fe.offset, fe.roi
 
-        extraZoom = float(overlay._zoom) / overlay.viewer.scale
+        extraZoom = float(overlay._zoom) / overlay.viewer.zoomFactor()
         fe.scale *= extraZoom
         fe.roi = BoundingBox(fe.roi.begin() / extraZoom,
                              fe.roi.end() / extraZoom)
@@ -399,8 +403,8 @@ def addMapOverlay(fe, overlay, **attr):
                 radius /= float(overlay._zoom)
             color = qtColor2figColor(overlay.color, fe.f)
 
-            return fe.addMapNodes(overlay._map(), radius,
-                                  fillColor = color, lineWidth = 0, **attr)
+            result = fe.addMapNodes(overlay._map(), radius,
+                                    fillColor = color, lineWidth = 0, **attr)
         else:
             attr = dict(attr)
             if not overlay.colors:
@@ -416,11 +420,11 @@ def addMapOverlay(fe, overlay, **attr):
                         parts = fe.addClippedPoly(edge,
                             penColor = qtColor2figColor(edgeColor, fe.f),
                             container = result, **attr)
-                return result
             else:
-                return fe.addMapEdges(overlay._map(), **attr)
+                result = fe.addMapEdges(overlay._map(), **attr)
 
         fe.scale, fe.offset, fe.roi = oldScale, oldOffset, oldROI
+        return result
     else:
         return figexport.addStandardOverlay(fe, overlay, **attr)
 
@@ -459,6 +463,8 @@ class MapDisplay(DisplaySettings):
         self.viewer.autoZoom(4.0)
 
         self.map = map
+        if not faceMeans and hasattr(map, "faceMeans"):
+            faceMeans = map.faceMeans
         self.setFaceMeans(faceMeans)
         self._attachedHooks = None
 
@@ -589,6 +595,7 @@ class MapDisplay(DisplaySettings):
                 return False
 
     def _redisplayROIImage(self, roi):
+        roi &= Rect2D(self.map.imageSize())
         roiImage = self.map.labelImage().subImage(roi)
         if self._backgroundMode > 3:
             roiImage = self.faceMeans.regionImage(roiImage)
@@ -763,7 +770,7 @@ class MapDisplay(DisplaySettings):
         image.subImage(roi).write(filename, normalize)
 
     def saveFig(self, basepath, roi = None, scale = None,
-                bgFilename = None, faceMeans = False):
+                bgFilename = None, faceMeans = False, similarity = None):
         """display.saveFig(basepath,
                            roi=None, scale=None, bgFilename = None,
                            faceMeans = False)
@@ -797,7 +804,9 @@ class MapDisplay(DisplaySettings):
             faceMeans = self.faceMeans
 
         if faceMeans:
-            fe.addMapFaces(self.map, faceMeans)
+            fe.addMapFaces(
+                self.map, faceMeans, similarity, depth = 900)
+            fe.f.save()
         
         return fe
 
@@ -936,8 +945,16 @@ class ROISelector(qt.QObject):
                      self.mouseMoved)
         self.connect(self._viewer, qt.PYSIGNAL("mouseReleased"),
                      self.mouseReleased)
+        self._viewer.installEventFilter(self)
 
         self.setVisible(True) # roi != None)
+
+    def eventFilter(self, watched, e):
+        if e.type() in (qt.QEvent.KeyPress, qt.QEvent.KeyRelease,
+                        qt.QEvent.MouseButtonPress, qt.QEvent.MouseButtonRelease,
+                        qt.QEvent.MouseButtonDblClick, qt.QEvent.MouseMove):
+            self._keyState = e.stateAfter()
+        return False
 
     def setVisible(self, onoff):
         if self._alwaysVisible != onoff:
@@ -1019,6 +1036,7 @@ class ROISelector(qt.QObject):
                         self.mouseReleased)
         if self._alwaysVisible:
             self._viewer.removeOverlay(self)
+        self._viewer.removeEventFilter(self)
 
     def setZoom(self, zoom):
         self.zoom = zoom
@@ -1030,7 +1048,8 @@ class ROISelector(qt.QObject):
         p.setBrush(qt.Qt.NoBrush)
         drawRect = self.windowRect()
         # painter is already set up with a shift:
-        drawRect.moveBy(-self._viewer.x, -self._viewer.y)
+        drawRect.moveBy(-self._viewer.upperLeft().x(),
+                        -self._viewer.upperLeft().y())
         p.drawRect(drawRect)
 
 # def queryROI(imageWindow):
