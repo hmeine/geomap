@@ -1,6 +1,6 @@
 import os, sys, qt, fig
 
-from vigra import Vector2, readImage, Rect2D, Point2D
+from vigra import Vector2, readImage, Rect2D, Point2D, meshIter
 import vigrapyqt
 from hourglass import BoundingBox, Polygon, simplifyPolygon, intPos, contourPoly
 from dartpath import Path
@@ -99,7 +99,21 @@ class FigExporter:
             roi = BoundingBox(roi)
         else:
             roi = BoundingBox(roi)
-            roi.moveBy((0.5, 0.5))
+            roi.moveBy(self.offset)
+
+        if self.roi and not self.roi.contains(roi):
+            sys.stderr.write("WARNING: addROIRect: ROI out of bounds!\n")
+            roi.moveBy(-self.offset)
+            poly = Polygon([roi.begin(), roi.begin() + (0, roi.size()[1]),
+                            roi.end(), roi.begin() + (roi.size()[0], 0),
+                            roi.begin()])
+            result = self.addClippedPoly(poly,
+                                         container = container,
+                                         **attr)
+            if result:
+                assert len(result) == 1
+                return result[0]
+            return
 
         if self.roi:
             roi.moveBy(-self.roi.begin())
@@ -117,18 +131,18 @@ class FigExporter:
         """fe.addBackgroundWithFrame(bgImageFilename, depth = 85, ...)
 
         Adds a picture object to the fig.File, framed by an additional
-        rectangle.  See addROIRect().  If no roi is given (via a
-        keyword parameter), the image file is opened (using readImage)
-        and its size is used to initialize a BoundingBox positioned at
-        the origin.
+        rectangle.  See addROIRect() and addImage().  If no roi is
+        given (via a keyword parameter), the image file is opened
+        (using readImage) and its size is used to initialize a
+        BoundingBox positioned at the origin.
 
         Returns the pair (bgImage, bgRect) of both added fig objects."""
         
-        if container == True:
-            container = self.f
         if not params.has_key("roi") and not self.roi:
             size = readImage(bgImageFilename).size()
             params["roi"] = Rect2D(size)
+        if container == True:
+            container = self.f
 
         if not params.has_key("depth"):
             params["depth"] = 1
@@ -141,6 +155,62 @@ class FigExporter:
         container.append(bgImage)
 
         return bgImage, bgRect
+
+    def addImage(self, filename, container = True, **params):
+        """fe.addImage(filename, depth = 85, ...)
+
+        Add a picture object to the fig.File.  See addROIRect() and
+        addBackgroundWithFrame().  If no roi is given (via a keyword
+        parameter), the image file is opened (using readImage) and its
+        size is used to initialize a BoundingBox positioned at the
+        origin.  Returns the fig.PictureBBox object."""
+        
+        bgImage, bgRect = self.addBackgroundWithFrame(
+            filename, container, **params)
+        if container == True:
+            container = self.f
+        container.remove(bgRect)
+
+        return bgImage
+
+    def addPixelRaster(self, rect = None, labels = None, fill = None,
+                       container = True, **attr):
+        assert rect or labels or fill
+        if rect is None:
+            rect = Rect2D((labels or fill).size())
+        
+        if container == True:
+            container = self.f
+        result = fig.Compound(container)
+        
+        for x, y in meshIter(rect):
+            boxX1 = (x - rect.left()) * self.scale
+            boxY1 = (y - rect.top()) * self.scale
+            boxX2 = boxX1 + self.scale
+            boxY2 = boxY1 + self.scale
+
+            pixelRect = fig.PolyBox(boxX1, boxY1, boxX2, boxY2)
+            for a in attr:
+                setattr(pixelRect, a, attr[a])
+
+            if labels:
+                textX = (boxX1 + boxX2) / 2
+                textY = (boxY1 + boxY2) / 2
+
+                label = fig.Text(textX, textY,
+                                 str(int(labels[x, y])), fig.alignCentered)
+                label.y += label.height / 2
+
+                label.depth = pixelRect.depth - 10
+                label.font = fig.fontHelvetica
+                result.append(label)
+
+            if fill:
+                pixelRect.fillStyle = fig.fillStyleSolid
+                pixelRect.fillColor = self.f.getColor(int(fill[x, y]))
+                    
+            result.append(pixelRect)
+        return result
 
     def addEdge(self, points, simplifyEpsilon = 0.5, container = True, **attr):
         """fe.addEdge(points, simplifyEpsilon, ...)
@@ -206,7 +276,9 @@ class FigExporter:
 
         # general case: perform clipping, add parts one-by-one:
         result = [] # fig.Compound(container) - I dont't dare grouping here..
-        for part in clipPoly(polygon, clipRect):
+        closeAtBorder = (
+            attr.get("fillStyle", fig.fillStyleNone) != fig.fillStyleNone)
+        for part in clipPoly(polygon, clipRect, closeAtBorder):
             if part.length(): # don't add zero-length polygons
                 result.append(self.addEdge(part, **attr))
         return result
@@ -500,6 +572,13 @@ def _exportOverlays(fe, overlays, overlayHandler, startDepth = 100):
         depth -= 1
     return depth
 
+def visibleROI(imageWindow):
+    viewer = hasattr(imageWindow, "viewer") \
+             and imageWindow.viewer or imageWindow
+    return Rect2D(
+        intPos(viewer.toImageCoordinates(0, 0)),
+        intPos(viewer.toImageCoordinates(viewer.width(), viewer.height())))
+
 def exportImageWindow(
     w, basepath, roi = None, scale = None,
     bgFilename = None,
@@ -525,10 +604,7 @@ def exportImageWindow(
     if roi == None:
         roi = Rect2D(w.image.size())
     elif roi == True:
-        roi = Rect2D(
-            intPos(w.viewer.toImageCoordinates(0, 0)),
-            intPos(w.viewer.toImageCoordinates(w.viewer.width(),
-                                               w.viewer.height())))
+        roi = visibleROI(w)
     elif type(roi) == tuple:
         roi = Rect2D(*roi)
     elif type(roi) == str:
@@ -544,12 +620,11 @@ def exportImageWindow(
     if scale == None:
         scale = 20*450 / roi.width() # default: 20cm width
         print "auto-adjusted scale to %s." % (scale, )
-    roi = BoundingBox(roi)
     fe = FigExporter(scale, roi)
     if bgFilename != False:
-        fe.addBackgroundWithFrame(bgFilename, depth = 100, roi = roi, lineWidth = 0)
+        fe.addBackgroundWithFrame(bgFilename, depth = 100, lineWidth = 0)
     else:
-        fe.addROIRect(depth = 100, roi = roi, lineWidth = 0)
+        fe.addROIRect(depth = 100, lineWidth = 0)
 
     _exportOverlays(fe, w.viewer.overlays, overlayHandler)
     fe.save(figFilename)
