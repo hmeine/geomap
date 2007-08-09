@@ -1,6 +1,6 @@
 from vigra import *
 addPathFromHere('../cellimage')
-import cellimage, hourglass
+import vigra, hourglass, cellimage
 from flag_constants import BORDER_PROTECTION
 #from map import GeoMap
 from hourglass import GeoMap
@@ -76,6 +76,7 @@ def pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0),
         if newEdge.isLoop() and newEdge.partialArea() == 0.0:
             result.removeEdge(newEdge.dart())
 
+    #return result
     result.initializeMap()
 
     # the border closing was done in C++, so we have to mark the
@@ -200,3 +201,25 @@ def pixelWatershedMap(biImage, crackEdges = 4, midCracks = False):
     print "- converting pixel-based GeoMap..."
     return pixelMap2subPixelMap(
         geomap, labelImageSize = (geomap.cellImage.size()-Size2D(4,4)))
+
+def cellImage2display(cellImage, background = None,
+                      nodeColor = vigra.Pixel(0, 0, 255),
+                      edgeColor = vigra.Pixel(255, 0, 0)):
+    if hasattr(cellImage, "cellImage"):
+        cellImage = cellImage.cellImage
+    if hasattr(cellImage, "serialize"):
+        cellImage = cellImage.serialize()
+    if background is None:
+        background = cellImage / 4
+    if background.bands() < 3:
+        background = RGBImage(background)
+    if background.size() != cellImage.size():
+        nbg = RGBImage(cellImage.size())
+        shift = Point2D((cellImage.width() - background.width())/2,
+                        (cellImage.height() - background.height())/2)
+        nbg.subImage(Rect2D(shift, background.size())).copyValues(background)
+        background = nbg
+    return transformImage(
+        cellImage, background,
+        "\l ci, b: ci %% 4 == 1 ? %r : (ci %% 4 == 2 ? %r : b)" % (
+        edgeColor, nodeColor))
