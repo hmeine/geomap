@@ -212,6 +212,14 @@ list arcLengthList(const Array &a)
 }
 
 template<class Array>
+Array pyConvexHull(const Array &a)
+{
+    Array result;
+    convexHull(a, result);
+    return result;
+}
+
+template<class Array>
 Array simplifyPolygon(const Array &a, double epsilon)
 {
     Array result;
@@ -1971,6 +1979,8 @@ void defPolygon()
     def("drawScannedPoly", &pyDrawScannedPoly);
     def("markEdgeInLabelImage", &markEdgeInLabelImage);
     def("removeEdgeFromLabelImage", &removeEdgeFromLabelImage);
+
+    def("convexHull", (PythonPolygon (*)(const PythonPolygon &))&pyConvexHull);
 
     def("simplifyPolygon",
         (Vector2Array (*)(const Vector2Array &,double))&simplifyPolygon,

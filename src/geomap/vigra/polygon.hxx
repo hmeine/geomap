@@ -654,6 +654,99 @@ Point centroid(const Polygon<Point> &polygon)
     return result / (3*a);
 }
 
+/********************************************************************/
+
+namespace detail {
+template<class Point>
+struct CCWCompare
+{
+    Point p0_;
+    CCWCompare(const Point &p0)
+    : p0_(p0)
+    {}
+
+    bool operator()(const Point &a, const Point &b) const
+    {
+        return (a[1]-p0_[1])*(b[0]-p0_[0]) - (a[0]-p0_[0])*(b[1]-p0_[1]) > 0;
+    }
+};
+}
+
+template<class PointArray>
+void convexHull(
+    const PointArray &poly, PointArray &chull)
+{
+    vigra_precondition(poly.size() >= 2,
+                       "at least two input points needed for convexHull!");
+
+    typedef typename PointArray::value_type Point;
+    typedef typename Point::value_type Coordinate;
+
+    // find extremal point (max. y, then min. x):
+    unsigned int i0 = 0;
+    Point p0 = poly[0];
+    for(unsigned int i = 1; i < poly.size(); ++i)
+    {
+        Coordinate yDiff = poly[i][1] - p0[1];
+        if(yDiff > 0 || yDiff == 0 && poly[i][0] < p0[0])
+        {
+            p0 = poly[i];
+            i0 = i;
+        }
+    }
+
+    // sort other points by angle from p0:
+    std::vector<Point> other(poly.begin(), poly.begin() + i0);
+    other.insert(other.end(), poly.begin()+i0+1, poly.end());
+    std::sort(other.begin(), other.end(), detail::CCWCompare<Point>(p0));
+
+    std::vector<Point> result(poly.size()+1);
+    result[0] = p0;
+    result[1] = other[0];
+    typename std::vector<Point>::iterator currentEnd = result.begin() + 1;
+
+    // Graham's scan:
+    Point endSegment = *currentEnd - currentEnd[-1];
+    Coordinate sa2;
+    for(unsigned int i = 1; i < other.size(); ++i)
+    {
+        do
+        {
+            Point diff = other[i] - currentEnd[-1];
+            sa2 = diff[0]*endSegment[1] - endSegment[0]*diff[1];
+            if(sa2 > 0)
+            {
+                // point is to the left, add to convex hull:
+                *(++currentEnd) = other[i];
+                endSegment = other[i] - currentEnd[-1];
+            }
+            else if(sa2 == 0)
+            {
+                // points are collinear, keep far one:
+                if(diff.squaredMagnitude() > endSegment.squaredMagnitude())
+                {
+                    *currentEnd = other[i];
+                    endSegment = diff;
+                }
+            }
+            else
+            {
+                // point is to the right, backtracking needed:
+                --currentEnd;
+                endSegment = *currentEnd - currentEnd[-1];
+            }
+        }
+        while(sa2 < 0);
+    }
+
+    // return closed Polygon:
+    *(++currentEnd) = p0;
+    ++currentEnd;
+    chull.insert(chull.end(), result.begin(), currentEnd);
+}
+
+/********************************************************************/
+
 template<bool useMaxStep, class PointIterator, class TargetArray>
 void simplifyPolygonHelper(
     const PointIterator &polyBegin, const PointIterator &polyEnd,
@@ -1605,7 +1698,7 @@ struct Scanlines
 
     int endIndex() const
     {
-        return scanLines_.size() + startIndex_;
+        return startIndex_ + scanLines_.size();
     }
 
     Scanline &operator[](unsigned int index)
