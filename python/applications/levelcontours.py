@@ -1,5 +1,6 @@
 import sys, copy
-from vigra import Vector2, polynomialRealRoots
+import vigra, hourglass
+from vigra import Vector2, Point2D, polynomialRealRoots
 
 def findZeroCrossingsOnGrid(siv):
     result = []
@@ -122,7 +123,7 @@ def followContour(siv, geomap, nodeLabel, h):
             node = geomap.nearestNode(intersection, 0.01)
             if node and node.label() == nodeLabel: # and len(poly) < 2:
                 print "coming from node %d to %d, ignoring crossing, poly len: %d" \
-                      % (nodeLabel, node.label(), len(poly))                    
+                      % (nodeLabel, node.label(), len(poly))
                 pass
             elif node:
                 poly.append(node.position())
@@ -175,9 +176,9 @@ class ZeroEdges:
         """method should be one of:
         'direct', 'haralick', 'laplace', or 'splineridge'"""
         
-        s = SplineImageView5(image)
+        s = vigra.SplineImageView5(image)
         self.i = s
-        z = GrayImage(image.size())
+        z = vigra.GrayImage(image.size())
         if method is "direct":
             z = image
         elif method is "haralick":
@@ -192,8 +193,8 @@ class ZeroEdges:
             for x,y in image.size():
                 gx, gy, gxx, gxy, gyy = s.dx(x,y), s.dy(x,y), s.dxx(x,y), s.dxy(x,y), s.dyy(x,y)
                 z[x,y] =  gx*gy*(gyy - gxx) + gxy*(gx**2 - gy**2)
-        self.z = SplineImageView3(z)
-        self.regions = transformImage(z, '\l x: x > 0? 1: x<0? -1: 0')
+        self.z = vigra.SplineImageView3(z)
+        self.regions = vigra.transformImage(z, '\l x: x > 0? 1: x<0? -1: 0')
         self.m = method
 
     def _addFacetIntersection(self, facetX, facetY, point):
@@ -302,6 +303,50 @@ def levelEdgesMap(edges, imageSize):
 # ze = ZeroEdges(transformImage(phi, '\l x: x + %s' % level), "direct")
 # ee = ze.edges(False)
 # levelMap = levelEdgesMap(ee, phi.size())
+
+# --------------------------------------------------------------------
+
+def marchingSquares(image, level):
+    connections1 = ((1, 0), (0, 2), (1, 2), (3, 1), (3, 0), (0, 2), (3, 1), (3, 2), (2, 3), (1, 0), (2, 3), (0, 3), (1, 3), (2, 1), (2, 0), (0, 1))
+    connections2 = ((1, 0), (0, 2), (1, 2), (3, 1), (3, 0), (0, 1), (3, 2), (3, 2), (2, 3), (1, 3), (2, 0), (0, 3), (1, 3), (2, 1), (2, 0), (0, 1))
+    configurations = (0, 0, 1, 2, 3, 4, 5, 7, 8, 9, 11, 12, 13, 14, 15, 16, 16)
+
+    result = hourglass.GeoMap(image.size())
+
+    hNodes = vigra.GrayImage(image.size())
+    for y in range(image.height()):
+        for x in range(image.width()-1):
+            v1 = image[x,   y]
+            v2 = image[x+1, y]
+            if (v1 < level) != (v2 < level):
+                ofs = (level - v1)/(v2 - v1)
+                hNodes[x, y] = result.addNode((x + ofs, y)).label()
+
+    vNodes = vigra.GrayImage(image.size())
+    for y in range(image.height()-1):
+        for x in range(image.width()):
+            v1 = image[x, y]
+            v2 = image[x, y+1]
+            if (v1 < level) != (v2 < level):
+                ofs = (level - v1)/(v2 - v1)
+                vNodes[x, y] = result.addNode((x, y + ofs)).label()
+
+    nodes = (hNodes, vNodes, vNodes, hNodes)
+    offsets = (Point2D(0, 0), Point2D(0, 0), Point2D(1, 0), Point2D(0, 1))
+
+    for y in range(image.height()-1):
+        for x in range(image.width()-1):
+            config = int(image[x,   y  ] < level)   + \
+                     int(image[x+1, y  ] < level)*2 + \
+                     int(image[x,   y+1] < level)*4 + \
+                     int(image[x+1, y+1] < level)*8
+            for s, e in connections1[
+                configurations[config]:configurations[config+1]]:
+                s = result.node(int(nodes[s][offsets[s] + (x, y)]))
+                e = result.node(int(nodes[e][offsets[e] + (x, y)]))
+                result.addEdge(s, e, [s.position(), e.position()])
+
+    return result
 
 # --------------------------------------------------------------------
 
