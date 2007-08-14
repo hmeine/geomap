@@ -335,41 +335,41 @@ def marchingSquares(image, level, variant = True):
 
     result = hourglass.GeoMap(image.size())
     
-    def addNode(x, y):
-        return result.addNode((x, y))
+    def addNodeX(x, y, ofs):
+        return result.addNode((x + ofs, y))
 
-    def addNodeNewtonRefinementX(x, y):
-        for i in range(100):
-            ofs = -(image.siv(x, y)-level) / image.siv.dx(x, y)
-            if abs(ofs) > 0.5:
-                ofs = vigra.sign(ofs)*0.05
-            x += ofs
-            if not image.siv.isValid(x, y):
-                x -= ofs
-                break
-            if abs(ofs) < 1e-4:
-                break
-        return result.addNode((x, y))
+    def addNodeY(x, y, ofs):
+        return result.addNode((x, y + ofs))
 
-    def addNodeNewtonRefinementY(x, y):
+    def addNodeNewtonRefinementX(x, y, ofs):
         for i in range(100):
-            ofs = -(image.siv(x, y)-level) / image.siv.dy(x, y)
-            if abs(ofs) > 0.5:
-                ofs = vigra.sign(ofs)*0.05
-            y += ofs
-            if not image.siv.isValid(x, y):
-                y -= ofs
+            o = -(image.siv(x+ofs, y)-level) / image.siv.dx(x+ofs, y)
+            if abs(o) > 0.5:
+                o = vigra.sign(o)*0.05
+            ofs += o
+            if ofs <= 0 or ofs >= 1:
+                ofs -= o
                 break
-            if abs(ofs) < 1e-4:
+            if abs(o) < 1e-4:
                 break
-        return result.addNode((x, y))
+        return result.addNode((x+ofs, y))
+
+    def addNodeNewtonRefinementY(x, y, ofs):
+        for i in range(100):
+            o = -(image.siv(x, y+ofs)-level) / image.siv.dy(x, y+ofs)
+            if abs(o) > 0.5:
+                o = vigra.sign(o)*0.05
+            ofs += o
+            if ofs <= 0 or ofs >= 1:
+                ofs -= o
+                break
+            if abs(o) < 1e-4:
+                break
+        return result.addNode((x, y+ofs))
 
     if hasattr(image, "siv"):
         addNodeX = addNodeNewtonRefinementX
         addNodeY = addNodeNewtonRefinementY
-    else:
-        addNodeX = addNode
-        addNodeY = addNode
 
     hNodes = vigra.GrayImage(image.size())
     for y in range(image.height()):
@@ -378,7 +378,7 @@ def marchingSquares(image, level, variant = True):
             v2 = image[x+1, y]
             if (v1 < level) != (v2 < level):
                 ofs = (level - v1)/(v2 - v1)
-                hNodes[x, y] = addNodeX(x + ofs, y).label()
+                hNodes[x, y] = addNodeX(x, y, ofs).label()
 
     vNodes = vigra.GrayImage(image.size())
     for y in range(image.height()-1):
@@ -387,7 +387,7 @@ def marchingSquares(image, level, variant = True):
             v2 = image[x, y+1]
             if (v1 < level) != (v2 < level):
                 ofs = (level - v1)/(v2 - v1)
-                vNodes[x, y] = addNodeY(x, y + ofs).label()
+                vNodes[x, y] = addNodeY(x, y, ofs).label()
 
     nodes = (hNodes, vNodes, vNodes, hNodes)
     offsets = (Point2D(0, 0), Point2D(0, 0), Point2D(1, 0), Point2D(0, 1))
@@ -416,7 +416,7 @@ def marchingSquares(image, level, variant = True):
 
     maputils.mergeDegree2Nodes(result) # node suppression
     result = maputils.copyMapContents(result)[0] # compress edge labels
-    # TODO: performBorderClosing
+    maputils.connectBorderNodes(result, 0.5)
     result.initializeMap()
     return result
 
