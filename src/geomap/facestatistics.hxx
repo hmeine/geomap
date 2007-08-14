@@ -285,6 +285,11 @@ void FaceColorStatistics<OriginalImage>::ensureMinSampleCount(
             do
             {
                 unsigned char ss(++(*superSampled)[(*it)->label()]);
+                if(ss > 16)
+                {
+                    std::cerr << "WARNING: FaceColorStatistics giving up sampling face " << (*it)->label() << " (area " << (*it)->area() << ")\n";
+                    break;
+                }
                 double gridDist = 1.0/(1+ss);
                 GeoMap::Face::BoundingBox bbox((*it)->boundingBox());
                 for(double y = bbox.begin()[1]; y < bbox.end()[1]; y += gridDist)
@@ -297,7 +302,7 @@ void FaceColorStatistics<OriginalImage>::ensureMinSampleCount(
             ++superSampledCount_;
         }
     }
-        
+
     if(superSampledCount_)
         superSampled_ = superSampled;
 }
