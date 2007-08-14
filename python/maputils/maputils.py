@@ -643,10 +643,8 @@ def connectBorderNodes(map, epsilon,
         map.addEdge(startNode, endNode, points) \
                         .setFlag(flag_constants.BORDER_PROTECTION)
 
-def copyMapContents(sourceMap, destMap, edgeTransform = None):
-    """copyMapContents(sourceMap, destMap, edgeTransform = None)
-
-    Adds all nodes and edges of sourceMap to the destMap.  The sigma
+def copyMapContents(sourceMap, destMap = None, edgeTransform = None):
+    """Add all nodes and edges of sourceMap to the destMap.  The sigma
     order is preserved.  Thus, it is an error to copy the contents of
     a graph - not sourceMap.edgesSorted() - into a map with
     destMap.edgesSorted().
@@ -661,11 +659,12 @@ def copyMapContents(sourceMap, destMap, edgeTransform = None):
     destMap.
 
     If destMap is None, a new GeoMap of the same size is created and
-    returned."""
+    returned (but not initialized!)."""
 
     if destMap == None:
         destMap = sourceMap.__class__(sourceMap.imageSize())
         if sourceMap.edgesSorted():
+            # mark as sorted (sigma order will be copied from sourceMap):
             destMap.sortEdgesDirectly()
 
     assert sourceMap.edgesSorted() or not destMap.edgesSorted(), \
