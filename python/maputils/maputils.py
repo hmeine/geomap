@@ -1044,16 +1044,34 @@ def removeUnProtectedEdges(map):
         if not edge.flag(flag_constants.ALL_PROTECTION)])
 
 def removeSmallRegions(map, minArea):
+    """Merge faces whose area is < minArea with any neighor.
+    If there is more than one neighbor sharing an unprotected edge
+    with the face, a warning is issued since it is not clear which
+    neighbor to merge into."""
     result = 0
     for face in map.faceIter(skipInfinite = True):
-        if face.area() < minArea:
-            po = list(face.contour().phiOrbit())
-            if len(po) > 1:
-                sys.stderr.write("WARNING: removeSmallRegions() has to decide about neighbor\n  which %s is to be merged into!\n" % face)
-            for dart in po:
-                if mergeFacesCompletely(dart):
-                    result += 1
-                    break
+        if face.area() >= minArea:
+            continue
+
+        # similar to neighborFaces, except for the protection check:
+        neighbors = []
+        seen = {face.label(): True}
+        for dart in contourDarts(face):
+            if dart.edge().flag(flag_constants.ALL_PROTECTION):
+                continue
+            fl = dart.rightFaceLabel()
+            if not fl in seen:
+                seen[fl] = True
+                neighbors.append(dart)
+        
+        if len(neighbors) > 1:
+            sys.stderr.write("WARNING: removeSmallRegions() has to decide about neighbor\n  which %s is to be merged into!\n" % face)
+
+        for dart in neighbors:
+            if mergeFacesCompletely(dart):
+                result += 1
+                break
+
     return result
 
 # --------------------------------------------------------------------
