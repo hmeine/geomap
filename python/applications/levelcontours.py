@@ -1,5 +1,5 @@
 import sys, copy
-import vigra, hourglass
+import vigra, hourglass, maputils
 from vigra import Vector2, Point2D, polynomialRealRoots
 
 def findZeroCrossingsOnGrid(siv):
@@ -306,12 +306,70 @@ def levelEdgesMap(edges, imageSize):
 
 # --------------------------------------------------------------------
 
-def marchingSquares(image, level):
+def marchingSquares(image, level, variant = True):
+    """Return a new GeoMap with sub-pixel level contours extracted by
+    the marching squares method.  (Pixels with values < level are
+    separated from pixels >= level.)
+
+    If the image does not have an attribute 'siv', standard linear
+    interpolation is used.  If image.siv exists, it should be a
+    SplineImageView that is used for the Newton-Raphson method to
+    perform another subsequent sub-pixel correction.
+
+    The optional parameter `variant` determines the handling of the
+    ambiguous diagonal configuration:
+
+    `variant` = True (default)
+      always let the two sampling points above `level` be connected
+
+    `variant` = False
+      always let the two opposite sampling points < `level` be connected
+
+    `variant` = SplineImageView(...)
+      for each ambiguous configuration, check the midpoint of the
+      square; then handle as if variant = (midpoint >= level)"""
+    
     connections1 = ((1, 0), (0, 2), (1, 2), (3, 1), (3, 0), (0, 2), (3, 1), (3, 2), (2, 3), (1, 0), (2, 3), (0, 3), (1, 3), (2, 1), (2, 0), (0, 1))
     connections2 = ((1, 0), (0, 2), (1, 2), (3, 1), (3, 0), (0, 1), (3, 2), (3, 2), (2, 3), (1, 3), (2, 0), (0, 3), (1, 3), (2, 1), (2, 0), (0, 1))
     configurations = (0, 0, 1, 2, 3, 4, 5, 7, 8, 9, 11, 12, 13, 14, 15, 16, 16)
 
     result = hourglass.GeoMap(image.size())
+    
+    def addNode(x, y):
+        return result.addNode((x, y))
+
+    def addNodeNewtonRefinementX(x, y):
+        for i in range(100):
+            ofs = -(image.siv(x, y)-level) / image.siv.dx(x, y)
+            if abs(ofs) > 0.5:
+                ofs = vigra.sign(ofs)*0.05
+            x += ofs
+            if not image.siv.isValid(x, y):
+                x -= ofs
+                break
+            if abs(ofs) < 1e-4:
+                break
+        return result.addNode((x, y))
+
+    def addNodeNewtonRefinementY(x, y):
+        for i in range(100):
+            ofs = -(image.siv(x, y)-level) / image.siv.dy(x, y)
+            if abs(ofs) > 0.5:
+                ofs = vigra.sign(ofs)*0.05
+            y += ofs
+            if not image.siv.isValid(x, y):
+                y -= ofs
+                break
+            if abs(ofs) < 1e-4:
+                break
+        return result.addNode((x, y))
+
+    if hasattr(image, "siv"):
+        addNodeX = addNodeNewtonRefinementX
+        addNodeY = addNodeNewtonRefinementY
+    else:
+        addNodeX = addNode
+        addNodeY = addNode
 
     hNodes = vigra.GrayImage(image.size())
     for y in range(image.height()):
@@ -320,7 +378,7 @@ def marchingSquares(image, level):
             v2 = image[x+1, y]
             if (v1 < level) != (v2 < level):
                 ofs = (level - v1)/(v2 - v1)
-                hNodes[x, y] = result.addNode((x + ofs, y)).label()
+                hNodes[x, y] = addNodeX(x + ofs, y).label()
 
     vNodes = vigra.GrayImage(image.size())
     for y in range(image.height()-1):
@@ -329,10 +387,16 @@ def marchingSquares(image, level):
             v2 = image[x, y+1]
             if (v1 < level) != (v2 < level):
                 ofs = (level - v1)/(v2 - v1)
-                vNodes[x, y] = result.addNode((x, y + ofs)).label()
+                vNodes[x, y] = addNodeY(x, y + ofs).label()
 
     nodes = (hNodes, vNodes, vNodes, hNodes)
     offsets = (Point2D(0, 0), Point2D(0, 0), Point2D(1, 0), Point2D(0, 1))
+
+    defaultConnections = connections1
+    if variant == False:
+        defaultConnections = connections2
+    if isinstance(variant, bool):
+        variant = None
 
     for y in range(image.height()-1):
         for x in range(image.width()-1):
@@ -340,12 +404,20 @@ def marchingSquares(image, level):
                      int(image[x+1, y  ] < level)*2 + \
                      int(image[x,   y+1] < level)*4 + \
                      int(image[x+1, y+1] < level)*8
-            for s, e in connections1[
+            connections = defaultConnections
+            if variant is not None and config in (6, 9):
+                if variant(x + 0.5, y + 0.5) < level:
+                    connections = connections2
+            for s, e in connections[
                 configurations[config]:configurations[config+1]]:
                 s = result.node(int(nodes[s][offsets[s] + (x, y)]))
                 e = result.node(int(nodes[e][offsets[e] + (x, y)]))
                 result.addEdge(s, e, [s.position(), e.position()])
 
+    maputils.mergeDegree2Nodes(result) # node suppression
+    result = maputils.copyMapContents(result)[0] # compress edge labels
+    # TODO: performBorderClosing
+    result.initializeMap()
     return result
 
 # --------------------------------------------------------------------
@@ -353,14 +425,13 @@ def marchingSquares(image, level):
 from vigra import addPathFromHere
 addPathFromHere("../evaluation/")
 import edgedetectors
-from maputils import removeCruft
 
 def levelSetMap(image, threshold, sigma = None):
     ed = edgedetectors.EdgeDetector(
         bi = "Thresholding", s1 = sigma, nonmax = "zerosSubPixel",
         threshold = threshold)
     result, _, _ = ed.computeMap(image)
-    removeCruft(result, 2)
+    maputils.mergeDegree2Nodes(result)
     return result
 
 __all__ = ["levelSetMap"]
