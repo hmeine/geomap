@@ -2,81 +2,84 @@ from vigra import *
 addPathFromHere('../cellimage')
 import vigra, hourglass, cellimage
 from flag_constants import BORDER_PROTECTION
-#from map import GeoMap
-from hourglass import GeoMap
 
 __all__ = ["pixelMap2subPixelMap", "crackEdgeMap",
            "crackEdges2MidCracks", "cannyEdgeMap", "pixelWatershedMap"]
 
-def pixelMapData(geomap, scale = 1.0, offset = Vector2(0, 0),
-                 skipEverySecond = False):
-    """pixelMapData(geomap, scale = 1.0, offset = Vector2(0, 0),
-                 skipEverySecond = False)
-
-    Extracts node positions and edge geometry from a GeoMap object.
-    For nodes, this function simply calculates their center of mass.
-    All positions are shifted by the optional offset and then scaled
-    with the given factor. Set skipEverySecond to True if the geomap
-    contains a crack edge map (otherwise, each resulting edge segment
-    will have an additional mid crack point)."""
-
-    nodes = [None] * (geomap.maxNodeLabel() + 1)
-    for node in geomap.nodes:
-        ul = node.bounds.upperLeft()
-        center = Vector2(*ul) + Vector2(node.bounds.width() - 1,
-                                        node.bounds.height() - 1) / 2
-        nodes[node.label] = (center+offset) * scale
-
-    edges = [None] * (geomap.maxEdgeLabel() + 1)
-    for edge in geomap.edges:
-        points = [(Vector2(*p)+offset) * scale for p in iter(edge.start)]
-        startNodeLabel = edge.start.startNodeLabel()
-        endNodeLabel = edge.end.startNodeLabel()
-        points.insert(0, nodes[startNodeLabel])
-        points.append(nodes[endNodeLabel])
-        if skipEverySecond:
-            points = [points[i] for i in range(0, len(points), 2)]
-        edges[edge.label] = (
-            startNodeLabel, endNodeLabel, hourglass.Polygon(points))
-    return nodes, edges
-
 def pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0),
-                         labelImageSize = None, skipEverySecond = False):
-    """pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0), labelImageSize = None)
+                         imageSize = None,
+                         skipEverySecond = False, midCracks = False):
 
-    Uses pixelMapData() to extract the pixel-geomap's geometry and
-    returns a new subpixel-GeoMap object initialized with it.  The
-    labelImageSize defaults to the (scaled) pixel-based geomap's
-    cellImage.size().  See also the documentation of pixelMapData()."""
-    
-    if labelImageSize == None:
-        labelImageSize = geomap.cellImage.size() * scale
-    result = GeoMap(imageSize = labelImageSize)
+    """Extract node positions and edge geometry from a
+    cellimage.GeoMap object and returns a new subpixel-GeoMap object
+    initialized with it.  For nodes, this function simply uses the
+    center of their bounding box.  All positions are shifted by the
+    optional offset and then scaled with the given factor.  The
+    imageSize defaults to the (scaled) pixel-based geomap's
+    cellImage.size().
+
+    Set skipEverySecond to True if the geomap contains a crack edge
+    map (otherwise, each resulting edge segment will have an
+    additional mid crack point).  If you set midCracks to True, the
+    edge geometry will include the midpoints of each crack instead of
+    the endpoints (skipEverySecond is ignored if midCracks == True)."""
+
+    if imageSize == None:
+        imageSize = geomap.cellImage.size() * scale
+    result = hourglass.GeoMap(imageSize = imageSize)
+
+    if midCracks:
+        skipEverySecond = False
 
     nodes = [None] * (geomap.maxNodeLabel() + 1)
     for node in geomap.nodes:
         ul = node.bounds.upperLeft()
-        center = Vector2(*ul) + Vector2(node.bounds.width() - 1,
-                                        node.bounds.height() - 1) / 2
+        center = Vector2(ul[0], ul[1]) + \
+                 Vector2(node.bounds.width() - 1,
+                         node.bounds.height() - 1) / 2
         nodes[node.label] = result.addNode((center+offset) * scale)
+
+    # mark as sorted (sigma order will be copied from source map):
+    result.sortEdgesDirectly()
 
     edges = [None] * (geomap.maxEdgeLabel() + 1)
     for edge in geomap.edges:
         points = [(Vector2(p[0], p[1])+offset) * scale for p in iter(edge.start)]
-        startNodeLabel = edge.start.startNodeLabel()
-        endNodeLabel = edge.end.startNodeLabel()
-        points.insert(0, nodes[startNodeLabel].position())
-        points.append(nodes[endNodeLabel].position())
+        if midCracks:
+            points = [points[i] for i in range(0, len(points), 2)]
+
+        startNeighbor = nodes[edge.start.startNodeLabel()]
+        endNeighbor = nodes[edge.end.startNodeLabel()]
+
+        points.insert(0, startNeighbor.position())
+        points.append(endNeighbor.position())
+
+        # re-use sigma order from source map:
+        if not startNeighbor.isIsolated():
+            neighbor = cellimage.GeoMap.DartTraverser(edge.start)
+            while neighbor.nextSigma().edgeLabel() >= edge.label:
+                pass
+            startNeighbor = edges[neighbor.edgeLabel()].dart()
+            if neighbor == neighbor.edge().end:
+                startNeighbor.nextAlpha()
+
+        if not endNeighbor.isIsolated():
+            neighbor = cellimage.GeoMap.DartTraverser(edge.end)
+            while neighbor.nextSigma().edgeLabel() >= edge.label:
+                pass
+            endNeighbor = edges[neighbor.edgeLabel()].dart()
+            if neighbor == neighbor.edge().end:
+                endNeighbor.nextAlpha()
+                
         if skipEverySecond:
             points = [points[i] for i in range(0, len(points), 2)]
-        newEdge = result.addEdge(
-            nodes[startNodeLabel],
-            nodes[endNodeLabel],
-            points)
+
+        newEdge = result.addEdge(startNeighbor, endNeighbor, points)
         if newEdge.isLoop() and newEdge.partialArea() == 0.0:
             result.removeEdge(newEdge.dart())
+        else:
+            edges[edge.label] = newEdge
 
-    #return result
     result.initializeMap()
 
     # the border closing was done in C++, so we have to mark the
@@ -94,7 +97,10 @@ def crackEdges2MidCracks(subpixelMap):
 
     Changes all edge geometry in-place, setting one point on the
     middle of each edge segment (and removes each segment's end
-    points, except for the edge ends)."""
+    points, except for the edge ends).
+
+    Note that this is done in a brutal way; the resulting map will
+    fail checkConsistency()."""
     
     for edge in subpixelMap.edgeIter():
         p = hourglass.Polygon()
@@ -147,7 +153,7 @@ def cannyEdgeMap(image, scale, thresh):
     edgeImage = cannyEdgeImageThinning(edgeImage)
     geomap = cellimage.GeoMap(edgeImage, 0, cellimage.CellType.Line)
     spmap = pixelMap2subPixelMap(
-        geomap, offset = Vector2(1,1), labelImageSize = image.size())
+        geomap, offset = Vector2(1,1), imageSize = image.size())
     return spmap
 
 def crackEdgeMap(labelImage, midCracks = False):
@@ -164,12 +170,14 @@ def crackEdgeMap(labelImage, midCracks = False):
 
     print "- converting pixel-based GeoMap..."
     result = pixelMap2subPixelMap(
-        geomap, 0.5, labelImageSize = (geomap.cellImage.size()-Size2D(3,3))/2,
-        skipEverySecond = True) # source image had explicit cracks
-    if midCracks:
-        print "  (converting cracks to mid-cracks...)"
-        crackEdges2MidCracks(result)
+        geomap, 0.5, imageSize = (geomap.cellImage.size()-Size2D(3,3))/2,
+        skipEverySecond = True, midCracks = midCracks)
     return result
+
+def thresholdMap(scalarImage, threshold, midCracks = False):
+    """Shortcut for calling crackEdgeMap with a thresholded image."""
+    bin = transformImage(scalarImage, "\l x: x > %s ? 1:0" % threshold)
+    return crackEdgeMap(bin, midCracks)
 
 def pixelWatershedMap(biImage, crackEdges = 4, midCracks = False):
     """pixelWatershedMap(biImage, crackEdges = 4, midCracks = False)
@@ -200,7 +208,7 @@ def pixelWatershedMap(biImage, crackEdges = 4, midCracks = False):
 
     print "- converting pixel-based GeoMap..."
     return pixelMap2subPixelMap(
-        geomap, labelImageSize = (geomap.cellImage.size()-Size2D(4,4)))
+        geomap, imageSize = (geomap.cellImage.size()-Size2D(4,4)))
 
 def cellImage2display(cellImage, background = None,
                       nodeColor = vigra.Pixel(0, 0, 255),
