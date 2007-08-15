@@ -6,8 +6,6 @@ __all__ = ["levelSetMap", "marchingSquares"]
 
 # TODO:
 # 1) *border handling* in followContour() (predictorStep, correctorStep)!
-# 2) make levelSetMap work with a SIV with level != 0
-#    (cf. marchingSquares)
 # 3) make followContour() check for both possible intersections
 #    and remove the duplicate filtering (cf. levelcontours_both_intersections.diff)
 # 4) don't store zc positions in a GeoMap, but use a PositionedMap and
@@ -16,7 +14,7 @@ __all__ = ["levelSetMap", "marchingSquares"]
 # 5) try larger stepsizes and a good criterion for decreasing h
 #    (e.g. the size of the corrector step?!)
 
-def findZeroCrossingsOnGrid(siv, minDist = 0.1):
+def findZeroCrossingsOnGrid(siv, level, minDist = 0.1):
     result = []
     existing = hourglass.PositionedMap()
     minDist2 = minDist*minDist
@@ -31,6 +29,7 @@ def findZeroCrossingsOnGrid(siv, minDist = 0.1):
             coeff = siv.coefficients(x, y)
 
             xPoly = [coeff[k,0] for k in range(coeff.width())]
+            xPoly[0] -= level
             try:
                 for k in vigra.polynomialRealRoots(xPoly):
                     if k < 0.0 or k >= 1.0:
@@ -40,6 +39,7 @@ def findZeroCrossingsOnGrid(siv, minDist = 0.1):
                 sys.stderr.write("WARNING: no convergence in polynomialRealRoots(%s):\n  %s\n" % (xPoly, e))
 
             yPoly = [coeff[0,k] for k in range(coeff.height())]
+            yPoly[0] -= level
             try:
                 for k in vigra.polynomialRealRoots(yPoly):
                     if k < 0.0 or k >= 1.0:
@@ -67,10 +67,8 @@ def predictorStep(siv, pos, h):
         return None
     return result
 
-def correctorStep(siv, pos, epsilon = 1e-8):
-    """correctorStep(siv, pos, epsilon = 1e-8) -> Vector2
-
-    Perform corrector step, i.e. perform 1D iterative Newton method in
+def correctorStep(siv, level, pos, epsilon = 1e-8):
+    """Perform corrector step, i.e. perform 1D iterative Newton method in
     direction of gradient in order to return to zero level (with
     accuracy given by epsilon)."""
     
@@ -79,7 +77,7 @@ def correctorStep(siv, pos, epsilon = 1e-8):
     n /= n.magnitude()
 
     for k in range(100):
-        value = siv(x, y)
+        value = siv(x, y) - level
         if abs(value) < epsilon:
             break
         
@@ -101,10 +99,10 @@ def correctorStep(siv, pos, epsilon = 1e-8):
 
     return Vector2(x, y)
 
-def predictorCorrectorStep(siv, pos, h, epsilon):
+def predictorCorrectorStep(siv, level, pos, h, epsilon):
     while abs(h) > 1e-6:
         p1 = predictorStep(siv, pos, h)
-        p2 = correctorStep(siv, p1, epsilon)
+        p2 = correctorStep(siv, level, p1, epsilon)
         if not p2 or (p2 - p1).squaredMagnitude() > h:
             h /= 2.0
             continue
@@ -116,7 +114,7 @@ def predictorCorrectorStep(siv, pos, h, epsilon):
 
 # --------------------------------------------------------------------
 
-def followContour(siv, geomap, nodeLabel, h):
+def followContour(siv, level, geomap, nodeLabel, h):
     #global pos, ip, poly, startNode, diff, npos, nip, intersection
     startNode = geomap.node(nodeLabel)
     pos = startNode.position()
@@ -124,7 +122,7 @@ def followContour(siv, geomap, nodeLabel, h):
     iy = int(pos[1])
     poly = [pos]
     while True:
-        npos, nh = predictorCorrectorStep(siv, pos, h, 1e-6)
+        npos, nh = predictorCorrectorStep(siv, level, pos, h, 1e-6)
         h = max(min(h, nh), 1e-5)
         nix = int(npos[0])
         niy = int(npos[1])
@@ -160,19 +158,15 @@ def followContour(siv, geomap, nodeLabel, h):
         poly.append(npos)
         pos = npos
 
-def levelSetMap(image, threshold, sigma = None):
-    if threshold:
-        siv = vigra.SplineImageView3(
-            vigra.transformImage(image, "\l x: x - threshold"))
-    else:
-        siv = hasattr(image, "siv") and image.siv or vigra.SplineImageView3(image)
+def levelSetMap(image, level, sigma = None):
+    siv = hasattr(image, "siv") and image.siv or vigra.SplineImageView3(image)
     
-    zc = findZeroCrossingsOnGrid(siv)
+    zc = findZeroCrossingsOnGrid(siv, level)
     result = hourglass.GeoMap(zc, [], image.size())
 
     for node in result.nodeIter():
         if node.isIsolated():
-            followContour(siv, result, node.label(), 0.1)
+            followContour(siv, level, result, node.label(), 0.1)
 
     maputils.mergeDegree2Nodes(result)
     #maputils.connectBorderNodes(result, 0.01)
@@ -302,10 +296,10 @@ def marchingSquares(image, level, variant = True):
 # addPathFromHere("../evaluation/")
 # import edgedetectors
 
-# def levelSetMap(image, threshold, sigma = None):
+# def levelSetMap(image, level, sigma = None):
 #     ed = edgedetectors.EdgeDetector(
 #         bi = "Thresholding", s1 = sigma, nonmax = "zerosSubPixel",
-#         threshold = threshold)
+#         threshold = level)
 #     result, _, _ = ed.computeMap(image)
 #     maputils.mergeDegree2Nodes(result)
 #     return result
