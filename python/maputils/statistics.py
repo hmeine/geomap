@@ -148,9 +148,8 @@ def superSample(face, level = 2):
 
 # new API: does not touch the Face objects themselves
 class _FaceColorStatistics(DynamicFaceStatistics):
-    def __init__(self, map, originalImage,
-                 defaultValue = None, minSampleCount = 1,
-                 SIV = SplineImageView5):
+    def __init__(self, map, originalImage, minSampleCount = 1,
+                 defaultValue = None, SIV = SplineImageView5):
         DynamicFaceStatistics.__init__(self, map)
         self.originalImage = originalImage
 
@@ -204,6 +203,8 @@ class _FaceColorStatistics(DynamicFaceStatistics):
         if not self._origSIV:
             if self.bands() == 3:
                 self._origSIV = sivtools.ThreeBandSIVProxy(self.originalImage, self._SIV)
+            elif self.bands() == 2:
+                self._origSIV = sivtools.GradientSIVProxy(self.originalImage, self._SIV)
             else:
                 self._origSIV = self._SIV(self.originalImage)
         for pos in superSample(face, level):
@@ -328,8 +329,7 @@ def FaceColorStatistics(map, originalImage, minSampleCount = 1):
     elif originalImage.bands() == 3:
         return FaceRGBStatistics(map, originalImage, minSampleCount)
     else:
-        return _FaceColorStatistics(map, originalImage, minSampleCount,
-                                    SIV = sivtools.GradientSIVProxy)
+        return _FaceColorStatistics(map, originalImage, minSampleCount)
 
 def faceAreaHomogenity(dart):
     a1 = dart.leftFace().area()
