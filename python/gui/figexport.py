@@ -1,10 +1,11 @@
-import os, sys, qt, fig
+import os, sys, qt, fig, math
 
-from vigra import Vector2, readImage, Rect2D, Point2D, meshIter
+from vigra import Vector2, readImage, Rect2D, Point2D, Size2D, meshIter
 import vigrapyqt
 from hourglass import BoundingBox, Polygon, simplifyPolygon, intPos, contourPoly
 from dartpath import Path
 from polytools import clipPoly
+import flag_constants
 
 import qt, fig
 _qtColor2figColorMapping = {
@@ -23,6 +24,10 @@ def qtColor2figColor(color, figFile):
         return _qtColor2figColorMapping[color]
     except KeyError:
         return figFile.getColor((color.red(), color.green(), color.blue()))
+
+def figRect(rect2d):
+    return fig.Rect(rect2d.left(), rect2d.top(),
+                    rect2d.right(), rect2d.bottom())
 
 class FigExporter:
     """FigExporter objects represent an image range at a given scale,
@@ -74,7 +79,7 @@ class FigExporter:
 
         Maps a pixel position to fig coordinates in the same way in
         which e.g. polygon points are mapped by addEdge()."""
-        result = (pos + self.offset)
+        result = (self.offset + pos)
         if self.roi:
             result -= self.roi.begin()
         result *= self.scale
@@ -178,6 +183,8 @@ class FigExporter:
         assert rect or labels or fill
         if rect is None:
             rect = Rect2D((labels or fill).size())
+        elif not hasattr(rect, "upperLeft"):
+            rect = Rect2D(Size2D(rect[0], rect[1]))
         
         if container == True:
             container = self.f
@@ -212,6 +219,17 @@ class FigExporter:
             result.append(pixelRect)
         return result
 
+    def addText(self, position, text, container = True, **attr):
+        if container == True:
+            container = self.f
+
+        textX, textY = self.position2Fig(position)
+        obj = fig.Text(textX, textY, text)
+        for a in attr:
+            setattr(obj, a, attr[a])
+        container.append(obj)
+        return obj
+
     def addEdge(self, points, simplifyEpsilon = 0.5, container = True, **attr):
         """fe.addEdge(points, simplifyEpsilon, ...)
 
@@ -229,7 +247,7 @@ class FigExporter:
         o = self.offset + attr.get('offset', Vector2(0,0))
         if self.roi:
             o = o - self.roi.begin() # don't modify in-place!
-        pp = Polygon([(point + o) * self.scale for point in points])
+        pp = Polygon([(o + point) * self.scale for point in points])
         if simplifyEpsilon:
             pp = simplifyPolygon(pp, simplifyEpsilon)
         fp = fig.Polygon([intPos(v) for v in pp],
@@ -324,7 +342,7 @@ class FigExporter:
             if self.roi:
                 radiusOff = Vector2(radius, radius)
                 circleBounds = BoundingBox(
-                    point + o - radiusOff, point + o + radiusOff)
+                    o + point - radiusOff, o + point + radiusOff)
                 if not self.roi.contains(circleBounds):
                     continue # FIXME: add arcs if intersects
             p = intPos((Vector2(point[0], point[1]) + o2) * self.scale)
@@ -334,6 +352,21 @@ class FigExporter:
             if returnIndices:
                 result.append((i, dc))
             compound.append(dc)
+
+        return result
+
+    def addEdgels(self, edgels, length, container = True, **attr):
+        if container == True:
+            container = self.f
+
+        result = fig.Compound(container)
+
+        for edgel in edgels:
+            pos = Vector2(edgel.x, edgel.y)
+            c =  math.cos(edgel.orientation)*length/2
+            s = -math.sin(edgel.orientation)*length/2
+            self.addClippedPoly([pos+(c,s), pos-(c,s)],
+                                container = result, **attr)
 
         return result
 
@@ -427,10 +460,9 @@ class FigExporter:
             result = [(nodes[i], circle) for i, circle in result]
         return result
 
-    def addMapEdges(self, map, returnEdges = False, container = True, **attr):
-        """fe.addMapEdges(map, ...)
-
-        Adds and returns fig.Polygons for all map edges (or -parts,
+    def addMapEdges(self, map, skipBorder = False,
+                    returnEdges = False, container = True, **attr):
+        """Adds and returns fig.Polygons for all map edges (or -parts,
         see addClippedPoly).  If no penColor is given, only edges with
         a valid 'color' attribute are exported (can be either a fig or
         a Qt color).
@@ -453,6 +485,8 @@ class FigExporter:
             result = compound
 
         for edge in map.edgeIter():
+            if skipBorder and edge.flag(flag_constants.BORDER_PROTECTION):
+                continue
             if attr.has_key("penColor"):
                 parts = self.addClippedPoly(edge, container = compound, **attr)
             elif hasattr(edge, "color") and edge.color:
