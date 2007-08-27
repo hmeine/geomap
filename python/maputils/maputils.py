@@ -360,9 +360,9 @@ def subpixelWatershedMap(
         if not hasattr(biTensor, "siv"):
             biTensor.siv = sivtools.TensorSIVProxy(biTensor)
         if saddleOrthoGrad:
-            filter = SaddleOrthogonalGradientFilter(siv, biTensor, saddleOrthoGrad)
+            filter = SaddleOrthogonalGradientFilter(siv, biTensor.siv, saddleOrthoGrad)
         else:
-            filter = SaddleDirectionMatchFilter(siv, biTensor, saddleDirMatch)
+            filter = SaddleDirectionMatchFilter(siv, biTensor.siv, saddleDirMatch)
 
     maxima, flowlines = subpixelWatershedData(
         spws, siv, filter, mask,
@@ -652,7 +652,8 @@ def copyMapContents(sourceMap, destMap = None, edgeTransform = None):
     You can pass an optional edgeTransform to map edges to other
     Polygons: edgeTransform may be a callable that is called with Edge
     instances and must return an object suitable as the geometry
-    parameter of GeoMap.addEdge.
+    parameter of GeoMap.addEdge.  If None is returned, the edge is
+    skipped.
 
     Returns a tuple (destMap, nodes, edges), where nodes and edges are
     lists that map source nodes/edges onto their new counterparts in
@@ -678,6 +679,8 @@ def copyMapContents(sourceMap, destMap = None, edgeTransform = None):
         geometry = edge
         if edgeTransform:
             geometry = edgeTransform(geometry)
+            if geometry is None:
+                continue
 
         startNeighbor = nodes[edge.startNodeLabel()]
         if startNeighbor == None:
@@ -715,8 +718,9 @@ def copyMapContents(sourceMap, destMap = None, edgeTransform = None):
             if neighbor.label() < 0:
                 endNeighbor.nextAlpha()
 
-        edges[edge.label()] = destMap.addEdge(
-            startNeighbor, endNeighbor, geometry)
+        newEdge = destMap.addEdge(startNeighbor, endNeighbor, geometry)
+        newEdge.setFlag(edge.flags()) # retain Edge flags
+        edges[edge.label()] = newEdge
 
     # now add isolated nodes:
     for node in sourceMap.nodeIter():
@@ -1299,7 +1303,9 @@ class AutomaticRegionMerger(object):
         if q == None:
             q = hourglass.DynamicCostQueue(map.maxEdgeLabel()+1)
             for edge in map.edgeIter():
-                q.insert(edge.label(), mergeCostMeasure(edge.dart()))
+                cost = mergeCostMeasure(edge.dart())
+                if cost is not None:
+                    q.insert(edge.label(), cost)
         
         self._queue = q
         self._costLog = None
@@ -1347,7 +1353,9 @@ class AutomaticRegionMerger(object):
                 q = self._queue
                 mcm = self._mergeCostMeasure
                 for dart in contourDarts(survivor):
-                    q.setCost(dart.edgeLabel(), mcm(dart))
+                    cost = mcm(dart)
+                    if cost is not None:
+                        q.setCost(dart.edgeLabel(), cost)
 
         if survivor:
             if self._costLog is not None:
@@ -1527,7 +1535,14 @@ def showHomotopyTree(face, indentation = ""):
             showHomotopyTree(hole, indentation + "  ")
 
 def edgeAtBorder(edge):
+    """Return True iff edge has the BORDER_PROTECTION flag set."""
     return edge.flag(flag_constants.BORDER_PROTECTION)
+
+def nonBorderEdges(map):
+    """Iterate over all edges that do not have the BORDER_PROTECTION flag."""
+    for edge in map.edgeIter():
+        if not edge.flag(flag_constants.BORDER_PROTECTION):
+            yield edge
 
 def nodeAtBorder(node):
     """nodeAtBorder(node) -> bool
