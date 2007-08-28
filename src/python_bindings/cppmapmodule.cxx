@@ -172,6 +172,11 @@ class SimpleCallback
         disconnect();
     }
 
+    bool connected() const
+    {
+        return connections_.size() && connections_[0].connected();
+    }
+
     void disconnect()
     {
         for(unsigned int i = 0; i < connections_.size(); ++i)
@@ -776,6 +781,17 @@ std::string Dart__repr__(GeoMap::Dart const &dart)
     return s.str();
 }
 
+std::string SimpleCallback__repr__(SimpleCallback const &cb)
+{
+    std::stringstream s;
+    s << "<SimpleCallback, ";
+    if(cb.connected())
+        s << "active>";
+    else
+        s << "detached>";
+    return s.str();
+}
+
 template<class T>
 T returnCopy(const T &v)
 {
@@ -844,7 +860,7 @@ class FaceColorStatisticsWrapper
     {
         def("__init__", make_constructor(
                 &create,
-                // FaceColorStatistics store a ref. to originalImage,
+                // FaceColorStatistics stores a ref. to originalImage,
                 // actually also to the map, but we need to prevent
                 // cyclic dependencies:
                 bp::default_call_policies(), // FIXME!!
@@ -1460,6 +1476,8 @@ void defMap()
                  "Disconnect this callback.  This operation is not\n"
                  "reversible, you have to reconnect in the same way as before to\n"
                  "aquire a new `SimpleCallback`.")
+            .def("connected", &SimpleCallback::connected)
+            .def("__repr__", &SimpleCallback__repr__)
         ;
 
         def("addRemoveNodeCallback", &addRemoveNodeCallback,
