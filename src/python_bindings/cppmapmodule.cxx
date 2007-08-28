@@ -483,6 +483,11 @@ GeoMap__deepcopy__(bp::object map, bp::dict memo)
     GeoMap *newMap(new GeoMap(bp::extract<const GeoMap &>(map)));
     bp::object result(bp::detail::new_reference(bp::managingPyObject(newMap)));
 
+    // HACK: mapId shall be the same as the result of id(map) in Python -
+    // please tell me that there is a better way! (and which ;-p)
+    int mapId = (int)(map.ptr());
+    memo[mapId] = result;
+
     bp::extract<bp::dict>(result.attr("__dict__"))().update(
         deepcopy(bp::extract<bp::dict>(map.attr("__dict__"))(), memo));
 
