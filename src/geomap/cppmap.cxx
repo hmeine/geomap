@@ -315,10 +315,12 @@ void GeoMap::sortEdgesDirectly()
         int predecessor = dartAngles[0].second;
         for(unsigned int i = 1; i < dartAngles.size(); ++i)
         {
-            vigra_precondition(
-                dartAngles[i-1].first != dartAngles[i].first,
-                "sortEdgesDirectly: edges leave node at identical angles!");
-
+            if(dartAngles[i-1].first == dartAngles[i].first)
+            {
+                std::stringstream s;
+                s << "sortEdgesDirectly: edges leave node " << (*it)->label() << " at identical angles!";
+                vigra_precondition(false, s.str());
+            }
             sigmaMapping_[predecessor] = dartAngles[i].second;
             sigmaInverseMapping_[dartAngles[i].second] = predecessor;
             predecessor = dartAngles[i].second;
