@@ -211,11 +211,11 @@ int tangentDSL(FreemanCodeIter freemanCodesBegin,
             else
                 return 0;
         }
-        else if(forwardIter == freemanCodesStart)
-            return 0;
+        vigra_assert(forwardIter != freemanCodesStart,
+                     "even for closed crack-edge polygons, we should not cycle!");
 
         // advance backwardIter
-        if(backwardIter == freemanCodesStart)
+        if(backwardIter == freemanCodesBegin)
         {
             if(closed)
                 backwardIter = freemanCodesEnd;
@@ -223,8 +223,8 @@ int tangentDSL(FreemanCodeIter freemanCodesBegin,
                 return 0;
         }
         --backwardIter;
-        if(backwardIter == freemanCodesStart)
-            return 0;
+        vigra_assert(backwardIter == freemanCodesStart,
+                     "even for closed crack-edge polygons, we should not cycle!");
 
         // check whether we have two different codes now:
         if(*forwardIter != fc2)
@@ -284,10 +284,8 @@ int tangentDSL(FreemanCodeIter freemanCodesBegin,
             else
                 break;
         }
-        else if(forwardIter == freemanCodesStart)
-            break;
 
-        if(backwardIter == freemanCodesStart)
+        if(backwardIter == freemanCodesBegin)
         {
             if(closed)
                 backwardIter = freemanCodesEnd;
@@ -295,8 +293,6 @@ int tangentDSL(FreemanCodeIter freemanCodesBegin,
                 break;
         }
         --backwardIter;
-        if(backwardIter == freemanCodesStart)
-            break;
     }
 
     return dist;
