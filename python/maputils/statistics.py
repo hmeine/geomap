@@ -41,6 +41,24 @@ class DetachableStatistics(object):
         self._map = weakref.ref(map)
         self._attachHooks()
 
+    def __repr__(self):
+        map = ", no map"
+
+        if not hasattr(self, "_attachedHooks"):
+            hooks = "not attached"
+            map = ""
+        elif not self._attachedHooks:
+            hooks = "no hooks"
+        else:
+            active = self._attachedHooks[0].connected() and "active" or "detached"
+            hooks = "%d %s hooks" % (len(self._attachedHooks), active)
+
+        if self._map():
+            addr = id(self._map()) + 0x100000000L
+            map = " for GeoMap @0x%8x" % addr
+
+        return "<%s, %s%s>" % (self.__class__.__name__, hooks, map)
+
 def _combinedMeasure(dart, weightedMeasures):
     cost = 0.0
     for weight, measure in weightedMeasures:
@@ -308,17 +326,11 @@ class _FaceColorStatistics(DynamicFaceStatistics):
         f2 = self.faceMeanFunctor(dart.rightFaceLabel())
         return abs(f1.stdDeviation() - f2.stdDeviation())
 
-    # FIXME: wrap in sqrt?
-    def faceHomogenity(self, d):
-        return math.sq(self.faceMeanDiff(d)) * faceAreaHomogenity(d)
+    def faceHomogeneity2(self, d):
+        return math.sq(self.faceMeanDiff(d)) * faceAreaHomogeneity(d)
 
-    # FIXME: double-check, comment on deficiencies
-    def faceTTest(self, dart):
-        f1 = self.faceMeanFunctor(dart.leftFaceLabel())
-        f2 = self.faceMeanFunctor(dart.rightFaceLabel())
-        return norm(f1.average() - f2.average()) / \
-           max(math.sqrt(f1.variance() / f1.pixelCount + \
-                         f2.variance() / f2.pixelCount), 1e-3)
+    def faceHomogeneity(self, d):
+        return math.sqrt(self.faceHomogeneity2(d))
 
 FaceGrayStatistics.bands = lambda x: 1
 FaceRGBStatistics.bands = lambda x: 3
@@ -331,7 +343,7 @@ def FaceColorStatistics(map, originalImage, minSampleCount = 1):
     else:
         return _FaceColorStatistics(map, originalImage, minSampleCount)
 
-def faceAreaHomogenity(dart):
+def faceAreaHomogeneity(dart):
     a1 = dart.leftFace().area()
     a2 = dart.rightFace().area()
     return (a1 * a2) / (a1 + a2)
@@ -456,6 +468,7 @@ class EdgeMergeTree(DynamicEdgeStatistics):
         return result
 
 class DynamicEdgeIndices(DetachableStatistics):
+    __base = DetachableStatistics
     __slots__ = ["_indices",
                  "_mergedIndices", "_newIndices1", "_newIndices2"]
     
@@ -469,6 +482,13 @@ class DynamicEdgeIndices(DetachableStatistics):
                                                self.postMergeEdges),
             self._map().addSplitEdgeCallbacks(self.preSplitEdge,
                                               self.postSplitEdge))
+
+    def __getstate__(self):
+        return self.__base.__getstate__(self) + (self._indices, )
+
+    def __setstate__(self, (map, indices)):
+        self.__base.__setstate__(self, (map, ))
+        self._indices = indices
 
     def edgeIndices(self, edge):
         if hasattr(edge, "label"):
@@ -557,13 +577,11 @@ class WatershedStatistics(DynamicEdgeIndices):
         self._attachHooks()
 
     def __getstate__(self):
-        return self.__base.__getstate__(self) + (
-            self._passValues, self._indices)
+        return self.__base.__getstate__(self) + (self._passValues, )
 
-    def __setstate__(self, (map, passValues, indices)):
-        self.__base.__setstate__(self, (map, ))
+    def __setstate__(self, (map, indices, passValues)):
+        self.__base.__setstate__(self, (map, indices))
         self._passValues = passValues
-        self._indices = indices
         self._gmSiv = None
 
     def nonWatershedEdgesAdded(self):
@@ -732,12 +750,20 @@ def _makeAttrName(someStr):
     return someStr.translate(attrTrans)
 
 class BoundaryIndicatorStatistics(DynamicEdgeStatistics):
+    __base = DynamicEdgeStatistics
     __slots__ = ["_functors",
                  "_mergedStats"]
     
     def __init__(self, map):
         DynamicEdgeStatistics.__init__(self, map)
         self._functors = [None] * map.maxEdgeLabel()
+
+    def __getstate__(self):
+        return self.__base.__getstate__(self) + (self._functors, )
+
+    def __setstate__(self, (map, functors)):
+        self.__base.__setstate__(self, (map, ))
+        self._functors = functors
 
     def preMergeEdges(self, dart):
         self._mergedStats = copy.copy(self._functors[dart.edgeLabel()])
