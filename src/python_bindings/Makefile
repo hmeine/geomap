@@ -8,6 +8,11 @@ include $(INT2BUILDDIR)/config/Makefile.include
 # at KOGS, try: module add pkgconfig libsigc++
 LOCAL_CPPFLAGS = -I. -I../cellimage `pkg-config --cflags sigc++-2.0`
 
+# define this if you have installed John Maddock's math_toolkit from
+# the boost vault (which is needed for proper t-test support),
+# see http://johnmaddock.co.uk/
+# LOCAL_CPPFLAGS += -DHAVE_MATH_TOOLKIT
+
 CXXFLAGS += -Wall -Wno-strict-aliasing
 #CXXFLAGS += -g -W
 CXXFLAGS += -O3 -DNDEBUG

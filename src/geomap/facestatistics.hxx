@@ -7,6 +7,10 @@
 #include <vigra/splineimageview.hxx>
 #include <cmath>
 
+#ifdef HAVE_MATH_TOOLKIT
+#include <boost/math/distributions/students_t.hpp>
+#endif
+
 namespace detail {
 
 template<class FACE_STATS>
@@ -22,7 +26,12 @@ class InitFaceFunctors
     void operator()(int label, const typename FACE_STATS::argument_type &v) const
     {
         if(label >= 0)
-            (*stats_[label])(v);
+        {
+            vigra_assert(
+                (unsigned int)label < stats_.size() && stats_[(unsigned int)label],
+                "invalid functor index during initalization");
+            (*stats_[(unsigned int)label])(v);
+        }
     }
 };
 
@@ -40,7 +49,12 @@ class LookupFaceAverage
     operator()(int label) const
     {
         if(label >= 0)
+        {
+            vigra_assert(
+                (unsigned int)label < stats_.size() && stats_[(unsigned int)label],
+                "invalid functor index in lookup functor");
             return stats_[label]->average();
+        }
         return typename FACE_STATS::result_type();
     }
 };
@@ -48,6 +62,21 @@ class LookupFaceAverage
 } // namespace detail
 
 /********************************************************************/
+
+template<class Scalar>
+Scalar clampedScalarVariance(Scalar s)
+{
+    return std::max(s, (Scalar)(1/12.));
+}
+
+template<class Scalar, int Dim>
+Scalar clampedScalarVariance(vigra::TinyVector<Scalar, Dim> s)
+{
+    Scalar result(0.0);
+    for(int i = 0; i < Dim; ++i)
+        result += clampedScalarVariance(s[i]);
+    return result;
+}
 
 template<class OriginalImage>
 class FaceColorStatistics : boost::noncopyable
@@ -91,6 +120,11 @@ class FaceColorStatistics : boost::noncopyable
 
     bool preMergeFaces(const GeoMap::Dart &dart)
     {
+        vigra_assert(
+            dart.leftFaceLabel() < size() && functors_[dart.leftFaceLabel()] &&
+            dart.rightFaceLabel() < size() && functors_[dart.rightFaceLabel()],
+            "invalid face labels in preMergeFaces");
+
         if(superSampled_.get())
         {
             unsigned char ssLeft((*superSampled_)[dart.leftFaceLabel()]);
@@ -124,6 +158,10 @@ class FaceColorStatistics : boost::noncopyable
 
     void postMergeFaces(GeoMap::Face &face)
     {
+        vigra_assert(
+            face.label() < size() && functors_[face.label()],
+            "invalid survivor label in postMergeFaces");
+
         *functors_[face.label()] = merged_;
         if(superSampled_.get())
         {
@@ -136,38 +174,67 @@ class FaceColorStatistics : boost::noncopyable
 
     void associatePixels(GeoMap::Face &face, const PixelList &pixels)
     {
+        vigra_assert(
+            face.label() < size() && functors_[face.label()],
+            "invalid survivor label in associatePixels");
+
         Functor &f(*functors_[face.label()]);
         for(PixelList::const_iterator it = pixels.begin();
             it != pixels.end(); ++it)
         {
-            f(originalImage_[*it]);
+#ifndef NDEBUG
+            if(originalImage_.isInside(*it))
+#endif
+                f(originalImage_[*it]);
         }
     }
 
-    double faceMeanDiff(const GeoMap::Dart &dart)
+    double faceMeanDiff(const GeoMap::Dart &dart) const
     {
         return vigra::norm(average(dart.leftFaceLabel()) -
                            average(dart.rightFaceLabel()))
             / maxDiffNorm_;
     }
 
-    double faceAreaHomogenity(const GeoMap::Dart &dart)
+    double faceAreaHomogeneity(const GeoMap::Dart &dart) const
     {
         double a1 = dart.leftFace()->area();
         double a2 = dart.rightFace()->area();
         return (a1 * a2) / (a1 + a2);
     }
 
-    double faceHomogenity2(const GeoMap::Dart &dart)
+    double faceHomogeneity2(const GeoMap::Dart &dart) const
     {
         return vigra::squaredNorm(faceMeanDiff(dart))
-            * faceAreaHomogenity(dart);
+            * faceAreaHomogeneity(dart);
     }
 
-    double faceHomogenity(const GeoMap::Dart &dart)
+    double faceHomogeneity(const GeoMap::Dart &dart) const
     {
-        return std::sqrt(faceHomogenity2(dart));
+        return std::sqrt(faceHomogeneity2(dart));
     }
+
+#ifdef HAVE_MATH_TOOLKIT
+    double faceTTest(const GeoMap::Dart &dart) const
+    {
+        double
+            sigma1_2 = clampedScalarVariance(variance(dart.leftFaceLabel(), true)),
+            sigma2_2 = clampedScalarVariance(variance(dart.rightFaceLabel(), true)),
+            N1 = pixelCount(dart.leftFaceLabel()),
+            N2 = pixelCount(dart.rightFaceLabel()),
+            sigmaExpr = (sigma1_2 / N1 + sigma2_2 / N2),
+            t = (vigra::norm(average(dart.leftFaceLabel()) -
+                             average(dart.rightFaceLabel())) /
+                 std::sqrt(sigmaExpr)),
+            // this formula does *not* assume equal variances:
+            dof = vigra::sq(sigmaExpr) / (
+                vigra::sq(sigma1_2/N1)/(N1-1) + vigra::sq(sigma2_2/N2)/(N2-1));
+
+        using namespace boost::math;
+        students_t stud(dof);
+        return cdf(complement(stud, t));
+    }
+#endif
 
     template<class DEST_ITERATOR, class DEST_ACCESSOR>
     void copyRegionImage(DEST_ITERATOR dul, DEST_ACCESSOR da) const;
@@ -206,6 +273,11 @@ class FaceColorStatistics : boost::noncopyable
             if(connections_[i].connected())
                 connections_[i].disconnect();
         connections_.clear();
+    }
+
+    unsigned int superSampledCount() const
+    {
+        return superSampledCount_;
     }
 
   protected:

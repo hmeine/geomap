@@ -879,16 +879,21 @@ class FaceColorStatisticsWrapper
         def("variance", &variance);
 
         def("faceMeanDiff", &Statistics::faceMeanDiff);
-        def("faceHomogenity", &Statistics::faceHomogenity);
-        def("faceAreaHomogenity", &Statistics::faceAreaHomogenity);
+        def("faceHomogeneity", &Statistics::faceHomogeneity);
+        def("faceAreaHomogeneity", &Statistics::faceAreaHomogeneity);
+#ifdef HAVE_MATH_TOOLKIT
+        def("faceTTest", &Statistics::faceTTest);
+#endif
 
         def("regionImage", &regionImage);
         def("regionImage", &convertToRegionMeans);
 
         def("detachHooks", &Statistics::detachHooks);
+
+        def("superSampledCount", &Statistics::superSampledCount);
     }
 
-    static void
+    static inline void
     checkFaceLabel(Statistics const &stats, CellLabel faceLabel)
     {
         if((unsigned int)faceLabel >= stats.size())
@@ -1331,6 +1336,7 @@ void defMap()
             .def("contours", &faceContours)
             .def("holeContours", &faceHoleContours)
             .def("holeCount", &GeoMap::Face::holeCount)
+            .def("scanLines", &GeoMap::Face::scanLines)
             .def("flags", &GeoMap::Face::flags)
             .def("flag", &GeoMap::Face::flag, arg("which"))
             .def("setFlag", &GeoMap::Face::setFlag,
