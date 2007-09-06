@@ -71,7 +71,9 @@ img.spws = SubPixelWatersheds5(img.gm)
 
 import maputils
 maxima, flowlines = maputils.subpixelWatershedData(
-    img.spws, img.gm.siv, 0.7, perpendicularDistEpsilon = None)
+    img.spws, img.gm.siv,
+    maputils.PassValueFilter(img.gm.siv, 0.7),
+    perpendicularDistEpsilon = None)
 
 map = GeoMap(maxima, [], img.size())
 maputils.addFlowLinesToMap(flowlines, map)
