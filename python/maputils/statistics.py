@@ -470,11 +470,13 @@ class EdgeMergeTree(DynamicEdgeStatistics):
 class DynamicEdgeIndices(DetachableStatistics):
     __base = DetachableStatistics
     __slots__ = ["_indices",
-                 "_mergedIndices", "_newIndices1", "_newIndices2"]
+                 "_mergedIndices", "_newIndices1", "_newIndices2", "_mergeLabels"]
     
     def __init__(self, map):
         DetachableStatistics.__init__(self, map)
-        self._indices = [[] for i in range(map.maxEdgeLabel())]
+        self._indices = [None] * map.maxEdgeLabel()
+        for edge in map.edgeIter():
+            self._indices[edge.label()] = []
     
     def _attachHooks(self):
         self._attachedHooks = (
@@ -508,6 +510,7 @@ class DynamicEdgeIndices(DetachableStatistics):
         
         edge1 = dart.edge()
         edge2 = dart.clone().nextSigma().edge()
+        self._mergeLabels = (edge1.label(), edge2.label())
 
         if dart.label() < 0:
             # dart.edge() will be simply extend()ed
@@ -528,6 +531,10 @@ class DynamicEdgeIndices(DetachableStatistics):
 
     def postMergeEdges(self, survivor):
         self._indices[survivor.label()] = self._mergedIndices
+        if self._mergeLabels[0] == survivor.label():
+            self._indices[self._mergeLabels[1]] = None
+        else:
+            self._indices[self._mergeLabels[0]] = None
 
     def preSplitEdge(self, edge, segmentIndex, newPoint):
         oldIndices = self._indices[edge.label()]
@@ -620,6 +627,11 @@ class WatershedStatistics(DynamicEdgeIndices):
         self.__base.postMergeEdges(self, survivor)
 
         self._passValues[survivor.label()] = self._mergedPV
+
+        if self._mergeLabels[0] == survivor.label():
+            self._passValues[self._mergeLabels[1]] = None
+        else:
+            self._passValues[self._mergeLabels[0]] = None
 
     def _resetPassValue(self, edge):
         # SIV cannot be pickled:
