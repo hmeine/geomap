@@ -9,14 +9,15 @@ include $(INT2BUILDDIR)/config/Makefile.include
 LOCAL_CPPFLAGS = -I. -I../cellimage `pkg-config --cflags sigc++-2.0`
 
 # define this if you have installed John Maddock's math_toolkit from
-# the boost vault (which is needed for proper t-test support),
-# see http://johnmaddock.co.uk/
-# LOCAL_CPPFLAGS += -DHAVE_MATH_TOOLKIT
+# the boost vault (which is needed for proper t-test support), see
+# http://johnmaddock.co.uk/ or just do the following here in hourglass/:
+#  svn co http://svn.boost.org/svn/boost/sandbox/math_toolkit/boost
+#LOCAL_CPPFLAGS += -DHAVE_MATH_TOOLKIT
 
 CXXFLAGS += -Wall -Wno-strict-aliasing
 #CXXFLAGS += -g -W
 CXXFLAGS += -O3 -DNDEBUG
-CPPFLAGS += $(LOCAL_CPPFLAGS)
+CPPFLAGS = $(LOCAL_CPPFLAGS) $(CPPFLAGS)
 LIBCPPFLAGS += $(LOCAL_CPPFLAGS)
 TARGET = hourglassmodule.la
 MODULE = $(patsubst %.la,%.so,$(TARGET))
