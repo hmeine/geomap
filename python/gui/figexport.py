@@ -179,7 +179,7 @@ class FigExporter:
         return bgImage
 
     def addPixelRaster(self, rect = None, labels = None, fill = None,
-                       container = True, **attr):
+                       container = True, labelType = int, **attr):
         assert rect or labels or fill
         if rect is None:
             rect = Rect2D((labels or fill).size())
@@ -205,7 +205,7 @@ class FigExporter:
                 textY = (boxY1 + boxY2) / 2
 
                 label = fig.Text(textX, textY,
-                                 str(int(labels[x, y])), fig.alignCentered)
+                                 str(labelType(labels[x, y])), fig.alignCentered)
                 label.y += label.height / 2
 
                 label.depth = pixelRect.depth - 10
@@ -371,7 +371,7 @@ class FigExporter:
         return result
 
     def _setOverlayColor(self, overlay, colorAttr, attr):
-        """Set color from overlay attributes."""
+        """Set color (and possibly line width) from overlay attributes."""
         if colorAttr not in attr:
             color = overlay.color
             if type(color) == qt.QColor:
@@ -379,7 +379,7 @@ class FigExporter:
             attr[colorAttr] = color
             #print "fetched %s %s from %s" % (colorAttr, color, overlay)
         if hasattr(overlay, "width") and "lineWidth" not in attr:
-            attr["lineWidth"] = overlay.width
+            attr["lineWidth"] = overlay.width + 1
 
     def addPointOverlay(self, pointOverlay, container = True, **attr):
         """See addPointCircles(), this function simply takes the
@@ -504,7 +504,7 @@ class FigExporter:
 
         return result
 
-    def addMapFaces(self, geomap, faceMeans, similarity = None,
+    def addMapFaces(self, geomap, faceMeans = None, similarity = None,
                     returnFaces = False, container = True, **attr):
         """fe.addMapFaces(geomap, faceMeans, ...)
 
@@ -521,6 +521,11 @@ class FigExporter:
         def getRGB(face):
             faceColor = faceMeans[face.label()]
             return self.f.getColor(map(int, tuple(faceColor)), similarity)
+
+        if not faceMeans:
+            if not hasattr(geomap, "faceMeans"):
+                raise ValueError("addMapFaces: need faceMeans for proper coloring")
+            faceMeans = geomap.faceMeans
 
         getFaceColor = getGray
         if faceMeans.bands() == 3:
