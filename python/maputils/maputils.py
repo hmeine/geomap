@@ -50,6 +50,24 @@ class EdgeProtection(object):
         self._attach(map)
         self._map = weakref.ref(map)
 
+    def __repr__(self):
+        map = ", no map"
+
+        if not hasattr(self, "_attachedHooks"):
+            hooks = "not attached"
+            map = ""
+        elif not self._attachedHooks:
+            hooks = "no hooks"
+        else:
+            active = self._attachedHooks[0].connected() and "active" or "detached"
+            hooks = "%d %s hooks" % (len(self._attachedHooks), active)
+
+        if self._map():
+            addr = id(self._map()) + 0x100000000L
+            map = " for GeoMap @0x%8x" % addr
+
+        return "<%s, %s%s>" % (self.__class__.__name__, hooks, map)
+
 def protectFace(face, protect = True, flag = flag_constants.PROTECTED_FACE):
     """Sets the PROTECTED_FACE flag of 'face' according to 'protect'.
     Subsequently, sets the CONTOUR_PROTECTION of each edge in the
@@ -1148,7 +1166,7 @@ def mergeFacesCompletely(dart, removeDegree2Nodes = True):
         if survivor == None:
             survivor = map.mergeFaces(dart) # first common edge
         else:
-            assert survivor == map.removeBridge(dart)
+            map.removeBridge(dart)
 
     for nodeLabel in affectedNodes:
         node = map.node(nodeLabel)
@@ -1330,16 +1348,15 @@ class AutomaticRegionMerger(object):
 
     def mergeStep(self):
         """Fetch next edge from cost queue and remove it from the map.
-        If the edge is protected, do nothing and return None.
-        Else, return the surviving Face."""
         
-        while True:
-            edgeLabel, cost = self._queue.pop()
-            edge = self._map.edge(edgeLabel)
-            if edge:
-                break
-
-        if edge.flag(flag_constants.ALL_PROTECTION):
+        If the edge is protected or nonexistent, do nothing and return
+        None (i.e. not every call results in a merge step!).  Else,
+        return the surviving Face and increment the step counter
+        (cf. step())."""
+        
+        edgeLabel, cost = self._queue.pop()
+        edge = self._map.edge(edgeLabel)
+        if not edge or edge.flag(flag_constants.ALL_PROTECTION):
             return
 
         d = edge.dart()
