@@ -1,8 +1,9 @@
 _cvsVersion = "$Id$" \
               .split(" ")[2:-2]
 
-import fig, figexport, maputils, flag_constants, qt, sys, os, time, tools, vigra
-from vigra import Point2D, Rect2D, Vector2, GrayImage
+import sys, os, math, time, qt
+import fig, figexport, maputils, flag_constants, tools, vigra
+from vigra import Point2D, Rect2D, Vector2
 from vigrapyqt import ImageWindow, EdgeOverlay, PointOverlay, CircleOverlay
 from hourglass import simplifyPolygon, intPos, BoundingBox, contourPoly
 from maputils import removeCruft, holeComponent
@@ -346,6 +347,9 @@ class DartHighlighter(object):
             for dart in darts:
                 if type(dart) == int:
                     dart = self._map().dart(dart)
+                    if not dart.edge():
+                        sys.stderr.write("WARNING: Cannot highlight nonexisting Dart %d!\n" % dart.label())
+                        continue
                 elif hasattr(dart, "anchor"): # Nodes
                     dart = dart.anchor()
                 elif hasattr(dart, "dart"): # Edges
@@ -442,7 +446,7 @@ class MapDisplay(DisplaySettings):
         elif preparedImage == None:
             preparedImage = map.labelImage()
             if not preparedImage:
-                preparedImage = GrayImage(map.imageSize())
+                preparedImage = vigra.GrayImage(map.imageSize())
 
         self.imageWindow = None # setImage would norm. pass the image on
         if hasattr(preparedImage, "orig"):
@@ -451,16 +455,18 @@ class MapDisplay(DisplaySettings):
                 "colored" : preparedImage.orig,
                 "bi" : preparedImage.bi.gm,
                 }
-            self.setImage(preparedImage.view)
+            preparedImage = preparedImage.view
         else:
             self.images = {}
-            self.setImage(preparedImage)
-        
+            self.setImage(preparedImage) # auto-detects role
+
+        self.image = preparedImage
         self.imageWindow = ImageWindow(self.image, vigra.BYTE, self)
         self.imageWindow.label.hide()
         self.setCentralWidget(self.imageWindow)
         self.viewer = self.imageWindow.viewer
-        self.viewer.autoZoom(4.0)
+        self.viewer.autoZoom()
+        self.addOverlay = self.viewer.addOverlay # convenience
 
         self.map = map
         if not faceMeans and hasattr(map, "faceMeans"):
@@ -509,10 +515,23 @@ class MapDisplay(DisplaySettings):
         self.map = map
         self.edgeOverlay.setMap(map)
         self.nodeOverlay.setMap(map)
-        if self._backgroundMode == 3:
-            self._setImage(self.map.labelImage(),
-                           self.normalizeStates[self._backgroundMode])
         self._dh.setMap(map)
+
+        updatedDisplayImage = None
+        if self._backgroundMode == 3:
+            updatedDisplayImage = self.map.labelImage()
+
+        self.faceMeans = None
+        if hasattr(map, "faceMeans"):
+            self.setFaceMeans(map.faceMeans)
+            if self._backgroundMode == 4:
+                updatedDisplayImage = \
+                    self.faceMeans.regionImage(self.map.labelImage())
+        self._enableImageActions()
+
+        if updatedDisplayImage:
+            self._setImage(updatedDisplayImage,
+                           self.normalizeStates[self._backgroundMode])
 
         if attached:
             self.attachHooks()
@@ -533,6 +552,10 @@ class MapDisplay(DisplaySettings):
         # does not work (maybe qt.PYSIGNAL("captionChanged(QString)")
         # would work?)
         self.statusBar().message(msg)
+
+    def currentRole(self):
+        return ("original", "colored", "bi", "labels", "faceMeans")[
+            self._backgroundMode]
 
     def setBackgroundMode(self, mode):
         if type(mode) != int:
@@ -698,9 +721,15 @@ class MapDisplay(DisplaySettings):
     def navigate(self, dart, center = True):
         if type(dart) == int:
             dart = self.map.dart(dart)
+        elif hasattr(dart, "anchor"):
+            dart = dart.anchor()
+        elif hasattr(dart, "contours"):
+            dart = list(dart.contours())
         self.dn = DartNavigator(dart, self)
         self.dn.show()
         if center:
+            if isinstance(dart, (list, tuple)):
+                dart = dart[0]
             self.viewer.center = dart[0]
             self.viewer.optimizeUpperLeft()
 
@@ -713,21 +742,22 @@ class MapDisplay(DisplaySettings):
 
     def _setImage(self, image, normalize):
         self.image = image
-        if self.imageWindow:
-            self.imageWindow.replaceImage(
-                self.image, normalize and vigra.NBYTE or vigra.BYTE)
+        self.imageWindow.replaceImage(
+            self.image, normalize and vigra.NBYTE or vigra.BYTE)
 
     def setImage(self, image, normalize = True, role = None):
         if role == None:
             if image.bands() == 3:
                 self.images["original"] = vigra.transformImage(
-                    image, "\l x: RGB2Lab(x)")[0]
+#                    image, "\l x: RGB2Lab(x)")[0]
+                    image, "\l x: norm(x)/%r" % math.sqrt(3))
                 role = "colored"
             else:
                 role = "original"
         self.images[role] = image
         self._enableImageActions()
-        self._setImage(image, normalize)
+        if self.imageWindow and role == self.currentRole():
+            self._setImage(image, normalize)
 
     def highlight(self, darts):
         """highlight(darts)
@@ -1018,8 +1048,8 @@ class ROISelector(qt.QObject):
         if not self.roi:
             return qt.QRect()
         return qt.QRect(
-            self._viewer.toWindowCoordinates(*self.roi.upperLeft()),
-            self._viewer.toWindowCoordinates(*self.roi.lowerRight()))
+            self._viewer.toWindowCoordinates(self.roi.left()-0.5, self.roi.top()-0.5),
+            self._viewer.toWindowCoordinates(self.roi.right()-0.5, self.roi.bottom()-0.5))
 
     def mouseReleased(self, x, y, button):
         if self._painting and button == qt.Qt.LeftButton:
