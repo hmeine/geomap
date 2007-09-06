@@ -125,6 +125,9 @@ class FaceColorStatistics : boost::noncopyable
             dart.rightFaceLabel() < size() && functors_[dart.rightFaceLabel()],
             "invalid face labels in preMergeFaces");
 
+        label1_ = dart.leftFaceLabel();
+        label2_ = dart.rightFaceLabel();
+
         if(superSampled_.get())
         {
             unsigned char ssLeft((*superSampled_)[dart.leftFaceLabel()]);
@@ -169,6 +172,17 @@ class FaceColorStatistics : boost::noncopyable
             if(mergeDecreasesSSCount_)
                 if(!--superSampledCount_)
                     superSampled_.reset();
+        }
+
+        if(face.label() == label1_)
+        {
+            delete functors_[label2_];
+            functors_[label2_] = NULL;
+        }
+        else
+        {
+            delete functors_[label1_];
+            functors_[label1_] = NULL;
         }
     }
 
@@ -294,6 +308,7 @@ class FaceColorStatistics : boost::noncopyable
     Functor merged_;
     unsigned char mergedSS_;
     bool mergeDecreasesSSCount_;
+    CellLabel label1_, label2_;
 
     double maxDiffNorm_;
 };
