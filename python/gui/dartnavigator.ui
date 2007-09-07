@@ -32,6 +32,14 @@
             <property name="name">
                 <cstring>textLabel4</cstring>
             </property>
+            <property name="sizePolicy">
+                <sizepolicy>
+                    <hsizetype>1</hsizetype>
+                    <vsizetype>5</vsizetype>
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                </sizepolicy>
+            </property>
             <property name="text">
                 <string>-&gt;</string>
             </property>
@@ -91,6 +99,14 @@
             <property name="name">
                 <cstring>nextSigmaButton</cstring>
             </property>
+            <property name="sizePolicy">
+                <sizepolicy>
+                    <hsizetype>3</hsizetype>
+                    <vsizetype>0</vsizetype>
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                </sizepolicy>
+            </property>
             <property name="text">
                 <string>nextSigma</string>
             </property>
@@ -98,6 +114,14 @@
         <widget class="QPushButton" row="1" column="2">
             <property name="name">
                 <cstring>prevSigmaButton</cstring>
+            </property>
+            <property name="sizePolicy">
+                <sizepolicy>
+                    <hsizetype>3</hsizetype>
+                    <vsizetype>0</vsizetype>
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                </sizepolicy>
             </property>
             <property name="text">
                 <string>prevSigma</string>
