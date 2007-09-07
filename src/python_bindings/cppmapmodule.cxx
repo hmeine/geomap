@@ -769,7 +769,10 @@ std::string Face__repr__(GeoMap::Face const &face)
     std::stringstream s;
     s << "<GeoMap.Face " << face.label() << ", "
       << (face.contoursEnd() - face.holesBegin())
-      << " holes, area " << face.area() << ">";
+      << " holes, area " << face.area();
+    if(face.area() != face.pixelArea()) // prevent redundant output for crack-edge maps
+        s << " (" << face.pixelArea() << " px)";
+    s << ">";
     return s.str();
 }
 
