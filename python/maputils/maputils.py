@@ -1329,9 +1329,15 @@ class AutomaticRegionMerger(object):
         self._costLog = None
 
     def nextCost(self):
-        """Returns the cost of the operation that would be performed
-        next by `mergeStep()`."""
+        """Returns the cost of the merge operation that would be
+        performed next by `mergeStep()`."""
         return self._queue.top()[1]
+
+    def nextEdgeLabel(self):
+        """Returns the label of the dart that would be the parameter
+        of the merge operation that would be performed next by
+        `mergeStep()`."""
+        return self._queue.top()[0]
 
     def step(self):
         """Returns the number of steps performed so far."""
