@@ -738,9 +738,9 @@ class MapDisplay(DisplaySettings):
             self.connect(self.dn, qt.SIGNAL("destroyed(QObject*)"),
                          self._dartNavigatorDestroyed)
         else:
-            self.dn.setDart(dart)
             if costMeasure:
                 self.dn.costMeasure = costMeasure
+            self.dn.setDart(dart)
         self.dn.show()
         if center:
             if isinstance(dart, (list, tuple)):
@@ -966,10 +966,7 @@ class DartNavigator(DartNavigatorBase):
             leftFace = self.dart.leftFace()
             rightFace = self.dart.rightFace()
             self.faceLabel.setText(
-                """Left: Face %d, area %s, %d holes
-Right: Face %d, area %s, %d holes""" % (
-                leftFace.label(), leftFace.area(), leftFace.holeCount(),
-                rightFace.label(), rightFace.area(), rightFace.holeCount()))
+                """Left: %s\nRight: %s""" % (str(leftFace)[8:-1], str(rightFace)[8:-1]))
         self.setCaption("DartNavigator(%d)" % (self.dart.label(), ))
         self.emit(qt.PYSIGNAL('updateDart'),(self.dart,))
 
