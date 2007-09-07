@@ -348,6 +348,8 @@ def faceAreaHomogeneity(dart):
     a2 = dart.rightFace().area()
     return (a1 * a2) / (a1 + a2)
 
+# --------------------------------------------------------------------
+
 # FIXME: still old API (see FaceColorStatistics)
 class FaceColorHistogram(DynamicFaceStatistics):
     def __init__(self, map, image):
@@ -391,15 +393,15 @@ class FaceColorHistogram(DynamicFaceStatistics):
             face._colorHistogram.addValue(list(self.image[pos]))
             face._colorHistogram2.addValue(list(self.image[pos])[1:])
 
-def faceHistDiff(dart):
-    if (dart.leftFace()._colorHistogram.count()==0) or (dart.rightFace()._colorHistogram.count()==0):
-        return 0
-    return dart.leftFace()._colorHistogram.diff(dart.rightFace()._colorHistogram)
+    def faceHistDiff(dart):
+        if (dart.leftFace()._colorHistogram.count()==0) or (dart.rightFace()._colorHistogram.count()==0):
+            return 0
+        return dart.leftFace()._colorHistogram.diff(dart.rightFace()._colorHistogram)
 
-def faceHist2Diff(dart):
-    if (dart.leftFace()._colorHistogram2.count()==0) or (dart.rightFace()._colorHistogram2.count()==0):
-        return 0
-    return dart.leftFace()._colorHistogram2.diff(dart.rightFace()._colorHistogram2)
+    def faceHist2Diff(dart):
+        if (dart.leftFace()._colorHistogram2.count()==0) or (dart.rightFace()._colorHistogram2.count()==0):
+            return 0
+        return dart.leftFace()._colorHistogram2.diff(dart.rightFace()._colorHistogram2)
 
 # --------------------------------------------------------------------
 #               Edge-based Statistics & Cost Measures
@@ -411,6 +413,41 @@ class DynamicEdgeStatistics(DetachableStatistics):
     def _attachHooks(self):
         self._attachedHooks = (self._map().addMergeEdgesCallbacks(
             self.preMergeEdges, self.postMergeEdges), )
+
+class StaticEdgeCosts(DetachableStatistics):
+    """Initially computes and stores costs for all edges, then serves
+    as a cost measure that always returns the initial costs.
+
+    TODO/FIXME: either block edgeMerges or update costs via a hook"""
+
+    __slots__ = ["_costs"]
+
+    def __init__(self, map, costMeasure, skipBorder = True):
+        DetachableStatistics.__init__(self, map)
+        self._costs = [None] * map.maxEdgeLabel()
+        for edge in map.edgeIter():
+            if skipBorder and edge.flag(flag_constants.BORDER_PROTECTION):
+                continue
+            self._costs[edge.label()] = costMeasure(edge.dart())
+        self._attachHooks()
+
+    def _attachHooks(self):
+        self._attachedHooks = (self._map().addMergeEdgesCallbacks(
+            self.blockMergeEdges, None), )
+
+    def blockMergeEdges(self, dart):
+        return False
+    
+    def __call__(self, dart):
+        return self._costs[dart.edgeLabel()]
+
+    def __getstate__(self):
+        return DynamicEdgeStatistics.__getstate__(self) + (
+            self._costs, )
+
+    def __setstate__(self, (map, tree)):
+        DynamicEdgeStatistics.__setstate__(self, (map, ))
+        self._costs = tree
 
 class EdgeMergeTree(DynamicEdgeStatistics):
     """Actually, this is not a tree but it manages a list of edges
