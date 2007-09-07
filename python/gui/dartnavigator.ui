@@ -5,6 +5,14 @@
     <property name="name">
         <cstring>DartNavigatorBase</cstring>
     </property>
+    <property name="geometry">
+        <rect>
+            <x>0</x>
+            <y>0</y>
+            <width>420</width>
+            <height>149</height>
+        </rect>
+    </property>
     <property name="caption">
         <string>DartNavigator</string>
     </property>
@@ -12,15 +20,58 @@
         <property name="name">
             <cstring>unnamed</cstring>
         </property>
-        <widget class="QPushButton" row="1" column="0">
+        <widget class="QLabel" row="2" column="0">
             <property name="name">
-                <cstring>nextSigmaButton</cstring>
+                <cstring>startNodeLabel</cstring>
             </property>
             <property name="text">
-                <string>nextSigma</string>
+                <string>Node</string>
             </property>
         </widget>
-        <widget class="QPushButton" row="0" column="0">
+        <widget class="QLabel" row="2" column="1">
+            <property name="name">
+                <cstring>textLabel4</cstring>
+            </property>
+            <property name="text">
+                <string>-&gt;</string>
+            </property>
+            <property name="alignment">
+                <set>AlignCenter</set>
+            </property>
+        </widget>
+        <widget class="QLabel" row="2" column="2">
+            <property name="name">
+                <cstring>endNodeLabel</cstring>
+            </property>
+            <property name="text">
+                <string>Node</string>
+            </property>
+        </widget>
+        <widget class="QLabel" row="0" column="0" rowspan="1" colspan="3">
+            <property name="name">
+                <cstring>dartLabel</cstring>
+            </property>
+            <property name="text">
+                <string>[Dart]</string>
+            </property>
+        </widget>
+        <widget class="QPushButton" row="3" column="2">
+            <property name="name">
+                <cstring>prevPhiButton</cstring>
+            </property>
+            <property name="text">
+                <string>prevPhi</string>
+            </property>
+        </widget>
+        <widget class="QCheckBox" row="3" column="1">
+            <property name="name">
+                <cstring>continuousCheckBox</cstring>
+            </property>
+            <property name="text">
+                <string>continuous</string>
+            </property>
+        </widget>
+        <widget class="QPushButton" row="3" column="0">
             <property name="name">
                 <cstring>nextPhiButton</cstring>
             </property>
@@ -36,6 +87,14 @@
                 <string>nextAlpha</string>
             </property>
         </widget>
+        <widget class="QPushButton" row="1" column="0">
+            <property name="name">
+                <cstring>nextSigmaButton</cstring>
+            </property>
+            <property name="text">
+                <string>nextSigma</string>
+            </property>
+        </widget>
         <widget class="QPushButton" row="1" column="2">
             <property name="name">
                 <cstring>prevSigmaButton</cstring>
@@ -44,31 +103,12 @@
                 <string>prevSigma</string>
             </property>
         </widget>
-        <widget class="QPushButton" row="0" column="2">
+        <widget class="QLabel" row="4" column="0" rowspan="1" colspan="3">
             <property name="name">
-                <cstring>prevPhiButton</cstring>
+                <cstring>faceLabel</cstring>
             </property>
             <property name="text">
-                <string>prevPhi</string>
-            </property>
-        </widget>
-        <widget class="QCheckBox" row="0" column="1">
-            <property name="name">
-                <cstring>continuousCheckBox</cstring>
-            </property>
-            <property name="text">
-                <string>continuous</string>
-            </property>
-        </widget>
-        <widget class="QLabel" row="2" column="0" rowspan="1" colspan="3">
-            <property name="name">
-                <cstring>dartLabel</cstring>
-            </property>
-            <property name="text">
-                <string></string>
-            </property>
-            <property name="alignment">
-                <set>AlignTop|AlignLeft</set>
+                <string>Faces</string>
             </property>
         </widget>
     </grid>

@@ -936,12 +936,22 @@ class DartNavigator(DartNavigatorBase):
     def updateLabel(self):
         self.dh.highlight(self.dart.label())
         self.dartLabel.setText(
-            "%s%s\nStart node: %s\nEnd node: %s\nFaces: %d (left), %d (right)"
-            % (self.dart.edge().isLoop() and "Loop" or (
-                   self.dart.edge().isBridge() and "Bridge" or "Edge"),
-               str(self.dart.edge())[12:-1],
-               str(self.dart.startNode())[8:-1], str(self.dart.endNode())[8:-1],
-               self.dart.leftFaceLabel(), self.dart.rightFaceLabel()))
+            "Dart %d, length %.1f, partial area %.1f, %d points" % (
+            self.dart.label(), self.dart.edge().length(),
+            self.dart.partialArea(), len(self.dart)))
+        for node, nodeLabel in ((self.dart.startNode(), self.startNodeLabel),
+                                (self.dart.endNode(), self.endNodeLabel)):
+            nodeLabel.setText(
+                "Node %d (deg. %d)\nat %s" % (
+                node.label(), node.degree(), node.position()))
+        if self.dart.map().mapInitialized():
+            leftFace = self.dart.leftFace()
+            rightFace = self.dart.rightFace()
+            self.faceLabel.setText(
+                """Left: Face %d, area %s, %d holes
+Right: Face %d, area %s, %d holes""" % (
+                leftFace.label(), leftFace.area(), leftFace.holeCount(),
+                rightFace.label(), rightFace.area(), rightFace.holeCount()))
         self.setCaption("DartNavigator(%d)" % (self.dart.label(), ))
         self.emit(qt.PYSIGNAL('updateDart'),(self.dart,))
 
