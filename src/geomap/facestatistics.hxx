@@ -192,6 +192,17 @@ class FaceColorStatistics : boost::noncopyable
             face.label() < size() && functors_[face.label()],
             "invalid survivor label in associatePixels");
 
+        if(superSampled_.get() && (*superSampled_)[face.label()])
+        {
+            (*superSampled_)[face.label()] = 0;
+            --superSampledCount_;
+            functors_[face.label()]->reset();
+            // FIXME: if minSampleCount > 1, the Face may already
+            // contain pixels, whose statistics will be missing in the
+            // freshly-generated functor below.  Ideally, we should
+            // scan face's bbox here!
+        }
+
         Functor &f(*functors_[face.label()]);
         for(PixelList::const_iterator it = pixels.begin();
             it != pixels.end(); ++it)
@@ -246,7 +257,7 @@ class FaceColorStatistics : boost::noncopyable
 
         using namespace boost::math;
         students_t stud(dof);
-        return cdf(complement(stud, t));
+        return cdf(stud, t);
     }
 #endif
 
