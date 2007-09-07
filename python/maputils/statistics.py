@@ -414,17 +414,32 @@ class DynamicEdgeStatistics(DetachableStatistics):
         self._attachedHooks = (self._map().addMergeEdgesCallbacks(
             self.preMergeEdges, self.postMergeEdges), )
 
+def mergedEdgeCostWeightedByLength(edge1, cost1, edge2, cost2):
+    l1 = edge1.length()
+    l2 = edge2.length()
+    return (cost1*l1 + cost2*l2)/(l1+l2)
+
 class StaticEdgeCosts(DetachableStatistics):
     """Initially computes and stores costs for all edges, then serves
     as a cost measure that always returns the initial costs.
 
-    TODO/FIXME: either block edgeMerges or update costs via a hook"""
+    In order to define costs for merged edges, one can pass a
+    `combiner` to the constructor.  If this is None (default),
+    mergeEdges operations are blocked in order to guarantee sensible
+    results (i.e. passing the problem to the calling algorithm).
+    If a combiner is given, it is called with four parameters::
+    
+      mergedCost = combiner(edge1, cost1, edge2, cost2)
 
-    __slots__ = ["_costs"]
+    and must return a combined cost."""
 
-    def __init__(self, map, costMeasure, skipBorder = True):
+    __slots__ = ["_costs", "_combiner",
+                 "_mergedCost"]
+
+    def __init__(self, map, costMeasure, skipBorder = True, combiner = None):
         DetachableStatistics.__init__(self, map)
         self._costs = [None] * map.maxEdgeLabel()
+        self._combiner = combiner
         for edge in map.edgeIter():
             if skipBorder and edge.flag(flag_constants.BORDER_PROTECTION):
                 continue
@@ -432,8 +447,26 @@ class StaticEdgeCosts(DetachableStatistics):
         self._attachHooks()
 
     def _attachHooks(self):
-        self._attachedHooks = (self._map().addMergeEdgesCallbacks(
-            self.blockMergeEdges, None), )
+        if self._combiner:
+            self._attachedHooks = (self._map().addMergeEdgesCallbacks(
+                self.preMergeEdges, self.postMergeEdges), )
+        else:
+            self._attachedHooks = (self._map().addMergeEdgesCallbacks(
+                self.blockMergeEdges, None), )
+
+    def preMergeEdges(self, dart):
+        edge1 = dart.edge()
+        edge2 = dart.clone().nextSigma().edge()
+        try:
+            self._mergedCost = self._combiner(
+                edge1, self._costs[edge1.label()],
+                edge2, self._costs[edge2.label()])
+            return True
+        except TypeError: # i.e. combiner cannot handle "None" costs
+            return False
+    
+    def postMergeEdges(self, survivor):
+        self._costs[survivor.label()] = self._mergedCost
 
     def blockMergeEdges(self, dart):
         return False
