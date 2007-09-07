@@ -885,7 +885,11 @@ class FaceColorStatisticsWrapper
         def("faceHomogeneity", &Statistics::faceHomogeneity);
         def("faceAreaHomogeneity", &Statistics::faceAreaHomogeneity);
 #ifdef HAVE_MATH_TOOLKIT
-        def("faceTTest", &Statistics::faceTTest);
+        def("faceTTest", &Statistics::faceTTest,
+            "Returns the confidence that the distributions of the two\n"
+            "adjacent regions do *not* have the same mean, given the\n"
+            "samples.  I.e. a value of 0.95 would mean that the confidence\n"
+            "of the null hypothesis that the two means are equal is only 5%.");
 #endif
 
         def("regionImage", &regionImage);
