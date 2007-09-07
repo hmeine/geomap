@@ -17,8 +17,8 @@ LOCAL_CPPFLAGS = -I. -I../cellimage `pkg-config --cflags sigc++-2.0`
 CXXFLAGS += -Wall -Wno-strict-aliasing
 #CXXFLAGS += -g -W
 CXXFLAGS += -O3 -DNDEBUG
-CPPFLAGS = $(LOCAL_CPPFLAGS) $(CPPFLAGS)
-LIBCPPFLAGS += $(LOCAL_CPPFLAGS)
+CPPFLAGS := $(LOCAL_CPPFLAGS) $(CPPFLAGS)
+LIBCPPFLAGS := $(LOCAL_CPPFLAGS) $(LIBCPPFLAGS)
 TARGET = hourglassmodule.la
 MODULE = $(patsubst %.la,%.so,$(TARGET))
 
