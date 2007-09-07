@@ -500,6 +500,7 @@ class MapDisplay(DisplaySettings):
         self.viewer.addOverlay(self.edgeOverlay)
         self.viewer.addOverlay(self.nodeOverlay)
         self._dh = DartHighlighter(map, self.viewer)
+        self.dn = None
 
         if immediateShow:
             self.show()
@@ -507,6 +508,13 @@ class MapDisplay(DisplaySettings):
     def __del__(self):
         # delete tool (which may reference the viewer & map)
         self.setTool(None)
+
+    def _dartNavigatorDestroyed(self, dn):
+        """HACK: this is needed because of the deleteLater()..."""
+        # FIXME: cannot reliably detect identity of half-destructed
+        # object anymore:
+        #if dn is self.dn:
+        self.dn = None
 
     def setMap(self, map):
         attached = self.detachHooks()
@@ -718,14 +726,21 @@ class MapDisplay(DisplaySettings):
     def cleanupMap(self):
         removeCruft(self.map, 7)
 
-    def navigate(self, dart, center = True):
+    def navigate(self, dart, center = True, costMeasure = None, new = False):
         if type(dart) == int:
             dart = self.map.dart(dart)
         elif hasattr(dart, "anchor"):
             dart = dart.anchor()
         elif hasattr(dart, "contours"):
             dart = list(dart.contours())
-        self.dn = DartNavigator(dart, self)
+        if new or not self.dn:
+            self.dn = DartNavigator(dart, costMeasure, self)
+            self.connect(self.dn, qt.SIGNAL("destroyed(QObject*)"),
+                         self._dartNavigatorDestroyed)
+        else:
+            self.dn.setDart(dart)
+            if costMeasure:
+                self.dn.costMeasure = costMeasure
         self.dn.show()
         if center:
             if isinstance(dart, (list, tuple)):
@@ -865,9 +880,10 @@ class MapDisplay(DisplaySettings):
 # --------------------------------------------------------------------
 
 class DartNavigator(DartNavigatorBase):
-    def __init__(self, dart, parent, name = None):
+    def __init__(self, dart, costMeasure, parent, name = None):
         DartNavigatorBase.__init__(self, parent, name)
         self.dart = dart
+        self.costMeasure = costMeasure
         self.connect(self.nextPhiButton, qt.SIGNAL("clicked()"),
                      self.nextPhi)
         self.connect(self.prevPhiButton, qt.SIGNAL("clicked()"),
@@ -935,10 +951,12 @@ class DartNavigator(DartNavigatorBase):
 
     def updateLabel(self):
         self.dh.highlight(self.dart.label())
-        self.dartLabel.setText(
-            "Dart %d, length %.1f, partial area %.1f, %d points" % (
+        dartDesc = "Dart %d, length %.1f, partial area %.1f, %d points" % (
             self.dart.label(), self.dart.edge().length(),
-            self.dart.partialArea(), len(self.dart)))
+            self.dart.partialArea(), len(self.dart))
+        if self.costMeasure:
+            dartDesc += "\nassociated cost: %s" % self.costMeasure(self.dart)
+        self.dartLabel.setText(dartDesc)
         for node, nodeLabel in ((self.dart.startNode(), self.startNodeLabel),
                                 (self.dart.endNode(), self.endNodeLabel)):
             nodeLabel.setText(
@@ -997,6 +1015,8 @@ class ROISelector(qt.QObject):
         return False
 
     def setVisible(self, onoff):
+        """Sets flag whether the ROI should be always visible, or only
+        during painting."""
         if self._alwaysVisible != onoff:
             self._alwaysVisible = onoff
             if onoff:
