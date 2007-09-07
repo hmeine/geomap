@@ -1065,14 +1065,22 @@ def removeUnProtectedEdges(map):
         edge.label() for edge in map.edgeIter()
         if not edge.flag(flag_constants.ALL_PROTECTION)])
 
-def removeSmallRegions(map, minArea):
+def removeSmallRegions(map, minArea = None, minPixelArea = None, costMeasure = None):
     """Merge faces whose area is < minArea with any neighor.
+    Alternatively, pixelArea() is compared with minPixelArea.
+    
     If there is more than one neighbor sharing an unprotected edge
-    with the face, a warning is issued since it is not clear which
-    neighbor to merge into."""
+    with the face, it must be decided which neighbor to merge into.
+    If no costMeasure has been passed for this decision, an arbitrary
+    neighbor is chosen and a warning is issued."""
+
+    assert minArea or minPixelArea, "either give minArea or minPixelArea!"
+
     result = 0
     for face in map.faceIter(skipInfinite = True):
-        if face.area() >= minArea:
+        if minArea and face.area() >= minArea:
+            continue
+        if minPixelArea and face.pixelArea() >= minPixelArea:
             continue
 
         # similar to neighborFaces, except for the protection check:
@@ -1087,12 +1095,19 @@ def removeSmallRegions(map, minArea):
                 neighbors.append(dart)
         
         if len(neighbors) > 1:
-            sys.stderr.write("WARNING: removeSmallRegions() has to decide about neighbor\n  which %s is to be merged into!\n" % face)
+            if not costMeasure:
+                sys.stderr.write("WARNING: removeSmallRegions() makes random decision about neighbor\n  which %s is to be merged into!\n" % face)
+            else:
+                neighbors.sort(key = lambda dart: costMeasure(dart))
 
         for dart in neighbors:
             if mergeFacesCompletely(dart):
                 result += 1
                 break
+
+    if result:
+        # the survivors from above may still be too small..
+        result += removeSmallRegions(map, minArea, minPixelArea, costMeasure)
 
     return result
 
