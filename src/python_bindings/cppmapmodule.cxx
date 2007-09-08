@@ -1606,4 +1606,12 @@ void defMap()
 
     FaceColorStatisticsWrapper<vigra::PythonGrayImage>("FaceGrayStatistics");
     FaceColorStatisticsWrapper<vigra::PythonVector3Image>("FaceRGBStatistics");
+
+    class_<LabelLUT>("LabelLUT", init<unsigned int>())
+        .def("initIdentity", &LabelLUT::initIdentity)
+        .def("appendOne", &LabelLUT::appendOne)
+        .def("__getitem__", &LabelLUT::operator[]) // FIXME: check index
+        .def("__len__", &LabelLUT::size)
+        .def("relabel", &LabelLUT::relabel) // FIXME: check index
+    ;
 }
