@@ -53,21 +53,21 @@ def clipPoly(polygon, clipRect, closeAtBorder = None):
 
             # calculate leaving intersection
             diff = polygon[i-1] - p
-            l = 2.0
+            l = -1.0
             if relPos & LEFT:
-                l = min(l, (x1 - p[0]) / diff[0])
+                l = max(l, (x1 - p[0]) / diff[0])
                 endBorder = LEFT
             if relPos & RIGHT:
-                l = min(l, (x2 - p[0]) / diff[0])
+                l = max(l, (x2 - p[0]) / diff[0])
                 endBorder = RIGHT
             if relPos & TOP:
                 nl = (y1 - p[1]) / diff[1]
-                if nl < l:
+                if nl > l:
                     l = nl
                     endBorder = TOP
             if relPos & BOTTOM:
                 nl = (y2 - p[1]) / diff[1]
-                if nl < l:
+                if nl > l:
                     l = nl
                     endBorder = BOTTOM
             ip = p + l * diff
@@ -108,21 +108,21 @@ def clipPoly(polygon, clipRect, closeAtBorder = None):
             if i:
                 # calculate entering intersection:
                 diff = polygon[i-1] - p
-                l = -1.0
+                l = 2.0
                 if prevRP & LEFT:
-                    l = max(l, (x1 - p[0]) / diff[0])
+                    l = min(l, (x1 - p[0]) / diff[0])
                     startBorder = LEFT
                 if prevRP & RIGHT:
-                    l = max(l, (x2 - p[0]) / diff[0])
+                    l = min(l, (x2 - p[0]) / diff[0])
                     startBorder = RIGHT
                 if prevRP & TOP:
                     nl = (y1 - p[1]) / diff[1]
-                    if nl >= l:
+                    if nl < l:
                         l = nl
                         startBorder = TOP
                 if prevRP & BOTTOM:
                     nl = (y2 - p[1]) / diff[1]
-                    if nl >= l:
+                    if nl < l:
                         l = nl
                         startBorder = BOTTOM
                 ip = p + l * diff
