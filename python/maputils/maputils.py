@@ -1805,10 +1805,6 @@ def minimumSpanningTree(map, edgeCosts):
     The complexity is O(edgeCount*faceCount), but the performance
     could be improved a little."""
 
-    faceLabels = [None] * map.maxFaceLabel()
-    for face in map.faceIter():
-        faceLabels[face.label()] = face.label()
-
     print "- initializing priority queue for MST..."
     heap = []
     for edge in map.edgeIter():
@@ -1818,6 +1814,7 @@ def minimumSpanningTree(map, edgeCosts):
             heappush(heap, (cost, edgeLabel))
 
     print "- building MST..."
+    faceLabels = hourglass.LabelLUT(map.maxFaceLabel())
     result = list(edgeCosts)
     while heap:
         _, edgeLabel = heappop(heap)
@@ -1825,9 +1822,7 @@ def minimumSpanningTree(map, edgeCosts):
         lfl = faceLabels[edge.leftFaceLabel()]
         rfl = faceLabels[edge.rightFaceLabel()]
         if lfl != rfl:
-            for i in range(len(faceLabels)): # this could be optimized
-                if faceLabels[i] == rfl:
-                    faceLabels[i] = lfl
+            faceLabels.relabel(lfl, rfl)
         else:
             result[edgeLabel] = None
 
@@ -1899,26 +1894,36 @@ def waterfall(map, edgeCosts, mst = None):
             mergeFacesCompletely(edge.dart())
     print "  total waterfall() time: %ss." % (time.clock() - c, )
 
-def mst2map(mst, map):
-    """Visualize a minimumSpanningTree() result as a GeoMap.
+def dualMap(map, edgeLabels = None):
+    """Compute (a subset of) the dual of a GeoMap.
+    `edgeLabels` determines which edges appear in the result.
+    If None (default), the complete dual map is returned.
     Note that the nodes are located at the centroids of the faces,
     which is only a heuristic."""
 
-    nodePositions = [None] * map.maxFaceLabel()
+    result = hourglass.GeoMap(map.imageSize())
+
+    nodes = [None] * map.maxFaceLabel()
     for face in map.faceIter(skipInfinite = True):
-        nodePositions[face.label()] = centroid(contourPoly(face.contour()))
-    
-    edgeTuples = [None]
-    for edgeLabel in mst:
+        nodes[face.label()] = result.addNode(hourglass.centroid(
+            hourglass.contourPoly(face.contour())))
+
+    for edgeLabel in edgeLabels:
         edge = map.edge(edgeLabel)
-        snl = edge.leftFaceLabel()
-        enl = edge.rightFaceLabel()
-        edgeTuples.append((snl, enl, [nodePositions[snl], nodePositions[enl]]))
+        snl = nodes[edge.leftFaceLabel()]
+        enl = nodes[edge.rightFaceLabel()]
+        if snl and enl:
+            result.addEdge(snl, enl, [snl.position(), enl.position()])
     
-    result = hourglass.GeoMap(nodePositions, edgeTuples, map.imageSize())
     removeIsolatedNodes(result)
     result.initializeMap(False)
     return result
+
+def mst2map(mst, map):
+    """Visualize a minimumSpanningTree() result as a GeoMap.
+    (See `dualMap()`.)"""
+    return dualMap(map, [
+        edgeLabel for edgeLabel, cost in enumerate(mst) if cost is not None])
 
 # --------------------------------------------------------------------
 #                               tests
