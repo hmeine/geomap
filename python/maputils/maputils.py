@@ -1164,18 +1164,17 @@ def mergeFacesCompletely(dart, removeDegree2Nodes = True):
         raise TypeError("mergeFacesCompletely(): dart belongs to a bridge!")
     map = dart.map()
     rightLabel = dart.rightFaceLabel()
-    commonEdgeList = []
+    commonDarts = []
     for contourIt in dart.phiOrbit():
         if contourIt.rightFaceLabel() == rightLabel:
             if contourIt.edge().flag(flag_constants.ALL_PROTECTION):
                 return None
-            commonEdgeList.append(contourIt)
+            commonDarts.append(contourIt)
 
-    assert commonEdgeList, "mergeFacesCompletely(): no common edges found!"
     affectedNodes = []
 
     survivor = None
-    for dart in commonEdgeList:
+    for dart in commonDarts:
         affectedNodes.append(dart.startNodeLabel())
         affectedNodes.append(dart.endNodeLabel())
         if survivor == None:
