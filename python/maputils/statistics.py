@@ -741,10 +741,13 @@ class WatershedStatistics(DynamicEdgeIndices):
         self._basinDepth = basinStatistics._basinDepth
 
     def dynamics(self, edge):
+        """At the moment, `edge` may be an Edge, a Dart, or a label,
+        but don't rely on this!  Since this is a cost measure, it may
+        only work for Dart objects in the future."""
         if hasattr(edge, "label"):
-            edgeLabel = edge.label()
+            edgeLabel = abs(edge.label())
         else:
-            edgeLabel = edge
+            edgeLabel = abs(edge)
             edge = self._map().edge(edgeLabel)
         return self._passValues[edgeLabel] - min(
             self._basinDepth[edge.leftFaceLabel()],
