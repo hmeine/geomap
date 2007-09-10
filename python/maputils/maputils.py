@@ -151,6 +151,16 @@ class SaddleDirectionMatchFilter(SaddleTensorFeature):
     def __str__(self):
         return "direction match >= %s" % self._threshold
 
+class FilterGroup(tuple):
+    def __call__(self, position):
+        for filter in self:
+            if not filter(position):
+                return False
+        return True
+
+    def __str__(self):
+        return " and ".join(map(str, self))
+
 def filterSaddlePoints(rawSaddles, biSIV, filter, maxDist):
     """Filter saddle points first by checking the passValue in the
     boundary indicator SplineImageView 'biSIV', then by removing
@@ -294,7 +304,8 @@ def subpixelWatershedMapFromData(
 
     deleted = addFlowLinesToMap(flowlines, spmap)
     if deleted:
-        print "  skipped %d broken flowlines." % len(deleted)
+        print "  skipped %d flowlines (at border / degenerate loops)" \
+              % len(deleted)
 
     if performBorderClosing:
         print "  adding border edges and EdgeProtection..."
@@ -329,6 +340,7 @@ def subpixelWatershedMapFromData(
         from statistics import WatershedBasinStatistics
         spmap.wsBasinStats = WatershedBasinStatistics(
             spmap, minima[1:], wsStatsSpline)
+        spmap.wsStats.setBasins(spmap.wsBasinStats)
         p.finish()
 
     return spmap
@@ -370,17 +382,25 @@ def subpixelWatershedMap(
         mask = vigra.transformImage(
             boundaryIndicator, "\l x: x > %s ? 1 : 0" % (threshold/2, ))
 
-    filter = None
+    filters = []
     if saddleThreshold:
-        filter = PassValueFilter(siv, saddleThreshold)
-    elif saddleOrthoGrad or saddleDirMatch:
+        filters.append(PassValueFilter(siv, saddleThreshold))
+    if saddleOrthoGrad or saddleDirMatch:
         assert biTensor, "for saddle filtering using SOG/SDM, biTensor is needed!"
         if not hasattr(biTensor, "siv"):
             biTensor.siv = sivtools.TensorSIVProxy(biTensor)
         if saddleOrthoGrad:
-            filter = SaddleOrthogonalGradientFilter(siv, biTensor.siv, saddleOrthoGrad)
-        else:
-            filter = SaddleDirectionMatchFilter(siv, biTensor.siv, saddleDirMatch)
+            filters.append(
+                SaddleOrthogonalGradientFilter(siv, biTensor.siv, saddleOrthoGrad))
+        if saddleDirMatch:
+            filters.append(
+                SaddleDirectionMatchFilter(siv, biTensor.siv, saddleDirMatch))
+
+    filter = None
+    if len(filters) == 1:
+        filter = filters[0]
+    elif filters:
+        filter = FilterGroup(filters)
 
     maxima, flowlines = subpixelWatershedData(
         spws, siv, filter, mask,
@@ -426,6 +446,7 @@ def addFlowLinesToMap(edges, map):
         startNodeLabel = edgeTuple[0]
         endNodeLabel = edgeTuple[1]
         if startNodeLabel == -2 and endNodeLabel == -2:
+            # FIXME: check that partialArea of closed edge is near zero
             result.append(edgeTuple)
             continue # unwanted edge parallel to border
 
@@ -1335,6 +1356,8 @@ class AutomaticRegionMerger(object):
         if q == None:
             q = hourglass.DynamicCostQueue(map.maxEdgeLabel()+1)
             for edge in map.edgeIter():
+                if edge.flag(flag_constants.ALL_PROTECTION):
+                    continue
                 cost = mergeCostMeasure(edge.dart())
                 if cost is not None:
                     q.insert(edge.label(), cost)
@@ -1390,6 +1413,8 @@ class AutomaticRegionMerger(object):
                 q = self._queue
                 mcm = self._mergeCostMeasure
                 for dart in contourDarts(survivor):
+                    if dart.edge().flag(flag_constants.ALL_PROTECTION):
+                        continue
                     cost = mcm(dart)
                     if cost is not None:
                         q.setCost(dart.edgeLabel(), cost)
