@@ -951,17 +951,26 @@ def degree2Nodes(map):
 def removeCruft(map, what = 3, doChecks = False):
     """removeCruft(map, what = 3, doChecks = False)
     
-    what is a bit-combination of
+    `what` is a bit-combination of
     1: for the removal of degree 0-nodes (default)
     2: removal of degree 2-nodes (default)
     4: removal of bridges
     8: removal of edges (i.e. all non-protected)
 
-    if doChecks is True, consistency checks are performed after every
-    operation.  As soon as that fails, removeCruft returns False.
+    If `doChecks` is True, consistency checks are performed after
+    every operation.  As soon as that fails, removeCruft returns
+    False.
 
     After normal operation, removeCruft returns the number of
-    operations performed."""
+    operations performed.
+
+    Consider using the following specialized functions with more
+    meaningful names instead:
+    
+    - `removeIsolatedNodes`
+    - `mergeDegree2Nodes`
+    - `removeBridges`
+    - `removeUnProtectedEdges`"""
 
     class OperationCounter(object):
         def __init__(self):
@@ -1034,6 +1043,16 @@ def mergeDegree2Nodes(map):
         if node.degree() == 2 and not node.anchor().edge().isLoop():
             if map.mergeEdges(node.anchor()):
                 result += 1
+    return result
+
+def removeBridges(map):
+    """Remove all bridges within map and returns the number of
+    successful operations (= bridges removed)."""
+
+    result = 0
+    for edge in map.edgeIter():
+        if edge.isBridge() and map.removeBridge(edge.dart()):
+            result += 1
     return result
 
 def removeEdges(map, edgeLabels):
@@ -1167,20 +1186,20 @@ def removeEdge(dart):
     else:
         return map.mergeFaces(dart)
 
-def mergeFacesCompletely(dart, removeDegree2Nodes = True):
-    """mergeFacesCompletely(dart, removeDegree2Nodes = True)
+def mergeFacesCompletely(dart, mergeDegree2Nodes = True):
+    """mergeFacesCompletely(dart, mergeDegree2Nodes = True)
 
     In contrast to the Euler operation mergeFaces(), this function
     removes all common edges of the two faces, not only the single
     edge belonging to dart.
 
-    Furthermore, if the optional parameter removeDegree2Nodes is
+    Furthermore, if the optional parameter mergeDegree2Nodes is
     True (default), all nodes whose degree is reduced to two will be
     merged into their surrounding edges.
 
     Returns the surviving face."""
     
-    #print "mergeFacesCompletely(%s, %s)" % (dart, removeDegree2Nodes)
+    #print "mergeFacesCompletely(%s, %s)" % (dart, mergeDegree2Nodes)
     if dart.edge().isBridge():
         raise TypeError("mergeFacesCompletely(): dart belongs to a bridge!")
     map = dart.map()
@@ -1208,7 +1227,7 @@ def mergeFacesCompletely(dart, removeDegree2Nodes = True):
         if not node: continue
         if node.degree == 0:
             map.removeIsolatedNode(node)
-        if removeDegree2Nodes and node.degree() == 2:
+        if mergeDegree2Nodes and node.degree() == 2:
             d = node.anchor()
             if d.endNodeLabel() != node.label():
                 map.mergeEdges(d)
@@ -1222,8 +1241,8 @@ def findCommonDart(face1, face2):
             if contourIt.rightFaceLabel() == face2.label():
                 return contourIt
 
-def mergeFacesByLabel(map, label1, label2, removeDegree2Nodes = True):
-    """mergeFacesByLabel(map, label1, label2, removeDegree2Nodes = True)
+def mergeFacesByLabel(map, label1, label2, mergeDegree2Nodes = True):
+    """mergeFacesByLabel(map, label1, label2, mergeDegree2Nodes = True)
 
     Similar to mergeFacesCompletely() (which is called to perform the
     action), but is parametrized with two face labels and finds a
@@ -1236,7 +1255,7 @@ def mergeFacesByLabel(map, label1, label2, removeDegree2Nodes = True):
     assert face1, "mergeFacesByLabel: face with label1 = %d does not exist!" % (label1, )
     assert face2, "mergeFacesByLabel: face with label2 = %d does not exist!" % (label2, )
     dart = findCommonDart(face1, face2)
-    return dart and mergeFacesCompletely(dart, removeDegree2Nodes)
+    return dart and mergeFacesCompletely(dart, mergeDegree2Nodes)
 
 # --------------------------------------------------------------------
 
