@@ -230,7 +230,8 @@ class FigExporter:
         container.append(obj)
         return obj
 
-    def addEdge(self, points, simplifyEpsilon = 0.5, container = True, **attr):
+    def addEdge(self, points, simplifyEpsilon = 0.5, container = True,
+                figClass = fig.Polygon, **attr):
         """fe.addEdge(points, simplifyEpsilon, ...)
 
         Adds and returns exactly one fig.Polygon object representing
@@ -250,8 +251,7 @@ class FigExporter:
         pp = Polygon([(o + point) * self.scale for point in points])
         if simplifyEpsilon:
             pp = simplifyPolygon(pp, simplifyEpsilon)
-        fp = fig.Polygon([intPos(v) for v in pp],
-                         closed = pp[0] == pp[-1])
+        fp = figClass([intPos(v) for v in pp], closed = pp[0] == pp[-1])
         for a in attr:
             setattr(fp, a, attr[a])
         container.append(fp)
@@ -527,9 +527,12 @@ class FigExporter:
                 raise ValueError("addMapFaces: need faceMeans for proper coloring")
             faceMeans = geomap.faceMeans
 
-        getFaceColor = getGray
-        if faceMeans.bands() == 3:
-            getFaceColor = getRGB
+        if hasattr(faceMeans, "bands"):
+            getFaceColor = getGray
+            if faceMeans.bands() == 3:
+                getFaceColor = getRGB
+        else:
+            getFaceColor = lambda face: faceMeans[face.label()]
 
         if container == True:
             container = self.f
@@ -552,15 +555,17 @@ class FigExporter:
             todo = []
             for face in thisLayer:
                 if face.area() > 0:
-                    thisattr = dict(attr)
-                    thisattr["fillColor"] = getFaceColor(face)
-                    thisattr["depth"] = currentDepth
-                    parts = self.addClippedPoly(
-                        contourPoly(face.contour()),
-                        container = compound, **thisattr)
+                    color = getFaceColor(face)
+                    if color is not None:
+                        thisattr = dict(attr)
+                        thisattr["fillColor"] = getFaceColor(face)
+                        thisattr["depth"] = currentDepth
+                        parts = self.addClippedPoly(
+                            contourPoly(face.contour()),
+                            container = compound, **thisattr)
 
-                    if returnFaces:
-                        result.extend([(face, part) for part in parts])
+                        if returnFaces:
+                            result.extend([(face, part) for part in parts])
 
                 for anchor in face.holeContours():
                     todo.extend(maputils.holeComponent(anchor))
