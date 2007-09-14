@@ -1683,6 +1683,20 @@ def mapValidEdges(function, geomap, default = None):
         result[edge.label()] = function(edge)
     return result
 
+def mapValidFaces(function, geomap, default = None):
+    """Similar to map(function, geomap.faceIter()), but preserves
+    labels.  I.e., equivalent to [default] * geomap.maxFaceLabel() and
+    a successive filling in of function results for valid faces.
+
+    Note that due to the analogy to the builtin map, the order of the
+    arguments is different to most other functions within this module,
+    which usually have the geomap as first argument."""
+    
+    result = [default] * geomap.maxFaceLabel()
+    for face in geomap.faceIter():
+        result[face.label()] = function(face)
+    return result
+
 def mapValidDarts(function, geomap, default = None):
     """Similar to `mapValidEdges`, but calls function for each Dart
     with positive label.  Especially useful to create edgeCosts for
@@ -1979,17 +1993,7 @@ def waterfall(map, edgeCosts, mst = None):
     c = time.clock()
     faceLabels = waterfallLabels(map, edgeCosts, mst)
     print "- merging regions according to labelling..."
-    for edge in map.edgeIter():
-        if edge.flag(flag_constants.ALL_PROTECTION):
-            continue
-        if edge.isBridge():
-            print "ERROR: waterfall should not be called on maps with bridges!"
-            map.removeBridge(edge.dart())
-            continue
-        lfl = faceLabels[edge.leftFaceLabel()]
-        rfl = faceLabels[edge.rightFaceLabel()]
-        if lfl == rfl:
-            mergeFacesCompletely(edge.dart())
+    applyFaceClassification(map, faceLabels)
     print "  total waterfall() time: %ss." % (time.clock() - c, )
 
 def dualMap(map, edgeLabels = None, midPoints = True):
