@@ -1105,6 +1105,16 @@ def removeUnProtectedEdges(map):
         edge.label() for edge in map.edgeIter()
         if not edge.flag(flag_constants.ALL_PROTECTION)])
 
+def mergeFaceToBestNeighbor(face, costMeasure):
+    best = None
+    for dart in contourDarts(face):
+        if dart.edge().flag(flag_constants.ALL_PROTECTION):
+            continue
+        cost = costMeasure(dart)
+        if best is None or cost < best[0]:
+            best = cost, dart
+    return mergeFacesCompletely(best[1])
+
 def removeSmallRegions(map, minArea = None, minPixelArea = None, costMeasure = None):
     """Merge faces whose area is < minArea with any neighor.
     Alternatively, pixelArea() is compared with minPixelArea.
@@ -1365,12 +1375,28 @@ class AutomaticRegionMerger(object):
     costs of all edges around the surviving face are recalculated."""
 
     __slots__ = ["_map", "_mergeCostMeasure", "_step", "_queue",
+                 "_mergeOperation", "_updateNeighborHood",
                  "_costLog"]
 
-    def __init__(self, map, mergeCostMeasure, q = None):
+    def __init__(self, map, mergeCostMeasure, q = None,
+                 completeMerge = True, updateNeighborHood = True):
+        """Set `completeMerge` to False to turn the automatic region
+        merger into a simpler automatic edge remover tool.
+
+        Set `updateNeighborHood` to True (default) if the
+        mergeCostMeasure depends on the face statistics and the
+        internal cost queue should be updated accordingly after a
+        merge, which possibly changed the statistics."""
+        
         self._map = map
         self._mergeCostMeasure = mergeCostMeasure
         self._step = 0
+        self._updateNeighborHood = updateNeighborHood
+
+        if completeMerge:
+            self._mergeOperation = mergeFacesCompletely
+        else:
+            self._mergeOperation = self._map.mergeFaces
 
         if q == None:
             q = hourglass.DynamicCostQueue(map.maxEdgeLabel()+1)
@@ -1383,6 +1409,12 @@ class AutomaticRegionMerger(object):
         
         self._queue = q
         self._costLog = None
+
+    def ensureValidNext(self):
+        q = self._queue
+        map = self._map
+        while q and not map.edge(q.top()[0]):
+            q.pop()
 
     def nextCost(self):
         """Returns the cost of the merge operation that would be
@@ -1400,12 +1432,12 @@ class AutomaticRegionMerger(object):
         return self._step
 
     def merge(self, maxCost = None):
-        oldStep = self._step
         if maxCost:
-            self.mergeToCost(maxCost)
-        else:
-            while self._queue:
-                self.mergeStep()
+            return self.mergeToCost(maxCost)
+
+        oldStep = self._step
+        while self._queue:
+            self.mergeStep()
         return self._step - oldStep
 
     def mergeStep(self):
@@ -1416,19 +1448,19 @@ class AutomaticRegionMerger(object):
         return the surviving Face and increment the step counter
         (cf. step())."""
         
-        edgeLabel, cost = self._queue.pop()
+        edgeLabel, mergeCost = self._queue.pop()
         edge = self._map.edge(edgeLabel)
         if not edge or edge.flag(flag_constants.ALL_PROTECTION):
             return
 
+        assert mergeCost == self._mergeCostMeasure(edge.dart())
+
         d = edge.dart()
         if edge.isBridge():
-            # FIXME: precondition "no bridges"?
-            # or removeBridges in constructor?
             survivor = self._map.removeBridge(d)
         else:
-            survivor = mergeFacesCompletely(d)
-            if survivor:
+            survivor = self._mergeOperation(d)
+            if survivor and self._updateNeighborHood:
                 q = self._queue
                 mcm = self._mergeCostMeasure
                 for dart in contourDarts(survivor):
@@ -1440,7 +1472,7 @@ class AutomaticRegionMerger(object):
 
         if survivor:
             if self._costLog is not None:
-                self._costLog.append(cost)
+                self._costLog.append(mergeCost)
             self._step += 1
 
         return survivor
@@ -1640,10 +1672,25 @@ def nodeAtBorder(node):
 def mapValidEdges(function, geomap, default = None):
     """Similar to map(function, geomap.edgeIter()), but preserves
     labels.  I.e., equivalent to [default] * geomap.maxEdgeLabel() and
-    a successive filling in of function results for valid edges."""
+    a successive filling in of function results for valid edges.
+
+    Note that due to the analogy to the builtin map, the order of the
+    arguments is different to most other functions within this module,
+    which usually have the geomap as first argument."""
+    
     result = [default] * geomap.maxEdgeLabel()
     for edge in geomap.edgeIter():
         result[edge.label()] = function(edge)
+    return result
+
+def mapValidDarts(function, geomap, default = None):
+    """Similar to `mapValidEdges`, but calls function for each Dart
+    with positive label.  Especially useful to create edgeCosts for
+    passing e.g. to `minimumSpanningTree`."""
+    
+    result = [default] * geomap.maxEdgeLabel()
+    for edge in geomap.edgeIter():
+        result[edge.label()] = function(edge.dart())
     return result
 
 # --------------------------------------------------------------------
@@ -1661,6 +1708,9 @@ def seededRegionGrowingStatic(map, faceLabels, edgeCosts):
 
     The 'static' postfix indicates that the edgeCosts do not change
     during the process.  (Furthermore, the GeoMap is not changed.)"""
+
+    if not hasattr(edgeCosts, "__getitem__"):
+        edgeCosts = mapValidDarts(edgeCosts, map)
 
     faceLabels = list(faceLabels)
 
@@ -1848,6 +1898,9 @@ def minimumSpanningTree(map, edgeCosts):
     The complexity is O(edgeCount*faceCount), but the performance
     could be improved a little."""
 
+    if not hasattr(edgeCosts, "__getitem__"):
+        edgeCosts = mapValidDarts(edgeCosts, map)
+
     print "- initializing priority queue for MST..."
     heap = []
     for edge in map.edgeIter():
@@ -1875,8 +1928,9 @@ def regionalMinima(map, mst):
     """regionalMinima(map, mst)
 
     Returns an array with face labels, where only 'regional minima' of
-    the given MSt are labelled.  See the article 'Fast Implementation
-    of Waterfall Based on Graphs' by Marcotegui and Beucher."""
+    the given MSt are labelled (i.e. the rest is labelled None).  See
+    the article 'Fast Implementation of Waterfall Based on Graphs' by
+    Marcotegui and Beucher."""
 
     faceLabels = [None] * map.maxFaceLabel()
     for edge in map.edgeIter():
@@ -1884,10 +1938,11 @@ def regionalMinima(map, mst):
         if edgeCost == None:
             continue
         isMinimum = True
+        # FIXME: this finds only local minima - in theory extended
+        # local minima should be labelled, too
         for start in edge.dart().alphaOrbit():
-            for dart in contourDarts(face):
-#               if dart == start: # not needed for strict comparison below
-#                   continue
+            # note that contourDarts is sigmaOrbit in the dual graph:
+            for dart in contourDarts(start.leftFace()):
                 otherCost = mst[dart.edgeLabel()]
                 if otherCost != None and otherCost < edgeCost:
                     isMinimum = False
@@ -1937,7 +1992,7 @@ def waterfall(map, edgeCosts, mst = None):
             mergeFacesCompletely(edge.dart())
     print "  total waterfall() time: %ss." % (time.clock() - c, )
 
-def dualMap(map, edgeLabels = None):
+def dualMap(map, edgeLabels = None, midPoints = True):
     """Compute (a subset of) the dual of a GeoMap.
     `edgeLabels` determines which edges appear in the result.
     If None (default), the complete dual map is returned.
@@ -1949,14 +2004,23 @@ def dualMap(map, edgeLabels = None):
     nodes = [None] * map.maxFaceLabel()
     for face in map.faceIter(skipInfinite = True):
         nodes[face.label()] = result.addNode(hourglass.centroid(
-            hourglass.contourPoly(face.contour())))
+            hourglass.contourPoly(face.contour())), label = face.label())
 
-    for edgeLabel in edgeLabels:
-        edge = map.edge(edgeLabel)
+    if edgeLabels is None:
+        edgeLabels = map.edgeIter()
+    
+    for edge in sorted(edgeLabels):
+        if not hasattr(edge, "label"):
+            edge = map.edge(edge)
         snl = nodes[edge.leftFaceLabel()]
         enl = nodes[edge.rightFaceLabel()]
         if snl and enl:
-            result.addEdge(snl, enl, [snl.position(), enl.position()])
+            poly = [snl.position(), enl.position()]
+            if midPoints:
+                dp = hourglass.DartPosition(edge.dart())
+                dp.gotoArcLength(edge.length()/2)
+                poly.insert(1, dp())
+            result.addEdge(snl, enl, poly, label = edge.label())
     
     removeIsolatedNodes(result)
     result.initializeMap(False)
