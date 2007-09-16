@@ -248,12 +248,14 @@ class FaceColorStatistics : boost::noncopyable
             N1 = pixelCount(dart.leftFaceLabel()),
             N2 = pixelCount(dart.rightFaceLabel()),
 #ifdef UNEQUAL_VARIANCES
-            // IIUC, this is Welch's t-test
+            // Welch's t-test
             sigmaExpr = (sigma1_2 / N1 + sigma2_2 / N2),
             t = (vigra::norm(average(dart.leftFaceLabel()) -
                              average(dart.rightFaceLabel())) /
                  std::sqrt(sigmaExpr)),
-            // this formula does *not* assume equal variances:
+            // this formula (Welch-Satterthwaite approximation) does
+            // *not* assume equal variances and results in non-integer
+            // DOF:
             dof = vigra::sq(sigmaExpr) / (
                 vigra::sq(sigma1_2/N1)/(N1-1) + vigra::sq(sigma2_2/N2)/(N2-1));
 #else
@@ -267,7 +269,7 @@ class FaceColorStatistics : boost::noncopyable
 
         using namespace boost::math;
         students_t stud(dof);
-        return cdf(stud, t);
+        return 2*cdf(stud, t)-1.0;
     }
 #endif
 

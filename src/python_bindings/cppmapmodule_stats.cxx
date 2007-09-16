@@ -128,8 +128,8 @@ class FaceColorStatisticsWrapper
         result["pooledSigma_2"] = pooledSigma_2;
         result["dof"] = dof;
         result["t"] = t;
-        result["c_tt"] = cdf(stud, t);
-        result["P(H_0)"] = cdf(complement(stud, t));
+        result["c_tt"] = 2*cdf(stud, t)-1.0;
+        result["P(H_0)"] = 2*cdf(complement(stud, t));
         return result;
     }
 #endif
