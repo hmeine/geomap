@@ -940,6 +940,7 @@ class FaceColorStatisticsWrapper
         return stats.variance(faceLabel, unbiased);
     }
 
+#ifdef HAVE_MATH_TOOLKIT
     static bp::dict
     debugTTest(Statistics const &stats, const GeoMap::Dart &dart)
     {
@@ -973,6 +974,7 @@ class FaceColorStatisticsWrapper
         result["P(H_0)"] = cdf(complement(stud, t));
         return result;
     }
+#endif
 
     static Statistics *create(
         GeoMap &map, OriginalImage const &originalImage, int minSampleCount)
