@@ -247,6 +247,8 @@ class FaceColorStatistics : boost::noncopyable
             sigma2_2 = clampedScalarVariance(variance(dart.rightFaceLabel(), true)),
             N1 = pixelCount(dart.leftFaceLabel()),
             N2 = pixelCount(dart.rightFaceLabel()),
+#ifdef UNEQUAL_VARIANCES
+            // IIUC, this is Welch's t-test
             sigmaExpr = (sigma1_2 / N1 + sigma2_2 / N2),
             t = (vigra::norm(average(dart.leftFaceLabel()) -
                              average(dart.rightFaceLabel())) /
@@ -254,6 +256,14 @@ class FaceColorStatistics : boost::noncopyable
             // this formula does *not* assume equal variances:
             dof = vigra::sq(sigmaExpr) / (
                 vigra::sq(sigma1_2/N1)/(N1-1) + vigra::sq(sigma2_2/N2)/(N2-1));
+#else
+            // Student's t-test
+            dof = N1 + N2 - 2,
+            pooledSigma_2 = ((N1-1)*sigma1_2 + (N2-1)*sigma2_2) / dof,
+            t = (vigra::norm(average(dart.leftFaceLabel()) -
+                             average(dart.rightFaceLabel())) /
+                 std::sqrt(pooledSigma_2 * (1.0 / N1 + 1.0 / N2)));
+#endif
 
         using namespace boost::math;
         students_t stud(dof);
