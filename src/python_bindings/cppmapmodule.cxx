@@ -758,7 +758,8 @@ std::string Edge__repr__(GeoMap::Edge const &edge)
     s.unsetf(std::ios::scientific);
     s.precision(1);
     s << "<GeoMap.Edge " << edge.label()
-      << ", node " << edge.startNodeLabel() << " -> " << edge.endNodeLabel()
+      //<< ", node " << edge.startNodeLabel() << " -> " << edge.endNodeLabel()
+      << ", faces " << edge.leftFaceLabel() << "(l), " << edge.rightFaceLabel()
       << ", partial area " << edge.partialArea() << ", length " << edge.length()
       << ", " << edge.size() << " points>";
     return s.str();
@@ -866,7 +867,7 @@ class FaceColorStatisticsWrapper
     FaceColorStatisticsWrapper(const char *name)
     : bp::class_<Statistics, boost::noncopyable>(name, bp::no_init)
     {
-        def("__init__", make_constructor(
+        def("__init__", bp::make_constructor(
                 &create,
                 // FaceColorStatistics stores a ref. to originalImage,
                 // actually also to the map, but we need to prevent
@@ -890,6 +891,7 @@ class FaceColorStatisticsWrapper
             "adjacent regions do *not* have the same mean, given the\n"
             "samples.  I.e. a value of 0.95 would mean that the confidence\n"
             "of the null hypothesis that the two means are equal is only 5%.");
+        def("debugTTest", &debugTTest);
 #endif
 
         def("regionImage", &regionImage);
@@ -907,13 +909,13 @@ class FaceColorStatisticsWrapper
         {
             PyErr_SetString(PyExc_IndexError,
                             "face label out of bounds.");
-            boost::python::throw_error_already_set();
+            bp::throw_error_already_set();
         }
         if(!stats[faceLabel])
         {
             PyErr_SetString(PyExc_ValueError,
                             "no information for the given face label.");
-            boost::python::throw_error_already_set();
+            bp::throw_error_already_set();
         }
     }
 
@@ -936,6 +938,40 @@ class FaceColorStatisticsWrapper
     {
         checkFaceLabel(stats, faceLabel);
         return stats.variance(faceLabel, unbiased);
+    }
+
+    static bp::dict
+    debugTTest(Statistics const &stats, const GeoMap::Dart &dart)
+    {
+        double
+            diff = vigra::norm(average(stats, dart.leftFaceLabel()) -
+                               average(stats, dart.rightFaceLabel())),
+            sigma1_2 = clampedScalarVariance(
+                variance(stats, dart.leftFaceLabel(), true)),
+            sigma2_2 = clampedScalarVariance(
+                variance(stats, dart.rightFaceLabel(), true)),
+            N1 = pixelCount(stats, dart.leftFaceLabel()),
+            N2 = pixelCount(stats, dart.rightFaceLabel()),
+            dof = N1 + N2 - 2,
+            pooledSigma_2 = ((N1-1)*sigma1_2 + (N2-1)*sigma2_2) / dof,
+            t = (diff / std::sqrt(pooledSigma_2 * (1.0 / N1 + 1.0 / N2)));
+
+        using namespace boost::math;
+        students_t stud(dof);
+        bp::dict result;
+        result["mu1"] = average(stats, dart.leftFaceLabel());
+        result["mu2"] = average(stats, dart.rightFaceLabel());
+        result["diff"] = diff;
+        result["N1"] = N1;
+        result["sigma1_2"] = sigma1_2;
+        result["N2"] = N2;
+        result["sigma2_2"] = sigma2_2;
+        result["pooledSigma_2"] = pooledSigma_2;
+        result["dof"] = dof;
+        result["t"] = t;
+        result["c_tt"] = cdf(stud, t);
+        result["P(H_0)"] = cdf(complement(stud, t));
+        return result;
     }
 
     static Statistics *create(
