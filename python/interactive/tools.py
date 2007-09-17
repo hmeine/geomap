@@ -207,7 +207,7 @@ class LiveWire(object):
     programming fashion, i.e. finding the optimal paths to all
     reachable nodes.  You can then immediately switch between desired
     end nodes by calling setEndNodeLabel()."""
-    
+
     def __init__(self, map, pathCostMeasure, startNodeLabel):
         self._map = map
         self._pathCostMeasure = pathCostMeasure
@@ -278,19 +278,31 @@ class LiveWire(object):
 
     def setEndNodeLabel(self, nodeLabel):
         """Try to set the live wire's end node to the given one.
-        Returns True iff successful, i.e. a path to that node is
-        already known.  You can then call pathDarts() to query the
-        darts belonging to that path or totalCost() to get the cost
+        Returns ``True`` iff successful, i.e. a path to that node is
+        already known.  You can then call `pathDarts()` to query the
+        darts belonging to that path or `totalCost()` to get the cost
         of that path.."""
 
         if self._nodePaths[nodeLabel]:
             self._endNodeLabel = nodeLabel
             return True
 
-    def pathDarts(self, endNodeLabel = None):
-        """liveWire.pathDarts()
+    def loopPath(self, nodeLabel):
+        """Return additional path segment from nodeLabel to
+        endNodeLabel.  If the optimal path from startNodeLabel to
+        `nodeLabel` (i.e. pathDarts(nodeLabel)) passes endNodeLabel,
+        return this (e.g. loop closing) path segment, else return
+        None. """
+        
+        if self._nodePaths[nodeLabel]:
+            result = []
+            for dart in self.pathDarts(nodeLabel):
+                result.append(dart)
+                if dart.endNodeLabel() == self._endNodeLabel:
+                    return result
 
-        Generator function returning all darts along the current live
+    def pathDarts(self, endNodeLabel = None):
+        """Generator function returning all darts along the current live
         wire path, ordered and pointing back from the current
         endNodeLabel() to startNodeLabel()."""
 
@@ -313,7 +325,9 @@ class IntelligentScissors(qt.QObject):
         self._map = map
 
         self._liveWire = None
+        self._loopNodeLabel = None
         self._startNodeLabel = None
+        self._loop = None
         self._allEdges = []
         self._expandTimer = qt.QTimer(self, "expandTimer")
         self._edgeColors = edgeColors
@@ -360,6 +374,9 @@ class IntelligentScissors(qt.QObject):
         search and starts a QTimer repeatedly calling
         _expandBorder()."""
 
+        if not self._liveWire:
+            self._loopNodeLabel = self._startNodeLabel
+
         if not self._liveWire or \
                self._liveWire.startNodeLabel() != self._startNodeLabel:
             self._liveWire = LiveWire(
@@ -404,9 +421,19 @@ class IntelligentScissors(qt.QObject):
                 if self._liveWire.setEndNodeLabel(node.label()): # TODO: else... (delayed)
                     pathEdges = [dart.edge()
                                  for dart in self._liveWire.pathDarts()]
+                    self._loop = self._liveWire.loopPath(self._loopNodeLabel)
+                    if self._loop:
+                        self._loop = [dart.edge() for dart in self._loop]
+                        pathEdges.extend(self._loop)
                     self.viewer.replaceOverlay(
                         EdgeOverlay(pathEdges, qt.Qt.yellow, 2),
                         self.overlayIndex)
+
+    def _protectEdges(self, edges):
+        for edge in edges:
+            edge.setFlag(SCISSOR_PROTECTION | CURRENT_CONTOUR, self.protect)
+            self._edgeColors[edge.label()] = qt.Qt.green
+        self._allEdges.extend(edges)
 
     def mouseReleased(self, x, y, button):
         """With each left click, fix the current live wire and start a
@@ -417,12 +444,8 @@ class IntelligentScissors(qt.QObject):
 
         self.stopSearch()
 
-        pathEdges = [dart.edge()
-                     for dart in self._liveWire.pathDarts()]
-        for edge in pathEdges:
-            edge.setFlag(SCISSOR_PROTECTION | CURRENT_CONTOUR, self.protect)
-            self._edgeColors[edge.label()] = qt.Qt.green
-        self._allEdges.extend(pathEdges)
+        self._protectEdges([dart.edge()
+                            for dart in self._liveWire.pathDarts()])
 
         self.viewer.replaceOverlay(
             EdgeOverlay([], qt.Qt.yellow, 2), self.overlayIndex)
@@ -436,12 +459,17 @@ class IntelligentScissors(qt.QObject):
         (by mouseReleased) and becomes inactive."""
 
         if button == qt.Qt.LeftButton:
+            if self._loop:
+                self._protectEdges(self._loop)
+                self._loop = None
+
             self.stopCurrentContour()
 
     def stopCurrentContour(self):
         self.stopSearch()
         #updateViewer(self.currentPathBounds)
         self._startNodeLabel = self._liveWire.endNodeLabel()
+        self._loopNodeLabel = None # not really needed I think
         self._liveWire = None
         for edge in self._allEdges:
             edge.setFlag(CURRENT_CONTOUR, False)
@@ -464,8 +492,9 @@ class SimplePathCostMeasure(object):
         self.measure = singleDartMeasure
 
     def __call__(self, liveWire, newDart):
+        dartCost = 1.0 / (1e-4 + self.measure(newDart))
         return liveWire.totalCost(newDart.startNodeLabel()) \
-               + 1.0 / (1e-4 + self.measure(newDart))
+               + dartCost * newDart.edge().length()
 
 class ESPathCostMeasure(object):
     def __call__(self, liveWire, newDart):
