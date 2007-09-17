@@ -1294,11 +1294,11 @@ class EdgeRegularity(DetachableStatistics):
 
 def calculateTangentLists(map, dx = 5, skipPoints = 1):
     """calculateTangentLists(map, dx = 5, skipPoints = 1)
-    Add 'tangents' property to all edges, containing the result of
-    running tangentList() on it with the given parameters.  Special
-    care is taken to ensure that the list will never be empty (by
-    reducing the dx or finally set skipPoints to zero to get at least
-    one tangent)."""
+
+    Returns a list that for each edge contains the result of running
+    tangentList(edge, ...) with the given parameters.  Special care is
+    taken to ensure that the list will never be empty (by reducing the
+    dx or finally set skipPoints to zero to get at least one tangent)."""
 
     result = [None] * map.maxEdgeLabel()
     badCount = 0
