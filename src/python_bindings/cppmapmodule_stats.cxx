@@ -60,6 +60,8 @@ class FaceColorStatisticsWrapper
 
         def("superSampledCount", &Statistics::superSampledCount);
 
+        bp::scope parent(*this); // Functor shall become a nested class
+
         bp::class_<StatsFunctor>("Functor")
             .def("pixelCount", &StatsFunctor::count)
             .def("average", &StatsFunctor::average)
