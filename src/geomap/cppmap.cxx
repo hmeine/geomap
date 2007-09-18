@@ -1134,8 +1134,9 @@ bool GeoMap::checkConsistency()
         int dist = sigmaMappingArray_.size()/2;
         for(int label = -dist; label <= dist; ++label)
         {
-            if((unsigned)abs(sigmaMapping_[label]) >= maxEdgeLabel() ||
-               (unsigned)abs(sigmaInverseMapping_[label]) >= maxEdgeLabel())
+            // this test could probably be gotten rid of:
+            if(abs(sigmaMapping_[label]) >= dist ||
+               abs(sigmaInverseMapping_[label]) >= dist)
             {
                 std::cerr << "  Sigma mapping arrays contain junk (sigma["
                           << label << "] = " << sigmaMapping_[label]
