@@ -39,6 +39,7 @@ class FaceColorStatisticsWrapper
         def("average", &average);
         this->attr("__getitem__") = this->attr("average");
         def("variance", &variance);
+        def("functor", &functor);
 
         def("faceMeanDiff", &Statistics::faceMeanDiff);
         def("faceHomogeneity", &Statistics::faceHomogeneity);
@@ -58,6 +59,21 @@ class FaceColorStatisticsWrapper
         def("detachHooks", &Statistics::detachHooks);
 
         def("superSampledCount", &Statistics::superSampledCount);
+
+        bp::class_<StatsFunctor>("Functor")
+            .def("pixelCount", &StatsFunctor::count)
+            .def("average", &StatsFunctor::average)
+            .def("variance", &StatsFunctor::variance)
+            .def("__call__",
+                 // If you want to see a *really* bad error message,
+                 // add a typename before "StatsFunctor const &" in
+                 // the next line and compile with GCC 4.1.2... ;-/
+                 (void (StatsFunctor::*)(StatsFunctor const &))
+                 &StatsFunctor::operator())
+            .def("__call__",
+                 (void (StatsFunctor::*)(typename StatsFunctor::argument_type const &))
+                 &StatsFunctor::operator())
+        ;
     }
 
     static inline void
@@ -96,6 +112,20 @@ class FaceColorStatisticsWrapper
     {
         checkFaceLabel(stats, faceLabel);
         return stats.variance(faceLabel, unbiased);
+    }
+
+    static bp::object
+    functor(Statistics const &stats, CellLabel faceLabel)
+    {
+        if((unsigned int)faceLabel >= stats.size())
+        {
+            PyErr_SetString(PyExc_IndexError,
+                            "face label out of bounds.");
+            bp::throw_error_already_set();
+        }
+        if(!stats[faceLabel])
+            return bp::object();
+        return bp::object(*stats[faceLabel]);
     }
 
 #ifdef HAVE_MATH_TOOLKIT
