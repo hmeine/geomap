@@ -1812,7 +1812,7 @@ CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(GeoMap::Dart &dart)
         GeoMap::Dart(removedDart).nextAlpha());
 
     // COMPLEXITY: depends on callbacks (preMergeFacesHook)
-    if(!preMergeFacesHook(dart))
+    if(!preMergeFacesHook(removedDart))
         return NULL_PTR(GeoMap::Face);
 
     // TODO: history append?
