@@ -2,16 +2,14 @@ _cvsVersion = "$Id$" \
               .split(" ")[2:-2]
 
 import sys, os, math, time, qt
-import fig, figexport, maputils, flag_constants, tools, vigra
+import fig, figexport, maputils, flag_constants, tools, vigra, vigrapyqt
 from vigra import Point2D, Rect2D, Vector2
-from vigrapyqt import ImageWindow, EdgeOverlay, PointOverlay, CircleOverlay
 from hourglass import simplifyPolygon, intPos, BoundingBox, contourPoly
-from maputils import removeCruft, holeComponent
+from maputils import removeCruft
 from weakref import ref
 
 # ui-generated base classes:
-from displaysettings import DisplaySettings
-from dartnavigator import DartNavigatorBase
+import displaysettings, dartnavigator
 
 assert bool(vigra.NBYTE) and not bool(vigra.BYTE), \
        "this code relies on the fact that `normalize` can be either a bool or a PixelType"
@@ -30,12 +28,15 @@ def findZoomFactor(srcSize, destSize):
         result *= 2
     return result
 
-class MapEdges(object):
+class MapEdges(vigrapyqt.Overlay):
+    __slots__ = ("colors",
+                 "_map", "_attachedHooks", "_removedEdgeLabel",
+                 "_zoom", "_zoomedEdges")
+    
     def __init__(self, map, color, width = 0):
+        vigrapyqt.Overlay.__init__(self, color, width)
         self.setMap(map)
-        self.color = color
         self.colors = None
-        self.width = width
         self._zoom = None
         self._attachedHooks = None
 
@@ -46,9 +47,9 @@ class MapEdges(object):
     def attachHooks(self):
         map = self._map()
         self._attachedHooks = (
-            map.addRemoveBridgeCallbacks(self.preRemoveEdgeHook, None),
-            map.addMergeFacesCallbacks(self.preRemoveEdgeHook, None),
-            map.addMergeEdgesCallbacks(self.preMergeEdgesHook, self.postMergeEdgesHook))
+            map.addRemoveBridgeCallbacks(self._preRemoveEdgeHook, self._postRemoveEdgeHook),
+            map.addMergeFacesCallbacks(self._preRemoveEdgeHook, self._postRemoveEdgeHook),
+            map.addMergeEdgesCallbacks(self._preMergeEdgesHook, self._postMergeEdgesHook))
 
     def detachHooks(self):
         """Detaches / removes callbacks from the map's hooks.
@@ -77,61 +78,24 @@ class MapEdges(object):
                       self.viewer.upperLeft().y())
         self.viewer.update(result)
 
-    def _calculatePoints(self):
-        if not self._map():
-            return
-        c = time.clock()
-        if len(self._zoomedEdges) != self._map().maxEdgeLabel():
-            self._zoomedEdges = [None] * self._map().maxEdgeLabel()
-        if hasattr(self._map(), "edges"):
-            # "secret", internal API available? (not for C++ variant ATM)
-            edges = self._map().edges
-            for label, edge in enumerate(edges):
-                if edge:
-                    self._calculateEdgePoints(edge.label(), edge)
-                else:
-                    self._zoomedEdges[label] = None
-        else:
-            expected = 0
-            for edge in self._map().edgeIter():
-                label = edge.label()
-                while expected < label:
-                    self._zoomedEdges[expected] = None
-                    expected += 1
-                self._calculateEdgePoints(label, edge)
-                expected = label + 1
-#         sys.stdout.write("MapEdges._calculatePoints(zoom = %s) took %ss.\n" % (
-#             self._zoom, time.clock() - c, ))
-
-    def _calculateEdgePoints(self, index, origEdgePoints):
+    def _calculateZoomedEdge(self, index, origEdgePoints):
         offset = Vector2(self._zoom / 2.0 - 0.5, self._zoom / 2.0 - 0.5)
         origEdgePoints = (
-            simplifyPolygon(origEdgePoints * self._zoom, 0.5)
+            simplifyPolygon(origEdgePoints * self._zoom, 0.4)
             + offset).roundToInteger()
 
         qpa = self._zoomedEdges[index]
         if qpa == None:
             qpa = qt.QPointArray(len(origEdgePoints))
-        elif qpa.size() < len(origEdgePoints):
+            self._zoomedEdges[index] = qpa
+        elif qpa.size() != len(origEdgePoints):
+            # extra parameter in c++ would be QGArray.SpeedOptim (1), but
+            # is not available here:
             qpa.resize(len(origEdgePoints))
 
-        points = iter(origEdgePoints)
-        oldPos = points.next()
-        qpa.setPoint(0, oldPos[0], oldPos[1])
+        for qpaIndex, pos in enumerate(origEdgePoints):
+            qpa.setPoint(qpaIndex, pos[0], pos[1])
 
-        qpaIndex = 1
-        for pos in points:
-            if pos != oldPos:
-                qpa.setPoint(qpaIndex, pos[0], pos[1])
-                qpaIndex += 1
-                oldPos = pos
-
-        # extra parameter in c++ would be QGArray.SpeedOptim (1), but
-        # is not available here:
-        if qpaIndex != qpa.size():
-            qpa.resize(qpaIndex)
-
-        self._zoomedEdges[index] = qpa
         return qpa
 
     def setEdgePoints(self, index, edgePoints):
@@ -151,7 +115,9 @@ class MapEdges(object):
             updateROI = qt.QRect()
 
         if edgePoints:
-            qpa = self._calculateEdgePoints(index, edgePoints)
+            # TODO: knowing the bounding box for the update would be
+            # enough if the zoomed edge was marked dirty:
+            qpa = self._calculateZoomedEdge(index, edgePoints)
             updateROI |= qpa.boundingRect()
         else:
             self._zoomedEdges[index] = None
@@ -160,16 +126,19 @@ class MapEdges(object):
                          self.viewer.upperLeft().y())
         self.viewer.update(updateROI)
 
-    def preRemoveEdgeHook(self, dart):
-        self.setEdgePoints(dart.edgeLabel(), None)
+    def _preRemoveEdgeHook(self, dart):
+        self._removedEdgeLabel = dart.edgeLabel()
         return True
 
-    def preMergeEdgesHook(self, dart):
-        self.setEdgePoints(
-            dart.clone().nextSigma().edgeLabel(), None)
+    def _postRemoveEdgeHook(self, survivor):
+        self.setEdgePoints(self._removedEdgeLabel, None)
+
+    def _preMergeEdgesHook(self, dart):
+        self._removedEdgeLabel = dart.clone().nextSigma().edgeLabel()
         return True
 
-    def postMergeEdgesHook(self, edge):
+    def _postMergeEdgesHook(self, edge):
+        self.setEdgePoints(self._removedEdgeLabel, None)
         self.setEdgePoints(edge.label(), edge)
 
     def setZoom(self, zoom):
@@ -179,7 +148,6 @@ class MapEdges(object):
                 self.viewer.pixmap.size().width())
         if self._zoom != zoom:
             self._zoom = zoom
-            self._dirty = True
             self._zoomedEdges = [None] * len(self._zoomedEdges)
 
     def _getZoomedEdge(self, edge):
@@ -189,12 +157,15 @@ class MapEdges(object):
         index = edge.label()
         result = self._zoomedEdges[index]
         if result == None:
-            result = self._calculateEdgePoints(index, edge)
+            result = self._calculateZoomedEdge(index, edge)
         return result
     
     def draw(self, p):
         if not self._map():
             return
+
+        self._setupPainter(p)
+
         r = p.clipRegion().boundingRect()
         r.moveBy(-self.viewer.upperLeft().x(),
                  -self.viewer.upperLeft().y())
@@ -215,16 +186,15 @@ class MapEdges(object):
                 print e #"IndexError: %d > %d (maxEdgeLabel: %d)!" % (
                     #i, len(self.colors), map.maxEdgeLabel())
         else:
-            p.setPen(qt.QPen(self.color, self.width))
             for e in map.edgeIter():
                 if bbox.intersects(e.boundingBox()):
                     p.drawPolyline(self._getZoomedEdge(e))
 
-class MapNodes(object):
+class MapNodes(vigrapyqt.Overlay):
     def __init__(self, map, color,
                  radius = 1, relativeRadius = False):
+        vigrapyqt.Overlay.__init__(self, color)
         self.setMap(map)
-        self.color = color
         self.setRadius(radius, relativeRadius)
         self._zoom = None
         self._attachedHook = None
@@ -258,7 +228,7 @@ class MapNodes(object):
         d0 = Vector2(0.5 * (self._zoom-1) - self.radius,
                      0.5 * (self._zoom-1) - self.radius)
         w = 2 * self.radius + 1
-        self.s = qt.QSize(w, w)
+        self._elSize = qt.QSize(w, w)
         self._qpointlist = [None] * self._map().maxNodeLabel()
         for node in self._map().nodeIter():
             ip = intPos(node.position() * self._zoom + d0)
@@ -273,7 +243,7 @@ class MapNodes(object):
                 sys.stderr.write("WARNING: MapNodes.removeNode(): Node already None!\n")
                 return
             if self.visible:
-                ur = qt.QRect(self._qpointlist[nodeLabel], self.s)
+                ur = qt.QRect(self._qpointlist[nodeLabel], self._elSize)
                 ur.moveBy(self.viewer.upperLeft().x(),
                           self.viewer.upperLeft().y())
                 self.viewer.update(ur)
@@ -305,7 +275,9 @@ class MapNodes(object):
     def draw(self, p):
         if not self._qpointlist:
             self._calculatePoints()
-        p.setPen(self.color)
+
+        self._setupPainter(p)
+
         if self.radius == 0:
             for point in self._qpointlist:
                 if point: # TODO: boundingRect
@@ -315,7 +287,7 @@ class MapNodes(object):
             p.setBrush(qt.QBrush(self.color))
             for point in self._qpointlist:
                 if point: # TODO: boundingRect
-                    p.drawEllipse(qt.QRect(point, self.s))
+                    p.drawEllipse(qt.QRect(point, self._elSize))
 
 # --------------------------------------------------------------------
 #                          DartHighlighter
@@ -365,9 +337,9 @@ class DartHighlighter(object):
         if darts == None or not len(darts):
             return
 
-        self.eo = EdgeOverlay([dart.edge() for dart in darts], color)
+        self.eo = vigrapyqt.EdgeOverlay([dart.edge() for dart in darts], color)
         self.eo.width = 2
-        self.no = PointOverlay(
+        self.no = vigrapyqt.PointOverlay(
             [dart.startNode().position() for dart in darts], color, 3)
         self.color = color # used in the viewer's RMB menu
         self._viewer.addOverlay(self)
@@ -432,10 +404,12 @@ def addMapOverlay(fe, overlay, **attr):
     else:
         return figexport.addStandardOverlay(fe, overlay, **attr)
 
-class MapDisplay(DisplaySettings):
+class MapDisplay(displaysettings.DisplaySettings):
+    __base = displaysettings.DisplaySettings
+    
     def __init__(self, map, preparedImage = None, immediateShow = True,
                  faceMeans = None):
-        DisplaySettings.__init__(self)
+        self.__base.__init__(self)
         self.tool = None
         self._togglingGUI = False
         self.faceMeans = None # temp. needed (for _enableImageActions)
@@ -461,7 +435,7 @@ class MapDisplay(DisplaySettings):
             self.setImage(preparedImage) # auto-detects role
 
         self.image = preparedImage
-        self.imageWindow = ImageWindow(self.image, vigra.BYTE, self)
+        self.imageWindow = vigrapyqt.ImageWindow(self.image, vigra.BYTE, self)
         self.imageWindow.label.hide()
         self.setCentralWidget(self.imageWindow)
         self.viewer = self.imageWindow.viewer
@@ -651,16 +625,11 @@ class MapDisplay(DisplaySettings):
 
     def showEvent(self, e):
         self.attachHooks()
-        DisplaySettings.showEvent(self, e)
+        self.__base.showEvent(self, e)
 
     def hideEvent(self, e):
         self.detachHooks()
-        DisplaySettings.hideEvent(self, e)
-
-    def _mapToOverlays(self):
-        self.edgeOverlay._calculatePoints()
-        self.nodeOverlay._calculatePoints()
-        self.viewer.update()
+        self.__base.hideEvent(self, e)
 
     def showMarkedEdges(self, colorMarked = qt.Qt.green, colorUnmarked = None,
                         markFlags = flag_constants.ALL_PROTECTION):
@@ -879,9 +848,11 @@ class MapDisplay(DisplaySettings):
 #                         dart navigation dialog
 # --------------------------------------------------------------------
 
-class DartNavigator(DartNavigatorBase):
+class DartNavigator(dartnavigator.DartNavigatorBase):
+    __base = dartnavigator.DartNavigatorBase
+    
     def __init__(self, dart, costMeasure, parent, name = None):
-        DartNavigatorBase.__init__(self, parent, name)
+        self.__base.__init__(self, parent, name)
         self.dart = dart
         self.costMeasure = costMeasure
         self.connect(self.nextPhiButton, qt.SIGNAL("clicked()"),
@@ -907,7 +878,7 @@ class DartNavigator(DartNavigatorBase):
 
     def closeEvent(self, e):
         self.dh.highlight(None)
-        DartNavigatorBase.closeEvent(self, e)
+        self.__base.closeEvent(self, e)
         self.deleteLater() # like qt.Qt.WDestructiveClose ;-)
 
     def highlightNext(self):
