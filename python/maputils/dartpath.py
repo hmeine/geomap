@@ -141,7 +141,7 @@ def allContinuations(startDart, length, klass = Path):
     * do not contain an edge with BORDER_PROTECTION and
     
     * do not contain a direct pair of opposite darts
-      (i.e. loops are allowed, but no"U-turns").
+      (i.e. loops are allowed, but no "U-turns").
 
     You can change the class of the returned paths (default: Path)
     with the optional 'klass' argument.  (The given type must support
