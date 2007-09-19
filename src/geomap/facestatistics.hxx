@@ -225,8 +225,11 @@ class FaceColorStatistics : boost::noncopyable
             }
         }
 
-        vigra_assert(face.pixelArea() == functors_[face.label()]->count(),
-                     "wrong pixelcount after merge in faceMeans");
+#ifndef NDEBUG
+        if(!superSampled_.get() || !(*superSampled_)[face.label()])
+            vigra_postcondition(face.pixelArea() == functors_[face.label()]->count(),
+                                "wrong pixelcount after merge in faceMeans");
+#endif
     }
 
     void associatePixels(const GeoMap::Face &face, const PixelList &pixels)
@@ -261,9 +264,11 @@ class FaceColorStatistics : boost::noncopyable
                 f(originalImage_[*it]);
         }
 
-        // TODO: only if not supersampled
-//         vigra_assert(face.pixelArea() == functors_[face.label()]->count(),
-//                      "wrong pixelcount after pixel association in faceMeans");
+#ifndef NDEBUG
+        if(!superSampled_.get() || !(*superSampled_)[face.label()])
+            vigra_postcondition(face.pixelArea() == functors_[face.label()]->count(),
+                                "wrong pixelcount after pixel association in faceMeans");
+#endif
     }
 
     double faceMeanDiff(const GeoMap::Dart &dart) const
