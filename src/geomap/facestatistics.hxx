@@ -144,10 +144,6 @@ class FaceColorStatistics : boost::noncopyable
             unsigned char ssLeft((*superSampled_)[dart.leftFaceLabel()]);
             unsigned char ssRight((*superSampled_)[dart.rightFaceLabel()]);
 
-            unsigned int mergedPixelArea =
-                dart.leftFace()->pixelArea() + dart.rightFace()->pixelArea();
-            mergeDecreasesSSCount_ = false;
-
             if(ssLeft != ssRight)
             {
                 if(ssLeft < ssRight)
@@ -169,9 +165,9 @@ class FaceColorStatistics : boost::noncopyable
             else if(ssLeft + ssRight)
             {
                 mergedSS_ = ssLeft;
-                mergeDecreasesSSCount_ = mergedPixelArea >= minSampleCount_;
 
-                if(mergeDecreasesSSCount_)
+                if(dart.leftFace()->pixelArea() + dart.rightFace()->pixelArea()
+                   >= minSampleCount_)
                 {
                     merged_.reset();
                     rescanFace(*dart.leftFace(), merged_);
@@ -196,12 +192,12 @@ class FaceColorStatistics : boost::noncopyable
         *functors_[face.label()] = merged_;
         if(superSampled_.get())
         {
-            (*superSampled_)[face.label()] = mergedSS_;
-            if(mergeDecreasesSSCount_)
+            if((*superSampled_)[face.label()] && !mergedSS_)
             {
                 if(!--superSampledCount_)
                     superSampled_.reset();
             }
+            (*superSampled_)[face.label()] = mergedSS_;
         }
 
         if(face.label() == label1_)
@@ -413,7 +409,6 @@ class FaceColorStatistics : boost::noncopyable
 
     Functor merged_;
     unsigned char mergedSS_;
-    bool mergeDecreasesSSCount_;
     CellLabel label1_, label2_;
 
     double maxDiffNorm_;
