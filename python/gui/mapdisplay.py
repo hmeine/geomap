@@ -680,13 +680,13 @@ class MapDisplay(displaysettings.DisplaySettings):
         elif tool == 2:
             self.tool = tools.ActivePaintbrush(self.map, self)
         elif tool == 3:
-            if not self.edgeOverlay.colors:
-                self.showMarkedEdges(colorUnmarked = qt.Qt.black)
+            if self.edgeOverlay.color == qt.Qt.red:
+                self.edgeOverlay.color = qt.Qt.black
+            self.nodeOverlay.visible = False
             self.tool = tools.IntelligentScissors(
-                self.map, self.edgeOverlay.colors, self)
+                self.map, self.edgeOverlay, self)
             tools.activePathMeasure = \
                 tools.SimplePathCostMeasure(self.faceMeans.faceMeanDiff)
-            self.nodeOverlay.visible = False
         elif hasattr(tool, "disconnectViewer"):
             self.tool = tool
         elif tool != None:

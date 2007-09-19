@@ -35,8 +35,8 @@ method)."""
 _cvsVersion = "$Id$" \
               .split(" ")[2:-2]
 
-import sys, qt, math
-from maputils import mergeFacesByLabel, contourDarts, protectFace
+import sys, qt, math, maputils
+from maputils import mergeFacesByLabel, contourDarts
 from flag_constants import *
 from vigrapyqt import EdgeOverlay, PointOverlay
 from vigra import *
@@ -184,7 +184,7 @@ class ActivePaintbrush(qt.QObject):
 
     def mouseDoubleClicked(self, x, y):
         face = self._map.faceAt((x, y))
-        protectFace(face, not face.flag(PROTECTED_FACE))
+        maputils.protectFace(face, not face.flag(PROTECTED_FACE))
 
     def disconnectViewer(self):
         viewer = self.parent().viewer
@@ -320,7 +320,7 @@ class LiveWire(object):
         return self._nodePaths[endNodeLabel][0]
 
 class IntelligentScissors(qt.QObject):
-    def __init__(self, map, edgeColors, parent = None, name = None):
+    def __init__(self, map, mapEdges, parent = None, name = None):
         qt.QObject.__init__(self, parent, name)
         self._map = map
 
@@ -332,7 +332,7 @@ class IntelligentScissors(qt.QObject):
         self._prevContour = None # last finished _contour
         self._seeds = [] # all seeds of all contours (for debugging ATM)
         self._expandTimer = qt.QTimer(self, "expandTimer")
-        self._edgeColors = edgeColors
+        self._mapEdges = mapEdges
         self.connect(self._expandTimer, qt.SIGNAL("timeout()"),
                      self._expandBorder)
         self.protect = True
@@ -448,7 +448,7 @@ class IntelligentScissors(qt.QObject):
         for dart in darts:
             edge = dart.edge()
             edge.setFlag(SCISSOR_PROTECTION | CURRENT_CONTOUR, self.protect)
-            self._edgeColors[edge.label()] = qt.Qt.green
+            self._mapEdges._updateEdgeROI(edge)
             self._contour.append(dart)
 
     def mouseReleased(self, x, y, button):
