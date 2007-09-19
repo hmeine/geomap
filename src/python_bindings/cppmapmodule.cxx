@@ -356,7 +356,7 @@ class AssociatePixelsCallback : public SimpleCallback
                 sigc::mem_fun(this, &AssociatePixelsCallback::operator())));
     }
 
-    void operator()(GeoMap::Face &face, const PixelList &pixels)
+    void operator()(const GeoMap::Face &face, const PixelList &pixels)
     {
         callback_(boost::ref(face), pixels);
     }

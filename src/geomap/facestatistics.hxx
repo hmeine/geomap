@@ -229,7 +229,7 @@ class FaceColorStatistics : boost::noncopyable
                      "wrong pixelcount after merge in faceMeans");
     }
 
-    void associatePixels(GeoMap::Face &face, const PixelList &pixels)
+    void associatePixels(const GeoMap::Face &face, const PixelList &pixels)
     {
         vigra_assert(
             face.label() < size() && functors_[face.label()],

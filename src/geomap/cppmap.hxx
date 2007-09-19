@@ -367,7 +367,7 @@ class GeoMap
         preMergeFacesHook;
     sigc::signal<void, Face &>
         postMergeFacesHook;
-    sigc::signal<void, Face &, const PixelList &>
+    sigc::signal<void, const Face &, const PixelList &>
         associatePixelsHook;
 };
 
