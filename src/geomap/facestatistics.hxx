@@ -59,6 +59,17 @@ class LookupFaceAverage
     }
 };
 
+inline vigra::Point2D intPos(const vigra::Vector2 &p)
+{
+    return vigra::Point2D((int)floor(p[0]+0.5), (int)floor(p[1]+0.5));
+}
+
+inline vigra::Rect2D intPos(const GeoMap::Face::BoundingBox &b)
+{
+    return vigra::Rect2D(intPos(b.begin()),
+                         intPos(b.end())+vigra::Size2D(1,1));
+}
+
 } // namespace detail
 
 /********************************************************************/
@@ -133,25 +144,42 @@ class FaceColorStatistics : boost::noncopyable
             unsigned char ssLeft((*superSampled_)[dart.leftFaceLabel()]);
             unsigned char ssRight((*superSampled_)[dart.rightFaceLabel()]);
 
+            unsigned int mergedPixelArea =
+                dart.leftFace()->pixelArea() + dart.rightFace()->pixelArea();
+            mergeDecreasesSSCount_ = false;
+
             if(ssLeft != ssRight)
             {
                 if(ssLeft < ssRight)
                 {
                     merged_ = *functors_[dart.leftFaceLabel()];
                     mergedSS_ = ssLeft;
-                    mergeDecreasesSSCount_ = !ssLeft;
+                    if(dart.rightFace()->pixelArea())
+                        rescanFace(*dart.rightFace(), merged_);
                 }
                 else
                 {
                     merged_ = *functors_[dart.rightFaceLabel()];
                     mergedSS_ = ssRight;
-                    mergeDecreasesSSCount_ = !ssRight;
+                    if(dart.leftFace()->pixelArea())
+                        rescanFace(*dart.leftFace(), merged_);
                 }
                 return true;
             }
+            else if(ssLeft + ssRight)
+            {
+                mergedSS_ = ssLeft;
+                mergeDecreasesSSCount_ = mergedPixelArea >= minSampleCount_;
 
-            mergedSS_ = ssLeft;
-            mergeDecreasesSSCount_ = false;
+                if(mergeDecreasesSSCount_)
+                {
+                    merged_.reset();
+                    rescanFace(*dart.leftFace(), merged_);
+                    rescanFace(*dart.rightFace(), merged_);
+                    mergedSS_ = 0;
+                    return true;
+                }
+            }
         }
 
         merged_ = *functors_[dart.leftFaceLabel()];
@@ -170,20 +198,35 @@ class FaceColorStatistics : boost::noncopyable
         {
             (*superSampled_)[face.label()] = mergedSS_;
             if(mergeDecreasesSSCount_)
+            {
                 if(!--superSampledCount_)
                     superSampled_.reset();
+            }
         }
 
         if(face.label() == label1_)
         {
             delete functors_[label2_];
             functors_[label2_] = NULL;
+            if((*superSampled_)[label2_])
+            {
+                if(!--superSampledCount_)
+                    superSampled_.reset();
+            }
         }
         else
         {
             delete functors_[label1_];
             functors_[label1_] = NULL;
+            if((*superSampled_)[label1_])
+            {
+                if(!--superSampledCount_)
+                    superSampled_.reset();
+            }
         }
+
+        vigra_assert(face.pixelArea() == functors_[face.label()]->count(),
+                     "wrong pixelcount after merge in faceMeans");
     }
 
     void associatePixels(GeoMap::Face &face, const PixelList &pixels)
@@ -192,15 +235,20 @@ class FaceColorStatistics : boost::noncopyable
             face.label() < size() && functors_[face.label()],
             "invalid survivor label in associatePixels");
 
-        if(superSampled_.get() && (*superSampled_)[face.label()])
+        if(superSampled_.get() && (*superSampled_)[face.label()] &&
+           face.pixelArea() >= minSampleCount_)
         {
             (*superSampled_)[face.label()] = 0;
             --superSampledCount_;
+
             functors_[face.label()]->reset();
-            // FIXME: if minSampleCount > 1, the Face may already
-            // contain pixels, whose statistics will be missing in the
-            // freshly-generated functor below.  Ideally, we should
-            // scan face's bbox here!
+
+            if(face.pixelArea() != pixels.size())
+            {
+                // we need to re-scan due to previous supersampling:
+                rescanFace(face, *functors_[face.label()]);
+                return;
+            }
         }
 
         Functor &f(*functors_[face.label()]);
@@ -212,6 +260,10 @@ class FaceColorStatistics : boost::noncopyable
 #endif
                 f(originalImage_[*it]);
         }
+
+        // TODO: only if not supersampled
+//         vigra_assert(face.pixelArea() == functors_[face.label()]->count(),
+//                      "wrong pixelcount after pixel association in faceMeans");
     }
 
     double faceMeanDiff(const GeoMap::Dart &dart) const
@@ -312,6 +364,11 @@ class FaceColorStatistics : boost::noncopyable
         connections_.clear();
     }
 
+    unsigned int minSampleCount() const
+    {
+        return minSampleCount_;
+    }
+
     unsigned int superSampledCount() const
     {
         return superSampledCount_;
@@ -320,11 +377,32 @@ class FaceColorStatistics : boost::noncopyable
   protected:
     void ensureMinSampleCount(unsigned int minSampleCount);
 
+    void rescanFace(const GeoMap::Face &face, Functor &f)
+    {
+        vigra::Rect2D faceROI(detail::intPos(face.boundingBox()));
+        faceROI &= vigra::Rect2D(originalImage_.size());
+
+        GeoMap::LabelImageIterator
+            labUL = map_.labelsUpperLeft(),
+            ul = labUL + faceROI.upperLeft(),
+            lr = labUL + faceROI.lowerRight();
+        GeoMap::LabelImageAccessor lac(map_.labelAccessor());
+
+        for(; ul.y < lr.y; ++ul.y)
+        {
+            GeoMap::LabelImageIterator lab(ul);
+            for(; lab.x < lr.x; ++lab.x)
+                if(lac(lab) == (int)face.label())
+                    f(originalImage_[lab-labUL]);
+        }
+    }
+
     GeoMap &map_;
     std::vector<sigc::connection> connections_;
     const OriginalImage originalImage_;
     std::vector<Functor *> functors_;
 
+    unsigned int minSampleCount_;
     std::auto_ptr<std::vector<unsigned char> > superSampled_;
     unsigned int superSampledCount_;
 
@@ -344,6 +422,7 @@ FaceColorStatistics<OriginalImage>::FaceColorStatistics(
 : map_(map),
   originalImage_(originalImage),
   functors_(map.maxFaceLabel(), NULL),
+  minSampleCount_(minSampleCount),
   superSampledCount_(0),
   maxDiffNorm_(maxDiffNorm)
 {
