@@ -22,13 +22,17 @@ def gm2Gradient(gm, sigma):
     er = tensorEigenRepresentation(gaussianHessian(gm, sigma))
     return transformImage(er, gm, "\l e,i: i*Vector(-sin(e[2]), cos(e[2]))")
 
-def colorGradient(img, scale, sqrt = False):
+def colorGradient(img, scale, sqrt = True):
     """Calculate Gaussian color gradient.  Calculates sum of Gaussian
-    gradient tensors in all single bands, and returns pair of (gm2,
-    grad) where gm2 is the trace of the color gradient tensor and grad
-    is a 2-band image with the large eigenvectors of the appropriate
-    sqrt(gm2) lengths.  If `sqrt` is set to True, returns (gm, grad)
-    instead, i.e. applies sqrt to the first image."""
+    gradient tensors in all single bands, and returns pair of (gm,
+    grad) where gm is the square root of the trace of the color
+    gradient tensor and grad is a 2-band image with the large
+    eigenvectors of the appropriate sqrt(gm2) lengths.
+
+    If `sqrt` is set to False, returns (gm2, grad) instead, i.e. does
+    not apply sqrt to the first image (slight optimization if you
+    don't need the gm image)."""
+    
     bandTensors = [
         vectorToTensor(gaussianGradientAsVector(img.subImage(i), scale))
         for i in range(img.bands())]
@@ -43,6 +47,17 @@ def colorGradient(img, scale, sqrt = False):
         gm = transformImage(gm2, "\l x: sqrt(x)")
         return gm, grad
     return gm2, grad
+
+def gaussianGradient(img, scale, sqrt = True):
+    if img.bands() > 1:
+        return colorGradient(img, scale, sqrt)
+
+    grad = gaussianGradientAsVector(img, scale)
+    if sqrt:
+        gm = transformImage(grad, "\l x: norm(x)")
+    else:
+        gm = transformImage(grad, "\l x: squaredNorm(x)")
+    return gm, grad
 
 def structureTensorFromGradient(grad, scale):
     return gaussianSmoothing(vectorToTensor(grad), scale)
