@@ -328,7 +328,9 @@ class IntelligentScissors(qt.QObject):
         self._loopNodeLabel = None
         self._startNodeLabel = None
         self._loop = None
-        self._allEdges = []
+        self._contour = [] # darts within current (multi-segment) contour
+        self._prevContour = None # last finished _contour
+        self._seeds = [] # all seeds of all contours (for debugging ATM)
         self._expandTimer = qt.QTimer(self, "expandTimer")
         self._edgeColors = edgeColors
         self.connect(self._expandTimer, qt.SIGNAL("timeout()"),
@@ -369,13 +371,15 @@ class IntelligentScissors(qt.QObject):
             self.protect = not self._keyState & qt.Qt.ControlButton
         return False
 
-    def startSearch(self):
-        """Starts a search at self._startNodeLabel.  Initialized the
-        search and starts a QTimer repeatedly calling
-        _expandBorder()."""
+    def startContour(self):
+        self._loopNodeLabel = self._startNodeLabel
+        self.startLiveWire()
 
-        if not self._liveWire:
-            self._loopNodeLabel = self._startNodeLabel
+    def startLiveWire(self):
+        """Start a LiveWire at self._startNodeLabel.
+        Starts a QTimer for repeated calling of _expandBorder()."""
+
+        self._seeds.append(self._startNodeLabel)
 
         if not self._liveWire or \
                self._liveWire.startNodeLabel() != self._startNodeLabel:
@@ -384,14 +388,26 @@ class IntelligentScissors(qt.QObject):
 
         self._expandTimer.start(0)
 
-    def stopSearch(self):
-        """Stops the current search (i.e., the QTimer)."""
+    def stopLiveWire(self):
+        """Stop the LiveWire (i.e., the QTimer)."""
 
         self._expandTimer.stop()
 
+    def stopCurrentContour(self):
+        self.stopLiveWire()
+
+        #updateViewer(self.currentPathBounds)
+        self._startNodeLabel = self._liveWire.endNodeLabel()
+        self._loopNodeLabel = None # not really needed I think
+        self._liveWire = None
+        for dart in self._contour:
+            dart.edge().setFlag(CURRENT_CONTOUR, False)
+        self._prevContour = self._contour
+        self._contour = []
+
     def _expandBorder(self):
         if not self._liveWire.expandBorder():
-            self.stopSearch()
+            self._expandTimer.stop()
             return
 
     def mousePressed(self, x, y, button):
@@ -402,7 +418,7 @@ class IntelligentScissors(qt.QObject):
             return self.stopCurrentContour()
 
         if button == qt.Qt.LeftButton and not self._liveWire:
-            self.startSearch()
+            self.startContour()
 
     def mouseMoved(self, x, y):
         """It the live wire is active, it's end node is set to the
@@ -423,17 +439,17 @@ class IntelligentScissors(qt.QObject):
                                  for dart in self._liveWire.pathDarts()]
                     self._loop = self._liveWire.loopPath(self._loopNodeLabel)
                     if self._loop:
-                        self._loop = [dart.edge() for dart in self._loop]
-                        pathEdges.extend(self._loop)
+                        pathEdges.extend([dart.edge() for dart in self._loop])
                     self.viewer.replaceOverlay(
                         EdgeOverlay(pathEdges, qt.Qt.yellow, 2),
                         self.overlayIndex)
 
-    def _protectEdges(self, edges):
-        for edge in edges:
+    def _protectPath(self, darts):
+        for dart in darts:
+            edge = dart.edge()
             edge.setFlag(SCISSOR_PROTECTION | CURRENT_CONTOUR, self.protect)
             self._edgeColors[edge.label()] = qt.Qt.green
-        self._allEdges.extend(edges)
+            self._contour.append(dart)
 
     def mouseReleased(self, x, y, button):
         """With each left click, fix the current live wire and start a
@@ -442,17 +458,16 @@ class IntelligentScissors(qt.QObject):
         if button != qt.Qt.LeftButton or not self._liveWire:
             return
 
-        self.stopSearch()
+        self.stopLiveWire()
 
-        self._protectEdges([dart.edge()
-                            for dart in self._liveWire.pathDarts()])
+        self._protectPath(self._liveWire.pathDarts())
 
         self.viewer.replaceOverlay(
             EdgeOverlay([], qt.Qt.yellow, 2), self.overlayIndex)
 
         self._startNodeLabel = self._liveWire.endNodeLabel()
 
-        self.startSearch()
+        self.startLiveWire()
 
     def mouseDoubleClicked(self, x, y, button):
         """With a double left click, the current live wire is fixed
@@ -460,19 +475,11 @@ class IntelligentScissors(qt.QObject):
 
         if button == qt.Qt.LeftButton:
             if self._loop:
-                self._protectEdges(self._loop)
+                self._protectPath(self._loop)
                 self._loop = None
+                self._seeds.append(self._loopNodeLabel)
 
             self.stopCurrentContour()
-
-    def stopCurrentContour(self):
-        self.stopSearch()
-        #updateViewer(self.currentPathBounds)
-        self._startNodeLabel = self._liveWire.endNodeLabel()
-        self._loopNodeLabel = None # not really needed I think
-        self._liveWire = None
-        for edge in self._allEdges:
-            edge.setFlag(CURRENT_CONTOUR, False)
 
 # --------------------------------------------------------------------
 
@@ -493,6 +500,7 @@ class SimplePathCostMeasure(object):
 
     def __call__(self, liveWire, newDart):
         dartCost = 1.0 / (1e-4 + self.measure(newDart))
+        #dartCost = 1.0 - self.measure(newDart)
         return liveWire.totalCost(newDart.startNodeLabel()) \
                + dartCost * newDart.edge().length()
 
