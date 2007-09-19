@@ -29,14 +29,17 @@ def findZoomFactor(srcSize, destSize):
     return result
 
 class MapEdges(vigrapyqt.Overlay):
-    __slots__ = ("colors",
+    __slots__ = ("colors", "protectedColor", "protectedWidth",
                  "_map", "_attachedHooks", "_removedEdgeLabel",
                  "_zoom", "_zoomedEdges")
     
-    def __init__(self, map, color, width = 0):
+    def __init__(self, map, color, width = 0,
+                 protectedColor = None, protectedWidth = None):
         vigrapyqt.Overlay.__init__(self, color, width)
         self.setMap(map)
         self.colors = None
+        self.protectedColor = protectedColor
+        self.protectedWidth = protectedWidth
         self._zoom = None
         self._attachedHooks = None
 
@@ -185,9 +188,17 @@ class MapEdges(vigrapyqt.Overlay):
             except IndexError, e:
                 print e #"IndexError: %d > %d (maxEdgeLabel: %d)!" % (
                     #i, len(self.colors), map.maxEdgeLabel())
-        else:
+        elif self.color:
             for edge in map.edgeIter():
                 if bbox.intersects(edge.boundingBox()):
+                    p.drawPolyline(self._getZoomedEdge(edge))
+
+        if self.protectedColor:
+            p.setPen(qt.QPen(self.protectedColor,
+                             self.protectedWidth or self.width))
+            for edge in map.edgeIter():
+                if edge.flag(flag_constants.ALL_PROTECTION) and \
+                       bbox.intersects(edge.boundingBox()):
                     p.drawPolyline(self._getZoomedEdge(edge))
 
 class MapNodes(vigrapyqt.Overlay):
@@ -469,7 +480,8 @@ class MapDisplay(displaysettings.DisplaySettings):
 
         self.setCaption("Map Display")
 
-        self.edgeOverlay = MapEdges(map, qt.Qt.red)
+        self.edgeOverlay = MapEdges(map, qt.Qt.red,
+                                    protectedColor = qt.Qt.green)
         self.nodeOverlay = MapNodes(map, qt.Qt.blue, 1)
         self.viewer.addOverlay(self.edgeOverlay)
         self.viewer.addOverlay(self.nodeOverlay)
