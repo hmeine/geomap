@@ -78,23 +78,23 @@ class MapEdges(vigrapyqt.Overlay):
                       self.viewer.upperLeft().y())
         self.viewer.update(result)
 
-    def _calculateZoomedEdge(self, index, origEdgePoints):
+    def _calculateZoomedEdge(self, edgeLabel, edge):
         offset = Vector2(self._zoom / 2.0 - 0.5, self._zoom / 2.0 - 0.5)
         origEdgePoints = (
-            simplifyPolygon(origEdgePoints * self._zoom, 0.4)
+            simplifyPolygon(edge * self._zoom, 0.4)
             + offset).roundToInteger()
 
-        qpa = self._zoomedEdges[index]
+        qpa = self._zoomedEdges[edgeLabel]
         if qpa == None:
             qpa = qt.QPointArray(len(origEdgePoints))
-            self._zoomedEdges[index] = qpa
+            self._zoomedEdges[edgeLabel] = qpa
         elif qpa.size() != len(origEdgePoints):
             # extra parameter in c++ would be QGArray.SpeedOptim (1), but
             # is not available here:
             qpa.resize(len(origEdgePoints))
 
-        for qpaIndex, pos in enumerate(origEdgePoints):
-            qpa.setPoint(qpaIndex, pos[0], pos[1])
+        for i, pos in enumerate(origEdgePoints):
+            qpa.setPoint(i, pos[0], pos[1])
 
         return qpa
 
@@ -176,19 +176,19 @@ class MapEdges(vigrapyqt.Overlay):
         map = self._map()
         if self.colors:
             try:
-                for e in map.edgeIter():
-                    if bbox.intersects(e.boundingBox()):
-                        edgeColor = self.colors[e.label()]
+                for edge in map.edgeIter():
+                    if bbox.intersects(edge.boundingBox()):
+                        edgeColor = self.colors[edge.label()]
                         if edgeColor:
                             p.setPen(qt.QPen(edgeColor, self.width))
-                            p.drawPolyline(self._getZoomedEdge(e))
+                            p.drawPolyline(self._getZoomedEdge(edge))
             except IndexError, e:
                 print e #"IndexError: %d > %d (maxEdgeLabel: %d)!" % (
                     #i, len(self.colors), map.maxEdgeLabel())
         else:
-            for e in map.edgeIter():
-                if bbox.intersects(e.boundingBox()):
-                    p.drawPolyline(self._getZoomedEdge(e))
+            for edge in map.edgeIter():
+                if bbox.intersects(edge.boundingBox()):
+                    p.drawPolyline(self._getZoomedEdge(edge))
 
 class MapNodes(vigrapyqt.Overlay):
     def __init__(self, map, color,
