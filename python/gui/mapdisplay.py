@@ -481,7 +481,8 @@ class MapDisplay(displaysettings.DisplaySettings):
         self.setCaption("Map Display")
 
         self.edgeOverlay = MapEdges(map, qt.Qt.red,
-                                    protectedColor = qt.Qt.green)
+                                    protectedColor = qt.Qt.green,
+                                    protectedWidth = 2)
         self.nodeOverlay = MapNodes(map, qt.Qt.blue, 1)
         self.viewer.addOverlay(self.edgeOverlay)
         self.viewer.addOverlay(self.nodeOverlay)
