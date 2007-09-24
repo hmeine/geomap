@@ -1399,6 +1399,7 @@ class AutomaticRegionMerger(object):
             self._mergeOperation = self._map.mergeFaces
 
         if q == None:
+            # FIXME: (why) is the +1 needed?
             q = hourglass.DynamicCostQueue(map.maxEdgeLabel()+1)
             for edge in map.edgeIter():
                 if edge.flag(flag_constants.ALL_PROTECTION):
@@ -1996,7 +1997,7 @@ def waterfall(map, edgeCosts, mst = None):
     applyFaceClassification(map, faceLabels)
     print "  total waterfall() time: %ss." % (time.clock() - c, )
 
-def dualMap(map, edgeLabels = None, midPoints = True):
+def dualMap(map, edgeLabels = None, midPoints = None):
     """Compute (a subset of) the dual of a GeoMap.
     `edgeLabels` determines which edges appear in the result.
     If None (default), the complete dual map is returned.
@@ -2020,7 +2021,12 @@ def dualMap(map, edgeLabels = None, midPoints = True):
         enl = nodes[edge.rightFaceLabel()]
         if snl and enl:
             poly = [snl.position(), enl.position()]
-            if midPoints:
+            midPoint = midPoints
+            if midPoints == None:
+                # auto-detect if midPoint is necessary (no intersection):
+                clipped = hourglass.intersectLine(edge, *poly)
+                midPoint = (len(clipped) == 1 and len(clipped[0]) == len(edge))
+            if midPoint:
                 dp = hourglass.DartPosition(edge.dart())
                 dp.gotoArcLength(edge.length()/2)
                 poly.insert(1, dp())
