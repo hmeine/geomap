@@ -68,6 +68,28 @@ def _combinedMeasure(dart, weightedMeasures):
 def combinedMeasure(*weightedMeasures):
     return lambda dart: _combinedMeasure(dart, weightedMeasures)
 
+def trainedMeasure(dartPath, faceMeans, edgeGradients):
+    Functor = type(faceMeans.functor(dartPath[0].leftFaceLabel()))
+    left = Functor()
+    right = Functor()
+    leftVariance = Functor()
+    rightVariance = Functor()
+    for dart in dartPath:
+        weight = dart.edge().length()
+        left(faceMeans.average(dart.leftFaceLabel()), weight)
+        right(faceMeans.average(dart.rightFaceLabel()), weight)
+        leftVariance(faceMeans.variance(dart.leftFaceLabel(), True), weight)
+        rightVariance(faceMeans.variance(dart.rightFaceLabel(), True), weight)
+
+    leftSigma2 = norm(left.variance(True) + leftVariance.average())
+    leftAvg = left.average()
+    rightSigma2 = norm(right.variance(True) + rightVariance.average())
+    rightAvg = right.average()
+    
+    return lambda dart: 0.5*(
+        math.exp(-vigra.sq(faceMeans[dart.leftFaceLabel()]-leftAvg)/leftSigma2) + \
+        math.exp(-vigra.sq(faceMeans[dart.rightFaceLabel()]-rightAvg)/rightSigma2))
+
 # --------------------------------------------------------------------
 #              Region-based Statistics & Cost Measures
 # --------------------------------------------------------------------
@@ -892,11 +914,12 @@ class EdgeGradientStatistics(BoundaryIndicatorStatistics):
 
         If `tangents` are given, this replaces the former
         EdgeGradDirDotStatistics.  I.e. instead of sampling a simple
-        SplineImageView (gradSiv) at the polyline points, the `gradSiv`
-        parameter is assumed to give gradient *vector* output
-        (cf. GradientSIVProxy) that is sampled at the tangent
+        SplineImageView (gradSiv) at the polyline points, the
+        `gradSiv` parameter is assumed to give gradient *vector*
+        output (cf. GradientSIVProxy) that is sampled at the tangent
         positions and multiplied with tangent unit vectors.  Note that
-        ATM, the values are not weighted in this mode."""
+        ATM, the values are not weighted with the polyline segment
+        lengths in this mode."""
         
         BoundaryIndicatorStatistics.__init__(self, map)
 
@@ -920,8 +943,8 @@ class EdgeGradientStatistics(BoundaryIndicatorStatistics):
 
                     segment = Vector2(-math.sin(theta), math.cos(theta))
 
-                    # FIXME: QuantileStatistics expects segment length,
-                    # we give always 1.0:
+                    # FIXME: Statistics expect segment length,
+                    # we always give 1.0:
                     stats(abs(dot(gradDir, segment)), 1.0)
 
                 self._functors[edge.label()] = stats
@@ -1341,31 +1364,40 @@ def calculateTangentListsGaussianReflective(map, sigma, diff=0.0):
             result[edge.label()] = tangentListGaussianReflective(edge, sigma, diff)
         except RuntimeError:
             sys.stderr.write("calculateTangentListsGaussianReflective: %s too short!\n" % edge)
+            edx, edy = edge[-1] - edge[0]
+            result[edge.label()] = [(edge.length()/2, math.atan2(edy, edx))]
     return result
 
 class EdgeTangents(DynamicEdgeStatistics):
-    """Calls calculateTangentLists with the constructor parameters and
-    merges tangent lists when merging edges."""
+    """Stores precomputed tangent lists for each edge and merges then
+    when merging edges."""
 
     __slots__ = ["tangents",
-                 "_mergedTangents"]
+                 "_mergedTangents", "_mergeLabels"]
     
-    def __init__(self, map, *args):
+    def __init__(self, map, tangents):
         DynamicEdgeStatistics.__init__(self, map)
-        self.tangents = calculateTangentLists(map, *args)
+        self.tangents = tangents
         self._attachHooks()
 
     def preMergeEdges(self, dart):
-        import dartpath # prevent cyclic import
-        path = dartpath.Path(
-            [dart.clone().nextAlpha(), dart.clone().nextSigma()])
-        if path[0].label() < 0:
-            path.reverse()
-        self._mergedTangents = path.tangents(self.dartTangents)
+        if dart.label() > 0:
+            dart1 = dart.clone().prevPhi()
+            dart2 = dart
+        else:
+            dart1 = dart.clone().nextAlpha()
+            dart2 = dart.clone().nextSigma()
+        self._mergedTangents = hourglass.composeTangentLists([
+            self.dartTangents(dart1), self.dartTangents(dart2)])
+        self._mergeLabels = (dart1.edgeLabel(), dart2.edgeLabel())
         return True
 
     def postMergeEdges(self, survivor):
-        survivor.tangents = self._mergedTangents
+        self.tangents[survivor.label()] = self._mergedTangents
+        if self._mergeLabels[0] == survivor.label():
+            self.tangents[self._mergeLabels[1]] = None
+        else:
+            self.tangents[self._mergeLabels[0]] = None
 
     def dartTangents(self, dart):
         """Return (tangents, dirLength) pair, where dirLength is
