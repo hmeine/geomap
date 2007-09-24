@@ -206,11 +206,16 @@ class LiveWire(object):
     path, but also performs the complete path search in a dynamic
     programming fashion, i.e. finding the optimal paths to all
     reachable nodes.  You can then immediately switch between desired
-    end nodes by calling setEndNodeLabel()."""
+    end nodes by calling setEndNodeLabel().
+
+    Edges that are marked with the CURRENT_CONTOUR flag are avoided
+    (use this to prevent going the same way back)."""
 
     def __init__(self, map, pathCostMeasure, startNodeLabel):
         self._map = map
         self._pathCostMeasure = pathCostMeasure
+        if hasattr(startNodeLabel, "label"):
+            startNodeLabel = startNodeLabel.label()
         self._startNodeLabel = startNodeLabel
         self._endNodeLabel = startNodeLabel
 
@@ -258,6 +263,28 @@ class LiveWire(object):
             self._expandNode(endNodeLabel)
 
         return True
+
+    def expandToNode(self, nodeLabel):
+        """Expand (via expandBorder()) until a path to the indicated
+        node is known."""
+
+        while not self._nodePaths[nodeLabel]:
+            if not self.expandBorder():
+                return False
+        return True
+
+    def expandToCost(self, cost):
+        """Expand (via expandBorder()) until all paths < cost are known."""
+
+        while self._searchBorder and self._searchBorder[0][0] < cost:
+            self.expandBorder()
+        return bool(self._searchBorder)
+
+    def expand(self):
+        """Expand completely, until expandBorder() returns False."""
+
+        while self.expandBorder():
+            pass
 
     def _expandNode(self, nodeLabel):
         """Add all neighbors of the given node to the searchBorder."""
@@ -373,7 +400,7 @@ class IntelligentScissors(qt.QObject):
 
     def startContour(self):
         self._loopNodeLabel = self._startNodeLabel
-        self.startLiveWire()
+        self._liveWire = True # let mouseReleased start liveWire
 
     def startLiveWire(self):
         """Start a LiveWire at self._startNodeLabel.
@@ -458,14 +485,17 @@ class IntelligentScissors(qt.QObject):
         if button != qt.Qt.LeftButton or not self._liveWire:
             return
 
-        self.stopLiveWire()
+        if self._liveWire == True: # startContour was just called
+            self._liveWire = None # let startLiveWire see that there is none yet
+        else:
+            self.stopLiveWire()
 
-        self._protectPath(self._liveWire.pathDarts())
+            self._protectPath(self._liveWire.pathDarts())
 
+            self._startNodeLabel = self._liveWire.endNodeLabel()
+        
         self.viewer.replaceOverlay(
             EdgeOverlay([], qt.Qt.yellow, 2), self.overlayIndex)
-
-        self._startNodeLabel = self._liveWire.endNodeLabel()
 
         self.startLiveWire()
 
