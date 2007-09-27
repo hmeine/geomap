@@ -78,9 +78,13 @@ class Path(list):
         """Re-implement slicing to prevent.. eh.. "slicing". ;-)"""
         return self.__class__(super(Path, self).__getslice__(*args))
 
-    def __add__(self, dart):
+    def __add__(self, dart_s):
+        """Allows (path + dart) as well as (path1 + path2)."""
         result = self.__class__(self)
-        result.append(dart)
+        if isinstance(dart_s, list):
+            result.extend(dart_s)
+        else:
+            result.append(dart_s)
         return result
 
 def contour(anchor):
