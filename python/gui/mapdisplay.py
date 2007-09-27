@@ -32,10 +32,12 @@ class MapEdges(vigrapyqt.Overlay):
     __slots__ = ("colors", "protectedColor", "protectedWidth",
                  "_map", "_attachedHooks", "_removedEdgeLabel",
                  "_zoom", "_zoomedEdges")
+
+    __base = vigrapyqt.Overlay
     
     def __init__(self, map, color, width = 0,
                  protectedColor = None, protectedWidth = None):
-        vigrapyqt.Overlay.__init__(self, color, width)
+        self.__base.__init__(self, color, width)
         self.setMap(map)
         self.colors = None
         self.protectedColor = protectedColor
@@ -202,9 +204,11 @@ class MapEdges(vigrapyqt.Overlay):
                     p.drawPolyline(self._getZoomedEdge(edge))
 
 class MapNodes(vigrapyqt.Overlay):
+    __base = vigrapyqt.Overlay
+    
     def __init__(self, map, color,
                  radius = 1, relativeRadius = False):
-        vigrapyqt.Overlay.__init__(self, color)
+        self.__base.__init__(self, color)
         self.setMap(map)
         self.setRadius(radius, relativeRadius)
         self._zoom = None
