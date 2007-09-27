@@ -68,10 +68,11 @@ def _combinedMeasure(dart, weightedMeasures):
 def combinedMeasure(*weightedMeasures):
     return lambda dart: _combinedMeasure(dart, weightedMeasures)
 
-def trainedMeasure(dartPath, faceMeans, edgeGradients):
+def trainingData(dartPath, faceMeans, edgeGradients):
     Functor = type(faceMeans.functor(dartPath[0].leftFaceLabel()))
     left = Functor()
     right = Functor()
+    grad = hourglass.FaceGrayStatistics.Functor()
     leftVariance = Functor()
     rightVariance = Functor()
     for dart in dartPath:
@@ -80,15 +81,26 @@ def trainedMeasure(dartPath, faceMeans, edgeGradients):
         right(faceMeans.average(dart.rightFaceLabel()), weight)
         leftVariance(faceMeans.variance(dart.leftFaceLabel(), True), weight)
         rightVariance(faceMeans.variance(dart.rightFaceLabel(), True), weight)
+        grad(edgeGradients.dartAverage(dart), weight)
 
     leftSigma2 = norm(left.variance(True) + leftVariance.average())
     leftAvg = left.average()
     rightSigma2 = norm(right.variance(True) + rightVariance.average())
     rightAvg = right.average()
-    
-    return lambda dart: 0.5*(
-        math.exp(-vigra.sq(faceMeans[dart.leftFaceLabel()]-leftAvg)/leftSigma2) + \
-        math.exp(-vigra.sq(faceMeans[dart.rightFaceLabel()]-rightAvg)/rightSigma2))
+    gradSigma2 = grad.variance(True)
+    gradAvg = grad.average()
+
+    return leftSigma2, leftAvg, rightSigma2, rightAvg, gradSigma2, gradAvg
+
+def trainedMeasure(dartPath, faceMeans, edgeGradients, weights = (1, 1, 1)):
+    leftSigma2, leftAvg, rightSigma2, rightAvg, gradSigma2, gradAvg = \
+                trainingData(dartPath, faceMeans, edgeGradients)
+    w1, w2, w3 = weights
+    weightNorm = 1.0/sum(weights)
+    return lambda dart: weightNorm * (
+        w1*math.exp(-vigra.sq(faceMeans[dart.leftFaceLabel()]-leftAvg)/leftSigma2) + \
+        w2*math.exp(-vigra.sq(faceMeans[dart.rightFaceLabel()]-rightAvg)/rightSigma2) + \
+        w3*math.exp(-vigra.sq(edgeGradients.dartAverage(dart))/gradSigma2))
 
 # --------------------------------------------------------------------
 #              Region-based Statistics & Cost Measures
@@ -902,7 +914,7 @@ class EdgeGradientStatistics(BoundaryIndicatorStatistics):
     quantile queries).  This functor object can be of any
     user-specified type (see constructor)."""
 
-    __slots__ = []
+    __slots__ = ["_Functor"]
     
     def __init__(self, map, gradSiv, resample = 0.1, tangents = None,
                  Functor = hourglass.PolylineStatistics):
@@ -917,11 +929,16 @@ class EdgeGradientStatistics(BoundaryIndicatorStatistics):
         SplineImageView (gradSiv) at the polyline points, the
         `gradSiv` parameter is assumed to give gradient *vector*
         output (cf. GradientSIVProxy) that is sampled at the tangent
-        positions and multiplied with tangent unit vectors.  Note that
-        ATM, the values are not weighted with the polyline segment
-        lengths in this mode."""
+        positions and multiplied with tangent unit vectors.
+
+        Note that the values are not weighted with the polyline
+        segment lengths if tangents are given, since usually the
+        weighting already happened during the tangents computation
+        (and the arclengths between tangent samples would be
+        inappropriate here)."""
         
         BoundaryIndicatorStatistics.__init__(self, map)
+        self._Functor = Functor
 
         if tangents and resample:
             sys.stderr.write("EdgeGradientStatistics: cannot resample tangents. resample argument (%s) ignored.\n" % (
@@ -943,9 +960,7 @@ class EdgeGradientStatistics(BoundaryIndicatorStatistics):
 
                     segment = Vector2(-math.sin(theta), math.cos(theta))
 
-                    # FIXME: Statistics expect segment length,
-                    # we always give 1.0:
-                    stats(abs(dot(gradDir, segment)), 1.0)
+                    stats(dot(gradDir, segment), 1.0)
 
                 self._functors[edge.label()] = stats
 
@@ -977,7 +992,7 @@ class EdgeGradientStatistics(BoundaryIndicatorStatistics):
     def combinedStatistics(self, dart):
         """Mostly internal; return a functor for all common edges of
         the faces adjacent to `dart`."""
-        result = EdgeStatistics()
+        result = self._Functor()
         for d in commonBoundaryDarts(dart):
             result.merge(self[d.edgeLabel()])
         return result
@@ -1009,6 +1024,127 @@ class EdgeGradientStatistics(BoundaryIndicatorStatistics):
 # 1.178475851870056
 # >>> egs[100].quantile(0.4)
 # 1.1785515546798706
+
+# --------------------------------------------------------------------
+
+def scaleArcLengths(arcLengthList, factor):
+    return [(al*factor, v) for al, v in arcLengthList]
+
+import bisect
+
+class PercentPointFunction(object):
+    """This represents the PPF (inverse CDF) of a piecewise linear
+    function, and can be used for computing quantiles.  Furthermore,
+    it can compute its inverse (the CDF) and the PDF.  It is intended
+    for arcLengthLists of boundary indicator values."""
+
+    def __init__(self, arcLengthList):
+        ss = self.segments(self.splitVert(arcLengthList))
+        ss.sort()
+
+        al = 0.0
+        v1 = ss[0][0]
+        self.iCDF = [(al, v1)]
+        cur = Vector2(v1, 0)
+        for v1, l, v2 in ss:
+            if v1 > cur[0]:
+                al += cur[1]
+                self.iCDF.append((al, v1))
+                cur = Vector2(v1, l)
+            else:
+                cur[1] += l
+        if cur[1]:
+            al += cur[1]
+            self.iCDF.append((al, v2))
+
+        self.foo = self.iCDF[-1][0]
+        self.iCDF = scaleArcLengths(self.iCDF, 1.0/self.foo)
+
+    @staticmethod
+    def splitVert(arcLengthList):
+        values = [v for al, v in arcLengthList]
+        
+        result = list(arcLengthList) # copy
+        prevV = None
+        for v in values:
+            if v == prevV:
+                continue
+            prevV = v
+            i = 1
+            while i < len(result):
+                if result[i-1][1] < v < result[i][1] or result[i-1][1] > v > result[i][1]:
+                    al1, v1 = result[i-1]
+                    al2, v2 = result[i]
+                    splitAl = al1+(al2-al1)*(v-v1)/(v2-v1)
+                    result.insert(i, (splitAl, v))
+                i += 1
+        
+        return result
+
+    @staticmethod
+    def segments(arcLengthList):
+        """Returns a list of (v1, width, v2) for each piecewise linear
+        segment in the given arcLengthList (i.e. length(result) ==
+        len(arcLengthList)-1)."""
+        
+        result = []
+        for i in range(1, len(arcLengthList)):
+            al1, v1 = arcLengthList[i-1]
+            al2, v2 = arcLengthList[i]
+            if v2 < v1:
+                v1, v2 = v2, v1
+            result.append((v1, (al2-al1), v2))
+        return result
+
+    def unscaled(self):
+        return scaleArcLengths(self.iCDF, self.foo)
+
+    def quantile(self, p = 0.5):
+        # FIXME: use bisect, too
+        for i in range(1, len(self.iCDF)):
+            if self.iCDF[i][0] >= p:
+                al1, v1 = self.iCDF[i-1]
+                al2, v2 = self.iCDF[i]
+                return v1+(v2-v1)*(p-al1)/(al2-al1)
+
+    def cdf(self):
+        return [(b,a) for a,b in self.iCDF]
+
+    def pdf(self):
+        return ProbabiliyDensityFunction(self.cdf())
+
+class ProbabiliyDensityFunction(object):
+    """This represents the PDF of a piecewise linear CDF, and allows
+    the computation of the probability density of a given continuous
+    value."""
+
+    def __init__(self, cdf):
+        self.pdf = [(cdf[0][0], 0.0)]
+        for i in range(len(cdf)-1):
+            v1, cp1 = cdf[i]
+            v2, cp2 = cdf[i+1]
+            p = cp2-cp1
+            self.pdf.append((v2, p))
+
+    def __call__(self, value):
+        i = bisect.bisect_left(self.pdf, (value, 1.0))
+        if i == len(self.pdf):
+            return 0.0
+        return self.pdf[i][1]
+
+    def steps(self):
+        """Return step-function, e.g. for plotting."""
+        result = []
+        for i in range(len(self.pdf)-1):
+            v1, p1 = self.pdf[i]
+            v2, p2 = self.pdf[i+1]
+            result.append((v1, p1))
+            result.append((v1, p2))
+        result.append((v2, p2))
+        result.append((v2, 0.0))
+        return result
+
+# --------------------------------------------------------------------
 
 def calcGradAngDisp(grad,n):
     ki = GrayImage(2*n+1,2*n+1)
