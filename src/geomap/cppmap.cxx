@@ -545,6 +545,12 @@ void GeoMap::sortEdgesEventually(double stepDist, double minDist,
     edgesSorted_ = true;
 }
 
+/*
+ * Represents information needed during merging of parallel darts.
+ * The dart is represented by a dartLabel and a "turnLater" flag,
+ * since darts are constantly removed during the whole process.  The
+ * "turnLater" ensures that we get a valid dart.
+ */
 struct MergeDart
 {
     int dartLabel, sigmaPos;
@@ -570,6 +576,8 @@ void GeoMap::splitParallelEdges()
 {
     vigra_precondition(splitInfo_.get(), "splitParallelEdges(): no planned splits (set splitEdges parameter of sortEdgesEventually?)");
 
+    // find split group positions within flat array [O(N_splits)]
+    // (this is used for filling the mergeDarts during splitting)
     std::vector<detail::PlannedSplits::difference_type> groupPositions;
     for(detail::PlannedSplits::iterator it = splitInfo_->begin();
         it != splitInfo_->end(); ++it)
@@ -580,22 +588,23 @@ void GeoMap::splitParallelEdges()
 
     std::sort(splitInfo_->begin(), splitInfo_->end());
 
-    if(edgePreferences_.get())
+    bool hasPreferences = edgePreferences_.get();
+    if(hasPreferences)
     {
         vigra_invariant(edgePreferences_->size() == edges_.size(),
                         "edge preferences given, but not exactly one per edge");
         edgePreferences_->resize(edges_.size() + splitInfo_->size());
     }
-
-    bool hasPreferences = edgePreferences_.get();
-
-    // define radius of circle for curvature detection if !hasPreferences:
-    const double checkSurvivorDist  = 0.5;
-    const double checkSurvivorDist2 = checkSurvivorDist*checkSurvivorDist;
-    if(!hasPreferences)
+    else
+    {
         edgePreferences_ = std::auto_ptr<EdgePreferences>(
             new EdgePreferences(edges_.size() + splitInfo_->size()));
+    }
     EdgePreferences *edgePreferences = edgePreferences_.get();
+
+    // define radius of circle for curvature detection (used if !hasPreferences):
+    const double checkSurvivorDist  = 0.5;
+    const double checkSurvivorDist2 = checkSurvivorDist*checkSurvivorDist;
 
     typedef std::vector<MergeDart> MergeDarts;
     MergeDarts mergeDarts(splitInfo_->size());
@@ -703,8 +712,8 @@ void GeoMap::splitParallelEdges()
                 GeoMap::Dart relocateDart(mergeDart);
                 relocateDart.nextSigma();
 
-                checkConsistency(); // no modification should've happened so far
-
+                // checkConsistency(); // no modification should've happened so far
+                
                 // re-attach relocateDart to surviving node
                 CELL_PTR(GeoMap::Edge) relocateEdge(relocateDart.edge());
                 if(relocateDart.label() < 0)
