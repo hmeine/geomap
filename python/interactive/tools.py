@@ -529,7 +529,7 @@ class SimplePathCostMeasure(object):
         self.measure = singleDartMeasure
 
     def __call__(self, liveWire, newDart):
-        dartCost = 1.0 / min(1e-4, self.measure(newDart))
+        dartCost = 1.0 / (1e-4 + self.measure(newDart))
         #dartCost = 1.0 - self.measure(newDart)
         return liveWire.totalCost(newDart.startNodeLabel()) \
                + dartCost * newDart.edge().length()
