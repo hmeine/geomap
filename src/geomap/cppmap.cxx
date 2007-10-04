@@ -713,7 +713,7 @@ void GeoMap::splitParallelEdges()
                 relocateDart.nextSigma();
 
                 // checkConsistency(); // no modification should've happened so far
-                
+
                 // re-attach relocateDart to surviving node
                 CELL_PTR(GeoMap::Edge) relocateEdge(relocateDart.edge());
                 if(relocateDart.label() < 0)
@@ -1928,20 +1928,23 @@ void GeoMap::Node::setPosition(const vigra::Vector2 &p)
                                vigra::NumericTraits<double>::epsilon()));
     position_ = p;
 
-    GeoMap::Dart d(map_, anchor_);
-    do
+    if(!isIsolated())
     {
-        if(d.label() > 0)
+        GeoMap::Dart d(map_, anchor_);
+        do
         {
-            (*map_->edge(d.label()))[ 0] = p;
+            if(d.label() > 0)
+            {
+                (*map_->edge(d.label()))[ 0] = p;
+            }
+            else
+            {
+                GeoMap::Edge &edge(*map_->edge(-d.label()));
+                edge[edge.size()-1] = p;
+            }
         }
-        else
-        {
-            GeoMap::Edge &edge(*map_->edge(-d.label()));
-            edge[edge.size()-1] = p;
-        }
+        while(d.nextSigma().label() != anchor_);
     }
-    while(d.nextSigma().label() != anchor_);
 
     map_->nodeMap_.insert(PositionedNodeLabel(p, label_));
 }
