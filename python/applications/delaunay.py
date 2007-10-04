@@ -74,22 +74,37 @@ def constrainedDelaunayMap(polygons, imageSize, extraPoints = [],
     assert triangle, """For correct CDT, you need to compile the
     triangle module (vigra/experiments/triangle).  You might want to
     try the home-made fakedConstrainedDelaunayMap instead, which will
-    also give a correct result if possible, and just throws an
-    exception if it has to give up."""
-    
-    points = []
+    give a correct result if possible, but may just throw an exception
+    if it has to give up or even go into an infinite loop."""
+
+    points = list(extraPoints)
     segments = []
     holes = []
     for polygon in polygons:
         l = len(points)
         partPoints = list(polygon)
+        partSegments = [(l+i, l+i+1) for i in range(len(partPoints)-1)]
         if polygon[-1] == polygon[0]:
             del partPoints[-1]
-            segments.append((l+len(partPoints)-1, l))
+            if partPoints[0] in points:
+                for i, (s, e) in enumerate(partSegments):
+                    partSegments[i] = (s-1, e-1) # partPoints[0] will be deleted
+                partSegments[0] = (existingIndex, partSegments[0][1])
+                del partPoints[0]
+            partSegments[-1] = (partSegments[-1][0], partSegments[0][0])
             if onlyInner and polygon.partialArea() < 0:
                 holes.append(_pointInHole(polygon))
+        else:
+            if partPoints[-1] in points:
+                partSegments[-1] = (partSegments[-1][0], points.index(partPoints[-1]))
+                del partPoints[-1]
+            if partPoints[0] in points:
+                for i, (s, e) in enumerate(partSegments):
+                    partSegments[i] = (s-1, e-1) # partPoints[0] will be deleted
+                partSegments[0] = (points.index(partPoints[0]), partSegments[0][1])
+                del partPoints[0]
         points.extend(partPoints)
-        segments.extend([(l+i, l+i+1) for i in range(len(partPoints)-1)])
+        segments.extend(partSegments)
 
     print "- performing Constrained Delaunay Triangulation..."
     print "  (%d points, %s segments, %d holes)" % (
@@ -110,10 +125,8 @@ def constrainedDelaunayMap(polygons, imageSize, extraPoints = [],
 
     return result
 
-def delaunayMap(points, imageSize):
-    """delaunayMap(points, imageSize)
-
-    Returns a GeoMap containing a Delaunay Triangulation of the given
+def delaunayMap(points, imageSize = (0, 0)):
+    """Return a GeoMap containing a Delaunay Triangulation of the given
     points."""
     
     if triangle:
@@ -123,6 +136,58 @@ def delaunayMap(points, imageSize):
         nodePositions, edges, sigma = hourglass.delaunay(points)
     return _delaunayMapFromData(nodePositions, edges, imageSize,
                                 sigma)
+
+def cdtFromPSLG(pslg, onlyInner = False):
+    """Return a CDT for the given planar straight line graph.  `pslg`
+    should be a GeoMap node positions are simple input points and edges
+    define constrained segments."""
+#     return constrainedDelaunayMap(
+#         list(pslg.edgeIter()), pslg.imageSize(),
+#         [node.position() for node in pslg.nodeIter() if node.isIsolated()],
+#         onlyInner = False)
+
+    points = []
+    segments = []
+    holes = []
+
+    nodes = [None] * pslg.maxNodeLabel()
+    for node in pslg.nodeIter():
+        nodes[node.label()] = len(points)
+        points.append(node.position())
+
+    for edge in pslg.edgeIter():
+        l = len(points)
+        edgeSegments = [(l+i-1, l+i) for i in range(len(edge)-1)]
+        edgeSegments[0] = (nodes[edge.startNodeLabel()], edgeSegments[0][1])
+        edgeSegments[-1] = (edgeSegments[-1][0], nodes[edge.endNodeLabel()])
+        for i in range(1, len(edge)-1):
+            points.append(edge[i])
+        segments.extend(edgeSegments)
+
+    for face in pslg.faceIter(skipInfinite = True):
+        if face.flag(OUTER_FACE):
+            # FIXME: re-use available scanlines for face:
+            holes.append(_pointInHole(contourPoly(face.contour())))
+
+    print "- performing Constrained Delaunay Triangulation..."
+    print "  (%d points, %s segments, %d holes)" % (
+        len(points), len(segments), len(holes))
+    nodePositions, edgeData = triangle.constrainedDelaunay(
+        points, segments, onlyInner, holes)
+
+    print "- storing result in a GeoMap..."
+    result = _delaunayMapFromData(nodePositions, edgeData, pslg.imageSize())
+
+    for edge in result.edgeIter():
+        if edgeData[edge.label()][2]:
+            edge.setFlag(CONTOUR_SEGMENT)
+
+    result.face(0).setFlag(OUTER_FACE)
+    for holePoint in holes:
+        result.faceAt(holePoint).setFlag(OUTER_FACE)
+
+    return result
+
 
 def fakedConstrainedDelaunayMap(polygons, imageSize, extraPoints = [],
                                 onlyInner = True):
