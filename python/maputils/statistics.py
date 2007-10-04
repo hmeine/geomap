@@ -1032,33 +1032,39 @@ def scaleArcLengths(arcLengthList, factor):
 
 import bisect
 
-class PercentPointFunction(object):
+class PercentPointFunction(list):
     """This represents the PPF (inverse CDF) of a piecewise linear
     function, and can be used for computing quantiles.  Furthermore,
     it can compute its inverse (the CDF) and the PDF.  It is intended
     for arcLengthLists of boundary indicator values."""
 
+    __slots__ = ("valueScale")
+
     def __init__(self, arcLengthList):
+        list.__init__(self)
+        if not arcLengthList:
+            return
+
         ss = self.segments(self.splitVert(arcLengthList))
         ss.sort()
 
         al = 0.0
         v1 = ss[0][0]
-        self.iCDF = [(al, v1)]
+        iCDF = [(al, v1)]
         cur = Vector2(v1, 0)
         for v1, l, v2 in ss:
             if v1 > cur[0]:
                 al += cur[1]
-                self.iCDF.append((al, v1))
+                iCDF.append((al, v1))
                 cur = Vector2(v1, l)
             else:
                 cur[1] += l
         if cur[1]:
             al += cur[1]
-            self.iCDF.append((al, v2))
+            iCDF.append((al, v2))
 
-        self.foo = self.iCDF[-1][0]
-        self.iCDF = scaleArcLengths(self.iCDF, 1.0/self.foo)
+        self.valueScale = iCDF[-1][0]
+        self.extend(scaleArcLengths(iCDF, 1.0/self.valueScale))
 
     @staticmethod
     def splitVert(arcLengthList):
@@ -1097,18 +1103,18 @@ class PercentPointFunction(object):
         return result
 
     def unscaled(self):
-        return scaleArcLengths(self.iCDF, self.foo)
+        return scaleArcLengths(self, self.valueScale)
 
     def quantile(self, p = 0.5):
         # FIXME: use bisect, too
-        for i in range(1, len(self.iCDF)):
-            if self.iCDF[i][0] >= p:
-                al1, v1 = self.iCDF[i-1]
-                al2, v2 = self.iCDF[i]
+        for i in range(1, len(self)):
+            if self[i][0] >= p:
+                al1, v1 = self[i-1]
+                al2, v2 = self[i]
                 return v1+(v2-v1)*(p-al1)/(al2-al1)
 
     def cdf(self):
-        return [(b,a) for a,b in self.iCDF]
+        return [(b,a) for a,b in self]
 
     def pdf(self):
         return ProbabiliyDensityFunction(self.cdf())
@@ -1123,7 +1129,7 @@ class ProbabiliyDensityFunction(object):
         for i in range(len(cdf)-1):
             v1, cp1 = cdf[i]
             v2, cp2 = cdf[i+1]
-            p = cp2-cp1
+            p = (cp2-cp1)/(v2-v1)
             self.pdf.append((v2, p))
 
     def __call__(self, value):
