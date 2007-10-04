@@ -5,7 +5,7 @@ from vigra import Vector2, Point2D
 __all__ = ["levelSetMap", "marchingSquares"]
 
 # TODO:
-# 1) *border handling* in followContour() (predictorStep, correctorStep)!
+# 1) better border handling in followContour() (predictorStep, correctorStep)
 # 3) make followContour() check for both possible intersections
 #    and remove the duplicate filtering (cf. levelcontours_both_intersections.diff)
 # 4) don't store zc positions in a GeoMap, but use a PositionedMap and
@@ -62,10 +62,7 @@ def predictorStep(siv, pos, h):
     to gradient).  Returns None if that point is outside the
     SplineImageView."""
     
-    result = pos + h*tangentDir(siv, pos)
-    if not siv.isInside(result[0], result[1]):
-        return None
-    return result
+    return pos + h*tangentDir(siv, pos)
 
 def correctorStep(siv, level, pos, epsilon = 1e-8):
     """Perform corrector step, i.e. perform 1D iterative Newton method in
@@ -95,26 +92,35 @@ def correctorStep(siv, level, pos, epsilon = 1e-8):
         y += correction[1]
         
         if not siv.isInside(x, y):
-            return # out of range
+            return None # out of range
 
     return Vector2(x, y)
 
 def predictorCorrectorStep(siv, level, pos, h, epsilon):
     while abs(h) > 1e-6:
         p1 = predictorStep(siv, pos, h)
+        if not siv.isInside(p1[0], p1[1]):
+            #print "predictor went outside at", p1
+            return p1, None
+
         p2 = correctorStep(siv, level, p1, epsilon)
         if not p2 or (p2 - p1).squaredMagnitude() > h:
             h /= 2.0
             continue
+
         h *= 2
         return p2, h
+
     sys.stderr.write(
         "WARNING: predictorCorrectorStep: not converged at %s!\n" % p2)
-    return p2, h
+    return p2, None
 
 # --------------------------------------------------------------------
 
 def followContour(siv, level, geomap, nodeLabel, h):
+    correctorEpsilon = 1e-6
+    nodeCrossingDist = 0.01
+    
     #global pos, ip, poly, startNode, diff, npos, nip, intersection
     startNode = geomap.node(nodeLabel)
     pos = startNode.position()
@@ -122,7 +128,7 @@ def followContour(siv, level, geomap, nodeLabel, h):
     iy = int(pos[1])
     poly = [pos]
     while True:
-        npos, nh = predictorCorrectorStep(siv, level, pos, h, 1e-6)
+        npos, nh = predictorCorrectorStep(siv, level, pos, h, correctorEpsilon)
         h = max(min(h, nh), 1e-5)
         nix = int(npos[0])
         niy = int(npos[1])
@@ -138,23 +144,23 @@ def followContour(siv, level, geomap, nodeLabel, h):
             intersection = Vector2(intersectionX, intersectionY)
 
             # connect to crossed Node:
-            endNode = geomap.nearestNode(intersection, 0.01)
-            if endNode and endNode.label() == startNode.label():
-                if len(poly) > 2:
-                    sys.stderr.write("WARNING: ignoring self-crossing from node %d  (poly len: %d)\n" % (startNode.label(), len(poly)))
-            elif endNode:
+            endNode = geomap.nearestNode(intersection, nodeCrossingDist)
+            if not endNode:
+                sys.stderr.write("WARNING: level contour crossing grid at %s without intersection Node!\n" % repr(intersection))
+            elif endNode.label() != startNode.label() or len(poly) >= 3:
+                # FIXME: better criterion than len(poly) would be poly.length()
                 poly.append(endNode.position())
                 geomap.addEdge(startNode, endNode, poly)
                 if not endNode.degree() % 2:
                     return
                 poly = [endNode.position()]
                 startNode = endNode
-            else:
-                sys.stderr.write("WARNING: level contour crossing grid at %s without intersection Node!\n" % repr(intersection))
 
             ix = nix
             iy = niy
-        
+
+        if nh is None:
+            return # out of image range (/no convergence)
         poly.append(npos)
         pos = npos
 
@@ -169,14 +175,18 @@ def levelSetMap(image, level, sigma = None):
             followContour(siv, level, result, node.label(), 0.1)
 
     maputils.mergeDegree2Nodes(result)
+    result = maputils.copyMapContents( # compress labels and simplify polygons
+        result, edgeTransform = lambda e: \
+        hourglass.simplifyPolygon(e, 0.05, 0.2))[0]
     #maputils.connectBorderNodes(result, 0.01)
 
+    result.sortEdgesEventually(0.4, 0.01)
     result.initializeMap()
     return result
     
 # --------------------------------------------------------------------
 
-def marchingSquares(image, level, variant = True):
+def marchingSquares(image, level, variant = True, border = True):
     """Return a new GeoMap with sub-pixel level contours extracted by
     the marching squares method.  (Pixels with values < level are
     separated from pixels >= level.)
@@ -235,7 +245,9 @@ def marchingSquares(image, level, variant = True):
                 break
             if abs(o) < 1e-4:
                 break
-        return result.addNode((x, y+ofs))
+        pos = Vector2(x, y+ofs)
+        node = result.nearestNode(pos, 0) # already exists? (i.e. hNodes?)
+        return node or result.addNode(pos)
 
     if hasattr(image, "siv"):
         addNodeX = addNodeNewtonRefinementX
@@ -282,11 +294,14 @@ def marchingSquares(image, level, variant = True):
                 configurations[config]:configurations[config+1]]:
                 s = result.node(int(nodes[s][offsets[s] + (x, y)]))
                 e = result.node(int(nodes[e][offsets[e] + (x, y)]))
-                result.addEdge(s, e, [s.position(), e.position()])
+                if s != e:
+                    result.addEdge(s, e, [s.position(), e.position()])
 
     maputils.mergeDegree2Nodes(result) # node suppression
     result = maputils.copyMapContents(result)[0] # compress edge labels
-    maputils.connectBorderNodes(result, 0.5)
+    if border:
+        maputils.connectBorderNodes(result, 0.5)
+        result.sortEdgesEventually(0.4, 0.01)
     result.initializeMap()
     return result
 
