@@ -30,7 +30,7 @@ assert contourPoly(hole.contour()).contains((16,17))
 
 dart = hole.contour()
 while True:
-    while dart.startNode().degree() > 2:
+    while dart.startNode().hasMinDegree(3):
         face = maputils.removeEdge(dart.clone().prevSigma())
     if dart.nextPhi() == hole.contour():
         break
@@ -223,7 +223,7 @@ random.seed(seed)
 def mergeEdgesCandidates(map):
     result = []
     for node in map.nodeIter():
-        if node.degree() == 2 and not node.anchor().edge().isLoop():
+        if node.hasDegree(2) and not node.anchor().edge().isLoop():
             result.append(node.label())
     return result
 
@@ -242,7 +242,7 @@ def mergeFacesCandidates(map):
     return result
 
 for node in map.nodeIter():
-    if node.degree() == 0:
+    if node.isIsolated():
         map.removeIsolatedNode(node)
 
 backup = copy.copy(map)

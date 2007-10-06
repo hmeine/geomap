@@ -942,7 +942,7 @@ def showMapStats(map):
               "their surrounding faces!" % (len(map.unembeddableContours), )
 
 def degree2Nodes(map):
-    return [node for node in map.nodeIter() if node.degree() == 2]
+    return [node for node in map.nodeIter() if node.hasDegree(2)]
 
 # --------------------------------------------------------------------
 #                    basic map cleanup operations
@@ -1005,14 +1005,14 @@ def removeCruft(map, what = 3, doChecks = False):
 
     if what & 2:
         for node in map.nodeIter():
-            if node.degree() == 2 and \
+            if node.hasDegree(2) and \
                    (node.anchor().endNode() != node):
                 if not result.perform(map.mergeEdges, node.anchor()):
                     return False
 
     if what & 1:
         for node in map.nodeIter():
-            if node.degree() == 0:
+            if node.isIsolated():
                 if not result.perform(map.removeIsolatedNode, node):
                     return False
 
@@ -1040,7 +1040,7 @@ def mergeDegree2Nodes(map):
     
     result = 0
     for node in map.nodeIter():
-        if node.degree() == 2 and not node.anchor().edge().isLoop():
+        if node.hasDegree(2) and not node.anchor().edge().isLoop():
             if map.mergeEdges(node.anchor()):
                 result += 1
     return result
@@ -1073,7 +1073,7 @@ def removeEdges(map, edgeLabels):
         # search for bridge with endnode of degree 1:
         for i, edge in enumerate(bridges):
             dart = edge.dart()
-            if dart.endNode().degree() == 1:
+            if dart.endNode().hasDegree(1):
                 dart.nextAlpha()
                 break
             # degree 1?
@@ -1235,9 +1235,9 @@ def mergeFacesCompletely(dart, mergeDegree2Nodes = True):
     for nodeLabel in affectedNodes:
         node = map.node(nodeLabel)
         if not node: continue
-        if node.degree == 0:
+        if node.isIsolated():
             map.removeIsolatedNode(node)
-        if mergeDegree2Nodes and node.degree() == 2:
+        if mergeDegree2Nodes and node.hasDegree(2):
             d = node.anchor()
             if d.endNodeLabel() != node.label():
                 map.mergeEdges(d)

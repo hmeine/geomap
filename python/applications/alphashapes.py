@@ -202,7 +202,7 @@ def alphaBetaMap(points, imageSize, alpha, beta, removeInteriorEdges = False):
 def findCandidatesForPointCorrection(abm):
     mayMove, dontMove = [], []
     for n in abm.nodeIter():
-        if n.degree() != 2 or nodeAtBorder(n):
+        if not n.hasDegree(2) or nodeAtBorder(n):
             dontMove.append(n.position())
         else:
             p = n.position()

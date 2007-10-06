@@ -62,7 +62,7 @@ class MapSearcher(qt.QObject):
             return
         nearestNode = self._map.nearestNode((x, y))
         #sys.stdout.write("Node %d is %.2f from %d/%d\n" % (nearestNode.label(), minDist, x, y))
-        if nearestNode.degree() > 0:
+        if nearestNode.hasMinDegree(1):
             self.display.navigate(nearestNode.anchor(), center = False)
 
     def disconnectViewer(self):
