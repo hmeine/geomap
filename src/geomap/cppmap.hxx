@@ -428,6 +428,10 @@ class GeoMap::Node : boost::noncopyable
 
     inline unsigned int degree() const;
 
+    inline bool hasMinDegree(unsigned int minDegree) const;
+
+    inline bool hasDegree(unsigned int exactDegree) const;
+
     bool operator==(const GeoMap::Node &other)
     {
         return label() == other.label();
@@ -1241,6 +1245,43 @@ inline unsigned int GeoMap::Node::degree() const
     while(d.nextSigma().label() != anchor_);
 
     return result;
+}
+
+inline bool GeoMap::Node::hasMinDegree(unsigned int minDegree) const
+{
+    if(!anchor_)
+        return minDegree == 0;
+
+    if(!minDegree)
+        return true;
+
+    GeoMap::Dart d(map_, anchor_);
+    do
+    {
+        if(--minDegree == 0)
+            return true;
+    }
+    while(d.nextSigma().label() != anchor_);
+
+    return false;
+}
+
+inline bool GeoMap::Node::hasDegree(unsigned int exactDegree) const
+{
+    if(!anchor_)
+        return exactDegree == 0;
+
+    if(!exactDegree)
+        return false;
+
+    GeoMap::Dart d(map_, anchor_);
+    do
+    {
+        if(d.nextSigma().label() == anchor_)
+            return exactDegree == 1;
+    }
+    while(--exactDegree);
+    return false;
 }
 
 inline GeoMap::Dart GeoMap::Edge::dart() const

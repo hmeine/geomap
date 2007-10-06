@@ -1123,6 +1123,8 @@ void defMap()
                  return_value_policy<copy_const_reference>())
             .def("setPosition", &GeoMap::Node::setPosition)
             .def("degree", &GeoMap::Node::degree)
+            .def("hasMinDegree", &GeoMap::Node::hasMinDegree, arg("minDegree"))
+            .def("hasDegree", &GeoMap::Node::hasDegree, arg("exactDegree"))
             .def("isIsolated", &GeoMap::Node::isIsolated,
                  "isIsolated() -> bool\n\n"
                  "Return True iff there is no edge attached to this node.\n"

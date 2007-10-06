@@ -706,7 +706,7 @@ void GeoMap::splitParallelEdges()
                 if(it->turnLater)
                     mergeDart.nextSigma();
 
-                vigra_invariant(mergeDart.startNode()->degree() == 2,
+                vigra_invariant(mergeDart.startNode()->hasDegree(2),
                                 "merge nodes are expected to have degree 2");
 
                 GeoMap::Dart relocateDart(mergeDart);
@@ -755,7 +755,7 @@ void GeoMap::splitParallelEdges()
             if(it->turnLater)
                 mergeDart.nextSigma();
 
-            vigra_invariant(mergeDart.startNode()->degree() == 2,
+            vigra_invariant(mergeDart.startNode()->hasDegree(2),
                             "merge nodes are expected to have degree 2");
 
             GeoMap::Dart relocateDart(mergeDart);
