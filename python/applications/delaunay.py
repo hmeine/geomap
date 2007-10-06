@@ -139,8 +139,8 @@ def delaunayMap(points, imageSize = (0, 0)):
 
 def cdtFromPSLG(pslg, onlyInner = False):
     """Return a CDT for the given planar straight line graph.  `pslg`
-    should be a GeoMap node positions are simple input points and edges
-    define constrained segments."""
+    should be a GeoMap whose node positions are simple input points
+    and edges define constraint segments."""
 #     return constrainedDelaunayMap(
 #         list(pslg.edgeIter()), pslg.imageSize(),
 #         [node.position() for node in pslg.nodeIter() if node.isIsolated()],
@@ -325,6 +325,8 @@ def chordStrength(edge):
     return 1 - (_oppositeAngle(p1, p2, p3) + _oppositeAngle(p1, p2, p4)) / math.pi
 
 def calculateChordStrengths(delaunayMap):
+    """Calculate the chordStrength of each non-contour edge."""
+
     result = [None] * delaunayMap.maxEdgeLabel()
     for edge in delaunayMap.edgeIter():
         if edge.flag(CONTOUR_SEGMENT):
@@ -332,15 +334,23 @@ def calculateChordStrengths(delaunayMap):
         result[edge.label()] = chordStrength(edge)
     return result
 
-def chordStrengthProfile(delaunayMap, startIndex = 1, cs = None):
+def chordStrengthProfile(delaunayMap, startDart = None, cs = None):
+    """Calculate a list of (chordStrength, dartLabel) pairs for each
+    dart within the original shape contour for which startDart is an
+    anchor."""
+
+    if not startDart:
+        startDart = delaunayMap.node(1).anchor()
+        while startDart.endNodeLabel() != 2:
+            startDart.nextSigma()
+
+    assert startDart.edge().flag(CONTOUR_SEGMENT) and \
+           not startDart.leftFace().flag(OUTER_FACE), \
+           "expecting startDart to be on the shape's contour," \
+           "with the inner triangles on the left"
+    
     if not cs:
         cs = calculateChordStrengths(delaunayMap)
-
-    startDart = delaunayMap.node(startIndex).anchor()
-    while startDart.endNodeLabel() != 2:
-        startDart.nextSigma()
-    assert startDart.edge().flag(CONTOUR_SEGMENT), \
-           "expecting contour segment between consecutive nodes"
 
     dart = startDart.clone()
     result = []
@@ -354,20 +364,26 @@ def chordStrengthProfile(delaunayMap, startIndex = 1, cs = None):
             break
     return result
 
-def markWeakChords(delaunayMap, csp = None):
-    if csp == None:
-        csp = chordStrengthProfile(delaunayMap)
-    for _, dartLabel in csp:
-        delaunayMap.edge(abs(dartLabel)).setFlag(WEAK_CHORD)
-    for i in range(len(csp)):
-        c1 = cmp(csp[i][0], csp[i-1][0])
-        c2 = cmp(csp[i][0], csp[(i+1)%len(csp)][0])
-        if c1 + c2 >= 1:
-            delaunayMap.edge(abs(csp[i][1])).setFlag(WEAK_CHORD, False)
+def markWeakChords(delaunayMap):
+    for edge in delaunayMap.edgeIter():
+        if not edge.flag(CONTOUR_SEGMENT):
+            edge.setFlag(WEAK_CHORD)
+    cs = calculateChordStrengths(delaunayMap)
+    for face in delaunayMap.faceIter():
+        if not face.flag(OUTER_FACE):
+            continue
+        for anchor in face.contours():
+            csp = chordStrengthProfile(delaunayMap, anchor.nextAlpha(), cs)
+            csp.append(csp[0])
+            for i in range(len(csp)-1):
+                c1 = cmp(csp[i][0], csp[i-1][0])
+                c2 = cmp(csp[i][0], csp[i+1][0])
+                if c1 + c2 >= 1:
+                    delaunayMap.edge(abs(csp[i][1])).setFlag(WEAK_CHORD, False)
 
-def removeWeakChords(delaunayMap, csp = None):
+def removeWeakChords(delaunayMap):
     result = 0
-    markWeakChords(delaunayMap, csp)
+    markWeakChords(delaunayMap)
     for edge in delaunayMap.edgeIter():
         if edge.flag(WEAK_CHORD):
             delaunayMap.mergeFaces(edge.dart())
@@ -518,7 +534,8 @@ def catMap(delaunayMap,
         # classify into terminal, sleeve, and junction triangles:
         if len(chords) < 2:
             faceType[face.label()] = "T"
-            nodePos = middlePoint(chords[0]) # (may be changed later)
+            if chords:
+                nodePos = middlePoint(chords[0]) # (may be changed later)
         elif len(chords) == 2:
             faceType[face.label()] = "S"
         else:
@@ -526,7 +543,7 @@ def catMap(delaunayMap,
             nodePos = junctionPos(chords)
 
         # add nodes for non-sleeve triangles:
-        if faceType[face.label()] != "S":
+        if faceType[face.label()] != "S" and chords:
             nodeLabel[face.label()] = result.addNode(nodePos).label()
             result.nodeChordLabels.append([])
 
