@@ -219,7 +219,9 @@ def marchingSquares(image, level, variant = True, border = True):
         return result.addNode((x + ofs, y))
 
     def addNodeY(x, y, ofs):
-        return result.addNode((x, y + ofs))
+        pos = Vector2(x, y+ofs)
+        node = result.nearestNode(pos, 1e-8) # already exists? (i.e. hNodes?)
+        return node or result.addNode(pos)
 
     def addNodeNewtonRefinementX(x, y, ofs):
         for i in range(100):
@@ -246,7 +248,7 @@ def marchingSquares(image, level, variant = True, border = True):
             if abs(o) < 1e-4:
                 break
         pos = Vector2(x, y+ofs)
-        node = result.nearestNode(pos, 0) # already exists? (i.e. hNodes?)
+        node = result.nearestNode(pos, 1e-8) # already exists? (i.e. hNodes?)
         return node or result.addNode(pos)
 
     if hasattr(image, "siv"):
