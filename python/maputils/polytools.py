@@ -1,5 +1,23 @@
+import vigra, hourglass, math
 from vigra import Vector2, dot
 from hourglass import Polygon
+
+def maxDistIter(polygon, maxDist):
+    maxDist2 = vigra.sq(maxDist)
+    it = iter(polygon)
+    prev = it.next()
+    yield prev
+    for p in it:
+        dist2 = (p-prev).squaredMagnitude()
+        if dist2 > maxDist2:
+            dist = math.sqrt(dist2)
+            segmentCount = int(math.ceil(dist / maxDist))
+            segment = p - prev
+            for i in range(1, segmentCount):
+                yield p + segment*i/segmentCount
+        yield p
+        
+# --------------------------------------------------------------------
 
 LEFT = 1
 RIGHT = 2
@@ -236,6 +254,15 @@ class Line(object):
         x = top[1]-y*top[0][1]
         return Vector2(x, y)
 
+    def dir(self):
+        """Return direction vector."""
+        return Vector2(self.norm[1], -self.norm[0])
+
+    def point(self, l = 0):
+        """Return point on line.  For l == 0 (default), this will be
+        the closest point to the origin.  l moves on the line."""
+        return self.dist * self.norm + self.dir() * l
+
 class LineSegment(object):
     def __init__(self, p1, p2):
         self.p1 = p1
@@ -261,8 +288,9 @@ def polyLineSegment(poly, index):
 
 def shrinkPoly(poly, offset):
     assert poly[0] == poly[-1], "polygon should be closed"
-    sides = len(poly)-1
-    lines = [polyLineSegment(poly, i).line() for i in range(sides)]
+    sideCount = len(poly)-1
+    lines = [polyLineSegment(poly, i).line()
+             for i in range(sideCount)]
     for line in lines:
         line.dist -= offset
     i = 1
@@ -277,6 +305,8 @@ def shrinkPoly(poly, offset):
                       for i in range(len(lines))])
     result.append(result[0])
     return result
+
+# --------------------------------------------------------------------
 
 if __name__ == "__main__":
     import fig, hourglass
