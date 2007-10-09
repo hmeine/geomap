@@ -189,6 +189,9 @@ class FaceColorStatistics : boost::noncopyable
             face.label() < size() && functors_[face.label()],
             "invalid survivor label in postMergeFaces");
 
+        CellLabel mergedLabel = (
+            face.label() == label1_ ? label2_ : label1_);
+
         *functors_[face.label()] = merged_;
         if(superSampled_.get())
         {
@@ -198,28 +201,16 @@ class FaceColorStatistics : boost::noncopyable
                     superSampled_.reset();
             }
             (*superSampled_)[face.label()] = mergedSS_;
+
+            if((*superSampled_)[mergedLabel])
+            {
+                if(!--superSampledCount_)
+                    superSampled_.reset();
+            }
         }
 
-        if(face.label() == label1_)
-        {
-            delete functors_[label2_];
-            functors_[label2_] = NULL;
-            if((*superSampled_)[label2_])
-            {
-                if(!--superSampledCount_)
-                    superSampled_.reset();
-            }
-        }
-        else
-        {
-            delete functors_[label1_];
-            functors_[label1_] = NULL;
-            if((*superSampled_)[label1_])
-            {
-                if(!--superSampledCount_)
-                    superSampled_.reset();
-            }
-        }
+        delete functors_[mergedLabel];
+        functors_[mergedLabel] = NULL;
 
 #ifndef NDEBUG
         if(!superSampled_.get() || !(*superSampled_)[face.label()])
