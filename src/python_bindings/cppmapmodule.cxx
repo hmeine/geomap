@@ -531,6 +531,12 @@ faceHoleContours(const GeoMap::Face &face)
     return ContourRangeIterator(face.holesBegin(), face.contoursEnd());
 }
 
+std::auto_ptr<PhiOrbitIterator>
+contourPhiOrbit(const GeoMap::Contour &contour)
+{
+    return std::auto_ptr<PhiOrbitIterator>(new PhiOrbitIterator(contour.anchor()));
+}
+
 bp::object
 labelImage(const GeoMap &map)
 {
@@ -644,7 +650,7 @@ struct GeoMapPickleSuite : bp::pickle_suite
         for(GeoMap::FaceIterator it = map.facesBegin(); it.inRange(); ++it)
         {
             faceFlags.append((*it)->flags() & ~0xf0000000U);
-            faceAnchors.append((*it)->contour().label());
+            faceAnchors.append((*it)->contour()->anchor().label());
             faceLabels.append((*it)->label());
         }
 
@@ -764,6 +770,15 @@ std::string Edge__repr__(GeoMap::Edge const &edge)
     return s.str();
 }
 
+std::string Contour__repr__(GeoMap::Contour const &contour)
+{
+    std::stringstream s;
+    s << "<GeoMap.Contour " << contour.label() << " of face "
+      << contour.faceLabel() << ", anchor: dart " << contour.anchor().label()
+      << ", area " << contour.area() << ">";
+    return s.str();
+}
+
 std::string Face__repr__(GeoMap::Face const &face)
 {
     std::stringstream s;
@@ -844,6 +859,36 @@ pyCrackConnectionImage(vigra::PythonImage const &labels)
 
 void defMapStats();
 
+// struct convert_contour_as_anchor
+// {
+//     typedef boost::shared_ptr<GeoMap::Contour> argument_type;
+
+//     PyObject* operator()(argument_type contour) const
+//     {
+//         bp::to_python_value<GeoMap::Dart> conv;
+//         return conv(contour->anchor());
+//     }
+// };
+
+// struct contour_anchor_to_python
+// {
+//     template <class R>
+//     struct apply
+//     {
+//         typedef convert_contour_as_anchor type;
+//     };
+// };
+
+struct convert_contour_as_anchor
+{
+    static PyObject* convert(CELL_PTR(GeoMap::Contour) contour)
+    {
+        return bp::to_python_value<GeoMap::Dart>()(contour->anchor());
+    }
+};
+
+/********************************************************************/
+
 void defMap()
 {
     using namespace boost::python;
@@ -916,6 +961,13 @@ void defMap()
                  "Iterates over all existing edges.\n\n"
                  ">>> for edge in amap.edgeIter():\n"
                  "...     print \"Edge %d has %d points\" % len(edge)")
+            .def("contour", (CELL_PTR(GeoMap::Contour)(GeoMap::*)(CellLabel))&GeoMap::contour, crp,
+                 "contour(label) -> Contour\n\n"
+                 "Return Contour object for the given label.")
+            .def("contourIter", (GeoMap::ContourIterator(GeoMap::*)())&GeoMap::contoursBegin,
+                 "Iterates over all existing contours.\n\n"
+                 ">>> for contour in amap.contourIter():\n"
+                 "...     print contour.label(), contour.anchor(), contour.area()")
             .def("face", (CELL_PTR(GeoMap::Face)(GeoMap::*)(CellLabel))&GeoMap::face, crp,
                  "face(label) -> Face\n\n"
                  "Return Face object for the given label.")
@@ -1106,6 +1158,7 @@ void defMap()
 
         RangeIterWrapper<GeoMap::NodeIterator, CELL_RETURN_POLICY>("_NodeIterator");
         RangeIterWrapper<GeoMap::EdgeIterator, CELL_RETURN_POLICY>("_EdgeIterator");
+        RangeIterWrapper<GeoMap::ContourIterator, CELL_RETURN_POLICY>("_ContourIterator");
         RangeIterWrapper<GeoMap::FaceIterator, CELL_RETURN_POLICY>("_FaceIterator");
 
         class_<GeoMap::Node, boost::noncopyable>(
@@ -1144,9 +1197,10 @@ void defMap()
             "Furthermore, it gives access to the left/right face, the\n"
             "start/end node and you can easily create a `dart` which points\n"
             "to this edge.\n\n"
-            "Edges (and Faces) allow you to use `setFlag` in order to tag\n"
-            "edges with bit-flags.  `flags` returns all flags or'ed\n"
-            "together and `flag` can be used to simply test for a flag.\n"
+            "Edges allow you to use `setFlag` in order to tag\n"
+            "edges with bit-flags (like Contours and Faces).\n"
+            "`flags` returns all flags or'ed together and\n"
+            "`flag` can be used to simply test for a flag.\n"
             "There is a module ``flag_constants`` that is used to note\n"
             "which flags are already used by some applications/framework\n"
             "parts.",
@@ -1160,6 +1214,10 @@ void defMap()
             .def("startNode", &GeoMap::Edge::startNode, crp)
             .def("endNodeLabel", &GeoMap::Edge::endNodeLabel)
             .def("endNode", &GeoMap::Edge::endNode, crp)
+            .def("leftContourLabel", &GeoMap::Edge::leftContourLabel)
+            .def("leftContour", &GeoMap::Edge::leftContour, crp)
+            .def("rightContourLabel", &GeoMap::Edge::rightContourLabel)
+            .def("rightContour", &GeoMap::Edge::rightContour, crp)
             .def("leftFaceLabel", &GeoMap::Edge::leftFaceLabel)
             .def("leftFace", &GeoMap::Edge::leftFace, crp)
             .def("rightFaceLabel", &GeoMap::Edge::rightFaceLabel)
@@ -1178,16 +1236,84 @@ void defMap()
             .def("__repr__", &Edge__repr__)
         ;
 
+//         class_<GeoMap::Contour, boost::noncopyable>(
+//             "Contour",
+//             "Represents a contour within the GeoMap.  This is used to store\n"
+//             "an `anchor` for each `Face.contour`, plus some\n"
+//             "cached information like the `length` and/or the `area` of\n"
+//             "the whole contour.\n\n"
+//             "Contours allow you to use `setFlag` in order to tag\n"
+//             "edges with bit-flags (like Edges and Faces).  `flags` returns all flags or'ed\n"
+//             "together and `flag` can be used to simply test for a flag.\n"
+//             "There is a module ``flag_constants`` that is used to note\n"
+//             "which flags are already used by some applications/framework\n"
+//             "parts.",
+//             no_init)
+//             .def("initialized", &GeoMap::Contour::initialized)
+//             .def("label", &GeoMap::Contour::label,
+//                  "label() -> int\n\n"
+//                  "Return the label of this Contour.  Contour labels are >= 0 and\n"
+//                  "you can query the maximal value by `GeoMap.maxContourLabel()`.\n")
+//             .def("faceLabel", &GeoMap::Contour::faceLabel,
+//                  "faceLabel() -> int\n\n"
+//                  "Return the label of the Face this Contour belongs to.")
+//             .def("face", &GeoMap::Contour::face, crp,
+//                  "face() -> Face\n\n"
+//                  "Return the Face object this Contour belongs to.")
+//             .def("isExterior", &GeoMap::Contour::isExterior, crp,
+//                  "isExterior() -> bool\n\n"
+//                  "Test whether this contour is the exterior contour of a map component.\n"
+//                  "Return True iff area() <= 0.")
+//             .def("length", &GeoMap::Contour::length,
+//                  "length() -> float\n\n"
+//                  "Return length of this contour.\n"
+//                  "This is the same as `polygon()`.length().")
+//             .def("area", &GeoMap::Contour::area,
+//                  "area() -> float\n\n"
+//                  "Return area of this contour.\n"
+//                  "This is the same as `polygon()`.area().")
+//             .def("contains", &GeoMap::Contour::contains,
+//                  "contains(point) -> bool\n\n"
+//                  "Return whether this contour contains the given point, i.e.\n"
+//                  "the same as `polygon()`.contains(point).")
+//             .def("polygon", &GeoMap::Contour::polygon,
+//                  "polygon() -> Polygon\n\n"
+//                  "Return the closed Polygon composed of all Darts within this Contour.")
+//             .def("scanLines", &GeoMap::Contour::scanLines)
+//             .def("anchor", &GeoMap::Contour::anchor,
+//                  return_value_policy<copy_const_reference>(),
+//                  "anchor() -> Dart\n\n"
+//                  "Return an anchor dart for this Contour.")
+//             .def("__iter__", &contourPhiOrbit,
+//                  "Return an iterator over the darts in this contour.\n"
+//                  "This is equal to `anchor()`.phiOrbit().\n\n"
+//                  ">>> for contour in face.contours():\n"
+//                  "...     for dart in contour:\n"
+//                  "...         print dart")
+//             .def("flags", &GeoMap::Contour::flags)
+//             .def("flag", &GeoMap::Contour::flag, arg("which"))
+//             .def("setFlag", &GeoMap::Contour::setFlag,
+//                  (arg("flag"), arg("onoff") = true))
+//             .def(self == self)
+//             .def(self != self)
+//             .def("__repr__", &Contour__repr__)
+//         ;
+
+        to_python_converter<
+            CELL_PTR(GeoMap::Contour),
+            convert_contour_as_anchor>();
+
         class_<GeoMap::Face, boost::noncopyable>(
             "Face",
-            "Represents a face within the GeoMap.  This is used to store\n"
-            "anchors for the `contours` (i.e. one for the outer `contour`,\n"
-            "and one for each of the `holeContours`).  Furthermore, it\n"
+            "Represents a face within the GeoMap.  This is used to manage\n"
+            "`contours` (i.e. one outer `contour` for all faces with `label` > 0,\n"
+            "and a set of `holeContours`).  Furthermore, it\n"
             "caches information like the `boundingBox` and/or the `area` of\n"
             "the whole face.\n\n"
-            "Faces (and Edges) allow you to use `setFlag` in order to tag\n"
-            "edges with bit-flags.  `flags` returns all flags or'ed\n"
-            "together and `flag` can be used to simply test for a flag.\n"
+            "Faces allow you to use `setFlag` in order to tag\n"
+            "edges with bit-flags (like Edges and Contours).\n"
+            "`flags` returns all flags or'ed together and\n"
+            "`flag` can be used to simply test for a flag.\n"
             "There is a module ``flag_constants`` that is used to note\n"
             "which flags are already used by some applications/framework\n"
             "parts.",
@@ -1215,12 +1341,11 @@ void defMap()
                  "not defined.")
             .def("pixelArea", &GeoMap::Face::pixelArea)
             .def("contour", &GeoMap::Face::contour,
-                 return_value_policy<copy_const_reference>(),
+//                  return_value_policy<contour_anchor_to_python>(),
                  arg("index") = 0)
             .def("contours", &faceContours)
             .def("holeContours", &faceHoleContours)
             .def("holeCount", &GeoMap::Face::holeCount)
-            .def("scanLines", &GeoMap::Face::scanLines)
             .def("flags", &GeoMap::Face::flags)
             .def("flag", &GeoMap::Face::flag, arg("which"))
             .def("setFlag", &GeoMap::Face::setFlag,
@@ -1283,6 +1408,18 @@ void defMap()
                  "Return the node that is at the end of this dart.\n"
                  "(Actually, this can be seen as a convenience method for\n"
                  "dart.clone().nextAlpha().startNode().")
+            .def("leftContourLabel", &GeoMap::Dart::leftContourLabel,
+                 "leftContourLabel() -> int\n\n"
+                 "Return the label of the contour to the left of this dart.")
+            .def("leftContour", &GeoMap::Dart::leftContour, crp,
+                 "leftContour() -> Contour\n\n"
+                 "Return the contour to the left of this dart.")
+            .def("rightContourLabel", &GeoMap::Dart::rightContourLabel,
+                 "rightContourLabel() -> int\n\n"
+                 "Return the label of the contour to the right of this dart.")
+            .def("rightContour", &GeoMap::Dart::rightContour, crp,
+                 "rightContour() -> Contour\n\n"
+                 "Return the contour to the right of this dart.")
             .def("leftFaceLabel", &GeoMap::Dart::leftFaceLabel,
                  "leftFaceLabel() -> int\n\n"
                  "Return the label of the face to the left of this dart.")
@@ -1360,6 +1497,7 @@ void defMap()
 #ifndef USE_INSECURE_CELL_PTRS
         register_ptr_to_python< CELL_PTR(GeoMap::Node) >();
         register_ptr_to_python< CELL_PTR(GeoMap::Edge) >();
+//         register_ptr_to_python< CELL_PTR(GeoMap::Contour) >();
         register_ptr_to_python< CELL_PTR(GeoMap::Face) >();
 #endif
 
@@ -1426,6 +1564,7 @@ void defMap()
         geoMap.attr("BYTES_PER_NODE") = sizeof(GeoMap::Node);
         geoMap.attr("BYTES_PER_EDGE") = sizeof(GeoMap::Edge);
         geoMap.attr("BYTES_PER_FACE") = sizeof(GeoMap::Face);
+        geoMap.attr("BYTES_PER_CONTOUR") = sizeof(GeoMap::Contour);
         geoMap.attr("BYTES_PER_MAP") = sizeof(GeoMap);
     }
 

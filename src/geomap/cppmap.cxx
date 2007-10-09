@@ -115,6 +115,7 @@ GeoMap::GeoMap(vigra::Size2D imageSize)
   sigmaInverseMapping_(sigmaInverseMappingArray_.begin() + 50),
   nodeCount_(0),
   edgeCount_(0),
+  contourCount_(0),
   faceCount_(0),
   imageSize_(imageSize),
   labelImage_(NULL),
@@ -131,6 +132,7 @@ GeoMap::GeoMap(const GeoMap &other)
                        + sigmaInverseMappingArray_.size()/2),
   nodeCount_(0),
   edgeCount_(0),
+  contourCount_(0),
   faceCount_(0),
   imageSize_(other.imageSize()),
   labelImage_(NULL),
@@ -163,7 +165,7 @@ GeoMap::GeoMap(const GeoMap &other)
         for(ConstFaceIterator it = other.facesBegin(); it.inRange(); ++it)
         {
             unsigned int flags((*it)->flags() & ~0xf0000000U);
-            CellLabel anchorLabel = (*it)->contour().label();
+            CellLabel anchorLabel = (*it)->contour()->anchor().label();
             dart(anchorLabel).leftFace()->setFlag(flags);
         }
 
@@ -172,7 +174,7 @@ GeoMap::GeoMap(const GeoMap &other)
         {
             newFaceLabels[(*it)->label()] =
                 const_cast<GeoMap &>(other).dart( // FIXME: see constdart.diff
-                    (*it)->contour().label()).leftFaceLabel();
+                    (*it)->contour()->anchor().label()).leftFaceLabel();
         }
         changeFaceLabels(newFaceLabels, other.faces_.size());
     }
@@ -184,6 +186,8 @@ GeoMap::~GeoMap()
     for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
         (*it)->uninitialize();
     for(EdgeIterator it = edgesBegin(); it.inRange(); ++it)
+        (*it)->uninitialize();
+    for(ContourIterator it = contoursBegin(); it.inRange(); ++it)
         (*it)->uninitialize();
     for(FaceIterator it = facesBegin(); it.inRange(); ++it)
         (*it)->uninitialize();
@@ -824,33 +828,33 @@ void GeoMap::initializeMap(bool initLabelImage)
         sortEdgesDirectly();
 
     initContours();
-    //std::cerr << faceCount_ << " contours found, embedding...\n";
+//     std::cerr << contourCount_ << " contours found, embedding...\n";
     embedFaces(initLabelImage);
 }
 
 void GeoMap::initContours()
 {
-    new Face(this, Dart(this, 0)); // create infinite face, dart will be ignored
-
     for(EdgeIterator it = edgesBegin(); it.inRange(); ++it)
     {
-        if((*it)->leftFaceLabel_ == UNINITIALIZED_CELL_LABEL)
-            new Face(this, dart( (int)(*it)->label()));
-        if((*it)->rightFaceLabel_ == UNINITIALIZED_CELL_LABEL)
-            new Face(this, dart(-(int)(*it)->label()));
+        if((*it)->leftContourLabel_ == UNINITIALIZED_CONTOUR_LABEL)
+            new Contour(this, dart( (int)(*it)->label()));
+        if((*it)->rightContourLabel_ == UNINITIALIZED_CONTOUR_LABEL)
+            new Contour(this, dart(-(int)(*it)->label()));
     }
+
+    contourLabelLUT_.initIdentity(contours_.size());
 }
 
 struct AbsAreaCompare
 {
         // FIXME: actually, const pointers would suffice:
-    bool operator()(CELL_PTR(GeoMap::Face) f1, CELL_PTR(GeoMap::Face) f2) const
+    bool operator()(CELL_PTR(GeoMap::Contour) f1, CELL_PTR(GeoMap::Contour) f2) const
     {
         double a1 = f1->area(), a2 = f2->area();
         double absdiff = std::fabs(a1) - std::fabs(a2);
         if(std::fabs(absdiff) < 1e-2 && ((a1 < 0) != (a2 < 0)))
-            return (a1 < 0); // for faces with equal area, prefer the exterior one
-        return absdiff > 0; // else, prefer face with larger absolute area
+            return (a1 < 0); // for contours with equal area, prefer the exterior one
+        return absdiff > 0; // else, prefer contour with larger absolute area
     }
 };
 
@@ -864,38 +868,40 @@ void GeoMap::embedFaces(bool initLabelImage)
     vigra_precondition(!labelImage_,
         "embedFaces() called with already-initialized labelImage");
 
+    new Face(this); // create infinite face
+
     if(initLabelImage)
     {
         vigra_precondition(imageSize_.area() > 0,
                            "initLabelImage: imageSize must be non-zero!");
         labelImage_ = new LabelImage(
             LabelImage::size_type(imageSize().width(), imageSize().height()), 0);
-        faceLabelLUT_.initIdentity(faces_.size());
+        faceLabelLUT_.appendOne();
     }
 
-    // copy and remove all preliminary contours except the infinite one:
-    GeoMap::Faces contours(faces_.begin() + 1, faces_.end());
+    // sort contours by absolute size:
+    GeoMap::Contours contours(contours_.begin(), contours_.end());
     std::sort(contours.begin(), contours.end(), AbsAreaCompare());
-    std::fill(faces_.begin() + 1, faces_.end(), NULL_PTR(Face));
 
     for(unsigned int i = 0; i < contours.size(); ++i)
     {
-        GeoMap::Face &contour(*contours[i]); // FIXME: const
+        GeoMap::Contours::value_type contour(contours[i]); // FIXME: const
+//         std::cerr << "contour " << contour->label()
+//                   << ": area = " << contour->area() << "\n";
 
-        GeoMap::Dart anchor(contour.contour(0));
+        GeoMap::Dart anchor(contour->anchor());
 
-        bool isExterior = contour.area() <= 0;
-
-        if(!isExterior)
+        if(!contour->isExterior())
         {
-            faces_[contour.label()] = contours[i];
+            Face *face = new Face(this);
+            face->embedContour(contour);
 
             if(initLabelImage)
             {
                 std::auto_ptr<vigra::Scanlines> scanlines =
-                    contour.scanLines();
-                contour.pixelArea_ =
-                    fillScannedPoly(*scanlines, (int)contour.label(),
+                    contour->scanLines();
+                face->pixelArea_ =
+                    fillScannedPoly(*scanlines, (int)face->label(),
                                     destMultiArrayRange(*labelImage_));
                 // no need for rawAddEdgeToLabelImage here, since we
                 // work with darts anyways, and there's no easy way to
@@ -903,6 +909,10 @@ void GeoMap::embedFaces(bool initLabelImage)
                 // (esp. also for interior bridges etc.)
                 drawScannedPoly(*scanlines, -1,
                                 destMultiArrayRange(*labelImage_));
+                vigra_assert(
+                    faceLabelLUT_.size() == face->label(),
+                    "faceLabelLUT_ should have the same size as faces_");
+                faceLabelLUT_.appendOne();
             }
         }
         else
@@ -953,10 +963,9 @@ void GeoMap::embedFaces(bool initLabelImage)
             }
 
         parent_found:
-//             std::cerr << "  embedding contour " << contour.label()
+//             std::cerr << "  embedding contour " << contour->label()
 //                       << " in face " << parent->label() << "\n";
-            parent->embedContour(anchor);
-            contour.uninitialize();
+            parent->embedContour(contour);
         }
     }
 
@@ -1028,11 +1037,8 @@ void GeoMap::changeFaceLabels(
     }
     std::swap(faces_, newFaces);
 
-    for(EdgeIterator it = edgesBegin(); it.inRange(); ++it)
-    {
-        (*it)->leftFaceLabel_ = newFaceLabels[(*it)->leftFaceLabel_];
-        (*it)->rightFaceLabel_ = newFaceLabels[(*it)->rightFaceLabel_];
-    }
+    for(ContourIterator it = contoursBegin(); it.inRange(); ++it)
+        (*it)->faceLabel_ = newFaceLabels[(*it)->faceLabel_];
 
     if(hasLabelImage())
     {
@@ -1170,8 +1176,13 @@ bool GeoMap::checkConsistency()
             return result; // function may not terminate in this state
     }
 
-    unsigned int actualNodeCount = 0, actualEdgeCount = 0, actualFaceCount = 0,
-        connectedComponentsCount = 0, isolatedNodesCount = 0, contourCount = 0;
+    unsigned int actualNodeCount = 0,
+                 actualEdgeCount = 0,
+              actualContourCount = 0,
+                 actualFaceCount = 0,
+        connectedComponentsCount = 0,
+              isolatedNodesCount = 0,
+            embeddedContourCount = 0;
 
     for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
     {
@@ -1253,14 +1264,14 @@ bool GeoMap::checkConsistency()
                 result = false;
             }
 
-            if(!(*it)->leftFace() || !(*it)->rightFace())
+            if(!(*it)->leftContour() || !(*it)->rightContour())
             {
-                std::cerr << "  Edge " << (*it)->label() << " has invalid faces:\n";
-                if(!(*it)->leftFace())
-                    std::cerr << "     left face (" << (*it)->leftFaceLabel()
+                std::cerr << "  Edge " << (*it)->label() << " has invalid contours:\n";
+                if(!(*it)->leftContour())
+                    std::cerr << "     left contour (" << (*it)->leftContourLabel()
                               << ") does not exist!\n";
-                if(!(*it)->rightFace())
-                    std::cerr << "    right face (" << (*it)->rightFaceLabel()
+                if(!(*it)->rightContour())
+                    std::cerr << "    right contour (" << (*it)->rightContourLabel()
                               << ") does not exist!\n";
                 result = false;
                 continue; // no need to check geometry
@@ -1305,11 +1316,82 @@ bool GeoMap::checkConsistency()
     if(!mapInitialized())
         return result; // cannot test Faces yet (do not exist)
 
+    for(ContourIterator it = contoursBegin(); it.inRange(); ++it)
+    {
+        ++actualContourCount;
+
+        GeoMap::Contour &contour(**it);
+        if(contour.map() != this)
+        {
+            std::cerr << "  Contour " << contour.label() << " has wrong map()!\n";
+            result = false;
+            break;
+        }
+
+        if(!(contour.faceLabel() < faces_.size() && face(contour.faceLabel())))
+        {
+            std::cerr << "  Contour " << (*it)->label()
+                      << " has invalid face label; face " << (*it)->faceLabel()
+                      << " does not exist!\n";
+            result = false;
+        }
+
+        if(!contour.anchor().edge())
+        {
+            std::cerr << "  Contour " << contour.label() << " has broken anchor: dart "
+                      << contour.anchor().label() << " does not exist!\n";
+        }
+        else if(contour.anchor().leftContourLabel() != contour.label())
+        {
+            std::cerr << "  Contour " << (*it)->label()
+                      << "'s anchor has wrong leftContourLabel("
+                      << contour.anchor().leftContourLabel() << ")!\n";
+            result = false;
+        }
+        else
+        {
+            double area = 0.0;
+            Dart anchor(contour.anchor()), dart(anchor);
+            do
+            {
+                if(dart.leftContourLabel() != contour.label())
+                {
+                    std::cerr << "  Contour " << contour.label()
+                              << " contains dart " << dart.label()
+                              << " with wrong leftContourLabel("
+                              << dart.leftContourLabel() << ")!\n";
+                    result = false;
+                    break;
+                }
+
+                if(!dart.edge()->isBridge())
+                    area += dart.partialArea();
+            }
+            while(dart.nextPhi() != anchor);
+
+            if(dart != anchor)
+                continue; // loop canceled, area not valid
+
+            if(std::fabs(area - contour.area()) > 1e-3 ||
+               vigra::sign(area) != vigra::sign(contour.area()))
+            {
+                std::cerr << "  Contour " << contour.label()
+                          << " gives area " << contour.area()
+                          << ", but should have " << area << "!\n";
+                result = false;
+            }
+        }
+    }
+    if(actualContourCount != contourCount())
+    {
+        std::cerr << "  Contour count wrong (" << contourCount()
+                  << ", should be " << actualContourCount << ")!\n";
+            result = false;
+    }
+
     for(FaceIterator it = facesBegin(); it.inRange(); ++it)
     {
         ++actualFaceCount;
-        connectedComponentsCount += (*it)->holeCount();
-        contourCount += ((*it)->contoursEnd() - (*it)->contoursBegin());
 
         GeoMap::Face &face(**it);
         if(face.map() != this)
@@ -1319,67 +1401,74 @@ bool GeoMap::checkConsistency()
             break;
         }
 
-        typedef std::map<int, unsigned int> SeenAnchors;
-        SeenAnchors seenAnchors;
+        connectedComponentsCount += (*it)->holeCount();
+        embeddedContourCount += ((*it)->contoursEnd() - (*it)->contoursBegin());
 
+        typedef std::map<int, unsigned int> SeenContours;
+        SeenContours seenContours;
+
+        double area = 0.0;
         bool outerContour = face.label() > 0;
         for(GeoMap::Face::ContourIterator ci = face.contoursBegin();
             ci != face.contoursEnd(); ++ci, outerContour = false)
         {
-            double area = 0.0;
-            int canonicalAnchor(ci->label());
-            Dart anchor(*ci), dart(anchor);
-            do
+            if((*ci)->faceLabel() != face.label())
             {
-                if(dart.leftFaceLabel() != face.label())
-                {
-                    std::cerr << "  Dart " << dart.label()
-                              << " has leftFaceLabel() " << dart.leftFaceLabel()
-                              << " != " << face.label() << "!\n";
-                    result = false;
-                    break;
-                }
-
-                if(!dart.edge()->isBridge())
-                    area += dart.partialArea();
-
-                if(ci->label() < canonicalAnchor)
-                    canonicalAnchor = ci->label();
+                std::cerr << "  Face " << face.label()
+                          << " contains Contour " << (*ci)->label()
+                          << " with faceLabel " << (*ci)->faceLabel() << "!\n";
+                result = false;
             }
-            while(dart.nextPhi() != anchor);
 
-            if(dart != anchor)
-                continue; // loop canceled, area not valid
+            area += (*ci)->area();
 
-            if((area <= 0) == outerContour)
+            if((*ci)->isExterior() == outerContour)
             {
                 std::cerr << "  Face " << face.label() << " contains an "
                           << (outerContour
-                              ? "outer anchor with negative area"
-                              : "inner anchor with positive area")
-                          << ":\n  contour from dart " << ci->label()
-                          << " has area " << area << "!\n";
+                              ? "outer contour with negative area"
+                              : "inner contour with positive area")
+                          << ":\n    Contour #" << (ci - face.contoursBegin())
+                          << ", labeled " << (*ci)->label()
+                          << " from dart " << (*ci)->anchor().label()
+                          << " has area " << (*ci)->area() << "!\n";
                 result = false;
             }
 
-            std::pair<SeenAnchors::iterator, bool>
-                seenAnchor(seenAnchors.insert(
-                               std::make_pair(canonicalAnchor,
-                                              ci - face.contoursBegin())));
-            if(!seenAnchor.second)
+            std::pair<SeenContours::iterator, bool>
+                seenContour(seenContours.insert(
+                                std::make_pair((*ci)->label(),
+                                               ci - face.contoursBegin())));
+            if(!seenContour.second)
             {
                 std::cerr << "  Face " << face.label()
-                          << " contains duplicate anchors at (contour indices "
+                          << " contains duplicate contours (indices "
                           << (ci - face.contoursBegin()) << " and "
-                          << seenAnchor.first->second << ")!\n";
+                          << seenContour.first->second << ")!\n";
                 result = false;
             }
+        }
+
+        if(std::fabs(area - face.area()) > 1e-3)
+        {
+            std::cerr << "  Face " << face.label()
+                      << " gives area " << face.area()
+                      << ", but should have " << area << "!\n";
+            result = false;
         }
     }
     if(actualFaceCount != faceCount())
     {
         std::cerr << "  Face count wrong (" << faceCount()
                   << ", should be " << actualFaceCount << ")!\n";
+            result = false;
+    }
+
+    if(actualContourCount != embeddedContourCount)
+    {
+        std::cerr << "  Count of embedded contours (" << embeddedContourCount
+                  << " does not match number of contours ("
+                  << actualContourCount << ")!\n";
             result = false;
     }
 
@@ -1395,13 +1484,14 @@ bool GeoMap::checkConsistency()
         result = false;
     }
 
-    if(actualNodeCount - actualEdgeCount + contourCount
+    if(actualNodeCount - actualEdgeCount + actualContourCount
        != 2*connectedComponentsCount + isolatedNodesCount)
     {
         std::cerr << "  Euler-Poincare invariant violated! (N - E + B - 2*C = "
-                  << actualNodeCount << " - " << actualEdgeCount << " + "
-                  << contourCount << " - 2*" << connectedComponentsCount << " = "
-                  << (int)(actualNodeCount - actualEdgeCount + contourCount
+                  << actualNodeCount << " - " << actualEdgeCount
+                  << " + " << actualContourCount
+                  << " - 2*" << connectedComponentsCount << " = "
+                  << (int)(actualNodeCount - actualEdgeCount + actualContourCount
                            - 2*connectedComponentsCount)
                   << " != 0, map cannot be planar)\n";
         result = false;
@@ -1535,40 +1625,26 @@ CELL_PTR(GeoMap::Edge) GeoMap::mergeEdges(GeoMap::Dart &dart)
     vigra_precondition(d1 == dart,
                        "mergeEdges cannot remove node with degree > 2!");
 
-    vigra_assert((d1.leftFaceLabel() == d2.rightFaceLabel()) &&
-                 (d2.leftFaceLabel() == d1.rightFaceLabel()),
-                 "mergeEdges: broken map (left/rightFaceLabel)");
-
     if(d1.label() > 0 && d2.label() < 0)
         std::swap(d1, d2); // minimize number of reverse()s necessary
 
     if(mapInitialized())
     {
-        GeoMap::Face *faces[2];
-        faces[0] = &(*d2.leftFace());
-        faces[1] = &(*d2.rightFace());
-        for(GeoMap::Face **faceIt = faces; faceIt != faces+2; ++faceIt)
-        {
-            GeoMap::Face::Contours::iterator cEnd = (*faceIt)->anchors_.end();
-            for(GeoMap::Face::Contours::iterator it = (*faceIt)->anchors_.begin();
-                it != cEnd; ++it)
-            {
-                if(it->edgeLabel() == d2.edgeLabel())
-                {
-                    it->nextPhi();
-                    break;
-                }
-            }
-        }
+        vigra_assert((d1.leftContourLabel() == d2.rightContourLabel()) &&
+                     (d2.leftContourLabel() == d1.rightContourLabel()),
+                     "mergeEdges: broken map (left/rightContourLabel)");
+
+        if(d2.leftContour()->anchor_.edgeLabel() == d2.edgeLabel())
+            d2.leftContour()->anchor_.nextPhi();
+        if(d2.rightContour()->anchor_.edgeLabel() == d2.edgeLabel())
+            d2.rightContour()->anchor_.nextPhi();
     }
 
     GeoMap::Edge &survivor(*d1.edge());
     GeoMap::Node &mergedNode(*d2.startNode());
     GeoMap::Edge &mergedEdge(*d2.edge());
 
-    if(!preMergeEdgesHook(d1))
-        return NULL_PTR(GeoMap::Edge);
-    if(!removeNodeHook(mergedNode))
+    if(!preMergeEdgesHook(d1) || !removeNodeHook(mergedNode))
         return NULL_PTR(GeoMap::Edge);
 
     // TODO: history append?
@@ -1663,8 +1739,8 @@ CELL_PTR(GeoMap::Edge) GeoMap::splitEdge(
 
     GeoMap::Edge *result = new GeoMap::Edge(
         this, newNode.label(), changedNode.label(), edge.split(segmentIndex));
-    result->leftFaceLabel_ = edge.leftFaceLabel_;
-    result->rightFaceLabel_ = edge.rightFaceLabel_;
+    result->leftContourLabel_ = edge.leftContourLabel_;
+    result->rightContourLabel_ = edge.rightContourLabel_;
     result->flags_ = edge.flags_;
 
     if(sigmaMappingArray_.size() < 2*result->label()+1)
@@ -1743,25 +1819,60 @@ CELL_PTR(GeoMap::Face) GeoMap::removeBridge(GeoMap::Dart &dart)
     Dart newAnchor1(dart), newAnchor2(dart);
     newAnchor1.prevSigma();
     newAnchor2.nextAlpha().prevSigma();
-    // COMPLEXITY: depends on number of contours in face
-    unsigned int contourIndex = face.findComponentAnchor(dart);
 
     // remove both darts from both sigma orbits:
     detachDart( dart.label());
     detachDart(-dart.label());
 
-    // COMPLEXITY: depends on number of darts in contours
-    if(contourIndex == 0)
+    // create new contour:
+    Contour &oldContour(*dart.leftContour());
+    if(newAnchor1.edgeLabel() == dart.edgeLabel())
     {
-        // determine outer anchor, swap if necessary:
-        if(newAnchor1.edgeLabel() == dart.edgeLabel() ||
-           newAnchor2.edgeLabel() != dart.edgeLabel() &&
-           contourArea(newAnchor1) < contourArea(newAnchor2))
-            std::swap(newAnchor1, newAnchor2);
+        if(newAnchor2.edgeLabel() == dart.edgeLabel())
+        {
+            removeOne(face.contours_, dart.leftContour());
+            oldContour.uninitialize();
+        }
+        else
+        {
+            oldContour.anchor_ = newAnchor2;
+            oldContour.length_ -= 2*dart.edge()->length();
+        }
     }
+    else
+    {
+        if(newAnchor2.edgeLabel() == dart.edgeLabel())
+        {
+            oldContour.anchor_ = newAnchor1;
+            oldContour.length_ -= 2*dart.edge()->length();
+        }
+        else
+        {
+            // first, enlarge the LUT, which is needed for Edge::isBridge()
+            contourLabelLUT_.appendOne();
+            Contour &newContour(*new Contour(this, newAnchor2));
 
-    face.anchors_[contourIndex] = newAnchor1;
-    face.anchors_.push_back(newAnchor2);
+            oldContour.area_ -= newContour.area();
+            if(std::fabs(oldContour.area_) < 1e-3)
+            {
+                // make sure that isExterior() does not give wrong results:
+                oldContour.setFlag(GeoMap::Contour::AREA_VALID, false);
+            }
+            oldContour.anchor_ = newAnchor1;
+
+            if(newContour.isExterior())
+            {
+                face.contours_.push_back(contour(newContour.label()));
+            }
+            else
+            {
+                face.contours_[0] = contour(newContour.label());
+                if(newAnchor1.edgeLabel() != dart.edgeLabel())
+                    face.contours_.push_back(dart.leftContour());
+            }
+            newContour.faceLabel_ = face.label();
+        }
+    }
 
     // COMPLEXITY: depends on number of pixel facets crossed by the bridge
     PixelList associatedPixels;
@@ -1770,17 +1881,10 @@ CELL_PTR(GeoMap::Face) GeoMap::removeBridge(GeoMap::Dart &dart)
             edge.scanLines(), *labelImage_, face.label(), associatedPixels);
 
     // remove singular nodes
-    // COMPLEXITY: depends on face anchors.erase, may be O(contour count)
     if(newAnchor1.edgeLabel() == dart.edgeLabel())
-    {
         removeIsolatedNode(*newAnchor1.startNode());
-        face.anchors_.erase(face.anchors_.begin() + contourIndex);
-    }
     if(newAnchor2.edgeLabel() == dart.edgeLabel())
-    {
         removeIsolatedNode(*newAnchor2.startNode());
-        face.anchors_.erase(face.anchors_.end() - 1);
-    }
 
     edge.uninitialize();
 
@@ -1794,29 +1898,30 @@ CELL_PTR(GeoMap::Face) GeoMap::removeBridge(GeoMap::Dart &dart)
     return this->face(face.label());
 }
 
-CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(GeoMap::Dart &dart)
+CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(GeoMap::Dart dart)
 {
     vigra_precondition(dart.edge(),
                        "mergeFaces called on removed dart!");
 
-    GeoMap::Dart removedDart(dart);
+    if(!dart.rightFaceLabel()) // face 0 shall stay face 0
+        dart.nextAlpha();
+    else if(dart.leftFace()->area() < dart.rightFace()->area()
+            && dart.leftFaceLabel())
+        dart.nextAlpha();
 
-    if(dart.leftFace()->area() < dart.rightFace()->area())
-        removedDart.nextAlpha();
-    if(!removedDart.rightFaceLabel()) // face 0 shall stay face 0
-        removedDart.nextAlpha();
-
-    GeoMap::Edge &mergedEdge(*removedDart.edge());
-    GeoMap::Face &survivor(*removedDart.leftFace());
-    GeoMap::Face &mergedFace(*removedDart.rightFace());
-    GeoMap::Node &node1(*removedDart.startNode());
-    GeoMap::Node &node2(*removedDart.endNode());
+    GeoMap::Edge &mergedEdge(*dart.edge());
+    GeoMap::Face &survivor(*dart.leftFace());
+    GeoMap::Face &mergedFace(*dart.rightFace());
+    GeoMap::Node &node1(*dart.startNode());
+    //GeoMap::Node &node2(*dart.endNode());
+    GeoMap::Contour &survivorContour(*dart.leftContour());
+    GeoMap::Contour &mergedContour(*dart.rightContour());
 
     vigra_precondition(survivor.label() != mergedFace.label(),
                        "mergeFaces(): dart belongs to a bridge!");
 
     // COMPLEXITY: depends on callbacks (preMergeFacesHook)
-    if(!preMergeFacesHook(removedDart))
+    if(!preMergeFacesHook(dart))
         return NULL_PTR(GeoMap::Face);
 
     // TODO: history append?
@@ -1826,55 +1931,59 @@ CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(GeoMap::Dart &dart)
     if(survivor.flag(GeoMap::Face::BOUNDING_BOX_VALID))
         mergedBBox = mergedFace.boundingBox();
 
-    // relabel contour's leftFaceLabel
-    // COMPLEXITY: depends on number of darts in mergedFace's contours
-    for(unsigned int i = 0; i < mergedFace.anchors_.size(); ++i)
-    {
-        GeoMap::Dart d(mergedFace.anchors_[i]);
-        while(d.nextPhi().leftFaceLabel() != survivor.label())
-            d.internalLeftFaceLabel() = survivor.label();
-    }
-
-    // COMPLEXITY: depends on number of contours in F1 + F2
-    unsigned int contour1 = survivor.findComponentAnchor(removedDart);
-    unsigned int contour2 = mergedFace.findComponentAnchor(
-        GeoMap::Dart(removedDart).nextAlpha());
-
     // re-use an old anchor for the merged contour
-    if(survivor.anchors_[contour1].edgeLabel() == mergedEdge.label())
+    if(survivorContour.anchor_.edgeLabel() == mergedEdge.label())
     {
-        survivor.anchors_[contour1].nextPhi();
-        if(survivor.anchors_[contour1].edgeLabel() == mergedEdge.label())
+        survivorContour.anchor_.nextPhi();
+        if(survivorContour.anchor_.edgeLabel() == mergedEdge.label())
         {
-            survivor.anchors_[contour1] = mergedFace.anchors_[contour2];
-            if(survivor.anchors_[contour1].edgeLabel() == mergedEdge.label())
-                survivor.anchors_[contour1].nextPhi();
+            survivorContour.anchor_ = mergedContour.anchor_;
+            if(survivorContour.anchor_.edgeLabel() == mergedEdge.label())
+                survivorContour.anchor_.nextPhi();
         }
     }
 
-    // check validity of found anchor
-    if(survivor.anchors_[contour1].edgeLabel() == mergedEdge.label())
+    // check validity of surviving contour
+    if(survivorContour.anchor_.edgeLabel() == mergedEdge.label())
     {
-        vigra_precondition(node1.label() == node2.label(),
-                           "special-case: merging a self-loop");
+        vigra_assert(node1.label() == dart.endNodeLabel(),
+                     "special-case: merging a self-loop");
         // results in an isolated node:
-        survivor.anchors_.erase(survivor.anchors_.begin() + contour1);
+        removeOne(survivor.contours_, dart.leftContour());
+    }
+    else
+    {
+        if(survivorContour.flag(GeoMap::Contour::AREA_VALID))
+        {
+            survivorContour.area_ += mergedContour.area();
+            if(std::fabs(survivorContour.area_) < 1e-3)
+            {
+                // make sure that isExterior() does not give wrong results:
+                survivorContour.setFlag(GeoMap::Contour::AREA_VALID, false);
+            }
+        }
     }
 
     // copy all remaining anchors into survivor's list:
     // COMPLEXITY: depends on number of contours in mergedFace
-    for(unsigned int i = 0; i < mergedFace.anchors_.size(); ++i)
+    for(unsigned int i = 0; i < mergedFace.contours_.size(); ++i)
     {
-        if(i != contour2)
-            survivor.anchors_.push_back(mergedFace.anchors_[i]);
+        GeoMap::Contour &contour(*mergedFace.contours_[i]);
+        if(contour.label() != mergedContour.label())
+        {
+            contour.faceLabel_ = survivor.label();
+            survivor.contours_.push_back(mergedFace.contours_[i]);
+        }
     }
+
+    // COMPLEXITY: depends on total number of contours :-((
+    contourLabelLUT_.relabel(
+        mergedContour.label(), survivorContour.label());
 
     // relabel region in image
     PixelList associatedPixels;
     if(labelImage_)
     {
-//         relabelImage(map.labelImage.subImage(mergedFace.pixelBounds_),
-//                      mergedFace.label(), survivor.label())
         // COMPLEXITY: depends on maxFaceLabel
         faceLabelLUT_.relabel(mergedFace.label(), survivor.label());
 
@@ -1887,15 +1996,16 @@ CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(GeoMap::Dart &dart)
     }
 
     // remove both darts from both sigma orbits:
-    detachDart( removedDart.label());
-    detachDart(-removedDart.label());
+    detachDart( dart.label());
+    detachDart(-dart.label());
 
     // remove singular nodes
     if(node1.isIsolated())
     {
-        vigra_assert(node2.label() == node1.label(),
+        vigra_assert(dart.endNodeLabel() == node1.label(),
                      "mergeEdges can only create isolated nodes from self-loops");
         removeIsolatedNode(node1);
+        survivorContour.uninitialize();
     }
 
     if(survivor.flag(GeoMap::Face::AREA_VALID))
@@ -1907,6 +2017,7 @@ CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(GeoMap::Dart &dart)
 
     mergedEdge.uninitialize();
     mergedFace.uninitialize();
+    mergedContour.uninitialize();
 
     // COMPLEXITY: depends on callbacks (postMergeFacesHook)
     postMergeFacesHook(survivor);
@@ -1949,36 +2060,58 @@ void GeoMap::Node::setPosition(const vigra::Vector2 &p)
     map_->nodeMap_.insert(PositionedNodeLabel(p, label_));
 }
 
-unsigned int GeoMap::Face::findComponentAnchor(const GeoMap::Dart &dart)
+GeoMap::Contour::Contour(GeoMap *map, const Dart &anchor)
+: map_(map),
+  label_(map->contours_.size()),
+  faceLabel_(UNINITIALIZED_CONTOUR_LABEL),
+  anchor_(anchor),
+  flags_(0)
 {
-    for(unsigned int i = 0; i < anchors_.size(); ++i)
-        if(anchors_[i] == dart)
-            return i;
-
-    for(unsigned int i = 0; i < anchors_.size(); ++i)
-    {
-        GeoMap::Dart d(anchors_[i]);
-        while(d.nextPhi() != anchors_[i])
-            if(d == dart)
-                return i;
-    }
-
-    vigra_fail("findComponentAnchor failed: dart not found in face contours!");
-    return 42; // never reached
-}
-
-void GeoMap::Face::embedContour(const Dart &anchor)
-{
-    anchors_.push_back(anchor);
+    map_->contours_.push_back(GeoMap::Contours::value_type(this));
+    ++map_->contourCount_;
 
     Dart dart(anchor);
-    for(; dart.leftFaceLabel() != label_; dart.nextPhi())
-        dart.internalLeftFaceLabel() = label_;
+    if(anchor_.internalLeftContourLabel() == UNINITIALIZED_CONTOUR_LABEL)
+    {
+        for(; dart.internalLeftContourLabel() == UNINITIALIZED_CONTOUR_LABEL;
+            dart.nextPhi())
+        {
+            dart.internalLeftContourLabel() = label_;
 
-    // don't try to do this on the fly (special bridge handling needed):
-    if(flag(AREA_VALID))
-        area_ += contourArea(dart);
+            // don't calculate area on-the-fly here; we want to
+            // exclude bridges from the area!
+        }
+    }
+    else
+    {
+        // during relabeling, we already know which edges are bridges:
+        area_ = 0.0;
+        for(; dart.internalLeftContourLabel() != label_; dart.nextPhi())
+        {
+            Edge &edge(*dart.edge());
+            if(edge.isBridge())
+                edge.setFlag(Edge::IS_BRIDGE);
+            else if(edge.flag(Edge::IS_BRIDGE))
+                edge.setFlag(Edge::IS_BRIDGE, false);
+            else
+                area_ += dart.partialArea();
+
+            dart.internalLeftContourLabel() = label_;
+        }
+        setFlag(AREA_VALID);
+    }
 
     vigra_postcondition(dart == anchor,
                         "contour labeled partially?!");
+}
+
+void GeoMap::Face::embedContour(const Contours::value_type &contour)
+{
+    contours_.push_back(contour);
+
+    setFlag(AREA_VALID, 0);
+//     if(flag(AREA_VALID))
+//         area_ += contour->area();
+
+    contour->faceLabel_ = label();
 }
