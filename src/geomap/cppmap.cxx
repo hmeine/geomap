@@ -1815,11 +1815,6 @@ CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(GeoMap::Dart &dart)
     vigra_precondition(survivor.label() != mergedFace.label(),
                        "mergeFaces(): dart belongs to a bridge!");
 
-    // COMPLEXITY: depends on number of contours in F1 + F2
-    unsigned int contour1 = survivor.findComponentAnchor(removedDart);
-    unsigned int contour2 = mergedFace.findComponentAnchor(
-        GeoMap::Dart(removedDart).nextAlpha());
-
     // COMPLEXITY: depends on callbacks (preMergeFacesHook)
     if(!preMergeFacesHook(removedDart))
         return NULL_PTR(GeoMap::Face);
@@ -1839,6 +1834,11 @@ CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(GeoMap::Dart &dart)
         while(d.nextPhi().leftFaceLabel() != survivor.label())
             d.internalLeftFaceLabel() = survivor.label();
     }
+
+    // COMPLEXITY: depends on number of contours in F1 + F2
+    unsigned int contour1 = survivor.findComponentAnchor(removedDart);
+    unsigned int contour2 = mergedFace.findComponentAnchor(
+        GeoMap::Dart(removedDart).nextAlpha());
 
     // re-use an old anchor for the merged contour
     if(survivor.anchors_[contour1].edgeLabel() == mergedEdge.label())
