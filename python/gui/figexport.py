@@ -272,10 +272,13 @@ class FigExporter:
         simplify the polygon to 0.5 fig units, which are integer
         anyways)."""
 
+        if "fillColor" in attr and not "fillStyle" in attr:
+            attr["fillStyle"] = fig.fillStyleSolid
+
         # no ROI to clip to?
         if not self.roi:
             return [self.addEdge(polygon, **attr)]
-        
+
         if type(polygon) != Polygon:
             if not isinstance(polygon, list):
                 polygon = Polygon(list(polygon))
@@ -355,7 +358,7 @@ class FigExporter:
 
         return result
 
-    def addEdgels(self, edgels, length, container = True, **attr):
+    def addEdgels(self, edgels, length = 0.65, container = True, **attr):
         if container == True:
             container = self.f
 
