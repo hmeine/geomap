@@ -1,5 +1,5 @@
 import sys, copy
-import vigra, hourglass, maputils
+import vigra, hourglass, maputils, flag_constants
 from vigra import Vector2, Point2D
 
 __all__ = ["levelSetMap", "marchingSquares"]
@@ -186,7 +186,8 @@ def levelSetMap(image, level, sigma = None):
     
 # --------------------------------------------------------------------
 
-def marchingSquares(image, level, variant = True, border = True):
+def marchingSquares(image, level, variant = True, border = True,
+                    markOuter = 1):
     """Return a new GeoMap with sub-pixel level contours extracted by
     the marching squares method.  (Pixels with values < level are
     separated from pixels >= level.)
@@ -207,7 +208,10 @@ def marchingSquares(image, level, variant = True, border = True):
 
     `variant` = SplineImageView(...)
       for each ambiguous configuration, check the midpoint of the
-      square; then handle as if variant = (midpoint >= level)"""
+      square; then handle as if variant = (midpoint >= level)
+
+    If markOuter is != 0, the faces above(outer == 1) / below(outer == -1)
+    the threshold are marked with the OUTER_FACE flag."""
     
     connections1 = ((1, 0), (0, 2), (1, 2), (3, 1), (3, 0), (0, 2), (3, 1), (3, 2), (2, 3), (1, 0), (2, 3), (0, 3), (1, 3), (2, 1), (2, 0), (0, 1))
     connections2 = ((1, 0), (0, 2), (1, 2), (3, 1), (3, 0), (0, 1), (3, 2), (3, 2), (2, 3), (1, 3), (2, 0), (0, 3), (1, 3), (2, 1), (2, 0), (0, 1))
@@ -301,10 +305,21 @@ def marchingSquares(image, level, variant = True, border = True):
 
     maputils.mergeDegree2Nodes(result) # node suppression
     result = maputils.copyMapContents(result)[0] # compress edge labels
+
     if border:
         maputils.connectBorderNodes(result, 0.5)
         result.sortEdgesEventually(0.4, 0.01)
+
     result.initializeMap()
+    if markOuter:
+        markOuter = markOuter > 0
+        it = result.faceIter()
+        if border:
+            it.next().setFlag(flag_constants.OUTER_FACE)
+        for face in it:
+            face.setFlag(flag_constants.OUTER_FACE,
+                         (face.contours().next().label() < 0) == markOuter)
+
     return result
 
 # --------------------------------------------------------------------
