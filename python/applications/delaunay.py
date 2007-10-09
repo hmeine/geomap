@@ -161,6 +161,8 @@ def cdtFromPSLG(pslg, onlyInner = False):
         edgeSegments[0] = (nodes[edge.startNodeLabel()], edgeSegments[0][1])
         edgeSegments[-1] = (edgeSegments[-1][0], nodes[edge.endNodeLabel()])
         for i in range(1, len(edge)-1):
+#             assert edge[i] not in points, "%s[%d] = ..%s,%s,%s,.. is already present!" % (
+#                 edge, i, edge[i-1], edge[i], edge[i+1])
             points.append(edge[i])
         segments.extend(edgeSegments)
 
@@ -594,6 +596,16 @@ def catMap(delaunayMap,
                 if edgePoints[-1] != endNode.position():
                     edgePoints.append(endNode.position())
 
+                if len(edgePoints) < 2:
+                    # don't add edges with only 1 point (two adjacent
+                    # T-triangles) - may fail for J-faces?!
+                    # but J-faces should not have nodes on their borders
+                    assert endNode.position() == startNode.position() and \
+                           endNode.isIsolated() and startNode.isIsolated()
+                    nodeLabel[nextFace.label()] = nodeLabel[face.label()]
+                    result.removeIsolatedNode(endNode)
+                    continue
+                
                 sleeve = result.addEdge(
                     startNode, endNode, edgePoints)
 
@@ -639,7 +651,7 @@ def pruneBarbsByDist(skel, maxDist):
     barbNodeLabels = [None] * skel.maxEdgeLabel()
 
     for node in skel.nodeIter():
-        if node.degree() != 1:
+        if not node.hasDegree(1):
             continue
 
         p = node.position()
@@ -689,15 +701,15 @@ def pruneBarbsByDist(skel, maxDist):
 
 def pruneBarbs(skel):
     for edge in skel.edgeIter():
-        edge.setFlag(IS_BARB, edge.startNode().degree() == 1 or \
-                      edge.endNode().degree() == 1)
+        edge.setFlag(IS_BARB, edge.startNode().hasDegree(1) or \
+                      edge.endNode().hasDegree(1))
     return _pruneBarbsInternal(skel)
 
 def pruneByMorphologicalSignificance(skel, ratio = 0.1):
     for edge in skel.edgeIter():
         edge.setFlag(IS_BARB, False)
 
-        if edge.startNode().degree() == 1:
+        if edge.startNode().hasDegree(1):
             edge.setFlag(IS_BARB, True)
 
             endSide = edge.endSide[0]-edge.endSide[1]
@@ -714,7 +726,7 @@ def pruneByMorphologicalSignificance(skel, ratio = 0.1):
             if edge.flag(IS_BARB):
                 continue # no need to test other side
 
-        if edge.endNode().degree() == 1:
+        if edge.endNode().hasDegree(1):
             edge.setFlag(IS_BARB, True)
 
             startSide = edge.startSide[0]-edge.startSide[1]
@@ -747,6 +759,9 @@ def pruneBySubtendedLength(skelMap, delaunayMap = None,
     extracted from as second argument; this allows this function to
     re-calculate the junction node positions from the remaining
     chords.  (Very useful if and only if using the rectified CAT.)
+    Even if no delaunayMap is given, junction positions of junctions
+    whose degree went down to two are removed (junction -> sleeve face
+    conversion).
 
     Examples:
 
@@ -770,9 +785,9 @@ def pruneBySubtendedLength(skelMap, delaunayMap = None,
                 continue
             
             dart = edge.dart()
-            if dart.startNode().degree() > 1:
+            if dart.startNode().hasMinDegree(2):
                 dart.nextAlpha()
-            if dart.startNode().degree() > 1:
+            if dart.startNode().hasMinDegree(2):
                 continue # no barb (yet?)
 
             neighbor = dart.clone().nextPhi()
@@ -780,15 +795,27 @@ def pruneBySubtendedLength(skelMap, delaunayMap = None,
                 += subtendedBoundaryLength
 
             # correct junction node position when cutting off sleeve:
-            if delaunayMap and dart.endNode().degree() > 1:
+            if (delaunayMap and dart.endNode().hasMinDegree(2)) or \
+                   (not delaunayMap and dart.endNode().hasDegree(3)):
                 chordLabels = skelMap.nodeChordLabels[dart.endNodeLabel()]
                 for i, (sleeve, _) in enumerate(chordLabels):
                     if sleeve == dart.edgeLabel():
                         del chordLabels[i]
-                        dart.endNode().setPosition(
-                            rectifiedJunctionNodePosition(
-                            [delaunayMap.dart(dl) for _, dl in chordLabels]))
                         break
+                assert sleeve == dart.edgeLabel()
+                if delaunayMap and dart.endNode().hasMinDegree(4):
+                    dart.endNode().setPosition(
+                        rectifiedJunctionNodePosition(
+                        [delaunayMap.dart(dl) for _, dl in chordLabels]))
+                else: # junction face -> sleeve face
+                    remaining = dart.clone().nextPhi()
+                    remaining.startNode().setPosition(remaining[1])
+                    if remaining.label() < 0:
+                        assert remaining.edge()[-1] == remaining.edge()[-2]
+                        del remaining.edge()[-1] # delete duplicate point
+                    else:
+                        assert remaining.edge()[0] == remaining.edge()[1]
+                        del remaining.edge()[1] # delete duplicate point
 
             skelMap.removeEdge(dart)
             changed = True
