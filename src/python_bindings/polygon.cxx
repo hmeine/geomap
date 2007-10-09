@@ -1832,6 +1832,61 @@ tuple delaunay(const PointArray<Vector2> &points)
     return make_tuple(nodePositions, edges, orbits);
 }
 
+template<class Polygon>
+list intersectLine(
+    const Polygon &polygon, Vector2 const &lineStart, Vector2 const &lineEnd)
+{
+    list result;
+
+    if(!polygon.size())
+        return result;
+
+    Vector2
+        lineDir(lineEnd - lineStart),
+        lineNormal(lineDir[1], -lineDir[0]);
+    lineNormal = lineNormal / lineNormal.magnitude();
+
+    Polygon currentPart;
+    bool inside = dot(polygon[0] - lineStart, lineNormal) >= 0;
+
+    double prevDist = 0.0;
+    for(unsigned int pointIndex = 0; pointIndex < polygon.size(); ++pointIndex)
+    {
+        // skip outside points
+        double dist = dot(polygon[pointIndex] - lineStart, lineNormal);
+        if(dot(polygon[pointIndex] - lineStart, lineNormal) < 0)
+        {
+            if(inside)
+            {
+                currentPart.push_back(
+                    polygon[pointIndex-1] - (prevDist / (dist - prevDist)) *
+                    (polygon[pointIndex] - polygon[pointIndex-1]));
+                result.append(currentPart);
+                currentPart = Polygon();
+                inside = false;
+            }
+            prevDist = dist;
+            continue;
+        }
+
+        if(!inside)
+        {
+            // previous is outside, this is inside:
+            currentPart.push_back(
+                polygon[pointIndex-1] - (prevDist / (dist - prevDist)) *
+                (polygon[pointIndex] - polygon[pointIndex-1]));
+            inside = true;
+        }
+
+        currentPart.push_back(polygon[pointIndex]);
+    }
+
+    if(inside)
+        result.append(currentPart);
+    
+    return result;
+}
+
 void defPolygon()
 {
     def("angleTheta", &angleTheta,
@@ -2195,4 +2250,6 @@ void defPolygon()
 
     def("intPos", &intPos);
     def("intPos", &intPos_Box<BoundingBox>);
+
+    def("intersectLine", &intersectLine<PythonPolygon>);
 }
