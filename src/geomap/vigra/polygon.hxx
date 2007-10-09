@@ -1733,6 +1733,11 @@ struct Scanlines
         }
     }
 
+        /** Merge info from two Scanlines without re-normalizing. 
+         * The latter is left up to the user since multiple merge()
+         * operations can be efficiently finished with only one
+         * normalize().
+         */
     void merge(const Scanlines &other)
     {
         // ensure that other's line domain is contained in this one's:
@@ -1750,7 +1755,7 @@ struct Scanlines
             scanLines_.resize(scanLines_.size() + missingAtEnd);
         }
 
-        // now add other's data (without re-normalizing!):
+        // now add other's data:
         std::vector<Scanline>::iterator
             destLine(scanLines_.begin() + (other.startIndex() - startIndex()));
         for(std::vector<Scanline>::const_iterator srcLine = other.scanLines_.begin();
