@@ -6,6 +6,7 @@
 #include <vigra/transformimage.hxx>
 #include <vigra/splineimageview.hxx>
 #include <cmath>
+#include <iostream>
 
 #ifdef HAVE_MATH_TOOLKIT
 #include <boost/math/distributions/students_t.hpp>
@@ -364,6 +365,44 @@ class FaceColorStatistics : boost::noncopyable
     unsigned int superSampledCount() const
     {
         return superSampledCount_;
+    }
+
+    bool checkConsistency() const
+    {
+        bool result = true;
+
+        if(superSampled_.get())
+        {
+            unsigned int realSuperSampledCount = 0;
+            for(GeoMap::FaceIterator it = map_.facesBegin(); it.inRange(); ++it)
+            {
+                if((*superSampled_)[(*it)->label()])
+                    ++realSuperSampledCount;
+                else if(pixelCount((*it)->label()) != (*it)->pixelArea())
+                {
+                    std::cerr << "Face " << (*it)->label() << " has a wrong number of samples (" << (*it)->label() << " instead of pixelArea() == " << (*it)->pixelArea() << ")\n";
+                    result = false;
+                }
+            }
+
+            if(realSuperSampledCount != superSampledCount_)
+            {
+                std::cerr << "superSampledCount() is wrong ("
+                          << superSampledCount_ << ", should be "
+                          << realSuperSampledCount << ")\n";
+                result = false;
+            }
+        }
+
+        if((bool)superSampled_.get() != (bool)superSampledCount_)
+        {
+            std::cerr << "superSampledCount() is "
+                      << superSampledCount_ << " but ss. array is "
+                      << superSampled_.get() << "\n";
+            result = false;
+        }
+
+        return result;
     }
 
   protected:

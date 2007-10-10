@@ -59,6 +59,7 @@ class FaceColorStatisticsWrapper
         def("detachHooks", &Statistics::detachHooks);
 
         def("superSampledCount", &Statistics::superSampledCount);
+        def("checkConsistency", &Statistics::checkConsistency);
 
         bp::scope parent(*this); // Functor shall become a nested class
 
