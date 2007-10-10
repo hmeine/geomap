@@ -1484,7 +1484,7 @@ void defMap()
     class_<LabelLUT>("LabelLUT", init<unsigned int>())
         .def("initIdentity", &LabelLUT::initIdentity)
         .def("appendOne", &LabelLUT::appendOne)
-        .def("__getitem__", &LabelLUT::operator[]) // FIXME: check index
+        .def("__getitem__", &Array__getitem__<LabelLUT>)
         .def("__len__", &LabelLUT::size)
         .def("relabel", &LabelLUT::relabel) // FIXME: check index
     ;

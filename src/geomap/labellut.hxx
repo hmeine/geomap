@@ -6,9 +6,10 @@
 class LabelLUT
 {
   public:
-    typedef unsigned int LabelType;
-    typedef std::vector<LabelType> LUTType;
-    typedef LUTType::size_type size_type;
+    typedef unsigned int           LabelType;
+    typedef std::vector<LabelType> LUTType; // internal array type
+    typedef LUTType::size_type     size_type;
+    typedef LabelType              value_type;
 
     LabelLUT()
     {}
