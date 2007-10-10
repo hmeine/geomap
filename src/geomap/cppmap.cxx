@@ -1548,6 +1548,10 @@ CELL_PTR(GeoMap::Edge) GeoMap::mergeEdges(GeoMap::Dart &dart)
     if(d1.label() > 0 && d2.label() < 0)
         std::swap(d1, d2); // minimize number of reverse()s necessary
 
+    GeoMap::Edge &survivor(*d1.edge());
+    GeoMap::Node &mergedNode(*d2.startNode());
+    GeoMap::Edge &mergedEdge(*d2.edge());
+
     if(mapInitialized())
     {
         GeoMap::Face *faces[2];
@@ -1568,16 +1572,10 @@ CELL_PTR(GeoMap::Edge) GeoMap::mergeEdges(GeoMap::Dart &dart)
         }
     }
 
-    GeoMap::Edge &survivor(*d1.edge());
-    GeoMap::Node &mergedNode(*d2.startNode());
-    GeoMap::Edge &mergedEdge(*d2.edge());
-
     if(!preMergeEdgesHook(d1))
         return NULL_PTR(GeoMap::Edge);
     if(!removeNodeHook(mergedNode))
         return NULL_PTR(GeoMap::Edge);
-
-    // TODO: history append?
 
     int successor = sigmaMapping_[-d2.label()];
     int predecessor = sigmaInverseMapping_[-d2.label()];
@@ -1744,8 +1742,6 @@ CELL_PTR(GeoMap::Face) GeoMap::removeBridge(GeoMap::Dart &dart)
     if(!preRemoveBridgeHook(dart))
         return NULL_PTR(GeoMap::Face);
 
-    // TODO: history append?
-
     Dart newAnchor1(dart), newAnchor2(dart);
     newAnchor1.prevSigma();
     newAnchor2.nextAlpha().prevSigma();
@@ -1766,28 +1762,31 @@ CELL_PTR(GeoMap::Face) GeoMap::removeBridge(GeoMap::Dart &dart)
             std::swap(newAnchor1, newAnchor2);
     }
 
-    *contourPos = newAnchor1;
-    face.anchors_.push_back(newAnchor2);
+    // COMPLEXITY: depends on face anchors.erase/push_back, may be O(contour count)
+    if(newAnchor1.edgeLabel() != dart.edgeLabel())
+    {
+        *contourPos = newAnchor1;
+    }
+    else
+    {
+        removeIsolatedNode(*newAnchor1.startNode());
+        face.anchors_.erase(contourPos);
+    }
+
+    if(newAnchor2.edgeLabel() != dart.edgeLabel())
+    {
+        face.anchors_.push_back(newAnchor2);
+    }
+    else
+    {
+        removeIsolatedNode(*newAnchor2.startNode());
+    }
 
     // COMPLEXITY: depends on number of pixel facets crossed by the bridge
     PixelList associatedPixels;
     if(labelImage_)
         removeEdgeFromLabelImage(
             edge.scanLines(), *labelImage_, face.label(), associatedPixels);
-
-    // remove singular nodes
-    // COMPLEXITY: depends on face anchors.erase, may be O(contour count)
-    if(newAnchor1.edgeLabel() == dart.edgeLabel())
-    {
-        removeIsolatedNode(*newAnchor1.startNode());
-        // assumes that contourPos is still valid (note the push_back above)
-        face.anchors_.erase(contourPos);
-    }
-    if(newAnchor2.edgeLabel() == dart.edgeLabel())
-    {
-        removeIsolatedNode(*newAnchor2.startNode());
-        face.anchors_.pop_back();
-    }
 
     edge.uninitialize();
 
@@ -1817,7 +1816,6 @@ CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(GeoMap::Dart &dart)
     GeoMap::Face &survivor(*removedDart.leftFace());
     GeoMap::Face &mergedFace(*removedDart.rightFace());
     GeoMap::Node &node1(*removedDart.startNode());
-    GeoMap::Node &node2(*removedDart.endNode());
 
     vigra_precondition(survivor.label() != mergedFace.label(),
                        "mergeFaces(): dart belongs to a bridge!");
@@ -1825,8 +1823,6 @@ CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(GeoMap::Dart &dart)
     // COMPLEXITY: depends on callbacks (preMergeFacesHook)
     if(!preMergeFacesHook(removedDart))
         return NULL_PTR(GeoMap::Face);
-
-    // TODO: history append?
 
     // remember bounding box of merged face for later updating
     GeoMap::Face::BoundingBox mergedBBox;
@@ -1856,22 +1852,32 @@ CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(GeoMap::Dart &dart)
         {
             *contour1 = *contour2;
             if(contour1->edgeLabel() == mergedEdge.label())
+            {
                 contour1->nextPhi();
+                if(contour1->edgeLabel() == mergedEdge.label())
+                {
+                    vigra_assert(node1.label() == removedDart.endNodeLabel(),
+                                 "special-case: merging a self-loop");
+                    // results in an isolated node:
+                    survivor.anchors_.erase(contour1);
+                }
+            }
         }
     }
 
-    // check validity of found anchor
-    if(contour1->edgeLabel() == mergedEdge.label())
-    {
-        vigra_precondition(node1.label() == node2.label(),
-                           "special-case: merging a self-loop");
-        // results in an isolated node:
-        survivor.anchors_.erase(contour1);
-    }
-
     // append all remaining anchors to survivor's list:
-    mergedFace.anchors_.erase(contour2);
-    survivor.anchors_.splice(survivor.anchors_.end(), mergedFace.anchors_);
+    if(mergedFace.anchors_.size() > 1)
+    {
+#ifndef ANCHOR_LISTS // toggle according to anchors_ being std::vector/std::list
+        survivor.anchors_.insert(survivor.anchors_.end(),
+                                 mergedFace.anchors_.begin(), contour2);
+        survivor.anchors_.insert(survivor.anchors_.end(),
+                                 ++contour2, mergedFace.anchors_.end());
+#else
+        mergedFace.anchors_.erase(contour2);
+        survivor.anchors_.splice(survivor.anchors_.end(), mergedFace.anchors_);
+#endif
+    }
 
     // relabel region in image
     PixelList associatedPixels;
@@ -1897,8 +1903,8 @@ CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(GeoMap::Dart &dart)
     // remove singular nodes
     if(node1.isIsolated())
     {
-        vigra_assert(node2.label() == node1.label(),
-                     "mergeEdges can only create isolated nodes from self-loops");
+        vigra_assert(removedDart.endNodeLabel() == node1.label(),
+                     "mergeFaces can only create isolated nodes from self-loops");
         removeIsolatedNode(node1);
     }
 

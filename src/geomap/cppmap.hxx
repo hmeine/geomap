@@ -977,7 +977,10 @@ class GeoMap::Face : boost::noncopyable
 {
   public:
     typedef Edge::BoundingBox BoundingBox;
-    typedef std::list<Dart> Contours;
+    // Interestingly, std::vector seems to be faster than
+    // std::list here, although we frequently need
+    // erase/concatenation (cf. splice in cppmap.cxx):
+    typedef std::vector<Dart> Contours;
     typedef Contours::const_iterator ContourIterator;
 
   protected:
