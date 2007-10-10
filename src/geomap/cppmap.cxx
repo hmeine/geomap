@@ -882,7 +882,7 @@ void GeoMap::embedFaces(bool initLabelImage)
     {
         GeoMap::Face &contour(*contours[i]); // FIXME: const
 
-        GeoMap::Dart anchor(contour.contour(0));
+        GeoMap::Dart anchor(contour.contour());
 
         bool isExterior = contour.area() <= 0;
 
@@ -1309,7 +1309,11 @@ bool GeoMap::checkConsistency()
     {
         ++actualFaceCount;
         connectedComponentsCount += (*it)->holeCount();
-        contourCount += ((*it)->contoursEnd() - (*it)->contoursBegin());
+
+        // simulate (*it)->contourCount()
+        contourCount += (*it)->holeCount();
+        if((*it)->label())
+            ++contourCount;
 
         GeoMap::Face &face(**it);
         if(face.map() != this)
@@ -1323,8 +1327,10 @@ bool GeoMap::checkConsistency()
         SeenAnchors seenAnchors;
 
         bool outerContour = face.label() > 0;
+        unsigned int contourIndex = 0;
         for(GeoMap::Face::ContourIterator ci = face.contoursBegin();
-            ci != face.contoursEnd(); ++ci, outerContour = false)
+            ci != face.contoursEnd();
+            ++ci, ++contourIndex, outerContour = false)
         {
             double area = 0.0;
             int canonicalAnchor(ci->label());
@@ -1365,12 +1371,12 @@ bool GeoMap::checkConsistency()
             std::pair<SeenAnchors::iterator, bool>
                 seenAnchor(seenAnchors.insert(
                                std::make_pair(canonicalAnchor,
-                                              ci - face.contoursBegin())));
+                                              contourIndex)));
             if(!seenAnchor.second)
             {
                 std::cerr << "  Face " << face.label()
                           << " contains duplicate anchors at (contour indices "
-                          << (ci - face.contoursBegin()) << " and "
+                          << contourIndex << " and "
                           << seenAnchor.first->second << ")!\n";
                 result = false;
             }
@@ -1744,14 +1750,14 @@ CELL_PTR(GeoMap::Face) GeoMap::removeBridge(GeoMap::Dart &dart)
     newAnchor1.prevSigma();
     newAnchor2.nextAlpha().prevSigma();
     // COMPLEXITY: depends on number of contours in face
-    unsigned int contourIndex = face.findComponentAnchor(dart);
+    Face::AnchorIterator contourPos = face.findComponentAnchor(dart);
 
     // remove both darts from both sigma orbits:
     detachDart( dart.label());
     detachDart(-dart.label());
 
     // COMPLEXITY: depends on number of darts in contours
-    if(contourIndex == 0)
+    if(contourPos == face.contoursBegin())
     {
         // determine outer anchor, swap if necessary:
         if(newAnchor1.edgeLabel() == dart.edgeLabel() ||
@@ -1760,7 +1766,7 @@ CELL_PTR(GeoMap::Face) GeoMap::removeBridge(GeoMap::Dart &dart)
             std::swap(newAnchor1, newAnchor2);
     }
 
-    face.anchors_[contourIndex] = newAnchor1;
+    *contourPos = newAnchor1;
     face.anchors_.push_back(newAnchor2);
 
     // COMPLEXITY: depends on number of pixel facets crossed by the bridge
@@ -1774,12 +1780,13 @@ CELL_PTR(GeoMap::Face) GeoMap::removeBridge(GeoMap::Dart &dart)
     if(newAnchor1.edgeLabel() == dart.edgeLabel())
     {
         removeIsolatedNode(*newAnchor1.startNode());
-        face.anchors_.erase(face.anchors_.begin() + contourIndex);
+        // assumes that contourPos is still valid (note the push_back above)
+        face.anchors_.erase(contourPos);
     }
     if(newAnchor2.edgeLabel() == dart.edgeLabel())
     {
         removeIsolatedNode(*newAnchor2.startNode());
-        face.anchors_.erase(face.anchors_.end() - 1);
+        face.anchors_.pop_back();
     }
 
     edge.uninitialize();
@@ -1828,46 +1835,46 @@ CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(GeoMap::Dart &dart)
 
     // relabel contour's leftFaceLabel
     // COMPLEXITY: depends on number of darts in mergedFace's contours
-    for(unsigned int i = 0; i < mergedFace.anchors_.size(); ++i)
+    for(Face::ContourIterator it = mergedFace.contoursBegin();
+        it != mergedFace.contoursEnd(); ++it)
     {
-        GeoMap::Dart d(mergedFace.anchors_[i]);
+        GeoMap::Dart d(*it);
         while(d.nextPhi().leftFaceLabel() != survivor.label())
             d.internalLeftFaceLabel() = survivor.label();
     }
 
     // COMPLEXITY: depends on number of contours in F1 + F2
-    unsigned int contour1 = survivor.findComponentAnchor(removedDart);
-    unsigned int contour2 = mergedFace.findComponentAnchor(
+    Face::AnchorIterator contour1 = survivor.findComponentAnchor(removedDart);
+    Face::AnchorIterator contour2 = mergedFace.findComponentAnchor(
         GeoMap::Dart(removedDart).nextAlpha());
 
     // re-use an old anchor for the merged contour
-    if(survivor.anchors_[contour1].edgeLabel() == mergedEdge.label())
+    if(contour1->edgeLabel() == mergedEdge.label())
     {
-        survivor.anchors_[contour1].nextPhi();
-        if(survivor.anchors_[contour1].edgeLabel() == mergedEdge.label())
+        contour1->nextPhi();
+        if(contour1->edgeLabel() == mergedEdge.label())
         {
-            survivor.anchors_[contour1] = mergedFace.anchors_[contour2];
-            if(survivor.anchors_[contour1].edgeLabel() == mergedEdge.label())
-                survivor.anchors_[contour1].nextPhi();
+            *contour1 = *contour2;
+            if(contour1->edgeLabel() == mergedEdge.label())
+                contour1->nextPhi();
         }
     }
 
     // check validity of found anchor
-    if(survivor.anchors_[contour1].edgeLabel() == mergedEdge.label())
+    if(contour1->edgeLabel() == mergedEdge.label())
     {
         vigra_precondition(node1.label() == node2.label(),
                            "special-case: merging a self-loop");
         // results in an isolated node:
-        survivor.anchors_.erase(survivor.anchors_.begin() + contour1);
+        survivor.anchors_.erase(contour1);
     }
 
     // copy all remaining anchors into survivor's list:
     // COMPLEXITY: depends on number of contours in mergedFace
-    for(unsigned int i = 0; i < mergedFace.anchors_.size(); ++i)
-    {
-        if(i != contour2)
-            survivor.anchors_.push_back(mergedFace.anchors_[i]);
-    }
+    for(Face::ContourIterator it = mergedFace.contoursBegin();
+        it != mergedFace.contoursEnd(); ++it)
+        if(it != contour2)
+            survivor.anchors_.push_back(*it);
 
     // relabel region in image
     PixelList associatedPixels;
@@ -1875,7 +1882,7 @@ CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(GeoMap::Dart &dart)
     {
 //         relabelImage(map.labelImage.subImage(mergedFace.pixelBounds_),
 //                      mergedFace.label(), survivor.label())
-        // COMPLEXITY: depends on maxFaceLabel
+        // COMPLEXITY: depends on number of faces prev. merged into mergedFace
         faceLabelLUT_.relabel(mergedFace.label(), survivor.label());
 
         // COMPLEXITY: depends on number of pixel facets crossed by mergedEdge
@@ -1949,22 +1956,23 @@ void GeoMap::Node::setPosition(const vigra::Vector2 &p)
     map_->nodeMap_.insert(PositionedNodeLabel(p, label_));
 }
 
-unsigned int GeoMap::Face::findComponentAnchor(const GeoMap::Dart &dart)
+GeoMap::Face::AnchorIterator
+GeoMap::Face::findComponentAnchor(const GeoMap::Dart &dart)
 {
-    for(unsigned int i = 0; i < anchors_.size(); ++i)
-        if(anchors_[i] == dart)
-            return i;
+    for(AnchorIterator it = anchors_.begin(); it != anchors_.end(); ++it)
+        if(*it == dart)
+            return it;
 
-    for(unsigned int i = 0; i < anchors_.size(); ++i)
+    for(AnchorIterator it = anchors_.begin(); it != anchors_.end(); ++it)
     {
-        GeoMap::Dart d(anchors_[i]);
-        while(d.nextPhi() != anchors_[i])
+        GeoMap::Dart d(*it);
+        while(d.nextPhi() != *it)
             if(d == dart)
-                return i;
+                return it;
     }
 
     vigra_fail("findComponentAnchor failed: dart not found in face contours!");
-    return 42; // never reached
+    return anchors_.begin(); // never reached
 }
 
 void GeoMap::Face::embedContour(const Dart &anchor)

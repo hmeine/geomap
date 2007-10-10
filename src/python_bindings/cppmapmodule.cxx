@@ -768,8 +768,7 @@ std::string Face__repr__(GeoMap::Face const &face)
 {
     std::stringstream s;
     s << "<GeoMap.Face " << face.label() << ", "
-      << (face.contoursEnd() - face.holesBegin())
-      << " holes, area " << face.area();
+      << face.holeCount() << " holes, area " << face.area();
     if(face.area() != face.pixelArea()) // prevent redundant output for crack-edge maps
         s << " (" << face.pixelArea() << " px)";
     s << ">";
@@ -1215,8 +1214,7 @@ void defMap()
                  "not defined.")
             .def("pixelArea", &GeoMap::Face::pixelArea)
             .def("contour", &GeoMap::Face::contour,
-                 return_value_policy<copy_const_reference>(),
-                 arg("index") = 0)
+                 return_value_policy<copy_const_reference>())
             .def("contours", &faceContours)
             .def("holeContours", &faceHoleContours)
             .def("holeCount", &GeoMap::Face::holeCount)

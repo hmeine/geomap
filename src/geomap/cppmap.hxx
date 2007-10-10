@@ -977,13 +977,13 @@ class GeoMap::Face : boost::noncopyable
 {
   public:
     typedef Edge::BoundingBox BoundingBox;
-    typedef std::vector<Dart> Contours;
+    typedef std::list<Dart> Contours;
     typedef Contours::const_iterator ContourIterator;
 
   protected:
     GeoMap              *map_;
     CellLabel            label_;
-    std::vector<Dart>    anchors_;
+    Contours             anchors_;
     mutable unsigned int flags_;
     mutable BoundingBox  boundingBox_;
     mutable double       area_;
@@ -995,7 +995,8 @@ class GeoMap::Face : boost::noncopyable
     friend class GeoMap; // give access to pixelArea_ and anchors_ (Euler ops...)
 
     inline void uninitialize();
-    unsigned int findComponentAnchor(const GeoMap::Dart &dart);
+    typedef Contours::iterator AnchorIterator; // non-const ContourIterator
+    AnchorIterator findComponentAnchor(const GeoMap::Dart &dart);
 
     Face(GeoMap *map, Dart anchor)
     : map_(map),
@@ -1039,7 +1040,7 @@ class GeoMap::Face : boost::noncopyable
         if(!flag(BOUNDING_BOX_VALID))
         {
             boundingBox_ = BoundingBox();
-            Dart anchor(anchors_[0]), dart(anchor);
+            Dart anchor(*anchors_.begin()), dart(anchor);
             do
             {
                 boundingBox_ |= dart.edge()->boundingBox();
@@ -1063,17 +1064,17 @@ class GeoMap::Face : boost::noncopyable
                     return map_->faceLabelLUT_[l] == label_;
             }
         }
-        unsigned int i = 0;
+        ContourIterator it = contoursBegin();
         if(label_)
         {
             if(!boundingBox().contains(point))
                 return false;
-            if(!contourPoly(anchors_[0]).contains(point))
+            if(!contourPoly(*it).contains(point))
                 return false;
-            ++i;
+            ++it;
         }
-        for(; i < anchors_.size(); ++i)
-            if(contourPoly(anchors_[i]).contains(point))
+        for(; it != contoursEnd(); ++it)
+            if(contourPoly(*it).contains(point))
                 return false;
         return true;
     }
@@ -1083,9 +1084,10 @@ class GeoMap::Face : boost::noncopyable
         if(!flag(AREA_VALID))
         {
             area_ = 0.0;
-            for(unsigned int i = 0; i < anchors_.size(); ++i)
+            for(ContourIterator it = contoursBegin();
+                it != contoursEnd(); ++it)
             {
-                area_ += contourArea(anchors_[i]);
+                area_ += contourArea(*it);
             }
             flags_ |= AREA_VALID;
         }
@@ -1100,7 +1102,7 @@ class GeoMap::Face : boost::noncopyable
         std::auto_ptr<vigra::Scanlines> result(
             new vigra::Scanlines(startIndex, endIndex - startIndex + 1));
 
-        Dart anchor(anchors_[0]), dart(anchor);
+        Dart anchor(*anchors_.begin()), dart(anchor);
         do
         {
             if(dart.label() > 0)
@@ -1126,9 +1128,9 @@ class GeoMap::Face : boost::noncopyable
         return pixelArea_;
     }
 
-    const Dart &contour(unsigned int index = 0)
+    const Dart &contour()
     {
-        return anchors_[index];
+        return *contoursBegin();
     }
 
     ContourIterator contoursBegin() const
@@ -1151,7 +1153,7 @@ class GeoMap::Face : boost::noncopyable
 
     unsigned int holeCount() const
     {
-        return contoursEnd() - holesBegin();
+        return anchors_.size() - (label() ? 1 : 0);
     }
 
     void embedContour(const Dart &anchor);
