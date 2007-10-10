@@ -1869,12 +1869,9 @@ CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(GeoMap::Dart &dart)
         survivor.anchors_.erase(contour1);
     }
 
-    // copy all remaining anchors into survivor's list:
-    // COMPLEXITY: depends on number of contours in mergedFace
-    for(Face::ContourIterator it = mergedFace.contoursBegin();
-        it != mergedFace.contoursEnd(); ++it)
-        if(it != contour2)
-            survivor.anchors_.push_back(*it);
+    // append all remaining anchors to survivor's list:
+    mergedFace.anchors_.erase(contour2);
+    survivor.anchors_.splice(survivor.anchors_.end(), mergedFace.anchors_);
 
     // relabel region in image
     PixelList associatedPixels;
