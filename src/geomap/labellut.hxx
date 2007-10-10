@@ -50,19 +50,10 @@ class LabelLUT
 
     void relabel(LabelType from, LabelType to)
     {
-        LabelType prev, toEnd;
-
-        for(toEnd = to; true; toEnd = prev)
-        {
-            // find end of "to" list (for later concatenation)
-            prev = prevMerged_[toEnd];
-            if(prev == toEnd)
-                break;
-        }
-
+        // relabel elements in "from" list:
+        LabelType prev;
         for(LabelType fromIt = from; true; fromIt = prev)
         {
-            // relabel elements in "from" list:
             labelLUT_[fromIt] = to;
 
             prev = prevMerged_[fromIt];
@@ -70,8 +61,10 @@ class LabelLUT
                 break;
         }
 
-        // concatenate lists:
-        prevMerged_[toEnd] = from;
+        // insert from-list at beginning of to-list:
+        if(prevMerged_[to] != to)
+            prevMerged_[prev] = prevMerged_[to];
+        prevMerged_[to] = from;
     }
 
   protected:
