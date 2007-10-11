@@ -119,7 +119,7 @@ class PointArray
     iterator insert(iterator pos, InputIterator i, InputIterator end)
     {
         int index = pos - begin();
-        points_.insert(pos,i, end);
+        points_.insert(pos, i, end);
         return begin() + index;
     }
 
@@ -374,7 +374,7 @@ class Polygon : public PointArray<POINT>
     {
         partialAreaValid_ = false;
         lengthValid_ = false;
-        return Base::insert(pos,i, end);
+        return Base::insert(pos, i, end);
     }
 
     Polygon split(unsigned int pos)
@@ -1733,7 +1733,7 @@ struct Scanlines
         }
     }
 
-        /** Merge info from two Scanlines without re-normalizing. 
+        /** Merge info from two Scanlines without re-normalizing.
          * The latter is left up to the user since multiple merge()
          * operations can be efficiently finished with only one
          * normalize().
