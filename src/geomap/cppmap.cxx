@@ -1671,9 +1671,6 @@ CELL_PTR(GeoMap::Edge) GeoMap::mergeEdges(GeoMap::Dart &dart)
     if(!removeNodeHook(mergedNode))
         return NULL_PTR(GeoMap::Edge);
 
-    int successor = sigmaMapping_[-d2.label()];
-    int predecessor = sigmaInverseMapping_[-d2.label()];
-
     if(labelImage_)
     {
         rawAddEdgeToLabelImage(mergedEdge.scanLines(), *labelImage_, 1);
@@ -1697,28 +1694,28 @@ CELL_PTR(GeoMap::Edge) GeoMap::mergeEdges(GeoMap::Dart &dart)
         survivor.startNodeLabel_ = d2.endNodeLabel();
     }
 
+    if(labelImage_)
+    {
+        rawAddEdgeToLabelImage(survivor.scanLines(), *labelImage_, -1);
+    }
+
     // replace -d2 with d1 within orbits / anchor:
+    int successor = sigmaMapping_[-d2.label()];
     if(successor == -d2.label())
     {
         // no other dart at that end node
         sigmaMapping_[d1.label()] = d1.label();
         sigmaInverseMapping_[d1.label()] = d1.label();
-        d2.endNode()->anchor_ = d1.label();
     }
     else
     {
+        int predecessor = sigmaInverseMapping_[-d2.label()];
         sigmaMapping_[predecessor] = d1.label();
         sigmaMapping_[d1.label()] = successor;
         sigmaInverseMapping_[successor] = d1.label();
         sigmaInverseMapping_[d1.label()] = predecessor;
-        if(d2.endNode()->anchor_ == -d2.label())
-            d2.endNode()->anchor_ = d1.label();
     }
-
-    if(labelImage_)
-    {
-        rawAddEdgeToLabelImage(survivor.scanLines(), *labelImage_, -1);
-    }
+    d2.endNode()->anchor_ = d1.label();
 
     mergedNode.uninitialize();
     mergedEdge.uninitialize();
