@@ -342,14 +342,14 @@ CELL_PTR(GeoMap::Edge) GeoMap::addEdge(
     return edge(result->label());
 }
 
-void GeoMap::removeEdge(GeoMap::Dart &dart)
+CELL_PTR(GeoMap::Face) GeoMap::removeEdge(GeoMap::Dart &dart)
 {
     if(mapInitialized())
     {
         if(dart.edge()->isBridge())
-            removeBridge(dart);
+            return removeBridge(dart);
         else
-            mergeFaces(dart);
+            return mergeFaces(dart);
     }
     else
     {
@@ -360,6 +360,7 @@ void GeoMap::removeEdge(GeoMap::Dart &dart)
 
         dart.edge()->uninitialize();
     }
+    return NULL_PTR(GeoMap::Face);
 }
 
 void GeoMap::sortEdgesDirectly()

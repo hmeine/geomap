@@ -264,7 +264,8 @@ class GeoMap
     CELL_PTR(Edge) addEdge(const SigmaAnchor &startNeighbor,
                            const SigmaAnchor &endNeighbor,
                            const Vector2Array &points, CellLabel label = 0);
-    void removeEdge(Dart &dart);
+    // will always return NULL if !mapInitialized():
+    CELL_PTR(Face) removeEdge(Dart &dart);
 
     void sortEdgesDirectly();
 
@@ -462,6 +463,8 @@ class GeoMap::Edge
 {
   public:
     typedef vigra::BBoxPolygon<vigra::Vector2> Base;
+
+    static const unsigned int ALL_PROTECTION = 0xff;
 
   protected:
     GeoMap      *map_;
