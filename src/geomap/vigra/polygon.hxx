@@ -388,7 +388,10 @@ class Polygon : public PointArray<POINT>
         }
 
         Polygon result(this->begin() + pos, this->end());
-        if(pos > this->size() / 3)
+        this->points_.erase(this->begin() + pos + 1, this->end());
+
+#if 0 // FIXME: somehow this does not work!
+        if(pos > this->size() * 2 / 3)
         {
              // heuristic: when splitting off only a "small part",
              // re-use existing information
@@ -398,8 +401,9 @@ class Polygon : public PointArray<POINT>
                 partialArea_ -= result.partialArea();
         }
         else
+#endif
             invalidateProperties();
-        this->points_.erase(this->begin() + pos + 1, this->end());
+
         return result;
     }
 
