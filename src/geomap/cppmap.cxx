@@ -1840,34 +1840,34 @@ CELL_PTR(GeoMap::Face) GeoMap::removeBridge(GeoMap::Dart &dart)
     detachDart( dart.label());
     detachDart(-dart.label());
 
-    // COMPLEXITY: depends on number of darts in contours
-    if(contourPos == face.contoursBegin())
-    {
-        // determine outer anchor, swap if necessary:
-        if(newAnchor1.edgeLabel() == dart.edgeLabel() ||
-           newAnchor2.edgeLabel() != dart.edgeLabel() &&
-           contourArea(newAnchor1) < contourArea(newAnchor2))
-            std::swap(newAnchor1, newAnchor2);
-    }
-
     // COMPLEXITY: depends on face anchors.erase/push_back, may be O(contour count)
-    if(newAnchor1.edgeLabel() != dart.edgeLabel())
+    if(newAnchor1.edgeLabel() == dart.edgeLabel())
     {
+        removeIsolatedNode(*newAnchor1.startNode());
+        if(newAnchor2.edgeLabel() == dart.edgeLabel())
+        {
+            removeIsolatedNode(*newAnchor2.startNode());
+            face.anchors_.erase(contourPos);
+        }
+        else
+            *contourPos = newAnchor2;
+    }
+    else if(newAnchor2.edgeLabel() == dart.edgeLabel())
+    {
+        removeIsolatedNode(*newAnchor2.startNode());
         *contourPos = newAnchor1;
     }
     else
     {
-        removeIsolatedNode(*newAnchor1.startNode());
-        face.anchors_.erase(contourPos);
-    }
-
-    if(newAnchor2.edgeLabel() != dart.edgeLabel())
-    {
+        if(contourPos == face.contoursBegin() and face.label())
+        {
+            // determine outer anchor, swap if necessary:
+            // COMPLEXITY: depends on number of darts in contours
+            if(contourArea(newAnchor1) < contourArea(newAnchor2))
+                std::swap(newAnchor1, newAnchor2);
+        }
+        *contourPos = newAnchor1;
         face.anchors_.push_back(newAnchor2);
-    }
-    else
-    {
-        removeIsolatedNode(*newAnchor2.startNode());
     }
 
     // COMPLEXITY: depends on number of pixel facets crossed by the bridge
