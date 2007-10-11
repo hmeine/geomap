@@ -458,7 +458,7 @@ const CellLabel UNINITIALIZED_CELL_LABEL =
     vigra::NumericTraits<CellLabel>::max();
 
 class GeoMap::Edge
-: public vigra::BBoxPolygon<vigra::Vector2>, boost::noncopyable
+: public Polygon, boost::noncopyable
 {
   public:
     typedef vigra::BBoxPolygon<vigra::Vector2> Base;
@@ -476,6 +476,8 @@ class GeoMap::Edge
     friend class GeoMap;
 
     inline void uninitialize();
+
+    void concatenate(Edge &other, bool atEnd, bool reverse);
 
     template<class POINTS>
     Edge(GeoMap *map, CellLabel startNodeLabel, CellLabel endNodeLabel,
