@@ -89,6 +89,84 @@ Polygon contourPoly(const GeoMap::Dart &dart)
 
 /********************************************************************/
 
+template<class InputIterator>
+inline InputIterator skipFirst(InputIterator it)
+{
+    return it;
+}
+
+template<class InputIterator>
+inline InputIterator skipLast(InputIterator it)
+{
+    return it;
+}
+
+/**
+ * atEnd: append 'other' edge? (else prepend)
+ * reverse: does the 'other' edge have the opposite direction of this?
+ */
+void GeoMap::Edge::concatenate(Edge &other, bool atEnd, bool reverse)
+{
+    if(reverse)
+    {
+        if(atEnd)
+        {
+            vigra_assert(this->points_.back() == other.points_.back(),
+                         "appending non-matching reversed edge");
+            this->points_.insert(
+                this->points_.end(),
+                skipFirst(other.points_.rbegin()), other.points_.rend());
+        }
+        else
+        {
+            vigra_assert(this->points_.front() == other.points_.front(),
+                         "appending non-matching reversed edge");
+            this->points_.insert(
+                this->points_.begin(),
+                other.points_.rbegin(), skipLast(other.points_.rend()));
+        }
+    }
+    else
+    {
+        if(atEnd)
+        {
+            vigra_assert(this->points_.back() == other.points_.front(),
+                         "prepending non-matching reversed edge");
+            this->points_.insert(
+                this->points_.end(),
+                skipFirst(other.points_.begin()), other.points_.end());
+        }
+        else
+        {
+            vigra_assert(this->points_.front() == other.points_.back(),
+                         "prepending non-matching reversed edge");
+            this->points_.insert(
+                this->points_.begin(),
+                other.points_.begin(), skipLast(other.points_.end()));
+        }
+    }
+
+    if(lengthValid_)
+        this->length_ += other.length();
+    if(partialAreaValid_)
+        if(reverse)
+            this->partialArea_ -= other.partialArea();
+        else
+            this->partialArea_ += other.partialArea();
+
+    if(boundingBoxValid_)
+        this->boundingBox_ |= other.boundingBox();
+
+    if(scanLines_.get())
+    {
+        if(reverse) // FIXME: call other.scanLines() (might be NULL)
+            other.scanLines_->reverse();
+        (*scanLines_) += other.scanLines();
+    }
+}
+
+/********************************************************************/
+
 DartPointIter::DartPointIter(GeoMap::Dart const &dart)
 : edge_(dart.guaranteedEdge())
 {
@@ -1294,6 +1372,22 @@ bool GeoMap::checkConsistency()
                 result = false;
             }
         }
+
+        Polygon poly((*it)->begin(), (*it)->end());
+        if(fabs((*it)->partialArea() - poly.partialArea()) > 1e-4)
+        {
+            std::cerr << "  Edge " << (*it)->label()
+                      << " has partialArea " << (*it)->partialArea()
+                      << " instead of " << poly.partialArea() << "\n";
+            result = false;
+        }
+        if(fabs((*it)->length() - poly.length()) > 1e-4)
+        {
+            std::cerr << "  Edge " << (*it)->label()
+                      << " has length " << (*it)->length()
+                      << " instead of " << poly.length() << "\n";
+            result = false;
+        }
     }
     if(actualEdgeCount != edgeCount())
     {
@@ -1588,19 +1682,17 @@ CELL_PTR(GeoMap::Edge) GeoMap::mergeEdges(GeoMap::Dart &dart)
 
     if(survivor.startNodeLabel() != mergedNode.label())
     {
-        if(mergedEdge.startNodeLabel() != mergedNode.label())
-            mergedEdge.reverse();
-        survivor.extend(mergedEdge);
-
+        survivor.concatenate(
+            mergedEdge, true, // atEnd = true, append mergedEdge (good)
+            mergedEdge.startNodeLabel() != mergedNode.label());
+        
         survivor.endNodeLabel_ = d2.endNodeLabel();
     }
     else
     {
-        survivor.reverse();
-        if(mergedEdge.startNodeLabel() != mergedNode.label())
-            mergedEdge.reverse();
-        survivor.extend(mergedEdge);
-        survivor.reverse();
+        survivor.concatenate(
+            mergedEdge, false, // atEnd = false, prepend mergedEdge
+            mergedEdge.startNodeLabel() == mergedNode.label());
 
         survivor.startNodeLabel_ = d2.endNodeLabel();
     }
@@ -1625,7 +1717,6 @@ CELL_PTR(GeoMap::Edge) GeoMap::mergeEdges(GeoMap::Dart &dart)
 
     if(labelImage_)
     {
-        (*survivor.scanLines_) += mergedEdge.scanLines();
         rawAddEdgeToLabelImage(survivor.scanLines(), *labelImage_, -1);
     }
 
