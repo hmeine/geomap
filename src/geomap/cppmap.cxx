@@ -92,13 +92,13 @@ Polygon contourPoly(const GeoMap::Dart &dart)
 template<class InputIterator>
 inline InputIterator skipFirst(InputIterator it)
 {
-    return it;
+    return ++it;
 }
 
 template<class InputIterator>
 inline InputIterator skipLast(InputIterator it)
 {
-    return it;
+    return --it;
 }
 
 /**
