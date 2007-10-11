@@ -1682,7 +1682,7 @@ CELL_PTR(GeoMap::Edge) GeoMap::mergeEdges(GeoMap::Dart &dart)
         survivor.concatenate(
             mergedEdge, true, // atEnd = true, append mergedEdge (good)
             mergedEdge.startNodeLabel() != mergedNode.label());
-        
+
         survivor.endNodeLabel_ = d2.endNodeLabel();
     }
     else
@@ -1749,8 +1749,8 @@ CELL_PTR(GeoMap::Edge) GeoMap::splitEdge(
 
     if(insertPoint)
     {
-        edge.insert(edge.begin() + segmentIndex + 1, newPoint);
         ++segmentIndex;
+        edge.insert(edge.begin() + segmentIndex, newPoint);
     }
 
     GeoMap::Edge *result = new GeoMap::Edge(
