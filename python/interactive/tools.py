@@ -197,7 +197,12 @@ class LiveWire(object):
         self._nodePaths[self._startNodeLabel] = (0.0, None)
 
         self._searchBorder = []
-        self._expandNode(self._startNodeLabel)
+
+        for dart in map.node(startNodeLabel).anchor().sigmaOrbit():
+            if dart.edge().flag(CURRENT_CONTOUR):
+                continue
+            heappush(self._searchBorder, (
+                costMeasure(dart), dart.label()))
 
     def startNodeLabel(self):
         """liveWire.startNodeLabel() -> int
@@ -264,11 +269,8 @@ class LiveWire(object):
         """Add all neighbors of the given node to the searchBorder."""
 
         prevPath = self._nodePaths[nodeLabel]
-        if prevPath[1]:
-            sigmaOrbit = self._map.dart(-prevPath[1]).sigmaOrbit()
-            sigmaOrbit.next() # skip prevPath[1] where we're coming from
-        else:
-            sigmaOrbit = self._map.node(nodeLabel).anchor().sigmaOrbit()
+        sigmaOrbit = self._map.dart(-prevPath[1]).sigmaOrbit()
+        sigmaOrbit.next() # skip prevPath[1] where we're coming from
 
         for dart in sigmaOrbit:
             if dart.edge().flag(CURRENT_CONTOUR):
