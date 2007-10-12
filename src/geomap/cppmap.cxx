@@ -1531,7 +1531,7 @@ void rawAddEdgeToLabelImage(
 {
     // clip to image range vertically:
     int y = std::max(0, scanlines.startIndex()),
-     endY = std::min(labelImage.size()[1], scanlines.endIndex());
+     endY = std::min(labelImage.size(1), scanlines.endIndex());
 
     for(; y < endY; ++y)
     {
@@ -1543,8 +1543,8 @@ void rawAddEdgeToLabelImage(
                   end = scanline[j].end;
             if(begin < 0)
                 begin = 0;
-            if(end > labelImage.size()[0])
-                end = labelImage.size()[0];
+            if(end > labelImage.size(0))
+                end = labelImage.size(0);
 
             for(int x = begin; x < end; ++x)
                 labelImage[LabelImage::difference_type(x, y)] += diff;
@@ -1557,7 +1557,7 @@ void markEdgeInLabelImage(
 {
     // clip to image range vertically:
     int y = std::max(0, scanlines.startIndex()),
-     endY = std::min(labelImage.size()[1], scanlines.endIndex());
+     endY = std::min(labelImage.size(1), scanlines.endIndex());
 
     for(; y < endY; ++y)
     {
@@ -1569,8 +1569,8 @@ void markEdgeInLabelImage(
                   end = scanline[j].end;
             if(begin < 0)
                 begin = 0;
-            if(end > labelImage.size()[0])
-                end = labelImage.size()[0];
+            if(end > labelImage.size(0))
+                end = labelImage.size(0);
 
             for(int x = begin; x < end; ++x)
             {
@@ -1590,7 +1590,7 @@ void removeEdgeFromLabelImage(
 {
     // clip to image range vertically:
     int y = std::max(0, scanlines.startIndex()),
-     endY = std::min(labelImage.size()[1], scanlines.endIndex());
+     endY = std::min(labelImage.size(1), scanlines.endIndex());
 
     for(; y < endY; ++y)
     {
@@ -1602,8 +1602,8 @@ void removeEdgeFromLabelImage(
                   end = scanline[j].end;
             if(begin < 0)
                 begin = 0;
-            if(end > labelImage.size()[0])
-                end = labelImage.size()[0];
+            if(end > labelImage.size(0))
+                end = labelImage.size(0);
 
             for(int x = begin; x < end; ++x)
             {
