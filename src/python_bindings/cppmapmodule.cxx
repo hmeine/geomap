@@ -842,6 +842,7 @@ pyCrackConnectionImage(vigra::PythonImage const &labels)
 /********************************************************************/
 
 void defMapStats();
+void defMapUtils();
 
 void defMap()
 {
@@ -1488,4 +1489,5 @@ void defMap()
     ;
 
     defMapStats();
+    defMapUtils();
 }
