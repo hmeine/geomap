@@ -5,7 +5,6 @@ _cvsVersion = "$Id$" \
 import math, sys, vigra, hourglass, numpy
 #from map import GeoMap, contourPoly
 from hourglass import GeoMap, contourPoly
-from maputils import removeEdge
 from vigra import Vector2, Vector, dot
 from flag_constants import *
 
@@ -629,8 +628,7 @@ def _pruneBarbsInternal(skel):
         if edge.flag(IS_BARB):
             print "pruning", edge
             count += 1
-            dart = edge.dart()
-            removeEdge(dart)
+            skel.removeEdge(edge.dart())
     return count
 
 def _leaveCircle(points, dir, center, radius):
@@ -798,12 +796,13 @@ def pruneBySubtendedLength(skelMap, delaunayMap = None,
             if (delaunayMap and dart.endNode().hasMinDegree(2)) or \
                    (not delaunayMap and dart.endNode().hasDegree(3)):
                 chordLabels = skelMap.nodeChordLabels[dart.endNodeLabel()]
+                assert len(chordLabels) == dart.endNode().degree()
                 for i, (sleeve, _) in enumerate(chordLabels):
                     if sleeve == dart.edgeLabel():
                         del chordLabels[i]
                         break
                 assert sleeve == dart.edgeLabel()
-                if delaunayMap and dart.endNode().hasMinDegree(4):
+                if delaunayMap and dart.endNode().hasMinDegree(3):
                     dart.endNode().setPosition(
                         rectifiedJunctionNodePosition(
                         [delaunayMap.dart(dl) for _, dl in chordLabels]))

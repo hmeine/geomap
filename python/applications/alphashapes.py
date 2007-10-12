@@ -4,7 +4,7 @@ _cvsVersion = "$Id$" \
 import fig, delaunay, sys, math, vigra
 from hourglass import Polygon
 from flag_constants import BORDER_PROTECTION, ALL_PROTECTION, ALPHA_MARK
-from maputils import removeEdge, nodeAtBorder
+from maputils import nodeAtBorder
 
 from math import *
 
@@ -189,9 +189,9 @@ def removeUnmarkedEdges(map, removeInterior = False):
         if edge.flag(ALL_PROTECTION):
             continue
         if not edge.flag(ALPHA_MARK):
-            removeEdge(edge.dart())
+            map.removeEdge(edge.dart())
         elif removeInterior and (edge.leftFace().flag(ALPHA_MARK) and edge.rightFace().flag(ALPHA_MARK)):
-            removeEdge(edge.dart())
+            map.removeEdge(edge.dart())
 
 def alphaBetaMap(points, imageSize, alpha, beta, removeInteriorEdges = False):
     dm = delaunay.delaunayMap(points, imageSize)
