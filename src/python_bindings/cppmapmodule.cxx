@@ -1177,6 +1177,8 @@ void defMap()
             .def(self != self)
             .def("__repr__", &Edge__repr__)
         ;
+        scope().attr("Edge").attr("ALL_PROTECTION") =
+            (unsigned int)GeoMap::Edge::ALL_PROTECTION;
 
         class_<GeoMap::Face, boost::noncopyable>(
             "Face",

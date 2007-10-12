@@ -240,7 +240,7 @@ GeoMap::GeoMap(const GeoMap &other)
 
         for(ConstFaceIterator it = other.facesBegin(); it.inRange(); ++it)
         {
-            unsigned int flags((*it)->flags() & ~0xf0000000U);
+            unsigned int flags((*it)->flags() & ~GeoMap::Face::INTERNAL_FLAGS);
             CellLabel anchorLabel = (*it)->contour().label();
             dart(anchorLabel).leftFace()->setFlag(flags);
         }

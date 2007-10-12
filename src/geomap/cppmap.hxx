@@ -464,7 +464,7 @@ class GeoMap::Edge
   public:
     typedef vigra::BBoxPolygon<vigra::Vector2> Base;
 
-    static const unsigned int ALL_PROTECTION = 0xff;
+    enum { ALL_PROTECTION = 0xff };
 
   protected:
     GeoMap      *map_;
@@ -997,8 +997,11 @@ class GeoMap::Face : boost::noncopyable
     mutable double       area_;
     unsigned int         pixelArea_;
 
-    static const unsigned int BOUNDING_BOX_VALID = 0x80000000;
-    static const unsigned int AREA_VALID         = 0x40000000;
+    enum {
+        BOUNDING_BOX_VALID = 0x80000000U,
+        AREA_VALID         = 0x40000000U,
+        INTERNAL_FLAGS     = 0xf0000000U,
+    };
 
     friend class GeoMap; // give access to pixelArea_ and anchors_ (Euler ops...)
 
