@@ -2,7 +2,9 @@ _cvsVersion = "$Id$" \
               .split(" ")[2:-2]
 
 import sys, os, math, time, qt
-import fig, figexport, maputils, flag_constants, tools, vigra, vigrapyqt
+import fig, figexport
+import vigra, vigrapyqt
+import maputils, flag_constants, tools, statistics
 from vigra import Point2D, Rect2D, Vector2
 from hourglass import simplifyPolygon, intPos, BoundingBox, contourPoly
 from maputils import removeCruft
@@ -540,7 +542,7 @@ class MapDisplay(displaysettings.DisplaySettings):
     def setFaceMeans(self, faceMeans):
         self.faceMeans = faceMeans
         if faceMeans:
-            tools.activePathMeasure = faceMeans.faceMeanDiff
+            tools.activeCostMeasure = faceMeans.faceMeanDiff
         self._enableImageActions()
 
     def _adjustSize(self):
@@ -690,8 +692,8 @@ class MapDisplay(displaysettings.DisplaySettings):
             self.nodeOverlay.visible = False
             self.tool = tools.IntelligentScissors(
                 self.map, self.edgeOverlay, self)
-            tools.activePathMeasure = \
-                tools.SimplePathCostMeasure(self.faceMeans.faceMeanDiff)
+            tools.activeCostMeasure = \
+                statistics.HyperbolicInverse(self.faceMeans.faceMeanDiff)
         elif hasattr(tool, "disconnectViewer"):
             self.tool = tool
         elif tool != None:

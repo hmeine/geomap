@@ -384,6 +384,25 @@ def faceAreaHomogeneity(dart):
 
 # --------------------------------------------------------------------
 
+class HyperbolicInverse(object):
+    """Cost measure for a (e.g. livewire) path, which takes the
+    inverse of a darts' removal costs (given a dart cost measure) as
+    traversal costs.  To be specific,
+
+       c'(d) := (0.0001 + c(d))^-1 * d.edge().length()"""
+
+    __slots__ = ("measure")
+
+    def __init__(self, singleDartMeasure):
+        """initialize with the given edge cost measure"""
+        self.measure = singleDartMeasure
+
+    def __call__(self, newDart):
+        return newDart.edge().length() / \
+               (1e-4 + self.measure(newDart))
+
+# --------------------------------------------------------------------
+
 # FIXME: still old API (see FaceColorStatistics)
 class FaceColorHistogram(DynamicFaceStatistics):
     def __init__(self, map, image):

@@ -5,32 +5,7 @@ You will find the following tool classes:
 * ManualClassifier
 * ActivePaintbrush
 * IntelligentScissors
-
-tools.`activePathMeasure` is used to steer the IntelligentScissors tool.
-It can be assigned any object which returns a path cost when called
-with two arguments:
-
-* The first argument will be a LiveWire object
-  representing the beginning of a path, and
-
-* the second argument will be a Dart object (whose startNode is the
-  liveWire's end node) which could potentially be added to the path.
-
-``activePathMeasure(liveWire, newDart)`` should return the cost of
-combined path (old path plus ``newDart``), and this must be larger
-than the old cost ``liveWire.totalCost()``.
-
-Cf. the `SimplePathCostMeasure` class  which looks at the
-path darts independently with a given measure, e.g. use::
-
-  tools.activePathMeasure = SimplePathCostMeasure(faceMeanDiff)
-
-to (locally, dart-wise) depend on the faceMeanDiff measure.
-
-You might also be interested in the `ESPathCostMeasure` (using Euler
-Spirals), or the `LiveWire` helper class (which is the type of the
-object passed into the above-mentioned activePathMeasure's __call__
-method)."""
+"""
 
 _cvsVersion = "$Id$" \
               .split(" ")[2:-2]
@@ -42,8 +17,7 @@ from vigrapyqt import EdgeOverlay, PointOverlay
 from vigra import *
 
 __all__ = ["MapSearcher", "ManualClassifier", "ActivePaintbrush",
-           "IntelligentScissors",
-           "LiveWire", "SimplePathCostMeasure", "ESPathCostMeasure"]
+           "IntelligentScissors", "LiveWire"]
 
 # --------------------------------------------------------------------
 #                     interaction with image viewer
@@ -211,9 +185,9 @@ class LiveWire(object):
     Edges that are marked with the CURRENT_CONTOUR flag are avoided
     (use this to prevent going the same way back)."""
 
-    def __init__(self, map, pathCostMeasure, startNodeLabel):
+    def __init__(self, map, costMeasure, startNodeLabel):
         self._map = map
-        self._pathCostMeasure = pathCostMeasure
+        self._costMeasure = costMeasure
         if hasattr(startNodeLabel, "label"):
             startNodeLabel = startNodeLabel.label()
         self._startNodeLabel = startNodeLabel
@@ -291,17 +265,16 @@ class LiveWire(object):
 
         prevPath = self._nodePaths[nodeLabel]
         if prevPath[1]:
-            comingFrom = -prevPath[1]
-            anchor = self._map.dart(comingFrom)
+            sigmaOrbit = self._map.dart(-prevPath[1]).sigmaOrbit()
+            sigmaOrbit.next() # skip prevPath[1] where we're coming from
         else:
-            comingFrom = None
-            anchor = self._map.node(nodeLabel).anchor()
+            sigmaOrbit = self._map.node(nodeLabel).anchor().sigmaOrbit()
 
-        for dart in anchor.sigmaOrbit():
-            if dart.label() == comingFrom or dart.edge().flag(CURRENT_CONTOUR):
+        for dart in sigmaOrbit:
+            if dart.edge().flag(CURRENT_CONTOUR):
                 continue
             heappush(self._searchBorder, (
-                self._pathCostMeasure(self, dart), dart.label()))
+                prevPath[0] + self._costMeasure(dart), dart.label()))
 
     def setEndNodeLabel(self, nodeLabel):
         """Try to set the live wire's end node to the given one.
@@ -370,8 +343,6 @@ class IntelligentScissors(qt.QObject):
                      self.mousePressed)
         self.connect(self.viewer, qt.PYSIGNAL("mousePosition"),
                      self.mouseMoved)
-        self.connect(self.viewer, qt.PYSIGNAL("mouseReleased"),
-                     self.mouseReleased)
         self.connect(self.viewer, qt.PYSIGNAL("mouseDoubleClicked"),
                      self.mouseDoubleClicked)
         self.viewer.installEventFilter(self)
@@ -383,8 +354,6 @@ class IntelligentScissors(qt.QObject):
                         self.mousePressed)
         self.disconnect(self.viewer, qt.PYSIGNAL("mousePosition"),
                         self.mouseMoved)
-        self.disconnect(self.viewer, qt.PYSIGNAL("mouseReleased"),
-                        self.mouseReleased)
         self.disconnect(self.viewer, qt.PYSIGNAL("mouseDoubleClicked"),
                         self.mouseDoubleClicked)
         self.viewer.removeOverlay(self.overlayIndex)
@@ -400,7 +369,6 @@ class IntelligentScissors(qt.QObject):
 
     def startContour(self):
         self._loopNodeLabel = self._startNodeLabel
-        self._liveWire = True # let mouseReleased start liveWire
 
     def startLiveWire(self):
         """Start a LiveWire at self._startNodeLabel.
@@ -411,7 +379,7 @@ class IntelligentScissors(qt.QObject):
         if not self._liveWire or \
                self._liveWire.startNodeLabel() != self._startNodeLabel:
             self._liveWire = LiveWire(
-                self._map, activePathMeasure, self._startNodeLabel)
+                self._map, activeCostMeasure, self._startNodeLabel)
 
         self._expandTimer.start(0)
 
@@ -444,8 +412,18 @@ class IntelligentScissors(qt.QObject):
         if button == qt.Qt.MidButton and self._liveWire:
             return self.stopCurrentContour()
 
-        if button == qt.Qt.LeftButton and not self._liveWire:
-            self.startContour()
+        if button == qt.Qt.LeftButton:
+            if not self._liveWire:
+                self.startContour()
+            else:
+                self.stopLiveWire()
+                self._protectPath(self._liveWire.pathDarts())
+                self._startNodeLabel = self._liveWire.endNodeLabel()
+        
+        self.viewer.replaceOverlay(
+            EdgeOverlay([], qt.Qt.yellow, 2), self.overlayIndex)
+
+        self.startLiveWire()
 
     def mouseMoved(self, x, y):
         """It the live wire is active, it's end node is set to the
@@ -478,27 +456,6 @@ class IntelligentScissors(qt.QObject):
             self._mapEdges._updateEdgeROI(edge)
             self._contour.append(dart)
 
-    def mouseReleased(self, x, y, button):
-        """With each left click, fix the current live wire and start a
-        new one."""
-
-        if button != qt.Qt.LeftButton or not self._liveWire:
-            return
-
-        if self._liveWire == True: # startContour was just called
-            self._liveWire = None # let startLiveWire see that there is none yet
-        else:
-            self.stopLiveWire()
-
-            self._protectPath(self._liveWire.pathDarts())
-
-            self._startNodeLabel = self._liveWire.endNodeLabel()
-        
-        self.viewer.replaceOverlay(
-            EdgeOverlay([], qt.Qt.yellow, 2), self.overlayIndex)
-
-        self.startLiveWire()
-
     def mouseDoubleClicked(self, x, y, button):
         """With a double left click, the current live wire is fixed
         (by mouseReleased) and becomes inactive."""
@@ -513,62 +470,5 @@ class IntelligentScissors(qt.QObject):
 
 # --------------------------------------------------------------------
 
-from hourglass import composeTangentLists
-import statistics, saliency
-
-class SimplePathCostMeasure(object):
-    """SimplePathCostMeasure: Cost measure for a (e.g. livewire) path;
-    this one does not actually evaluate any path continuity
-    properties, but adds up the inverse of all darts' removal costs
-    given a single dart cost measure.
-
-    E.g. initialize with: SimplePathCostMeasure(minEdgeGradCost)"""
-
-    def __init__(self, singleDartMeasure):
-        """initialize with the given edge cost measure"""
-        self.measure = singleDartMeasure
-
-    def __call__(self, liveWire, newDart):
-        dartCost = 1.0 / (1e-4 + self.measure(newDart))
-        #dartCost = 1.0 - self.measure(newDart)
-        return liveWire.totalCost(newDart.startNodeLabel()) \
-               + dartCost * newDart.edge().length()
-
-class ESPathCostMeasure(object):
-    def __call__(self, liveWire, newDart):
-        previousEndNodeLabel = newDart.startNodeLabel()
-        
-        allTangents = [statistics.dartTangents(newDart.clone().nextAlpha())]
-        for dart in liveWire.pathDarts(previousEndNodeLabel):
-            allTangents.append(statistics.dartTangents(dart))
-        allTangents = composeTangentLists(allTangents)
-
-        # this is really slow (at least with many support points).. :-(
-        #allTangents = gaussianConvolveByArcLength(allTangents, 0.25)
-        
-        error = saliency.fitParabola(allTangents)
-
-        # Don't know what exact formula to use here (tried some
-        # without luck); the value should increase with every dart
-        # added to the path (the accumulated previous costs are
-        # available as liveWire.totalCost()), the livewire takes the
-        # path with the *lowest* total cost.
-
-        return max(liveWire.totalCost(previousEndNodeLabel), error)
-        #return liveWire.totalCost(previousEndNodeLabel) + error
-        # ... + math.exp(-error)
-
-activePathMeasure = None
-"""activePathMeasure is used to steer the IntelligentScissors tool.
-It can be assigned any object which returns a path cost when called
-with two arguments:
-
-* The first argument will be a LiveWire object
-  containing the beginning of a path, and
-
-* the second argument will be a Dart object (whose startNode is the
-  liveWire's end node) which could potentially be added to the path.
-
-``activePathMeasure(liveWire, newDart)`` should return the cost of
-combined path (old path plus ``newDart``), and this must be larger
-than the old cost ``liveWire.totalCost()``."""
+# FIXME: This shouldn't be set here:
+activeCostMeasure = None
