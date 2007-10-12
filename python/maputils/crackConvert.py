@@ -104,9 +104,6 @@ _dirVector = [Vector2(1, 0), Vector2(0, -1), Vector2(-1, 0), Vector2(0, 1)]
 _turnRight = [3, 0, 1, 2]
 _turnLeft  = [1, 2, 3, 0]
 
-# flag whether multiple steps into the same direction should be pruned:
-simplifyStraight = False
-
 # for extracting loops, we add nodes at every upper left corner:
 def isNode(connValue):
     return degree[connValue] > 2 or connValue == (CONN_RIGHT | CONN_DOWN)
@@ -115,23 +112,20 @@ def followEdge(crackConnectionImage, pos, direction):
     pos = Point2D(pos[0], pos[1])
     vPos = Vector2(pos[0] - 0.5, pos[1] - 0.5)
     result = Polygon([vPos])
-    prevDirection = None
+
     while True:
         vPos += _dirVector[direction]
-        if not simplifyStraight or prevDirection != direction:
-            result.append(vPos)
-        else:
-            result[-1] = vPos
+        result.append(vPos)
         pos += _dirOffset[direction]
 
         connection = int(crackConnectionImage[pos])
         if isNode(connection):
             break
 
-        prevDirection = direction
         direction = _turnRight[direction]
         while connection & connections[direction] == 0:
             direction = _turnLeft[direction]
+
     return result, pos, connections[(direction+2)%4]
 
 def crackEdgeGraph(labelImage, progressHook = None):
