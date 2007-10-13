@@ -665,14 +665,13 @@ class MapDisplay(displaysettings.DisplaySettings):
         self.edgeOverlay.colors = None
         self.viewer.update()
 
-    def setTool(self, tool):
-        """MapDisplay.setTool(tool)
-
-        Deactivates old tool, activates new one if tool != None.
+    def setTool(self, tool = None):
+        """Deactivates old tool, activates new one if tool != None.
         `tool` can be either a tool object or
         1 for the MapSearcher tool
         2 for the ActivatePaintbrush
-        3 for the IntelligentScissors"""
+        3 for the IntelligentScissors
+        4 for the SeedSelector"""
 
         if self._togglingGUI:
             return # no recursion please
@@ -694,11 +693,13 @@ class MapDisplay(displaysettings.DisplaySettings):
                 self.map, self.edgeOverlay, self)
             tools.activeCostMeasure = \
                 statistics.HyperbolicInverse(self.faceMeans.faceMeanDiff)
+        elif tool == 4:
+            self.tool = tools.SeedSelector(map = self.map, parent = self)
         elif hasattr(tool, "disconnectViewer"):
             self.tool = tool
         elif tool != None:
             print "setTool: invalid argument, tool deactivated now."
-            print "  give 1 for MapSearcher, 2 for ActivePaintbrush, 3 for IntelligentScissors"
+            print "  give 1 for MapSearcher, 2 for ActivePaintbrush, 3 for IntelligentScissors, 4 for SeedSelector"
             tool = 0
         self._togglingGUI = True
         self.paintbrushAction.setOn(tool == 2)

@@ -16,7 +16,7 @@ from flag_constants import *
 from vigrapyqt import EdgeOverlay, PointOverlay
 from vigra import *
 
-__all__ = ["MapSearcher", "ManualClassifier", "ActivePaintbrush",
+__all__ = ["MapSearcher", "ManualClassifier", "ActivePaintbrush", "SeedSelector",
            "IntelligentScissors", "LiveWire"]
 
 # --------------------------------------------------------------------
@@ -72,7 +72,8 @@ class ManualClassifier(qt.QObject):
                         self.mousePressed)
 
 class SeedSelector(qt.QObject):
-    def __init__(self, parent = None, name = None):
+    def __init__(self, map = None, markFlags = SRG_SEED,
+                 parent = None, name = None):
         qt.QObject.__init__(self, parent, name)
         self.seeds = []
 
@@ -80,13 +81,21 @@ class SeedSelector(qt.QObject):
         self.connect(viewer, qt.PYSIGNAL("mousePressed"),
                      self.mousePressed)
 
-        self.overlay = PointOverlay(self.seeds, qt.Qt.green, 2)
+        self.overlay = PointOverlay(self.seeds, qt.Qt.cyan, 2)
         viewer.addOverlay(self.overlay)
+
+        self.map = map
+        self.markFlags = markFlags
 
     def mousePressed(self, x, y, button):
         if button != qt.Qt.LeftButton:
             return
         self.seeds.append((x, y))
+
+        if self.map and self.markFlags:
+            self.map.faceAt((x, y)).setFlag(self.markFlags)
+        
+        self.overlay.setPoints(self.seeds)
         viewer = self.parent().viewer
         viewer.update()
         
@@ -198,6 +207,8 @@ class LiveWire(object):
 
         self._searchBorder = []
 
+        # similar to _expandNode, but the latter starts from the end
+        # of a dart, which we do not have yet here:
         for dart in map.node(startNodeLabel).anchor().sigmaOrbit():
             if dart.edge().flag(CURRENT_CONTOUR):
                 continue
