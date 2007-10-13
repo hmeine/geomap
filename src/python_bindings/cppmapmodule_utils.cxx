@@ -77,14 +77,20 @@ pyCrackConnectionImage(vigra::PythonImage const &labels)
 void defMapUtils()
 {
     using namespace boost::python;
-
-    class_<LabelLUT>("LabelLUT", init<unsigned int>())
-        .def("initIdentity", &LabelLUT::initIdentity)
-        .def("appendOne", &LabelLUT::appendOne)
-        .def("__getitem__", &Array__getitem__<LabelLUT>)
-        .def("__len__", &LabelLUT::size)
-        .def("relabel", &LabelLUT::relabel) // FIXME: check index
-    ;
+    
+    {
+        scope labelLUT(
+            class_<LabelLUT>("LabelLUT", init<unsigned int>())
+            .def("initIdentity", &LabelLUT::initIdentity)
+            .def("appendOne", &LabelLUT::appendOne)
+            .def("__getitem__", &Array__getitem__<LabelLUT>)
+            .def("__len__", &LabelLUT::size)
+            .def("relabel", &LabelLUT::relabel) // FIXME: check index
+            .def("merged", &LabelLUT::mergedBegin)
+            );
+        
+        RangeIterWrapper<LabelLUT::MergedIterator>("_MergedIterator");
+    }
 
     class_<EdgeProtection, boost::noncopyable>(
         "EdgeProtection",
