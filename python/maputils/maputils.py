@@ -6,67 +6,7 @@ import flag_constants, progress, sivtools
 #                            edge protection
 # --------------------------------------------------------------------
 
-class EdgeProtection(object):
-    """Protects GeoMap Edges which have a protection flag set.
-    I.e. all operations that would remove an edge for which
-    edge.flag(flag_constants.ALL_PROTECTION) is not 0 will be
-    canceled automatically."""
-    
-    def __init__(self, map):
-        self._attach(map)
-        # prevent cycles if this is an attribute of the map:
-        self._map = weakref.ref(map) # only needed for pickle support
-
-    def _attach(self, map):
-        assert not hasattr(self, "_attachedHooks"), \
-               "trying to attach to more than one GeoMap?!"
-        self._attachedHooks = (
-            map.addMergeFacesCallbacks(self.preRemoveEdge, None),
-            map.addRemoveBridgeCallbacks(self.preRemoveEdge, None),
-            map.addMergeEdgesCallbacks(self.preMergeEdges, None))
-
-    def detachHooks(self):
-        """Detach this objects from its GeoMaps' hooks.  Note that if
-        you do not call this method, the GeoMap keeps references to
-        this object, and it will be impossible to destroy it without
-        deleting the GeoMap, too."""
-        for cb in self._attachedHooks:
-            cb.disconnect()
-        self._attachedHooks = ()
-
-    def preRemoveEdge(self, dart):
-        "do not allow removal of protected edges"
-        return not dart.edge().flag(flag_constants.ALL_PROTECTION)
-
-    def preMergeEdges(self, dart):
-        "only allow edge merging if the edges carry the same flags"
-        return (dart.edge().flags() ==
-                dart.clone().nextSigma().edge().flags())
-
-    def __getstate__(self):
-        return (self._map(), )
-
-    def __setstate__(self, (map, )): # cf. __init__
-        self._attach(map)
-        self._map = weakref.ref(map)
-
-    def __repr__(self):
-        map = ", no map"
-
-        if not hasattr(self, "_attachedHooks"):
-            hooks = "not attached"
-            map = ""
-        elif not self._attachedHooks:
-            hooks = "no hooks"
-        else:
-            active = self._attachedHooks[0].connected() and "active" or "detached"
-            hooks = "%d %s hooks" % (len(self._attachedHooks), active)
-
-        if self._map():
-            addr = id(self._map()) + 0x100000000L
-            map = " for GeoMap @0x%8x" % addr
-
-        return "<%s, %s%s>" % (self.__class__.__name__, hooks, map)
+from hourglass import EdgeProtection
 
 def protectFace(face, protect = True, flag = flag_constants.PROTECTED_FACE):
     """Sets the PROTECTED_FACE flag of 'face' according to 'protect'.
@@ -902,9 +842,10 @@ def checkCachedPropertyConsistency(aMap):
 
 def checkAllConsistency(aMap):
     """Return whether aMap.checkConsistency(),
-    checkCachedPropertyConsistency(aMap), and
-    checkLabelConsistencyThoroughly(aMap) succeed (the latter in turn
-    calls checkLabelConsistency(aMap)."""
+    `checkCachedPropertyConsistency`(aMap), and
+    `checkLabelConsistencyThoroughly`(aMap) succeed (the latter in turn
+    calls `checkLabelConsistency`(aMap) and is skipped if not
+    aMap.hasLabelImage())."""
     return aMap.checkConsistency() and \
            checkCachedPropertyConsistency(aMap) and \
            (not aMap.hasLabelImage() or checkLabelConsistencyThoroughly(aMap))
@@ -1162,87 +1103,10 @@ def removeSmallRegions(map, minArea = None, minPixelArea = None, costMeasure = N
     return result
 
 # --------------------------------------------------------------------
-#                             simple proxies
-# --------------------------------------------------------------------
-
-def removeIsolatedNode(node):
-    return node.anchor().map().removeIsolatedNode(node)
-
-def mergeEdges(dart):
-    return dart.map().mergeEdges(dart)
-
-def removeBridge(dart):
-    return dart.map().removeBridge(dart)
-
-def mergeFaces(dart):
-    return dart.map().mergeFaces(dart)
-
-# --------------------------------------------------------------------
 #                       composed Euler operations
 # --------------------------------------------------------------------
 
-def removeEdge(dart):
-    """removeEdge(dart)
-
-    Composed Euler operation which calls either removeBridge or
-    mergeFaces, depending on whether the dart belongs to an edge or a
-    bridge.
-
-    Returns the surviving face."""
-
-    map = dart.map()
-    if dart.leftFaceLabel() == dart.rightFaceLabel():
-        return map.removeBridge(dart)
-    else:
-        return map.mergeFaces(dart)
-
-def mergeFacesCompletely(dart, mergeDegree2Nodes = True):
-    """mergeFacesCompletely(dart, mergeDegree2Nodes = True)
-
-    In contrast to the Euler operation mergeFaces(), this function
-    removes all common edges of the two faces, not only the single
-    edge belonging to dart.
-
-    Furthermore, if the optional parameter mergeDegree2Nodes is
-    True (default), all nodes whose degree is reduced to two will be
-    merged into their surrounding edges.
-
-    Returns the surviving face."""
-    
-    #print "mergeFacesCompletely(%s, %s)" % (dart, mergeDegree2Nodes)
-    if dart.edge().isBridge():
-        raise TypeError("mergeFacesCompletely(): dart belongs to a bridge!")
-    map = dart.map()
-    rightLabel = dart.rightFaceLabel()
-    commonDarts = []
-    for contourIt in dart.phiOrbit():
-        if contourIt.rightFaceLabel() == rightLabel:
-            if contourIt.edge().flag(flag_constants.ALL_PROTECTION):
-                return None
-            commonDarts.append(contourIt)
-
-    affectedNodes = []
-
-    survivor = None
-    for dart in commonDarts:
-        affectedNodes.append(dart.startNodeLabel())
-        affectedNodes.append(dart.endNodeLabel())
-        if survivor == None:
-            survivor = map.mergeFaces(dart) # first common edge
-        else:
-            map.removeBridge(dart)
-
-    for nodeLabel in affectedNodes:
-        node = map.node(nodeLabel)
-        if not node: continue
-        if node.isIsolated():
-            map.removeIsolatedNode(node)
-        if mergeDegree2Nodes and node.hasDegree(2):
-            d = node.anchor()
-            if d.endNodeLabel() != node.label():
-                map.mergeEdges(d)
-
-    return survivor
+from hourglass import mergeFacesCompletely
 
 def findCommonDart(face1, face2):
     """Find a dart with leftFace() == face1 and rightFace() == face2."""
@@ -1552,24 +1416,20 @@ def applyFaceClassification(map, faceClasses):
         edge.label() for edge in map.edgeIter()
         if faceClasses[edge.leftFaceLabel()] == faceClasses[edge.rightFaceLabel()]])
 
-def classifyEdgesFromLabelImage(map, labelImage):
-    """FIXME: I think this API is old and should be deprecated.
-    Should edge flags be used?  After all, it's a binary decision.
-    Else, should one sequence of bools be returned?
-    Or should it stay like this?
-    The result should be easily passable to removeEdges() IMO."""
-    faceLabels = classifyFacesFromLabelImage(map, labelImage)
-    
-    good = []
-    bad = []
-    for edge in map.edgeIter():
-        if edge.flag(BORDER_PROTECTION | CONTOUR_PROTECTION):
-            continue
-        if faceStats[edge.leftFaceLabel()] != faceStats[edge.rightFaceLabel()]:
-            good.append(edge)
-        else:
-            bad.append(edge)
-    return good, bad
+def extractContractionKernel(map):
+    """Returns a face classification suitable for
+    `applyFaceClassification`, which represents the transformation
+    from the original segmentation into the given `map`.  Internally,
+    this is based on the LabelLUT that is maintained for the
+    labelImage, i.e. it does not work for maps without labelImage
+    ATM."""
+
+    result = [None] * map.maxFaceLabel()
+    labelLUT = map.faceLabelLUT()
+    for face in map.faceIter(skipInfinite = True):
+        for mergedLabel in labelLUT.merged(face.label()):
+            result[mergedLabel] = face.label()
+    return result
 
 # --------------------------------------------------------------------
 #                   topological utility functions
@@ -1781,7 +1641,7 @@ class StandardCostQueue(object):
 class SeededRegionGrowing(object):
     __slots__ = ["_map", "_mergeCostMeasure", "_step", "_queue", "_neighborSkipFlags"]
     
-    def __init__(self, map, mergeCostMeasure, dynamic = False, stupidInit = False):
+    def __init__(self, map, mergeCostMeasure, dynamic = True, stupidInit = False):
         self._map = map
         self._mergeCostMeasure = mergeCostMeasure
         self._step = 0
