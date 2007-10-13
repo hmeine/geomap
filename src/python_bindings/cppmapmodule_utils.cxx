@@ -1,4 +1,6 @@
 #include "cppmap_utils.hxx"
+#include "exporthelpers.hxx"
+#include "labellut.hxx"
 
 #include <boost/python.hpp>
 namespace bp = boost::python;
@@ -36,9 +38,53 @@ std::string EdgeProtection__repr__(EdgeProtection const &cb)
     return s.str();
 }
 
+/********************************************************************/
+
+#include <vigra/crackconnections.hxx>
+
+vigra::PythonGrayImage
+pyCrackConnectionImage(vigra::PythonImage const &labels)
+{
+    vigra::PythonGrayImage result(labels.size() + vigra::Diff2D(1, 1));
+    crackConnectionImage(srcImageRange(labels), destImage(result));
+
+    vigra::PythonGrayImage::traverser
+        end = result.lowerRight() - vigra::Diff2D(1, 1),
+        row = result.upperLeft();
+    for(; row.y < end.y; ++row.y)
+    {
+        vigra::PythonGrayImage::traverser it = row;
+        for(; it.x < end.x; ++it.x)
+        {
+            if((int)*it & 1)
+                it[vigra::Diff2D(1, 0)] = (int)it[vigra::Diff2D(1, 0)] | 4;
+            if((int)*it & 2)
+                it[vigra::Diff2D(0, 1)] = (int)it[vigra::Diff2D(0, 1)] | 8;
+        }
+        if((int)*it & 2)
+            it[vigra::Diff2D(0, 1)] = (int)it[vigra::Diff2D(0, 1)] | 8;
+    }
+
+    for(; row.x < end.x; ++row.x)
+        if((int)*row & 1)
+            row[vigra::Diff2D(1, 0)] = (int)row[vigra::Diff2D(1, 0)] | 4;
+
+    return result;
+}
+
+/********************************************************************/
+
 void defMapUtils()
 {
     using namespace boost::python;
+
+    class_<LabelLUT>("LabelLUT", init<unsigned int>())
+        .def("initIdentity", &LabelLUT::initIdentity)
+        .def("appendOne", &LabelLUT::appendOne)
+        .def("__getitem__", &Array__getitem__<LabelLUT>)
+        .def("__len__", &LabelLUT::size)
+        .def("relabel", &LabelLUT::relabel) // FIXME: check index
+    ;
 
     class_<EdgeProtection, boost::noncopyable>(
         "EdgeProtection",
@@ -65,4 +111,10 @@ void defMapUtils()
         "true (default), all nodes whose degree is reduced to two will be\n"
         "merged into their surrounding edges.\n\n"
         "Returns the surviving face.");
+
+    def("crackConnectionImage", &pyCrackConnectionImage,
+        args("labelImage"),
+        "crackConnectionImage(labelImage)\n\n"
+        "Tranform a region image into an image with crack connections marked.\n"
+        "(Bit 1: connected to the right, bit 2: connected downwards)");
 }
