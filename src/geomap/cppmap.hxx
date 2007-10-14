@@ -294,6 +294,7 @@ class GeoMap
     void initializeMap(bool initLabelImage = true);
     bool mapInitialized() const  { return faces_.size() > 0; }
     bool hasLabelImage() const { return labelImage_; }
+    const LabelLUT &faceLabelLUT() const { return faceLabelLUT_; }
 
     LabelImageIterator labelsUpperLeft() const
     {

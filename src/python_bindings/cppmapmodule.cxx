@@ -1048,6 +1048,11 @@ void defMap()
                  "i.e. initializeMap(...) has already been called with\n"
                  "its initLabelImage parameter set to True (default).  Then,\n"
                  "labelImage() returns a GrayImage, else None.")
+            .def("faceLabelLUT", &GeoMap::faceLabelLUT,
+                 return_internal_reference<>(),
+                 "Return the internal LabelLUT used for the labelImage.  This can\n"
+                 "be useful since it represents all face merge operations that\n"
+                 "happened so far.")
             .def("labelImage", &labelImage,
                  "labelImage() -> GrayImage/None\n\n"
                  "Return a GrayImage where all pixels that are entirely inside\n"
