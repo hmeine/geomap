@@ -1,10 +1,10 @@
 import copy, qt
-import mapdisplay, icons
+import mapdisplay, icons, maputils, statistics
 
 class Workspace(mapdisplay.MapDisplay):
     __base = mapdisplay.MapDisplay
 
-    __slots__ = ("_level0", "_mapRestartAction")
+    __slots__ = ("_level0", "_mapRestartAction", "_history")
     
     def __init__(self, level0, originalImage):
         self.__base.__init__(self, copy.deepcopy(level0), originalImage)
@@ -33,4 +33,17 @@ class Workspace(mapdisplay.MapDisplay):
 
         self._detachMapStats()
         self.setMap(copy.deepcopy(self._level0))
-        
+
+    def faceMeans(self):
+        if not self._faceMeans:
+            img = self.images.get("colored", self.images["original"])
+            self.setFaceMeans(statistics.FaceColorStatistics(self.map, img))
+        return self._faceMeans
+
+    def costMeasure(self):
+        return self._faceMeans.faceMeanDiff
+
+    def automaticRegionMerging(self):
+        self._history = maputils.LiveHistory(self.map)
+        amr = maputils.AutomaticRegionMerger(self.map, self.costMeasure())
+        amr.merge()
