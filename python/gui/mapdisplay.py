@@ -423,13 +423,20 @@ def addMapOverlay(fe, overlay, **attr):
 
 class MapDisplay(displaysettings.DisplaySettings):
     __base = displaysettings.DisplaySettings
+
+    __slots__ = ("tool", "viewer", "images", "image",
+                 "map", "nodeOverlay", "edgeOverlay",
+                 "addOverlay", "replaceOverlay", "removeOverlay",
+                 "_togglingGUI", "_imageWindow", "_backgroundMode", "_normalizeStates",
+                 "_faceMeans", "_attachedHooks",
+                 "dn", "_dh")
     
     def __init__(self, map, preparedImage = None, immediateShow = True,
                  faceMeans = None):
         self.__base.__init__(self)
         self.tool = None
         self._togglingGUI = False
-        self.faceMeans = None # temp. needed (for _enableImageActions)
+        self._faceMeans = None # temp. needed (for _enableImageActions)
 
         # for backward compatibility:
         if hasattr(preparedImage, "imageSize") and hasattr(map, "width"):
@@ -439,7 +446,7 @@ class MapDisplay(displaysettings.DisplaySettings):
             if not preparedImage:
                 preparedImage = vigra.GrayImage(map.imageSize())
 
-        self.imageWindow = None # setImage would norm. pass the image on
+        self._imageWindow = None # setImage would norm. pass the image on
         if hasattr(preparedImage, "orig"):
             self.images = {
                 "original" : preparedImage.view,
@@ -452,12 +459,16 @@ class MapDisplay(displaysettings.DisplaySettings):
             self.setImage(preparedImage) # auto-detects role
 
         self.image = preparedImage
-        self.imageWindow = vigrapyqt.ImageWindow(self.image, vigra.BYTE, self)
-        self.imageWindow.label.hide()
-        self.setCentralWidget(self.imageWindow)
-        self.viewer = self.imageWindow.viewer
+        self._imageWindow = vigrapyqt.ImageWindow(self.image, vigra.BYTE, self)
+        self._imageWindow.label.hide()
+        self.setCentralWidget(self._imageWindow)
+        self.viewer = self._imageWindow.viewer
         self.viewer.autoZoom()
-        self.addOverlay = self.viewer.addOverlay # convenience
+
+        # convenience:
+        self.addOverlay = self.viewer.addOverlay
+        self.replaceOverlay = self.viewer.replaceOverlay
+        self.removeOverlay = self.viewer.removeOverlay
 
         self.map = map
         if not faceMeans and hasattr(map, "faceMeans"):
@@ -465,7 +476,7 @@ class MapDisplay(displaysettings.DisplaySettings):
         self.setFaceMeans(faceMeans)
         self._attachedHooks = None
 
-        self.normalizeStates = [False, False, True, True, False]
+        self._normalizeStates = [False, False, True, True, False]
         self._backgroundMode = 0
         self._enableImageActions()
         self.displayOriginalAction.setOn(True)
@@ -480,7 +491,7 @@ class MapDisplay(displaysettings.DisplaySettings):
                      self.activatePaintbrush)
         self.connect(self.navigateAction, qt.SIGNAL("toggled(bool)"),
                      self.activateNavigator)
-        self.connect(self.imageWindow, qt.PYSIGNAL("captionChanged"),
+        self.connect(self._imageWindow, qt.PYSIGNAL("captionChanged"),
                      self.statusMessage)
                      #self.statusBar(), qt.SLOT("message(const QString&)"))
 
@@ -522,17 +533,17 @@ class MapDisplay(displaysettings.DisplaySettings):
         if self._backgroundMode == 3:
             updatedDisplayImage = self.map.labelImage()
 
-        self.faceMeans = None
+        self._faceMeans = None
         if hasattr(map, "faceMeans"):
             self.setFaceMeans(map.faceMeans)
             if self._backgroundMode == 4:
                 updatedDisplayImage = \
-                    self.faceMeans.regionImage(self.map.labelImage())
+                    self._faceMeans.regionImage(self.map.labelImage())
         self._enableImageActions()
 
         if updatedDisplayImage:
             self._setImage(updatedDisplayImage,
-                           self.normalizeStates[self._backgroundMode])
+                           self._normalizeStates[self._backgroundMode])
 
         if attached:
             self.attachHooks()
@@ -540,7 +551,7 @@ class MapDisplay(displaysettings.DisplaySettings):
         self.viewer.update()
 
     def setFaceMeans(self, faceMeans):
-        self.faceMeans = faceMeans
+        self._faceMeans = faceMeans
         if faceMeans:
             tools.activeCostMeasure = faceMeans.faceMeanDiff
         self._enableImageActions()
@@ -576,21 +587,21 @@ class MapDisplay(displaysettings.DisplaySettings):
         elif mode == 3:
             displayImage = self.map.labelImage()
         elif mode == 4:
-            displayImage = self.faceMeans.regionImage(self.map.labelImage())
+            displayImage = self._faceMeans.regionImage(self.map.labelImage())
         else:
             sys.stderr.write("Unknown background mode %d!\n" % mode)
             return
 
         self.image = displayImage
         self._backgroundMode = mode
-        normalize = self.normalizeStates[mode]
+        normalize = self._normalizeStates[mode]
         if self.normalizeAction.isOn() != normalize:
             self.normalizeAction.setOn(normalize)
         else:
             self._setImage(self.image, normalize)
 
     def toggleNormalize(self, normalize):
-        self.normalizeStates[self._backgroundMode] = normalize
+        self._normalizeStates[self._backgroundMode] = normalize
         self._setImage(self.image, normalize)
 
     def attachHooks(self):
@@ -622,7 +633,7 @@ class MapDisplay(displaysettings.DisplaySettings):
         roi &= Rect2D(self.map.imageSize())
         roiImage = self.map.labelImage().subImage(roi)
         if self._backgroundMode > 3:
-            roiImage = self.faceMeans.regionImage(roiImage)
+            roiImage = self._faceMeans.regionImage(roiImage)
         # FIXME: use global normalization here
         self.viewer.replaceROI(roiImage.toPNM(vigra.BYTE),
                                qt.QPoint(*roi.upperLeft()))
@@ -692,7 +703,7 @@ class MapDisplay(displaysettings.DisplaySettings):
             self.tool = tools.IntelligentScissors(
                 self.map, self.edgeOverlay, self)
             tools.activeCostMeasure = \
-                statistics.HyperbolicInverse(self.faceMeans.faceMeanDiff)
+                statistics.HyperbolicInverse(self._faceMeans.faceMeanDiff)
         elif tool == 4:
             self.tool = tools.SeedSelector(map = self.map, parent = self)
         elif hasattr(tool, "disconnectViewer"):
@@ -742,11 +753,11 @@ class MapDisplay(displaysettings.DisplaySettings):
         self.displayOriginalAction.setEnabled("original" in self.images)
         self.displayColoredAction.setEnabled("colored" in self.images)
         self.displayLabelsAction.setEnabled(True)
-        self.displayMeansAction.setEnabled(bool(self.faceMeans))
+        self.displayMeansAction.setEnabled(bool(self._faceMeans))
 
     def _setImage(self, image, normalize):
         self.image = image
-        self.imageWindow.replaceImage(
+        self._imageWindow.replaceImage(
             self.image, normalize and vigra.NBYTE or vigra.BYTE)
 
     def setImage(self, image, normalize = True, role = None):
@@ -760,7 +771,7 @@ class MapDisplay(displaysettings.DisplaySettings):
                 role = "original"
         self.images[role] = image
         self._enableImageActions()
-        if self.imageWindow and role == self.currentRole():
+        if self._imageWindow and role == self.currentRole():
             self._setImage(image, normalize)
 
     def highlight(self, darts):
@@ -800,7 +811,7 @@ class MapDisplay(displaysettings.DisplaySettings):
         return g, pi
 
     def savePNG(self, filename, roi):
-        image, normalize = self.imageWindow.getDisplay()
+        image, normalize = self._imageWindow.getDisplay()
         image.subImage(roi).write(filename, normalize)
 
     def saveFig(self, basepath, roi = None, scale = None,
@@ -830,12 +841,12 @@ class MapDisplay(displaysettings.DisplaySettings):
             bgFilename = False
 
         fe = figexport.exportImageWindow(
-            self.imageWindow, basepath, roi = roi, scale = scale,
+            self._imageWindow, basepath, roi = roi, scale = scale,
             bgFilename = bgFilename,
             overlayHandler = addMapOverlay)
         
         if faceMeans in (None, True):
-            faceMeans = self.faceMeans
+            faceMeans = self._faceMeans
 
         if faceMeans:
             fe.addMapFaces(
