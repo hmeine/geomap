@@ -133,12 +133,15 @@ class ActivePaintbrush(qt.QObject):
             return
         self._currentLabel = None
         self._painting = True
+        self._path = []
         self._changed = False
         self.mouseMoved(x, y)
 
     def mouseMoved(self, x, y):
         if not self._painting:
             return
+
+        self._path.append((x, y))
 
         map = self._map
         otherLabel = map.faceAt((x, y)).label()
