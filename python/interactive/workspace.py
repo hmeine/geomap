@@ -4,11 +4,15 @@ import mapdisplay, icons, maputils, statistics
 class Workspace(mapdisplay.MapDisplay):
     __base = mapdisplay.MapDisplay
 
-    __slots__ = ("_level0", "_mapRestartAction", "_history")
+    __slots__ = ("_level0", "_mapRestartAction",
+                 "_history", "_levelSlider", "_levelApproachingTimer",
+                 "_currentLevelIndex", "_displayLevelIndex")
     
     def __init__(self, level0, originalImage):
         self.__base.__init__(self, copy.deepcopy(level0), originalImage)
         self._level0 = level0
+        self._displayLevelIndex = 0
+        self._currentLevelIndex = 0
 
         reinitIcon = qt.QPixmap()
         reinitIcon.loadFromData(icons.reinitIconPNGData, "PNG")
@@ -20,6 +24,20 @@ class Workspace(mapdisplay.MapDisplay):
         ra.addTo(self.Tools)
         self.connect(ra, qt.SIGNAL("activated()"), self.restart)
         self.mapRestartAction = ra
+
+        #sws.imageFrame.addWidget(self.imageFrame)
+        self._levelSlider = qt.QSlider(self._imageWindow, "_levelSlider")
+        self._levelSlider.setOrientation(qt.QSlider.Horizontal)
+        self._levelSlider.setEnabled(False)
+        self.connect(self._levelSlider, qt.SIGNAL("valueChanged(int)"),
+                     self._levelSliderChanged)
+        self._imageWindow._layout.addWidget(self._levelSlider)
+        if self.isShown():
+            self._levelSlider.show()
+
+        self._levelApproachingTimer = qt.QTimer(self)
+        self.connect(self._levelApproachingTimer, qt.SIGNAL("timeout()"),
+                     self._approachLevel)
 
     def _detachMapStats(self):
         for a in self.map.__dict__:
@@ -33,6 +51,7 @@ class Workspace(mapdisplay.MapDisplay):
 
         self._detachMapStats()
         self.setMap(copy.deepcopy(self._level0))
+        self._currentLevelIndex = 0
 
     def faceMeans(self):
         if not self._faceMeans:
@@ -41,9 +60,36 @@ class Workspace(mapdisplay.MapDisplay):
         return self._faceMeans
 
     def costMeasure(self):
-        return self._faceMeans.faceMeanDiff
+        return self.faceMeans().faceMeanDiff
+
+    def _levelSliderChanged(self, level):
+        self.displayLevel(level)
+
+    def displayLevel(self, levelIndex):
+        if self._displayLevelIndex != levelIndex:
+            self._displayLevelIndex = levelIndex
+            self._levelApproachingTimer.start(0)
+
+    def _approachLevel(self):
+        if self._currentLevelIndex > self._displayLevelIndex:
+            self.restart()
+        elif self._currentLevelIndex < self._displayLevelIndex:
+            targetIndex = min(self._displayLevelIndex,
+                              self._currentLevelIndex + 25)
+            try:
+                self._history[self._currentLevelIndex:targetIndex].replay(
+                    self.map, verbose = False)
+                self._currentLevelIndex = targetIndex
+            except RuntimeError, e:
+                print e
+                self._levelApproachingTimer.stop()
+        else:
+            self._levelApproachingTimer.stop()
 
     def automaticRegionMerging(self):
         self._history = maputils.LiveHistory(self.map)
         amr = maputils.AutomaticRegionMerger(self.map, self.costMeasure())
         amr.merge()
+        self._currentLevelIndex = len(self._history)
+        self._levelSlider.setRange(0, len(self._history))
+        self._levelSlider.setEnabled(True)
