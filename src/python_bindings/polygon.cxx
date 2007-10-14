@@ -197,7 +197,8 @@ void defIter(const char *name)
 {
     class_<Iterator>(name, no_init)
         .def("__len__", &Iterator::__len__)
-        .def("__iter__", &Iterator::__iter__)
+        .def("__iter__", &Iterator::__iter__,
+             return_internal_reference<>())
         .def("next", &Iterator::next)
     ;
 }
@@ -1883,7 +1884,7 @@ list intersectLine(
 
     if(inside)
         result.append(currentPart);
-    
+
     return result;
 }
 
@@ -1914,8 +1915,10 @@ void defPolygon()
         .def("__getitem__", &Array__getitem_slice__<Vector2Array>)
         .def("__getitem__", &Array__getitem__<Vector2Array>)
         .def("__setitem__", &Array__setitem__<Vector2Array>)
-        .def("__iter__",    &Array__iter__<Vector2Array>)
-        .def("__reviter__", &Array__reviter__<Vector2Array>)
+        .def("__iter__",    &Array__iter__<Vector2Array>,
+             with_custodian_and_ward_postcall<0, 1>())
+        .def("__reviter__", &Array__reviter__<Vector2Array>,
+             with_custodian_and_ward_postcall<0, 1>())
         .def("insert", &insert<Vector2Array>)
         .def(self * double())
         .def(self + Vector2())
@@ -1938,8 +1941,10 @@ void defPolygon()
         .def("__getitem__", &Array__getitem_slice__<Point2DArray>)
         .def("__getitem__", &Array__getitem__<Point2DArray>)
         .def("__setitem__", &Array__setitem__<Point2DArray>)
-        .def("__iter__",    &Array__iter__<Point2DArray>)
-        .def("__reviter__", &Array__reviter__<Point2DArray>)
+        .def("__iter__",    &Array__iter__<Point2DArray>,
+             with_custodian_and_ward_postcall<0, 1>())
+        .def("__reviter__", &Array__reviter__<Point2DArray>,
+             with_custodian_and_ward_postcall<0, 1>())
         .def("insert", &insert<Point2DArray>)
     ;
     register_ptr_to_python< std::auto_ptr<Point2DArray> >();

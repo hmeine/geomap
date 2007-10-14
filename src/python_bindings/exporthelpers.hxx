@@ -80,7 +80,10 @@ class STLIterWrapper
       end_(end)
     {}
 
-    STLIterWrapper __iter__() const
+        // purposely return reference to make export code use
+        // return_internal_reference
+        // (otherwise, iterated temporaries might be discarded)
+    STLIterWrapper &__iter__()
     {
         return *this;
     }
@@ -135,6 +138,9 @@ struct RangeIterWrapper
 
 /********************************************************************/
 
+// Attention! Always use Array__iter__ with
+// with_custodian_and_ward_postcall<0, 1) to prevent iterated
+// temporary arrays to be free'd!
 template<class Array>
 STLIterWrapper<typename Array::const_iterator>
 Array__iter__(const Array &a)
@@ -143,6 +149,9 @@ Array__iter__(const Array &a)
         a.begin(), a.end());
 }
 
+// Attention! Always use Array__reviter__ with
+// with_custodian_and_ward_postcall<0, 1) to prevent iterated
+// temporary arrays to be free'd!
 template<class Array>
 STLIterWrapper<typename Array::const_reverse_iterator>
 Array__reviter__(const Array &a)
