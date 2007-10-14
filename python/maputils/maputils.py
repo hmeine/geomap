@@ -1402,19 +1402,24 @@ def classifyFacesFromLabelImage(map, labelImage):
 
     return result
 
-def applyFaceClassification(map, faceClasses):
+def applyFaceClassification(map, faceClasses, ignoreNone = True):
     """Removes all edges between faces with the same class/label.
     Uses `removeEdges()` internally.  `faceClasses` should be a
     mapping from face labels to labels/classes that can be compared
     for equality.  E.g. to faces face1 and face2 will be merged iff
     faceClasses[face1.label()] == faceClasses[face2.label()].
+
+    If `ignoreNone` is set (default), faces classified with `None`
+    values will be ignored (i.e. not merged with neighbors that are
+    also assigned None).
     
     `classifyFacesFromLabelImage` creates a suitable sequence (but
     there are better, more direct ways)."""
 
-    removeEdges(map, [
+    return removeEdges(map, [
         edge.label() for edge in map.edgeIter()
-        if faceClasses[edge.leftFaceLabel()] == faceClasses[edge.rightFaceLabel()]])
+        if faceClasses[edge.leftFaceLabel()] == faceClasses[edge.rightFaceLabel()]
+        and not faceClasses[edge.leftFaceLabel()] is None])
 
 def extractContractionKernel(map):
     """Returns a face classification suitable for
