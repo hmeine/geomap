@@ -234,10 +234,15 @@ def subpixelWatershedMapFromData(
     performEdgeSplits = True,
     wsStatsSpline = None,
     minima = None,
+    cleanup = True,
     Map = hourglass.GeoMap):
     """`performEdgeSplits` may be a callable that is called before
     splitting edges, with the complete locals() dict as parameter
-    (useful keys are 'spmap' and all parameters of this function)."""
+    (useful keys are 'spmap' and all parameters of this function).
+
+    `cleanup` determines whether bridges and degree 2 nodes are
+    removed (default: True).
+    """
 
     print "- initializing GeoMap from flowlines..."
     spmap = Map(maxima, [], imageSize)
@@ -252,7 +257,9 @@ def subpixelWatershedMapFromData(
         connectBorderNodes(spmap, borderConnectionDist)
         spmap.edgeProtection = EdgeProtection(spmap)
 
-    removeIsolatedNodes(spmap)
+    if cleanup:
+        removeIsolatedNodes(spmap)
+
     unsortable = spmap.sortEdgesEventually(
         ssStepDist, ssMinDist, bool(performEdgeSplits))
     _handleUnsortable(spmap, unsortable)
@@ -283,6 +290,10 @@ def subpixelWatershedMapFromData(
         spmap.wsStats.setBasins(spmap.wsBasinStats)
         p.finish()
 
+    if cleanup:
+        removeBridges(spmap)
+        mergeDegree2Nodes(spmap)
+
     return spmap
 
 def subpixelWatershedMap(
@@ -295,6 +306,7 @@ def subpixelWatershedMap(
     performBorderClosing = True,
     performEdgeSplits = True,
     initWSStats = True,
+    cleanup = True,
     Map = hourglass.GeoMap):
 
     """`boundaryIndicator` should be an image with e.g. a gradient
@@ -355,6 +367,7 @@ def subpixelWatershedMap(
         performEdgeSplits = performEdgeSplits,
         wsStatsSpline = initWSStats and siv or None,
         minima = initWSStats and spws.minima() or None,
+        cleanup = cleanup,
         Map = Map)
 
     return spwsMap
