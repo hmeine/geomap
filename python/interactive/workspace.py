@@ -1,19 +1,62 @@
 import copy, qt
 import mapdisplay, icons, maputils, statistics
 
+def labelRoot(lut, label):
+    result = lut[label]
+    if lut[result] != result:
+        result = labelRoot(lut, result)
+        lut[label] = result
+    return result
+
+class PyramidContractionKernel(statistics.DetachableStatistics):
+    __slots__ = ("ck", "_mergedFaceLabels")
+    
+    def __init__(self, map):
+        statistics.DetachableStatistics.__init__(self, map)
+        self.ck = [None] * map.maxFaceLabel()
+        self._attachHooks()
+
+    def _attachHooks(self):
+        self._attachedHooks = (
+            self._map().addMergeFacesCallbacks(
+            self._preMergeFaces, self._postMergeFaces),
+            )
+
+    def _preMergeFaces(self, dart):
+        self._mergedFaceLabels = (dart.leftFaceLabel(), dart.rightFaceLabel())
+        return True
+
+    def _postMergeFaces(self, survivor):
+        labeled = (survivor.label(), self._map().faceCount)
+        for faceLabel in self._mergedFaceLabels:
+            self.ck[faceLabel] = labeled
+
+    def kernelForFaceCount(self, faceCount):
+        result = range(len(self.ck))
+        for i, lfc in enumerate(self.ck):
+            if lfc and lfc[1] >= faceCount:
+                result[i] = lfc[0]
+        for i, l in enumerate(result):
+            result[i] = labelRoot(result, l)
+        return result
+
 class Workspace(mapdisplay.MapDisplay):
     """Workspace for region-based segmentation."""
     __base = mapdisplay.MapDisplay
 
-    __slots__ = ("_level0", "_mapRestartAction",
-                 "_history", "_levelSlider", "_levelApproachingTimer",
-                 "_currentLevelIndex", "_displayLevelIndex")
+    # actually, this has only documenting effect; since this inherits
+    # PyQt widgets, any attribute may be used:
+    __slots__ = ("_level0", "_manualCK", "_pyramidCK",
+                 "_manualCKHooks", "_mergedFaceLabels", "_duringAutomatic",
+                 "_mapRestartAction", "_levelSlider")
     
     def __init__(self, level0, originalImage):
         self.__base.__init__(self, copy.deepcopy(level0), originalImage)
         self._level0 = level0
-        self._displayLevelIndex = 0
-        self._currentLevelIndex = 0
+        self._manualCK = range(level0.maxFaceLabel())
+        self._pyramidCK = None
+        self._manualCKHooks = ()
+        self._duringAutomatic = False
 
         reinitIcon = qt.QPixmap()
         reinitIcon.loadFromData(icons.reinitIconPNGData, "PNG")
@@ -24,91 +67,111 @@ class Workspace(mapdisplay.MapDisplay):
         ra.setToolTip("Re-start with level 0 map")
         ra.addTo(self.Tools)
         self.connect(ra, qt.SIGNAL("activated()"), self.restart)
-        self.mapRestartAction = ra
+        self._mapRestartAction = ra
 
         #sws.imageFrame.addWidget(self.imageFrame)
         self._levelSlider = qt.QSlider(self._imageWindow, "_levelSlider")
         self._levelSlider.setOrientation(qt.QSlider.Horizontal)
-        self._levelSlider.setEnabled(False)
+        self._levelSlider.setSteps(-1, -10)
+        self._levelSlider.setRange(0, level0.faceCount)
         self.connect(self._levelSlider, qt.SIGNAL("valueChanged(int)"),
                      self._levelSliderChanged)
         self._imageWindow._layout.addWidget(self._levelSlider)
         if self.isShown():
             self._levelSlider.show()
 
-        self._levelApproachingTimer = qt.QTimer(self)
-        self.connect(self._levelApproachingTimer, qt.SIGNAL("timeout()"),
-                     self._approachLevel)
-
-    def _detachMapStats(self):
-        for a in self.map.__dict__:
-            o = getattr(self.map, a)
+    @staticmethod
+    def _detachMapStats(map):
+        for a in map.__dict__:
+            o = getattr(map, a)
             if hasattr(o, "detachHooks"):
                 print "detaching hooks of", o
                 o.detachHooks()
 
+    def attachHooks(self):
+        self.__base.attachHooks(self)
+        self._manualCKHooks = (
+            self.map.addMergeFacesCallbacks(
+            self._preMergeFaces, self._postMergeFaces),
+            )
+
+    def detachHooks(self):
+        self.__base.detachHooks(self)
+        for cb in self._manualCKHooks:
+            cb.disconnect()
+        self._manualCKHooks = ()
+
+    def setMap(self, map):
+        self.detachHooks()
+        self._detachMapStats(self.map)
+        self.__base.setMap(self, map)
+        self._levelSlider.blockSignals(True)
+        self._levelSlider.setValue(
+            self._levelSlider.maxValue() - map.faceCount)
+        self._levelSlider.blockSignals(False)
+        self.attachHooks()
+
+    def _preMergeFaces(self, dart):
+        self._mergedFaceLabels = (dart.leftFaceLabel(), dart.rightFaceLabel())
+        return True
+
+    def _postMergeFaces(self, survivor):
+        if self._duringAutomatic:
+            return
+        for faceLabel in self._mergedFaceLabels:
+            self._manualCK[faceLabel] = survivor.label()
+        self._pyramidCK = None
+
     def restart(self):
-        """Restart with level 0/1."""
+        """Restart with the manually created level."""
+        self.setMap(self.manualBaseMap())
 
-        self._detachMapStats()
-        self.setMap(copy.deepcopy(self._level0))
-        self._currentLevelIndex = 0
+    def manualBaseMap(self):
+        result = copy.deepcopy(self._level0)
+        maputils.applyFaceClassification(result, self._manualCK)
+        self._levelSlider.blockSignals(True)
+        self._levelSlider.setRange(0, result.faceCount)
+        self._levelSlider.blockSignals(False)
+        return result
 
-    def faceMeans(self):
-        if not self._faceMeans:
+    def faceMeans(self, map):
+        if not hasattr(map, "faceMeans"):
             img = self.images.get("colored", self.images["original"])
-            self.setFaceMeans(statistics.FaceColorStatistics(self.map, img))
-        return self._faceMeans
+            map.faceMeans = statistics.FaceColorStatistics(map, img)
+            print map.faceMeans.checkConsistency()
+        return map.faceMeans
 
-    def costMeasure(self):
+    def costMeasure(self, map):
         #return self.faceMeans().faceMeanDiff
-        return self.faceMeans().faceHomogeneity
+        return self.faceMeans(map).faceHomogeneity
         #return self.faceMeans().faceTTest
 
     def _levelSliderChanged(self, level):
-        self.displayLevel(level)
+        self.displayLevel(self._levelSlider.maxValue() - level)
 
-    def displayLevel(self, levelIndex):
-        if self._displayLevelIndex != levelIndex:
-            self.viewer.setUpdatesEnabled(False)
-            self.viewer.setEnabled(False) # prevent manual actions
-            self._displayLevelIndex = levelIndex
-            self._levelApproachingTimer.start(0)
+    def displayLevel(self, faceCount):
+        if not self._pyramidCK:
+            self.automaticRegionMerging()
 
-    def _stopApproaching(self):
-        self._levelApproachingTimer.stop()
-        self.viewer.setUpdatesEnabled(True)
-        self.viewer.setEnabled(True)
-        self.viewer.update()
-        if self._levelSlider.value() != self._currentLevelIndex:
-            self._levelSlider.setValue(self._currentLevelIndex)
-
-    def _approachLevel(self):
-        if self._currentLevelIndex > self._displayLevelIndex:
-            self.restart()
-        elif self._currentLevelIndex < self._displayLevelIndex:
-            targetIndex = min(self._displayLevelIndex,
-                              self._currentLevelIndex + 25)
-            try:
-                self._history[self._currentLevelIndex:targetIndex].replay(
-                    self.map, verbose = False)
-                self._currentLevelIndex = targetIndex # FIXME: inc. via callback
-            except RuntimeError, e:
-                print e
-                self._stopApproaching()
+        ck = self._pyramidCK.kernelForFaceCount(faceCount)
+        if faceCount > self.map.faceCount:
+            map = self.manualBaseMap()
+            maputils.applyFaceClassification(map, ck)
+            self.setMap(map)
         else:
-            self._stopApproaching()
+            self._duringAutomatic = True
+            maputils.applyFaceClassification(self.map, ck)
+            self._duringAutomatic = False
+            
+            self._levelSlider.blockSignals(True)
+            self._levelSlider.setValue(
+                self._levelSlider.maxValue() - self.map.faceCount)
+            self._levelSlider.blockSignals(False)
 
     def automaticRegionMerging(self):
-        self.viewer.setUpdatesEnabled(False)
-
-        # FIXME: history is not region-based
-        self._history = maputils.LiveHistory(self.map)
-        amr = maputils.AutomaticRegionMerger(self.map, self.costMeasure())
+        map = self.manualBaseMap()
+        map.pyramidCK = PyramidContractionKernel(map)
+        amr = maputils.AutomaticRegionMerger(map, self.costMeasure(map))
         amr.merge()
-        self._currentLevelIndex = len(self._history)
-        self._levelSlider.setRange(0, len(self._history))
-        self._levelSlider.setEnabled(True)
-
-        self.viewer.setUpdatesEnabled(True)
-        self.viewer.update()
+        self._detachMapStats(map)
+        self._pyramidCK = map.pyramidCK
