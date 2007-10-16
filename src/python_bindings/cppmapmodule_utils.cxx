@@ -3,6 +3,7 @@
 #include "labellut.hxx"
 
 #include <boost/python.hpp>
+#include <vigra/pythonutil.hxx>
 namespace bp = boost::python;
 
 struct EdgeProtectionPickleSuite : bp::pickle_suite
@@ -86,6 +87,21 @@ unsigned int pyRemoveEdges(GeoMap &map, bp::list edgeLabels)
 
 /********************************************************************/
 
+template<class Copyable>
+bp::object
+generic__copy__(bp::object copyable)
+{
+    Copyable *newCopyable(new Copyable(bp::extract<const Copyable &>(copyable)));
+    bp::object result(bp::detail::new_reference(bp::managingPyObject(newCopyable)));
+
+    bp::extract<bp::dict>(result.attr("__dict__"))().update(
+        copyable.attr("__dict__"));
+
+    return result;
+}
+
+/********************************************************************/
+
 void defMapUtils()
 {
     using namespace boost::python;
@@ -99,6 +115,7 @@ void defMapUtils()
             .def("__len__", &LabelLUT::size)
             .def("relabel", &LabelLUT::relabel) // FIXME: check index
             .def("merged", &LabelLUT::mergedBegin)
+            .def("__copy__", &generic__copy__<LabelLUT>)
             );
 
         RangeIterWrapper<LabelLUT::MergedIterator>("_MergedIterator");
