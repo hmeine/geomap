@@ -535,16 +535,16 @@ class StaticEdgeCosts(DetachableStatistics):
         DynamicEdgeStatistics.__setstate__(self, (map, ))
         self._costs = tree
 
-class EdgeMergeTree(DynamicEdgeStatistics):
+class MergedEdges(DynamicEdgeStatistics):
     """Actually, this is not a tree but it manages a list of edges
     that have been merged into each edge."""
 
-    __slots__ = ["_tree",
+    __slots__ = ["_labelLUT",
                  "_merged"]
     
     def __init__(self, map):
         DynamicEdgeStatistics.__init__(self, map)
-        self._tree = range(map.maxEdgeLabel())
+        self._labelLUT = hourglass.LabelLUT(map.maxEdgeLabel())
         self._attachHooks()
     
     def preMergeEdges(self, dart):
@@ -552,39 +552,28 @@ class EdgeMergeTree(DynamicEdgeStatistics):
         return True
     
     def postMergeEdges(self, survivor):
-        label = survivor.label()
-        while True: # search list end
-            merged = self._tree[label]
-            if merged == label:
-                break
-            label = merged
-        self._tree[label] = self._merged # concatenate lists
+        self._labelLUT.relabel(self._merged, survivor.label())
     
     def __getitem__(self, edge):
         """Returns list of all edges of original map of which the
         given edge of the current map is composed."""
         if hasattr(edge, "label"):
             edge = edge.label()
-        result = [edge]
-        while True:
-            merged = self._tree[edge]
-            if merged == edge:
-                break
-            result.append(merged)
-            edge = merged
-        return result
+        return list(self._labelLUT.merged(edge))
 
     def __getstate__(self):
         return DynamicEdgeStatistics.__getstate__(self) + (
-            self._tree, )
+            self._labelLUT, )
 
     def __setstate__(self, (map, tree)):
         DynamicEdgeStatistics.__setstate__(self, (map, ))
-        self._tree = tree
+        self._labelLUT = tree
 
     def level0Labels(self):
         """Return a list of level0 edges (resp. their labels) the
-        currently existing edges are composed of."""
+        currently existing edges are composed of.  (That is, sort of a
+        list of surviving boundaries; labels of merged edges appear,
+        but removed do not.)"""
         result = []
         for edge in self._map().edgeIter():
             result.extend(self[edge])
