@@ -206,6 +206,9 @@
         <property name="menuText">
             <string>Active &amp;Paintbrush</string>
         </property>
+        <property name="accel">
+            <string>P</string>
+        </property>
     </action>
     <action>
         <property name="name">
@@ -223,6 +226,9 @@
         <property name="menuText">
             <string>&amp;Navigate Map</string>
         </property>
+        <property name="accel">
+            <string>N</string>
+        </property>
     </action>
     <action>
         <property name="name">
@@ -239,6 +245,9 @@
         </property>
         <property name="menuText">
             <string>&amp;Normalize</string>
+        </property>
+        <property name="accel">
+            <string>Shift+N</string>
         </property>
     </action>
 </actions>
