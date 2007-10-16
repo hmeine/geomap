@@ -173,7 +173,7 @@ class ActivePaintbrush(qt.QObject):
     def mouseDoubleClicked(self, x, y):
         face = self._map.faceAt((x, y))
         maputils.protectFace(face, not face.flag(PROTECTED_FACE))
-        self.emit(qt.PYSIGNAL("protectionChanged"), (face, ))
+        self.emit(qt.PYSIGNAL("faceProtectionChanged"), (face, ))
 
     def disconnectViewer(self):
         viewer = self.parent().viewer
