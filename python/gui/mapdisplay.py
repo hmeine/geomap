@@ -424,6 +424,8 @@ def addMapOverlay(fe, overlay, **attr):
 class MapDisplay(displaysettings.DisplaySettings):
     __base = displaysettings.DisplaySettings
 
+    # actually, this has only documenting effect; since this inherits
+    # PyQt widgets, any attribute may be used:
     __slots__ = ("tool", "viewer", "images", "image",
                  "map", "nodeOverlay", "edgeOverlay",
                  "addOverlay", "replaceOverlay", "removeOverlay",
@@ -552,8 +554,6 @@ class MapDisplay(displaysettings.DisplaySettings):
 
     def setFaceMeans(self, faceMeans):
         self._faceMeans = faceMeans
-        if faceMeans:
-            tools.activeCostMeasure = faceMeans.faceMeanDiff
         self._enableImageActions()
 
     def _adjustSize(self):
