@@ -163,7 +163,7 @@ class FaceColorStatistics : boost::noncopyable
                 }
                 return true;
             }
-            else if(ssLeft + ssRight)
+            else if(ssLeft) // ssLeft == ssRight
             {
                 mergedSS_ = ssLeft;
 
@@ -174,9 +174,12 @@ class FaceColorStatistics : boost::noncopyable
                     rescanFace(*dart.leftFace(), merged_);
                     rescanFace(*dart.rightFace(), merged_);
                     mergedSS_ = 0;
+
                     return true;
                 }
             }
+            else
+                mergedSS_ = 0;
         }
 
         merged_ = *functors_[dart.leftFaceLabel()];
