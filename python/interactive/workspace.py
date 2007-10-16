@@ -47,7 +47,6 @@ class Workspace(mapdisplay.MapDisplay):
     # actually, this has only documenting effect; since this inherits
     # PyQt widgets, any attribute may be used:
     __slots__ = ("_level0", "_manualCK", "_pyramidCK",
-                 "_manualCKHooks", "_mergedFaceLabels", "_duringAutomatic",
                  "_mapRestartAction", "_levelSlider")
     
     def __init__(self, level0, originalImage):
@@ -56,7 +55,6 @@ class Workspace(mapdisplay.MapDisplay):
         self._manualCK = range(level0.maxFaceLabel())
         self._pyramidCK = None
         self._manualCKHooks = ()
-        self._duringAutomatic = False
 
         reinitIcon = qt.QPixmap()
         reinitIcon.loadFromData(icons.reinitIconPNGData, "PNG")
@@ -88,39 +86,30 @@ class Workspace(mapdisplay.MapDisplay):
                 print "detaching hooks of", o
                 o.detachHooks()
 
-    def attachHooks(self):
-        self.__base.attachHooks(self)
-        self._manualCKHooks = (
-            self.map.addMergeFacesCallbacks(
-            self._preMergeFaces, self._postMergeFaces),
-            )
+    def setTool(self, tool = None):
+        self.__base.setTool(self, tool)
+        if not self.tool:
+            return
+        self.connect(self.tool, qt.PYSIGNAL("paintbrushFinished"),
+                     self.paintbrushFinished)
+        self.connect(self.tool, qt.PYSIGNAL("protectionChanged"),
+                     self.protectionChanged)
 
-    def detachHooks(self):
-        self.__base.detachHooks(self)
-        for cb in self._manualCKHooks:
-            cb.disconnect()
-        self._manualCKHooks = ()
+    def paintbrushFinished(self, survivor):
+        sl = survivor.label()
+        for mergedLabel in self.map.faceLabelLUT().merged(sl):
+            self._manualCK[mergedLabel] = sl
+
+    def protectionChanged(self, face):
+        pass
 
     def setMap(self, map):
-        self.detachHooks()
         self._detachMapStats(self.map)
         self.__base.setMap(self, map)
         self._levelSlider.blockSignals(True)
         self._levelSlider.setValue(
             self._levelSlider.maxValue() - map.faceCount)
         self._levelSlider.blockSignals(False)
-        self.attachHooks()
-
-    def _preMergeFaces(self, dart):
-        self._mergedFaceLabels = (dart.leftFaceLabel(), dart.rightFaceLabel())
-        return True
-
-    def _postMergeFaces(self, survivor):
-        if self._duringAutomatic:
-            return
-        for faceLabel in self._mergedFaceLabels:
-            self._manualCK[faceLabel] = survivor.label()
-        self._pyramidCK = None
 
     def restart(self):
         """Restart with the manually created level."""
@@ -159,9 +148,7 @@ class Workspace(mapdisplay.MapDisplay):
             maputils.applyFaceClassification(map, ck)
             self.setMap(map)
         else:
-            self._duringAutomatic = True
             maputils.applyFaceClassification(self.map, ck)
-            self._duringAutomatic = False
             
             self._levelSlider.blockSignals(True)
             self._levelSlider.setValue(
