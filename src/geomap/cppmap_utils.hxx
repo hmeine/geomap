@@ -3,6 +3,8 @@
 
 #include "cppmap.hxx"
 #include <boost/utility.hpp>
+#include <vector>
+#include <list>
 
 class EdgeProtection : boost::noncopyable
 {
@@ -116,6 +118,141 @@ CELL_PTR(GeoMap::Face) mergeFacesCompletely(
     }
 
     return survivor;
+}
+
+/********************************************************************/
+
+/// Removes all isolated nodes with map.removeIsolatedNode(...) and
+/// returns the number of successful operations (= nodes removed).
+unsigned int removeIsolatedNodes(GeoMap &map)
+{
+    unsigned int result = 0;
+    for(GeoMap::NodeIterator it = map.nodesBegin(); it.inRange(); ++it)
+        if((*it)->isIsolated() && map.removeIsolatedNode(**it))
+            ++result;
+    return result;
+}
+
+/// Removes all degree-2-nodes with map.mergeEdges(...) and
+/// returns the number of successful operations (= nodes removed).
+unsigned int mergeDegree2Nodes(GeoMap &map)
+{
+    unsigned int result = 0;
+    for(GeoMap::NodeIterator it = map.nodesBegin(); it.inRange(); ++it)
+        if((*it)->hasDegree(2))
+        {
+            GeoMap::Dart dart((*it)->anchor());
+            if(!(*it)->anchor().edge()->isLoop() &&
+               map.mergeEdges(dart))
+                ++result;
+        }
+    return result;
+}
+
+unsigned int removeBridges(GeoMap &map, std::list<CellLabel> &bridges)
+{    
+    unsigned int result = 0;
+
+    typedef std::list<CellLabel> Bridges;
+
+    while(bridges.size())
+    {
+        bool degree1Found = false;
+
+        // search for bridge with endnode of degree 1:
+        for(Bridges::iterator it = bridges.begin(); it != bridges.end(); ++it)
+        {
+            GeoMap::Dart dart(map.dart((int)*it));
+            if(!dart.edge())
+                continue;
+            // degree 1 endnodes?
+            if(dart.clone().nextAlpha().nextSigma().label() == -dart.label())
+                dart.nextAlpha();
+            else if(dart.clone().nextSigma() != dart)
+                continue;
+
+            degree1Found = true;
+            while(true)
+            {
+                GeoMap::Dart next = dart.clone().nextPhi();
+                if(map.removeBridge(dart))
+                    ++result;
+
+                if(next.edgeLabel() == dart.edgeLabel())
+                    break;
+                // degree != 1?
+                if(next.clone().nextSigma() != next)
+                    break;
+
+                dart = next;
+                if(!dart.edge()->flag(GeoMap::Edge::REMOVE_BRIDGE))
+                    break;
+            }
+        }
+
+        Bridges::iterator next = bridges.begin();
+        do
+        {
+            Bridges::iterator it = next;
+            ++next;
+            if(!map.edge(*it))
+                bridges.erase(it);
+        }
+        while(next != bridges.end());
+
+        if(!degree1Found)
+        {
+            if(map.removeBridge(map.dart(bridges.front())))
+                ++result;
+            bridges.erase(bridges.begin());
+        }
+    }
+
+    return result;
+}
+
+unsigned int removeBridges(GeoMap &map)
+{
+    std::list<CellLabel> bridgeLabels;
+
+    for(GeoMap::EdgeIterator it = map.edgesBegin(); it.inRange(); ++it)
+        if((*it)->isBridge())
+        {
+            (*it)->setFlag(GeoMap::Edge::REMOVE_BRIDGE);
+            bridgeLabels.push_back((*it)->label());
+        }
+
+    return removeBridges(map, bridgeLabels);
+}
+
+/// Removes all edges whose labels are in `edgeLabels`.
+/// Uses an optimized sequence of basic Euler operations.
+template<class ITERATOR>
+unsigned int removeEdges(
+    GeoMap &map, ITERATOR edgeLabelsBegin, ITERATOR edgeLabelsEnd)
+{    
+    unsigned int result = 0;
+
+    typedef std::list<CellLabel> Bridges;
+    Bridges bridges;
+
+    for(; edgeLabelsBegin != edgeLabelsEnd; ++edgeLabelsBegin)
+    {
+        CELL_PTR(GeoMap::Edge)
+            edge = map.edge(*edgeLabelsBegin);
+        if(edge->isBridge())
+        {
+            edge->setFlag(GeoMap::Edge::REMOVE_BRIDGE);
+            bridges.push_back(edge->label());
+        }
+        else if(map.mergeFaces(edge->dart()))
+            ++result;
+    }
+
+    result += removeBridges(map, bridges);
+    result += removeIsolatedNodes(map); // FIXME: depend on allowIsolatedNodes
+    result += mergeDegree2Nodes(map);
+    return result;
 }
 
 #endif // CPPMAP_UTILS_HXX

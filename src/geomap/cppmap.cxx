@@ -1622,7 +1622,7 @@ void removeEdgeFromLabelImage(
     }
 }
 
-CELL_PTR(GeoMap::Edge) GeoMap::mergeEdges(GeoMap::Dart &dart)
+CELL_PTR(GeoMap::Edge) GeoMap::mergeEdges(const GeoMap::Dart &dart)
 {
     vigra_precondition(dart.edge(),
                        "mergeEdges called on removed dart!");
@@ -1813,7 +1813,7 @@ void GeoMap::associatePixels(GeoMap::Face &face, const PixelList &pixels)
     associatePixelsHook(face, pixels);
 }
 
-CELL_PTR(GeoMap::Face) GeoMap::removeBridge(GeoMap::Dart &dart)
+CELL_PTR(GeoMap::Face) GeoMap::removeBridge(const GeoMap::Dart &dart)
 {
     vigra_precondition(dart.edge(),
                        "removeBridge called on removed dart!");
@@ -1889,7 +1889,7 @@ CELL_PTR(GeoMap::Face) GeoMap::removeBridge(GeoMap::Dart &dart)
     return this->face(face.label());
 }
 
-CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(GeoMap::Dart &dart)
+CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(const GeoMap::Dart &dart)
 {
     vigra_precondition(dart.edge(),
                        "mergeFaces called on removed dart!");

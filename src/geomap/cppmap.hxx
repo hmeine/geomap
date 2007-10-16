@@ -342,13 +342,13 @@ class GeoMap
 
   public:
     bool removeIsolatedNode(Node &node);
-    CELL_PTR(Edge) mergeEdges(Dart &dart);
+    CELL_PTR(Edge) mergeEdges(const Dart &dart);
     CELL_PTR(Edge) splitEdge(Edge &edge, unsigned int segmentIndex);
     CELL_PTR(Edge) splitEdge(Edge &edge, unsigned int segmentIndex,
                              const vigra::Vector2 &newPoint,
                              bool insertPoint = true);
-    CELL_PTR(Face) removeBridge(Dart &dart);
-    CELL_PTR(Face) mergeFaces(Dart &dart);
+    CELL_PTR(Face) removeBridge(const Dart &dart);
+    CELL_PTR(Face) mergeFaces(const Dart &dart);
 
         // callbacks using libsigc++ <http://libsigc.sourceforge.net/>:
     sigc::signal<bool, Node &>::accumulated<interruptable_accumulator>
@@ -465,8 +465,11 @@ class GeoMap::Edge
   public:
     typedef vigra::BBoxPolygon<vigra::Vector2> Base;
 
-    enum { ALL_PROTECTION = 0xff };
-
+    enum {
+        ALL_PROTECTION = 0xff,
+        REMOVE_BRIDGE = 0x80000000,
+    };
+    
   protected:
     GeoMap      *map_;
     CellLabel    label_;
@@ -707,7 +710,7 @@ class GeoMap::Dart
     }
 
     friend class Face; // allow internalLeftFaceLabel in Face constructor
-    friend CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(Dart &);
+    friend CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(const Dart &);
 
   public:
     Dart(GeoMap *map, int label)

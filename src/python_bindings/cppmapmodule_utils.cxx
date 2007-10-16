@@ -72,12 +72,24 @@ pyCrackConnectionImage(vigra::PythonImage const &labels)
     return result;
 }
 
+unsigned int pyRemoveEdges(GeoMap &map, bp::list edgeLabels)
+{
+    std::vector<CellLabel> cppel(len(edgeLabels));
+
+    for(unsigned int i = 0; i < cppel.size(); ++i)
+    {
+        cppel[i] = bp::extract<CellLabel>(edgeLabels[i])();
+    }
+
+    return removeEdges(map, cppel.begin(), cppel.end());
+}
+
 /********************************************************************/
 
 void defMapUtils()
 {
     using namespace boost::python;
-    
+
     {
         scope labelLUT(
             class_<LabelLUT>("LabelLUT", init<unsigned int>())
@@ -88,7 +100,7 @@ void defMapUtils()
             .def("relabel", &LabelLUT::relabel) // FIXME: check index
             .def("merged", &LabelLUT::mergedBegin)
             );
-        
+
         RangeIterWrapper<LabelLUT::MergedIterator>("_MergedIterator");
     }
 
@@ -123,4 +135,22 @@ void defMapUtils()
         "crackConnectionImage(labelImage)\n\n"
         "Tranform a region image into an image with crack connections marked.\n"
         "(Bit 1: connected to the right, bit 2: connected downwards)");
+
+    def("removeEdges", &pyRemoveEdges,
+        args("map", "edgeLabels"));
+    def("removeIsolatedNodes", &removeIsolatedNodes,
+        args("map"),
+        "removeIsolatedNodes(map) -> int\n\n"
+        "Removes all isolated nodes with map.removeIsolatedNode(...) and\n"
+        "returns the number of successful operations (= nodes removed).");
+    def("mergeDegree2Nodes", &mergeDegree2Nodes,
+        args("map"),
+        "mergeDegree2Nodes(map) -> int\n\n"
+        "Removes all degree-2-nodes with map.mergeEdges(...) and\n"
+        "returns the number of successful operations (= nodes removed).");
+    def("removeBridges", (unsigned int(*)(GeoMap&))&removeBridges,
+        args("map"),
+        "removeBridges(map) -> int\n\n"
+        "Remove all bridges within map and returns the number of\n"
+        "successful operations (= bridges removed).");
 }
