@@ -2,6 +2,7 @@ import copy, qt
 import mapdisplay, icons, maputils, statistics
 
 class Workspace(mapdisplay.MapDisplay):
+    """Workspace for region-based segmentation."""
     __base = mapdisplay.MapDisplay
 
     __slots__ = ("_level0", "_mapRestartAction",
@@ -60,15 +61,27 @@ class Workspace(mapdisplay.MapDisplay):
         return self._faceMeans
 
     def costMeasure(self):
-        return self.faceMeans().faceMeanDiff
+        #return self.faceMeans().faceMeanDiff
+        return self.faceMeans().faceHomogeneity
+        #return self.faceMeans().faceTTest
 
     def _levelSliderChanged(self, level):
         self.displayLevel(level)
 
     def displayLevel(self, levelIndex):
         if self._displayLevelIndex != levelIndex:
+            self.viewer.setUpdatesEnabled(False)
+            self.viewer.setEnabled(False) # prevent manual actions
             self._displayLevelIndex = levelIndex
             self._levelApproachingTimer.start(0)
+
+    def _stopApproaching(self):
+        self._levelApproachingTimer.stop()
+        self.viewer.setUpdatesEnabled(True)
+        self.viewer.setEnabled(True)
+        self.viewer.update()
+        if self._levelSlider.value() != self._currentLevelIndex:
+            self._levelSlider.setValue(self._currentLevelIndex)
 
     def _approachLevel(self):
         if self._currentLevelIndex > self._displayLevelIndex:
@@ -79,17 +92,23 @@ class Workspace(mapdisplay.MapDisplay):
             try:
                 self._history[self._currentLevelIndex:targetIndex].replay(
                     self.map, verbose = False)
-                self._currentLevelIndex = targetIndex
+                self._currentLevelIndex = targetIndex # FIXME: inc. via callback
             except RuntimeError, e:
                 print e
-                self._levelApproachingTimer.stop()
+                self._stopApproaching()
         else:
-            self._levelApproachingTimer.stop()
+            self._stopApproaching()
 
     def automaticRegionMerging(self):
+        self.viewer.setUpdatesEnabled(False)
+
+        # FIXME: history is not region-based
         self._history = maputils.LiveHistory(self.map)
         amr = maputils.AutomaticRegionMerger(self.map, self.costMeasure())
         amr.merge()
         self._currentLevelIndex = len(self._history)
         self._levelSlider.setRange(0, len(self._history))
         self._levelSlider.setEnabled(True)
+
+        self.viewer.setUpdatesEnabled(True)
+        self.viewer.update()
