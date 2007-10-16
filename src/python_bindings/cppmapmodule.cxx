@@ -461,38 +461,6 @@ createGeoMap(bp::list nodePositions,
     return result;
 }
 
-bp::object
-GeoMap__copy__(bp::object map)
-{
-    GeoMap *newMap(new GeoMap(bp::extract<const GeoMap &>(map)));
-    bp::object result(bp::detail::new_reference(bp::managingPyObject(newMap)));
-
-    bp::extract<bp::dict>(result.attr("__dict__"))().update(
-        map.attr("__dict__"));
-
-    return result;
-}
-
-bp::object
-GeoMap__deepcopy__(bp::object map, bp::dict memo)
-{
-    bp::object copyMod = bp::import("copy");
-    bp::object deepcopy = copyMod.attr("deepcopy");
-
-    GeoMap *newMap(new GeoMap(bp::extract<const GeoMap &>(map)));
-    bp::object result(bp::detail::new_reference(bp::managingPyObject(newMap)));
-
-    // HACK: mapId shall be the same as the result of id(map) in Python -
-    // please tell me that there is a better way! (and which ;-p)
-    int mapId = (int)(map.ptr());
-    memo[mapId] = result;
-
-    bp::extract<bp::dict>(result.attr("__dict__"))().update(
-        deepcopy(bp::extract<bp::dict>(map.attr("__dict__"))(), memo));
-
-    return result;
-}
-
 CELL_PTR(GeoMap::Edge) addEdgeBackwardCompatibility(
     GeoMap &geomap,
     CellLabel startNodeLabel, CellLabel endNodeLabel,
@@ -866,8 +834,8 @@ void defMap()
                      (arg("nodePositions") = list(),
                       arg("edgeTuples") = list(),
                       arg("imageSize") = vigra::Size2D(0, 0))))
-            .def("__copy__", &GeoMap__copy__)
-            .def("__deepcopy__", &GeoMap__deepcopy__)
+            .def("__copy__", &generic__copy__<GeoMap>)
+            .def("__deepcopy__", &generic__deepcopy__<GeoMap>)
             .def("node", (CELL_PTR(GeoMap::Node)(GeoMap::*)(CellLabel))&GeoMap::node, crp,
                  "node(label) -> Node\n\n"
                  "Return Node object for the given label.")
