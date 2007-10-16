@@ -40,6 +40,26 @@ class PyramidContractionKernel(statistics.DetachableStatistics):
             result[i] = labelRoot(result, l)
         return result
 
+class PaintbrushStroke(object):
+    __slots__ = ("workspace", "faces", "oldValues", "survivorLabel")
+
+    def __init__(self, workspace, survivorLabel):
+        self.workspace = workspace
+        self.faces = list(workspace.map.faceLabelLUT().merged(survivorLabel))
+        self.survivorLabel = survivorLabel
+        self.redo()
+
+    def redo(self):
+        manualCK = self.workspace._manualCK
+        self.oldValues = [manualCK[fl] for fl in self.faces]
+        for fl in self.faces:
+            manualCK[fl] = self.survivorLabel
+
+    def undo(self):
+        manualCK = self.workspace._manualCK
+        for fl, ov in zip(self.faces, self.oldValues):
+            manualCK[fl] = ov
+
 class Workspace(mapdisplay.MapDisplay):
     """Workspace for region-based segmentation."""
     __base = mapdisplay.MapDisplay
@@ -47,7 +67,8 @@ class Workspace(mapdisplay.MapDisplay):
     # actually, this has only documenting effect; since this inherits
     # PyQt widgets, any attribute may be used:
     __slots__ = ("_level0", "_manualCK", "_pyramidCK",
-                 "_mapRestartAction", "_levelSlider")
+                 "_mapRestartAction", "_levelSlider",
+                 "_history")
     
     def __init__(self, level0, originalImage):
         self.__base.__init__(self, copy.deepcopy(level0), originalImage)
@@ -55,6 +76,7 @@ class Workspace(mapdisplay.MapDisplay):
         self._manualCK = range(level0.maxFaceLabel())
         self._pyramidCK = None
         self._manualCKHooks = ()
+        self._history = []
 
         reinitIcon = qt.QPixmap()
         reinitIcon.loadFromData(icons.reinitIconPNGData, "PNG")
@@ -83,7 +105,7 @@ class Workspace(mapdisplay.MapDisplay):
         for a in map.__dict__:
             o = getattr(map, a)
             if hasattr(o, "detachHooks"):
-                print "detaching hooks of", o
+                #print "detaching hooks of", o
                 o.detachHooks()
 
     def setTool(self, tool = None):
@@ -95,10 +117,19 @@ class Workspace(mapdisplay.MapDisplay):
         self.connect(self.tool, qt.PYSIGNAL("protectionChanged"),
                      self.protectionChanged)
 
+    def _perform(self, action):
+        # FIXME: redo support
+        self._history.append(action)
+
+    def undo(self):
+        # FIXME: redo support
+        self._history[-1].undo()
+        del self._history[-1]
+        self._pyramidCK = None # FIXME
+
     def paintbrushFinished(self, survivor):
-        sl = survivor.label()
-        for mergedLabel in self.map.faceLabelLUT().merged(sl):
-            self._manualCK[mergedLabel] = sl
+        self._perform(PaintbrushStroke(self, survivor.label()))
+        self._pyramidCK = None
 
     def protectionChanged(self, face):
         pass
@@ -135,19 +166,21 @@ class Workspace(mapdisplay.MapDisplay):
         return self.faceMeans(map).faceHomogeneity
         #return self.faceMeans().faceTTest
 
-    def _levelSliderChanged(self, level):
-        self.displayLevel(self._levelSlider.maxValue() - level)
+    def _levelSliderChanged(self, levelIndex):
+        self.displayLevel(levelIndex)
 
-    def displayLevel(self, faceCount):
+    def displayLevel(self, levelIndex):
         if not self._pyramidCK:
             self.automaticRegionMerging()
+
+        faceCount = self._levelSlider.maxValue() - levelIndex
 
         ck = self._pyramidCK.kernelForFaceCount(faceCount)
         if faceCount > self.map.faceCount:
             map = self.manualBaseMap()
             maputils.applyFaceClassification(map, ck)
             self.setMap(map)
-        else:
+        elif faceCount < self.map.faceCount:
             maputils.applyFaceClassification(self.map, ck)
             
             self._levelSlider.blockSignals(True)
