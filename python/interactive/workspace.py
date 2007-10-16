@@ -1,5 +1,5 @@
 import copy, qt
-import mapdisplay, icons, maputils, statistics
+import mapdisplay, icons, maputils, statistics, flag_constants
 
 def labelRoot(lut, label):
     result = lut[label]
@@ -40,6 +40,10 @@ class PyramidContractionKernel(statistics.DetachableStatistics):
             result[i] = labelRoot(result, l)
         return result
 
+    def applyToFaceCount(self, map, faceCount):
+        ck = self.kernelForFaceCount(faceCount)
+        maputils.applyFaceClassification(map, ck)
+
 class PaintbrushStroke(object):
     __slots__ = ("workspace", "faces", "oldValues", "survivorLabel")
 
@@ -78,6 +82,10 @@ class Workspace(mapdisplay.MapDisplay):
         self._manualCKHooks = ()
         self._history = []
 
+        # needed for backpropagation of protection:
+        if not hasattr(self.map, "mergedEdges"):
+            self.map.mergedEdges = statistics.MergedEdges(self.map)
+
         reinitIcon = qt.QPixmap()
         reinitIcon.loadFromData(icons.reinitIconPNGData, "PNG")
         ra = qt.QAction(self, "mapRestartAction")
@@ -114,8 +122,8 @@ class Workspace(mapdisplay.MapDisplay):
             return
         self.connect(self.tool, qt.PYSIGNAL("paintbrushFinished"),
                      self.paintbrushFinished)
-        self.connect(self.tool, qt.PYSIGNAL("protectionChanged"),
-                     self.protectionChanged)
+        self.connect(self.tool, qt.PYSIGNAL("faceProtectionChanged"),
+                     self.faceProtectionChanged)
 
     def _perform(self, action):
         # FIXME: redo support
@@ -131,8 +139,13 @@ class Workspace(mapdisplay.MapDisplay):
         self._perform(PaintbrushStroke(self, survivor.label()))
         self._pyramidCK = None
 
-    def protectionChanged(self, face):
-        pass
+    def faceProtectionChanged(self, face):
+        #assert face.map() == self.map
+        for dart in maputils.contourDarts(face):
+            protected = dart.edge().flag(flag_constants.CONTOUR_PROTECTION)
+            for edgeLabel in self.map.mergedEdges[dart.edgeLabel()]:
+                self._level0.edge(edgeLabel).setFlag(
+                    flag_constants.CONTOUR_PROTECTION, protected)
 
     def setMap(self, map):
         self._detachMapStats(self.map)
@@ -148,6 +161,8 @@ class Workspace(mapdisplay.MapDisplay):
 
     def manualBaseMap(self):
         result = copy.deepcopy(self._level0)
+        if not hasattr(result, "mergedEdges"):
+            result.mergedEdges = statistics.MergedEdges(result)
         maputils.applyFaceClassification(result, self._manualCK)
         self._levelSlider.blockSignals(True)
         self._levelSlider.setRange(0, result.faceCount)
@@ -158,7 +173,6 @@ class Workspace(mapdisplay.MapDisplay):
         if not hasattr(map, "faceMeans"):
             img = self.images.get("colored", self.images["original"])
             map.faceMeans = statistics.FaceColorStatistics(map, img)
-            print map.faceMeans.checkConsistency()
         return map.faceMeans
 
     def costMeasure(self, map):
@@ -175,13 +189,12 @@ class Workspace(mapdisplay.MapDisplay):
 
         faceCount = self._levelSlider.maxValue() - levelIndex
 
-        ck = self._pyramidCK.kernelForFaceCount(faceCount)
         if faceCount > self.map.faceCount:
             map = self.manualBaseMap()
-            maputils.applyFaceClassification(map, ck)
+            self._pyramidCK.applyToFaceCount(map, faceCount)
             self.setMap(map)
         elif faceCount < self.map.faceCount:
-            maputils.applyFaceClassification(self.map, ck)
+            self._pyramidCK.applyToFaceCount(self.map, faceCount)
             
             self._levelSlider.blockSignals(True)
             self._levelSlider.setValue(
