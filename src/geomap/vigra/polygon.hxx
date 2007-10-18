@@ -248,6 +248,12 @@ class Polygon : public PointArray<POINT>
         return partialArea_;
     }
 
+        /// Returns true iff the last and first points are equal.
+    bool closed() const
+    {
+        return this->points_[this->size()-1] == this->points_[0];
+    }
+
         /**
          * Tests whether the given point lies within this polygon.
          * Requires that this polygon is closed.
@@ -260,7 +266,7 @@ class Polygon : public PointArray<POINT>
          */
     bool contains(const_reference point) const
     {
-        vigra_precondition(this->points_[this->size()-1] == this->points_[0],
+        vigra_precondition(closed(),
                            "Polygon::contains() requires polygon to be closed!");
         int result = 0;
         bool above = this->points_[0][1] < point[1];
@@ -644,7 +650,7 @@ class BBoxPolygon : public Polygon<POINT>
 template<class Point>
 Point centroid(const Polygon<Point> &polygon)
 {
-    vigra_precondition(polygon[polygon.size()-1] == polygon[0],
+    vigra_precondition(polygon.closed(),
                        "centroid() expects a closed polygon");
     double a = 0.0;
     TinyVector<double, 2> result;
@@ -882,7 +888,7 @@ void simplifyPolygonDigitalLine(
     vigra_precondition(connectivity == 4 || connectivity == 8,
        "simplifyPolygonDigitalLine(): connectivity must be 4 or 8.");
 
-    bool isOpenPolygon = (poly[0] - poly[size-1]).magnitude() > 1e-6;
+    bool isOpenPolygon = poly[size-1] != poly[0];
 
     ArrayVector<TinyVector<double, 3> > lines;
     Point l1 = poly[0],
@@ -963,13 +969,7 @@ void resamplePolygon(
     typedef typename PointArray::value_type Point;
 
     int size = poly.size();
-    if(size <= 2)
-    {
-        simple = poly;
-        return;
-    }
-
-    bool isOpenPolygon = (poly[0] - poly[size-1]).magnitude() > 1e-6;
+    bool isOpenPolygon = !poly.closed();
 
     ArrayVector<double> arcLength;
     poly.arcLengthList(arcLength);
@@ -1138,7 +1138,7 @@ void resamplePolygonExponentialFilter(
         return;
     }
 
-    bool isOpenPolygon = (poly[0] - poly[size-1]).magnitude() > 1e-6;
+    bool isOpenPolygon = !poly.closed();
 
     typedef typename PointArray::value_type Point;
     ArrayVector<Point> pforward(size), pbackward(size);
@@ -1369,7 +1369,7 @@ void resamplePolygonGaussianFilter(
     vigra_precondition(arcLengths[size-1] > g.radius(),
         "resamplePolygonGaussianFilter(): Filter longer than polygon.");
 
-    bool isOpenPolygon = (poly[0] - poly[size-1]).magnitude() > 1e-6;
+    bool isOpenPolygon = !poly.closed();
 
     int steps = int(std::ceil(arcLengths[size-1] / desiredPointDistance));
     double newStep = arcLengths[size-1] / steps;
@@ -1456,7 +1456,7 @@ void polygonSplineControlPoints(
     vigra_precondition(size >= 4,
         "polygonSplineControlPoints(): Polygon must have at least 4 points.");
 
-    bool isOpenPolygon = (poly[0] - poly[size-1]).magnitude() > 1e-6;
+    bool isOpenPolygon = !poly.closed();
 
     ArrayVector<double> arcLength;
     poly.arcLengthList(arcLength);

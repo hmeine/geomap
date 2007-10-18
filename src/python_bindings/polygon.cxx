@@ -1960,6 +1960,8 @@ void defPolygon()
         .def("__getitem__", &Array__getitem__<PythonPolygon>)
         .def("__setitem__", &Polygon__setitem__<PythonPolygon>)
         .def("split", &split<PythonPolygon>)
+        .def("closed", &PythonPolygon::closed,
+             "Return True iff poly[-1] == poly[0]")
         .def("length", &PythonPolygon::length)
         .def("partialArea", &PythonPolygon::partialArea)
         .def("boundingBox", &PythonPolygon::boundingBox)
