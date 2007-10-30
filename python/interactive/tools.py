@@ -10,7 +10,7 @@ You will find the following tool classes:
 _cvsVersion = "$Id$" \
               .split(" ")[2:-2]
 
-import sys, qt, math, maputils
+import sys, qt, math, maputils, hourglass
 from maputils import mergeFacesByLabel, contourDarts
 from flag_constants import *
 from vigrapyqt import EdgeOverlay, PointOverlay
@@ -76,10 +76,12 @@ class SeedSelector(qt.QObject):
                  parent = None, name = None):
         qt.QObject.__init__(self, parent, name)
         self.seeds = []
+        self._seedMap = None
 
         viewer = parent.viewer
         self.connect(viewer, qt.PYSIGNAL("mousePressed"),
                      self.mousePressed)
+        viewer.installEventFilter(self)
 
         self.overlay = PointOverlay(self.seeds, qt.Qt.cyan, 2)
         viewer.addOverlay(self.overlay)
@@ -87,16 +89,48 @@ class SeedSelector(qt.QObject):
         self.map = map
         self.markFlags = markFlags
 
+    def eventFilter(self, watched, e):
+        if e.type() in (qt.QEvent.KeyPress, qt.QEvent.KeyRelease,
+                        qt.QEvent.MouseButtonPress, qt.QEvent.MouseButtonRelease,
+                        qt.QEvent.MouseButtonDblClick, qt.QEvent.MouseMove):
+            self._keyState = e.stateAfter()
+        return False
+
+    def setSeeds(self, seeds):
+        self.seeds = seeds
+        self._seedMap = None
+        self.overlay.setPoints(seeds)
+
+    def seedMap(self):
+        if not self._seedMap:
+            self._seedMap = hourglass.PositionedMap()
+            for pos in self.seeds:
+                self._seedMap.insert(pos, pos)
+        return self._seedMap
+
     def mousePressed(self, x, y, button):
         if button != qt.Qt.LeftButton:
             return
-        self.seeds.append((x, y))
 
-        if self.map and self.markFlags:
-            self.map.faceAt((x, y)).setFlag(self.markFlags)
+        viewer = self.parent().viewer
+
+        if not self._keyState & qt.Qt.ControlButton:
+            seed = (x, y)
+            self.seeds.append(seed)
+            self.emit(qt.PYSIGNAL("seedAdded"), (seed, ))
+            if self.map and self.markFlags:
+                self.map.faceAt((x, y)).setFlag(self.markFlags)
+        else:
+            seed = self.seedMap()((x, y), 10./viewer.zoomFactor())
+            if not seed:
+                return
+            self.seeds.remove(seed)
+            self._seedMap.remove(seed)
+            self.emit(qt.PYSIGNAL("seedRemoved"), (seed, ))
+            if self.map and self.markFlags:
+                self.map.faceAt((x, y)).setFlag(self.markFlags, False)
         
         self.overlay.setPoints(self.seeds)
-        viewer = self.parent().viewer
         viewer.update()
         
     def disconnectViewer(self):
@@ -104,6 +138,7 @@ class SeedSelector(qt.QObject):
         self.disconnect(viewer, qt.PYSIGNAL("mousePressed"),
                         self.mousePressed)
         viewer.removeOverlay(self.overlay)
+        viewer.removeEventFilter(self)
 
 class ActivePaintbrush(qt.QObject):
     def __init__(self, map, parent = None, name = None):
