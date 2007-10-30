@@ -1,5 +1,5 @@
 import math
-from vigra import Vector2
+from vigra import Vector2, GrayImage, meshIter
 from hourglass import Polygon
 
 kochCos = math.cos(math.pi/3)
@@ -40,12 +40,12 @@ def kochCurve(level = 5):
 def samplePoly(poly, shift = None, size = None):
     """samplePoly(poly, size)
     Sample poly with a regular grid at integer coordinates starting
-    from (0,0) to the given size (which has to be a Size2D object)."""
+    from (0,0) to the given size (which should be a Size2D object)."""
 
     if size == None:
         size = poly.boundingBox().size()
-        size = Size2D(int(math.ceil(size[0]))+2,
-                      int(math.ceil(size[1]))+2)
+        size = (int(math.ceil(size[0]))+2,
+                int(math.ceil(size[1]))+2)
         if not shift:
             shift = Vector2(0, 0)
         shift = shift + Vector2(1, 1) - poly.boundingBox().begin()
