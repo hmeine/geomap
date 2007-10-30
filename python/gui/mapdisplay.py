@@ -400,8 +400,6 @@ def addMapOverlay(fe, overlay, **attr):
                                     fillColor = color, lineWidth = 0, **attr)
         else:
             attr = dict(attr)
-            if not overlay.colors:
-                attr["penColor"] = qtColor2figColor(overlay.color, fe.f)
             if overlay.width:
                 attr["lineWidth"] = overlay.width
 
@@ -410,11 +408,22 @@ def addMapOverlay(fe, overlay, **attr):
                 for edge in overlay._map().edgeIter():
                     edgeColor = overlay.colors[edge.label()]
                     if edgeColor:
-                        parts = fe.addClippedPoly(edge,
+                        fe.addClippedPoly(edge,
                             penColor = qtColor2figColor(edgeColor, fe.f),
                             container = result, **attr)
             else:
-                result = fe.addMapEdges(overlay._map(), **attr)
+                result = fe.addMapEdges(
+                    overlay._map(),
+                    penColor = qtColor2figColor(overlay.color, fe.f),
+                    **attr)
+
+            if overlay.protectedColor:
+                attr["lineWidth"] = overlay.protectedWidth or overlay.width
+                attr["penColor"] = \
+                    qtColor2figColor(overlay.protectedColor, fe.f)
+                for edge in overlay._map().edgeIter():
+                    if edge.flag(flag_constants.ALL_PROTECTION):
+                        fe.addClippedPoly(edge, container = result, **attr)
 
         fe.scale, fe.offset, fe.roi = oldScale, oldOffset, oldROI
         return result
