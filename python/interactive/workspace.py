@@ -94,14 +94,15 @@ class Workspace(mapdisplay.MapDisplay):
 
     # actually, this has only documenting effect; since this inherits
     # PyQt widgets, any attribute may be used:
-    __slots__ = ("_level0", "_manualCK", "_pyramidCK",
+    __slots__ = ("_level0", "_manualCK", "_seeds", "_pyramidCK",
                  "_mapRestartAction", "_levelSlider",
-                 "_history")
+                 "_history", "_activeTool")
     
     def __init__(self, level0, originalImage):
         self.__base.__init__(self, copy.deepcopy(level0), originalImage)
         self._level0 = level0
         self._manualCK = range(level0.maxFaceLabel())
+        self._seeds = None
         self._protectedFaceAnchors = []
         self._pyramidCK = None
         self._history = []
@@ -141,6 +142,9 @@ class Workspace(mapdisplay.MapDisplay):
                 o.detachHooks()
 
     def setTool(self, tool = None):
+        if tool:
+            assert type(tool) == int, "Workspace needs to remember the tool - only ints allowed!"
+        self._activeTool = tool
         self.__base.setTool(self, tool)
         if not self.tool:
             return
@@ -148,6 +152,11 @@ class Workspace(mapdisplay.MapDisplay):
                      self.paintbrushFinished)
         self.connect(self.tool, qt.PYSIGNAL("faceProtectionChanged"),
                      self.faceProtectionChanged)
+        if hasattr(self.tool, "setSeeds"): # SeedSelector?
+            if self._seeds is not None:
+                self.tool.setSeeds(self._seeds)
+            self.connect(self.tool, qt.PYSIGNAL("seedAdded"),
+                         self.seedAdded)
 
     def _perform(self, action):
         # FIXME: redo support
@@ -166,15 +175,37 @@ class Workspace(mapdisplay.MapDisplay):
     def faceProtectionChanged(self, face):
         #assert face.map() == self.map
         self._perform(FaceProtection(self, face.contour().label()))
+
+        bbox = face.boundingBox()
+        updateRect = qt.QRect(
+            self.viewer.toWindowCoordinates(*bbox.begin()),
+            self.viewer.toWindowCoordinates(*bbox.end()))
+        lw = self.edgeOverlay.width + 1
+        updateRect.addCoords(-lw, -lw, lw, lw)
+        self.viewer.update(updateRect)
+
 #         for dart in maputils.contourDarts(face):
 #             protected = dart.edge().flag(flag_constants.CONTOUR_PROTECTION)
 #             for edgeLabel in self.map.mergedEdges[dart.edgeLabel()]:
 #                 self._level0.edge(edgeLabel).setFlag(
 #                     flag_constants.CONTOUR_PROTECTION, protected)
 
+    def seedAdded(self, pos):
+        if self._seeds is None:
+            self._seeds = []
+        self._seeds.append(pos)
+        self.displayLevel(faceCount = self.map.faceCount + 1, force = True)
+
     def setMap(self, map):
+        """Make the given map (which must belong to the current
+        pyramid) the currently displayed level."""
         self._detachMapStats(self.map)
+
+        activeTool = self._activeTool
         self.__base.setMap(self, map)
+        if activeTool:
+            self.setTool(activeTool)
+        
         self._levelSlider.blockSignals(True)
         self._levelSlider.setValue(
             self._levelSlider.maxValue() - map.faceCount)
@@ -211,16 +242,32 @@ class Workspace(mapdisplay.MapDisplay):
     def _levelSliderChanged(self, levelIndex):
         self.displayLevel(levelIndex = levelIndex)
 
-    def displayLevel(self, levelIndex = None, faceCount = None):
+    def displayLevel(self, levelIndex = None, faceCount = None,
+                     force = False):
+        """Display the specified level with the desired number of faces.
+
+        If `faceCount` is not given, `levelIndex` must be given and
+        faceCount is calculated accordingly (from the slider range).
+
+        If `force` is True, the complete pyramid is re-calculated from
+        the bottom layer.  Otherwise, if the displayed map has more
+        faces than `faceCount`, it is reduced appropriately (and
+        nothing happens if the number of faces is already the desired
+        one)."""
+        
         assert (levelIndex is None) != (faceCount is None), \
                "displayLevel: give exactly one of levelIndex or faceCount!"
         if faceCount is None:
             faceCount = self._levelSlider.maxValue() - levelIndex
 
-        if not self._pyramidCK:
-            self.automaticRegionMerging()
+        if force or not self._pyramidCK:
+            if self._seeds is None:
+                self.automaticRegionMerging()
+            else:
+                self.seededRegionGrowing()
+            force = True # force display of level from this new pyramid
 
-        if faceCount > self.map.faceCount:
+        if force or faceCount > self.map.faceCount:
             map = self.manualBaseMap()
             self._pyramidCK.applyToFaceCount(map, faceCount)
             self.setMap(map)
@@ -237,5 +284,15 @@ class Workspace(mapdisplay.MapDisplay):
         map.pyramidCK = PyramidContractionKernel(map)
         amr = maputils.AutomaticRegionMerger(map, self.costMeasure(map))
         amr.merge()
+        self._detachMapStats(map)
+        self._pyramidCK = map.pyramidCK
+
+    def seededRegionGrowing(self):
+        map = self.manualBaseMap()
+        for pos in self._seeds:
+            map.faceAt(pos).setFlag(flag_constants.SRG_SEED)
+        map.pyramidCK = PyramidContractionKernel(map)
+        srg = maputils.SeededRegionGrowing(map, self.costMeasure(map))
+        srg.grow()
         self._detachMapStats(map)
         self._pyramidCK = map.pyramidCK
