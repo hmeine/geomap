@@ -70,6 +70,8 @@ class FigExporter:
         if type(roi) == Rect2D:
             self.roi = BoundingBox(Vector2(*roi.upperLeft()),
                                    Vector2(*roi.lowerRight()))
+        elif type(roi) == Size2D:
+            self.roi = BoundingBox(Vector2(0, 0), Vector2(*roi))
         elif type(roi) == tuple:
             self.roi = BoundingBox(*roi)
         self.offset = Vector2(*offset)
@@ -84,6 +86,11 @@ class FigExporter:
             result -= self.roi.begin()
         result *= self.scale
         return result
+
+    def figPt(self, width):
+        """Convert a distance into XFig points (1/80 inches), which
+        can be used e.g. for line widths."""
+        return width*self.scale*80/self.f.ppi
 
     def addROIRect(self, roi = None, container = True, **attr):
         """fe.addROIRect(roi, depth = 85, ...)
@@ -204,7 +211,7 @@ class FigExporter:
                 textX = (boxX1 + boxX2) / 2
                 textY = (boxY1 + boxY2) / 2
 
-                label = fig.Text(textX, textY,
+                label = fig.Text((textX, textY),
                                  str(labelType(labels[x, y])), fig.alignCentered)
                 label.y += label.height / 2
 
@@ -223,8 +230,7 @@ class FigExporter:
         if container == True:
             container = self.f
 
-        textX, textY = self.position2Fig(position)
-        obj = fig.Text(textX, textY, text)
+        obj = fig.Text(self.position2Fig(position), text)
         for a in attr:
             setattr(obj, a, attr[a])
         container.append(obj)
@@ -490,18 +496,7 @@ class FigExporter:
         for edge in map.edgeIter():
             if skipBorder and edge.flag(flag_constants.BORDER_PROTECTION):
                 continue
-            if attr.has_key("penColor"):
-                parts = self.addClippedPoly(edge, container = compound, **attr)
-            elif hasattr(edge, "color") and edge.color:
-                penColor = edge.color
-                if type(penColor) == qt.QColor:
-                    penColor = qtColor2figColor(penColor, self.f)
-                thisattr = dict(attr)
-                thisattr["penColor"] = penColor
-                parts = self.addClippedPoly(edge, container = compound, **thisattr)
-            else:
-                continue # skip invisible edge
-
+            parts = self.addClippedPoly(edge, container = compound, **attr)
             if returnEdges:
                 result.extend([(edge, part) for part in parts])
 
@@ -608,7 +603,7 @@ def _exportOverlays(fe, overlays, overlayHandler, startDepth = 100):
     for overlay in overlays:
         if hasattr(overlay, 'visible') and not overlay.visible:
             continue
-        if overlayHandler(fe, overlay, depth = depth) == None:
+        if overlayHandler(fe, overlay, depth = depth) is None:
             if isinstance(overlay, vigrapyqt.OverlayGroup):
                 depth = _exportOverlays(
                     fe, overlay.overlays, overlayHandler, startDepth = depth)
