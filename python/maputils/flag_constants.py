@@ -27,7 +27,7 @@ IS_BARB         = 1024
 CURRENT_CONTOUR = 2048
 
 # alphashapes:
-ALPHA_MARK = 4096
+ALPHA_MARK = 4096 # used for both edges and faces, see below
 
 EDGE_USER = 0x100000
 
@@ -46,7 +46,7 @@ OUTER_FACE = 1
 PROTECTED_FACE = 2 # flag which leads to CONTOUR_PROTECTION
 
 # alphashapes:
-ALPHA_MARK = 4
+#ALPHA_MARK = 4096 # see above
 
 # maputils:
 SRG_SEED = 8
