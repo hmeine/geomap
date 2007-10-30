@@ -89,13 +89,20 @@ class FaceProtection(object):
         self.protect(not self.protected)
 
 class Workspace(mapdisplay.MapDisplay):
-    """Workspace for region-based segmentation."""
+    """Workspace for region-based segmentation.
+
+    The _levelSlider has the levelIndex as value.  This is 0 for the
+    pyramid's bottom (where faceCount ==
+    self.manualBaseMap().faceCount), and is maximal for the apex.
+    (The number of faces in the apex is estimated in manualBaseMap, in
+    order to set the slider range appropriately.)
+    """
     __base = mapdisplay.MapDisplay
 
     # actually, this has only documenting effect; since this inherits
     # PyQt widgets, any attribute may be used:
     __slots__ = ("_level0", "_manualCK", "_seeds", "_pyramidCK",
-                 "_mapRestartAction", "_levelSlider",
+                 "_mapRestartAction", "_levelSlider", "_estimatedApexFaceCount",
                  "_history", "_activeTool")
     
     def __init__(self, level0, originalImage):
@@ -123,10 +130,12 @@ class Workspace(mapdisplay.MapDisplay):
         self._mapRestartAction = ra
 
         #sws.imageFrame.addWidget(self.imageFrame)
+        self._estimatedApexFaceCount = 2
         self._levelSlider = qt.QSlider(self._imageWindow, "_levelSlider")
         self._levelSlider.setOrientation(qt.QSlider.Horizontal)
         self._levelSlider.setSteps(-1, -10)
-        self._levelSlider.setRange(0, level0.faceCount)
+        self._levelSlider.setRange(
+            0, level0.faceCount - self._estimatedApexFaceCount)
         self.connect(self._levelSlider, qt.SIGNAL("valueChanged(int)"),
                      self._levelSliderChanged)
         self._imageWindow._layout.addWidget(self._levelSlider)
@@ -154,9 +163,11 @@ class Workspace(mapdisplay.MapDisplay):
                      self.faceProtectionChanged)
         if hasattr(self.tool, "setSeeds"): # SeedSelector?
             if self._seeds is not None:
-                self.tool.setSeeds(self._seeds)
+                self.tool.setSeeds(list(self._seeds))
             self.connect(self.tool, qt.PYSIGNAL("seedAdded"),
                          self.seedAdded)
+            self.connect(self.tool, qt.PYSIGNAL("seedRemoved"),
+                         self.seedRemoved)
 
     def _perform(self, action):
         # FIXME: redo support
@@ -196,6 +207,12 @@ class Workspace(mapdisplay.MapDisplay):
         self._seeds.append(pos)
         self.displayLevel(faceCount = self.map.faceCount + 1, force = True)
 
+    def seedRemoved(self, pos):
+        self._seeds.remove(pos)
+        if not self._seeds:
+            self._seeds = None # switch back to ARM
+        self.displayLevel(faceCount = self.map.faceCount - 1, force = True)
+
     def setMap(self, map):
         """Make the given map (which must belong to the current
         pyramid) the currently displayed level."""
@@ -208,7 +225,8 @@ class Workspace(mapdisplay.MapDisplay):
         
         self._levelSlider.blockSignals(True)
         self._levelSlider.setValue(
-            self._levelSlider.maxValue() - map.faceCount)
+            self._levelSlider.maxValue() -
+            (self.map.faceCount - self._estimatedApexFaceCount))
         self._levelSlider.blockSignals(False)
 
     def restart(self):
@@ -220,10 +238,27 @@ class Workspace(mapdisplay.MapDisplay):
         if not hasattr(result, "mergedEdges"):
             result.mergedEdges = statistics.MergedEdges(result)
         maputils.applyFaceClassification(result, self._manualCK)
+
+        self._estimatedApexFaceCount = 2 # infinite + one remaining finite
         for dartLabel in self._protectedFaceAnchors:
-            maputils.protectFace(result.dart(dartLabel).leftFace())
+            face = result.dart(dartLabel).leftFace()
+            if not face.flag(flag_constants.PROTECTED_FACE):
+                maputils.protectFace(face)
+                self._estimatedApexFaceCount += 1
+
+        if self._seeds:
+            self._estimatedApexFaceCount -= 1 # one seed is for the remaining finite
+            for pos in self._seeds:
+                face = result.faceAt(pos)
+                if face.flag(flag_constants.PROTECTED_FACE):
+                    continue
+                if not face.flag(flag_constants.SRG_SEED):
+                    face.setFlag(flag_constants.SRG_SEED)
+                    self._estimatedApexFaceCount += 1
+
         self._levelSlider.blockSignals(True)
-        self._levelSlider.setRange(0, result.faceCount)
+        self._levelSlider.setRange(
+            0, result.faceCount - self._estimatedApexFaceCount)
         self._levelSlider.blockSignals(False)
         return result
 
@@ -258,7 +293,8 @@ class Workspace(mapdisplay.MapDisplay):
         assert (levelIndex is None) != (faceCount is None), \
                "displayLevel: give exactly one of levelIndex or faceCount!"
         if faceCount is None:
-            faceCount = self._levelSlider.maxValue() - levelIndex
+            faceCount = (self._levelSlider.maxValue() -
+                         (levelIndex - self._estimatedApexFaceCount))
 
         if force or not self._pyramidCK:
             if self._seeds is None:
@@ -276,7 +312,8 @@ class Workspace(mapdisplay.MapDisplay):
             
             self._levelSlider.blockSignals(True)
             self._levelSlider.setValue(
-                self._levelSlider.maxValue() - self.map.faceCount)
+                self._levelSlider.maxValue() -
+                (self.map.faceCount - self._estimatedApexFaceCount))
             self._levelSlider.blockSignals(False)
 
     def automaticRegionMerging(self):
