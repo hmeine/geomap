@@ -1,7 +1,11 @@
+import math
+from vigra import Vector2
+from hourglass import Polygon
+
 kochCos = math.cos(math.pi/3)
 kochSin = math.sin(math.pi/3)
 
-def kochIteration(poly):
+def _kochIteration(poly):
     result = Polygon()
     for i in range(len(poly)-1):
         segment = poly[i+1]-poly[i]
@@ -30,19 +34,7 @@ def kochCurve(level = 5):
     result.append(p2)
     result.append(p0)
     for i in range(level):
-        result = kochIteration(result)
-    return result
-
-def rotatedPoly(poly, angle):
-    """rotatedPoly(poly, angle)
-
-    Rotate polygon by the given angle around the origin."""
-    
-    unitX = Vector2(math.cos(angle), -math.sin(angle))
-    unitY = Vector2(math.sin(angle),  math.cos(angle))
-    result = Polygon()
-    for point in poly:
-        result.append(Vector2(dot(point, unitX), dot(point, unitY)))
+        result = _kochIteration(result)
     return result
 
 def samplePoly(poly, shift = None, size = None):
@@ -70,4 +62,4 @@ def polyCrackMap(poly, shift = None, midCracks = True):
     img = samplePoly(poly, shift)
     return pixelmap.crackEdgeMap(img, midCracks)
 
-# poly = Polygon((rotatedPoly(kochCurve(5), math.pi/4)+Vector2(0.5, 0.5))*100)
+# poly = Polygon((rotatePoly(kochCurve(5), math.pi/4)+Vector2(0.5, 0.5))*100)

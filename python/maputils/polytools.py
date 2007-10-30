@@ -306,6 +306,16 @@ def shrinkPoly(poly, offset):
     result.append(result[0])
     return result
 
+def rotatePoly(poly, angle):
+    """Rotate polygon by the given angle around the origin."""
+    
+    unitX = Vector2(math.cos(angle), -math.sin(angle))
+    unitY = Vector2(math.sin(angle),  math.cos(angle))
+    result = Polygon()
+    for point in poly:
+        result.append(Vector2(dot(point, unitX), dot(point, unitY)))
+    return result
+
 # --------------------------------------------------------------------
 
 if __name__ == "__main__":
