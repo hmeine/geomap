@@ -231,14 +231,15 @@ def outputMarkedShapes(delaunayMap, fe, skipInnerEdges = True,
                     i -= 1
             else:
                 i += 1
-        #print "%d points (area %s)" % (len(contour), contour.partialArea())
-        fe.addClippedPoly(contour, depth = regionDepth,
+        #print "  * %d points (area %s)" % (len(contour), contour.partialArea())
+        fe.addClippedPoly(contour, depth = regionDepth, lineWidth = 0,
                           fillStyle = fig.fillStyleSolid, capStyle = capStyle,
                           **kwargs)
 
-    del kwargs["fillColor"]
+    if "fillColor" in kwargs:
+        del kwargs["fillColor"]
     if edgeDepth != None:
-        print "- exporting remaining marked edges..."
+        print "- exporting remaining marked edges (depth %d)..." % edgeDepth
         for edge in delaunayMap.edgeIter():
             if not edge.flag(ALPHA_MARK) or edgeOutput[edge.label()]:
                 continue
@@ -321,43 +322,6 @@ def findMaxBeta(dm, alpha, badBeta):
     return findChangeByBisection(countComponents, 0.0, badBeta)
 
 # --------------------------------------------------------------------
-
-def alphaShapeThinning1(dm):
-    """Old thinning procedure, looking for particular configurations only."""
-    
-    changed = 0
-
-    for edge in dm.edgeIter():
-        if edge.flag(ALPHA_MARK):
-            # (at least one adjacent triangle is marked)
-            dart = edge.dart()
-            # ensure that we have an unmarked face on the left:
-            if dart.leftFace().flag(ALPHA_MARK):
-                dart.nextAlpha()
-            if dart.leftFace().flag(ALPHA_MARK) or not dart.rightFace().flag(ALPHA_MARK):
-                continue # no thinning here
-
-            d1 = dart.clone()
-            while not d1.nextSigma().edge().flag(ALPHA_MARK):
-                pass
-            if d1.leftFace().flag(ALPHA_MARK):
-                continue # no thinnable config
-            
-            d2 = dart.clone().nextAlpha()
-            while not d2.prevSigma().edge().flag(ALPHA_MARK):
-                pass
-            if d2.rightFace().flag(ALPHA_MARK):
-                continue # no thinnable config
-            
-            edge.setFlag(ALPHA_MARK, False)
-            assert dart.rightFace().flag(ALPHA_MARK)
-            dart.rightFace().setFlag(ALPHA_MARK, False)
-            changed += 1
-
-    if changed:
-        changed += alphaShapeThinning1(dm)
-    
-    return changed
 
 from heapq import * # requires Python 2.3+
 
