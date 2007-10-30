@@ -316,6 +316,24 @@ def rotatePoly(poly, angle):
         result.append(Vector2(dot(point, unitX), dot(point, unitY)))
     return result
 
+def subsetDigitization(poly, shift = None, size = None):
+    """Sample poly with a regular grid at integer coordinates starting
+    from (0,0) to the given size (which should be a Size2D object)."""
+
+    if size == None:
+        size = poly.boundingBox().size()
+        size = (int(math.ceil(size[0]))+2,
+                int(math.ceil(size[1]))+2)
+        if not shift:
+            shift = Vector2(0, 0)
+        shift = shift + Vector2(1, 1) - poly.boundingBox().begin()
+        poly = Polygon(poly + shift)
+
+    result = vigra.GrayImage(size)
+    for p in vigra.meshIter(size):
+        result[p] = poly.contains(Vector2(p[0], p[1])) and 1 or 0
+    return result
+
 # --------------------------------------------------------------------
 
 if __name__ == "__main__":
