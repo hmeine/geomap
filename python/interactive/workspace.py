@@ -45,12 +45,12 @@ class PyramidContractionKernel(statistics.DetachableStatistics):
         maputils.applyFaceClassification(map, ck)
 
 class PaintbrushStroke(object):
-    __slots__ = ("workspace", "faces", "oldValues", "survivorLabel")
+    __slots__ = ("workspace", "survivorLabel", "faces", "oldValues")
 
     def __init__(self, workspace, survivorLabel):
         self.workspace = workspace
-        self.faces = list(workspace.map.faceLabelLUT().merged(survivorLabel))
         self.survivorLabel = survivorLabel
+        self.faces = list(workspace.map.faceLabelLUT().merged(survivorLabel))
         self.redo()
 
     def redo(self):
@@ -63,6 +63,30 @@ class PaintbrushStroke(object):
         manualCK = self.workspace._manualCK
         for fl, ov in zip(self.faces, self.oldValues):
             manualCK[fl] = ov
+
+class FaceProtection(object):
+    __slots__ = ("workspace", "dartLabel", "protected")
+
+    def __init__(self, workspace, dartLabel):
+        self.workspace = workspace
+        self.dartLabel = dartLabel
+        self.protected = workspace.map.dart(dartLabel).leftFace().flag(
+            flag_constants.PROTECTED_FACE)
+        self.redo()
+
+    def protect(self, protect):
+        if protect:
+            self.workspace._protectedFaceAnchors.append(self.dartLabel)
+        else:
+            self.workspace._protectedFaceAnchors.remove(self.dartLabel)
+        maputils.protectFace(
+            self.workspace.map.dart(self.dartLabel).leftFace(), protect)
+
+    def redo(self):
+        self.protect(self.protected)
+
+    def undo(self):
+        self.protect(not self.protected)
 
 class Workspace(mapdisplay.MapDisplay):
     """Workspace for region-based segmentation."""
@@ -78,8 +102,8 @@ class Workspace(mapdisplay.MapDisplay):
         self.__base.__init__(self, copy.deepcopy(level0), originalImage)
         self._level0 = level0
         self._manualCK = range(level0.maxFaceLabel())
+        self._protectedFaceAnchors = []
         self._pyramidCK = None
-        self._manualCKHooks = ()
         self._history = []
 
         # needed for backpropagation of protection:
@@ -141,11 +165,12 @@ class Workspace(mapdisplay.MapDisplay):
 
     def faceProtectionChanged(self, face):
         #assert face.map() == self.map
-        for dart in maputils.contourDarts(face):
-            protected = dart.edge().flag(flag_constants.CONTOUR_PROTECTION)
-            for edgeLabel in self.map.mergedEdges[dart.edgeLabel()]:
-                self._level0.edge(edgeLabel).setFlag(
-                    flag_constants.CONTOUR_PROTECTION, protected)
+        self._perform(FaceProtection(self, face.contour().label()))
+#         for dart in maputils.contourDarts(face):
+#             protected = dart.edge().flag(flag_constants.CONTOUR_PROTECTION)
+#             for edgeLabel in self.map.mergedEdges[dart.edgeLabel()]:
+#                 self._level0.edge(edgeLabel).setFlag(
+#                     flag_constants.CONTOUR_PROTECTION, protected)
 
     def setMap(self, map):
         self._detachMapStats(self.map)
@@ -164,16 +189,19 @@ class Workspace(mapdisplay.MapDisplay):
         if not hasattr(result, "mergedEdges"):
             result.mergedEdges = statistics.MergedEdges(result)
         maputils.applyFaceClassification(result, self._manualCK)
+        for dartLabel in self._protectedFaceAnchors:
+            maputils.protectFace(result.dart(dartLabel).leftFace())
         self._levelSlider.blockSignals(True)
         self._levelSlider.setRange(0, result.faceCount)
         self._levelSlider.blockSignals(False)
         return result
 
-    def faceMeans(self, map):
-        if not hasattr(map, "faceMeans"):
+    def faceMeans(self, map, colorSpace = ""):
+        attr = "faceMeans" + colorSpace
+        if not hasattr(map, attr):
             img = self.images.get("colored", self.images["original"])
-            map.faceMeans = statistics.FaceColorStatistics(map, img)
-        return map.faceMeans
+            setattr(map, attr, statistics.FaceColorStatistics(map, img))
+        return getattr(map, attr)
 
     def costMeasure(self, map):
         #return self.faceMeans().faceMeanDiff
@@ -181,13 +209,16 @@ class Workspace(mapdisplay.MapDisplay):
         #return self.faceMeans().faceTTest
 
     def _levelSliderChanged(self, levelIndex):
-        self.displayLevel(levelIndex)
+        self.displayLevel(levelIndex = levelIndex)
 
-    def displayLevel(self, levelIndex):
+    def displayLevel(self, levelIndex = None, faceCount = None):
+        assert (levelIndex is None) != (faceCount is None), \
+               "displayLevel: give exactly one of levelIndex or faceCount!"
+        if faceCount is None:
+            faceCount = self._levelSlider.maxValue() - levelIndex
+
         if not self._pyramidCK:
             self.automaticRegionMerging()
-
-        faceCount = self._levelSlider.maxValue() - levelIndex
 
         if faceCount > self.map.faceCount:
             map = self.manualBaseMap()
