@@ -1,7 +1,7 @@
 _cvsVersion = "$Id$" \
               .split(" ")[2:-2]
 
-import fig, delaunay, sys, math, vigra
+import fig, delaunay, sys, math, vigra, hourglass
 from hourglass import Polygon
 from flag_constants import BORDER_PROTECTION, ALL_PROTECTION, ALPHA_MARK
 from maputils import nodeAtBorder
@@ -70,50 +70,23 @@ def markAlphaShapes(delaunayMap, alpha, beta = 0.0):
     print "- marking edges with empty circle radii < alpha(%s)..." % (alpha, )
     for edge in delaunayMap.edgeIter():
         assert len(edge) == 2, "markAlphaShapes() expects a delaunay map!"
-        edge.setFlag(ALPHA_MARK, edge.leftFace().flag(ALPHA_MARK) or edge.rightFace().flag(ALPHA_MARK))
+        edge.setFlag(ALPHA_MARK,
+                     edge.leftFace().flag(ALPHA_MARK) or
+                     edge.rightFace().flag(ALPHA_MARK))
         if edge.flag(ALPHA_MARK):
             continue
 
-        p1 = edge.startNode().position()
-        p2 = edge.endNode().position()
-        midPoint = (p1 + p2)/2
         radius = edge.length()/2
-        edge.setFlag(ALPHA_MARK, radius < alpha)
-        if edge.flag(ALPHA_MARK):
-            empty = True
+        if radius < alpha:
             radius2 = math.sq(radius)
-            it = edge.dart().sigmaOrbit(); it.next()
-            for dart in it:
-                if (dart.endNode().position()-midPoint).squaredMagnitude() < radius2:
-                    empty = False
-                    break
-            it = edge.dart().nextAlpha().sigmaOrbit(); it.next()
-            for dart in it:
-                if (dart.endNode().position()-midPoint).squaredMagnitude() < radius2:
-                    empty = False
-                    break
-            
-#             v0 = p2 - p1
-#             if edge.leftFaceLabel():
-#                 v1 = edge.leftFace().circleCenter - p1
-#             else:
-#                 v1 = Vector(v0[1], -v0[0])
-#             if edge.rightFaceLabel():
-#                 v2 = edge.rightFace().circleCenter - p1
-#             else:
-#                 v2 = Vector(-v0[1], v0[0])
-#             empty2 = (v2[1]*v0[0]-v2[0]*v0[1] < 0) != (v1[1]*v0[0]-v1[0]*v0[1] < 0)
 
-            empty2 = (edge.dart().nextSigma().endNode().position()-midPoint).squaredMagnitude() >= radius2 and (edge.dart().nextAlpha().nextSigma().endNode().position()-midPoint).squaredMagnitude() >= radius2
-            
-            if empty != empty2:
-                sys.stderr.write("WARNING: %s is %s/%s!\n" % (edge, empty, empty2))
-            if not empty2:
-    #             print "  edge %d's circumcircle contains a point, unmarking.." % (
-    #                 edge.label(), )
-                edge.setFlag(ALPHA_MARK, False)
-                continue
+            p1 = edge[0]
+            p2 = edge[1]
+            midPoint = (p1 + p2)/2
 
+            if (edge.dart().nextSigma()[1]-midPoint).squaredMagnitude() >= radius2 and (edge.dart().nextAlpha().nextSigma()[1]-midPoint).squaredMagnitude() >= radius2:
+                edge.setFlag(ALPHA_MARK)
+    
     print "  %d/%d edges and %d/%d faces marked." % (
         sum([edge.flag(ALPHA_MARK) and 1 or 0 for edge in delaunayMap.edgeIter()]), delaunayMap.edgeCount,
         sum([face.flag(ALPHA_MARK) and 1 or 0 for face in delaunayMap.faceIter()]), delaunayMap.faceCount)
@@ -128,7 +101,6 @@ def markAlphaShapes(delaunayMap, alpha, beta = 0.0):
             continue
         componentCount += 1
         boundary = [edge]
-        size = 0
         while boundary:
             cell = boundary.pop()
             if hasattr(cell, "leftFace"):
@@ -136,7 +108,6 @@ def markAlphaShapes(delaunayMap, alpha, beta = 0.0):
                 if edge.flag(ALPHA_MARK) or edgeComponent[edge.label()]:
                     continue
                 edgeComponent[edge.label()] = componentCount
-                size += 1
                 boundary.append(edge.leftFace())
                 boundary.append(edge.rightFace())
             else:
@@ -144,7 +115,6 @@ def markAlphaShapes(delaunayMap, alpha, beta = 0.0):
                 if face.flag(ALPHA_MARK) or faceComponent[face.label()]:
                     continue
                 faceComponent[face.label()] = componentCount
-                size += 1
                 for dart in face.contour().phiOrbit():
                     boundary.append(dart.edge())
 
@@ -185,15 +155,20 @@ def markAlphaShapes(delaunayMap, alpha, beta = 0.0):
     return componentCount
 
 def removeUnmarkedEdges(map, removeInterior = False):
+    ck = []
     for edge in map.edgeIter():
         if edge.flag(ALL_PROTECTION):
             continue
         if not edge.flag(ALPHA_MARK):
-            map.removeEdge(edge.dart())
-        elif removeInterior and (edge.leftFace().flag(ALPHA_MARK) and edge.rightFace().flag(ALPHA_MARK)):
-            map.removeEdge(edge.dart())
+            ck.append(edge.label())
+        elif removeInterior and \
+             edge.leftFace().flag(ALPHA_MARK) and \
+             edge.rightFace().flag(ALPHA_MARK):
+            ck.append(edge.label())
+    return hourglass.removeEdges(map, ck)
 
-def alphaBetaMap(points, imageSize, alpha, beta, removeInteriorEdges = False):
+def alphaBetaMap(points, imageSize, alpha,
+                 beta = 0.0, removeInteriorEdges = False):
     dm = delaunay.delaunayMap(points, imageSize)
     markAlphaShapes(dm, alpha, beta)
     removeUnmarkedEdges(dm, removeInteriorEdges)
@@ -222,29 +197,29 @@ def findCandidatesForPointCorrection(abm):
 def outputMarkedShapes(delaunayMap, fe, skipInnerEdges = True,
                        regionDepth = 50, edgeDepth = 49,
                        capStyle = fig.capStyleRound, **kwargs):
-    # output all cells only once; add flag first
-    for edge in delaunayMap.edgeIter():
-        edge.output = False
 
-    for face in delaunayMap.faceIter():
-        face.output = False
+    # output all cells only once:
+    edgeOutput = [False] * delaunayMap.maxEdgeLabel()
+    faceOutput = [False] * delaunayMap.maxFaceLabel()
 
     print "- exporting marked regions as filled polygons..."
     for triangle in delaunayMap.faceIter(skipInfinite = True):
-        if not triangle.flag(ALPHA_MARK) or triangle.output:
+        if not triangle.flag(ALPHA_MARK) or faceOutput[triangle.label()]:
             continue
-        triangle.output = True
+        faceOutput[triangle.label()] = True
+
         contour = list(triangle.contour().phiOrbit())
         i = 0
         while i < len(contour):
-            contour[i].edge().output = skipInnerEdges
+            edgeOutput[contour[i].edgeLabel()] = skipInnerEdges
             neighbor = contour[i].rightFace()
-            if neighbor.flag(ALPHA_MARK) and not neighbor.output:
+            if neighbor.flag(ALPHA_MARK) and not faceOutput[neighbor.label()]:
                 _ = contour[i].nextAlpha().nextPhi()
                 contour.insert(i+1, contour[i].clone().nextPhi())
-                neighbor.output = True
+                faceOutput[neighbor.label()] = True
             else:
                 i += 1
+
         contour = Polygon([dart[0] for dart in contour])
         contour.append(contour[0]) # close poly (for filling)
         i = 2
@@ -257,22 +232,20 @@ def outputMarkedShapes(delaunayMap, fe, skipInnerEdges = True,
             else:
                 i += 1
         #print "%d points (area %s)" % (len(contour), contour.partialArea())
-        pp = fe.addClippedPoly(contour, depth = regionDepth,
-                               fillStyle = fig.fillStyleSolid, capStyle = capStyle,
-                               **kwargs)
-        if len(pp) > 1:
-            sys.stderr.write(
-                "############## POLYGON CLIPPING FAILED! ##############\n")
+        fe.addClippedPoly(contour, depth = regionDepth,
+                          fillStyle = fig.fillStyleSolid, capStyle = capStyle,
+                          **kwargs)
 
+    del kwargs["fillColor"]
     if edgeDepth != None:
         print "- exporting remaining marked edges..."
         for edge in delaunayMap.edgeIter():
-            if not edge.flag(ALPHA_MARK) or edge.output:
+            if not edge.flag(ALPHA_MARK) or edgeOutput[edge.label()]:
                 continue
 
             dart = edge.dart()
             poly = Polygon(list(dart))
-            edge.output = True
+            edgeOutput[edge.label()] = True
 
             drawing = True
             while drawing:
@@ -280,7 +253,7 @@ def outputMarkedShapes(delaunayMap, fe, skipInnerEdges = True,
                 dart.nextAlpha()
                 for next in dart.sigmaOrbit():
                     outputEdge = next.edge()
-                    if not outputEdge.flag(ALPHA_MARK) or outputEdge.output:
+                    if not outputEdge.flag(ALPHA_MARK) or edgeOutput[outputEdge.label()]:
                         continue
 
                     drawing = True
@@ -289,7 +262,7 @@ def outputMarkedShapes(delaunayMap, fe, skipInnerEdges = True,
                         poly.append(next[1])
                     else:
                         poly.extend(Polygon(list(next)[1:]))
-                    outputEdge.output = True
+                    edgeOutput[outputEdge.label()] = True
 
                     dart = next
                     break
@@ -305,24 +278,19 @@ def outputMarkedShapes(delaunayMap, fe, skipInnerEdges = True,
                 next = dart.clone()
                 while next.nextSigma() != dart:
                     outputEdge = next.edge()
-                    if not outputEdge.flag(ALPHA_MARK) or outputEdge.output:
+                    if not outputEdge.flag(ALPHA_MARK) or edgeOutput[outputEdge.label()]:
                         continue
 
                     drawing = True
                     assert poly[-1] == next[0]
                     poly.append(next[1])
-                    outputEdge.output = True
+                    edgeOutput[outputEdge.label()] = True
 
                     dart = next
                     break
 
             fe.addClippedPoly(
                 poly, depth = edgeDepth, capStyle = capStyle, **kwargs)
-
-    for edge in delaunayMap.edgeIter():
-        del edge.output
-    for face in delaunayMap.faceIter():
-        del face.output
 
 # --------------------------------------------------------------------
 
