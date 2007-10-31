@@ -167,10 +167,13 @@ template<class Copyable>
 boost::python::object
 generic__copy__(boost::python::object copyable)
 {
-    Copyable *newCopyable(new Copyable(boost::python::extract<const Copyable &>(copyable)));
-    boost::python::object result(boost::python::detail::new_reference(boost::python::managingPyObject(newCopyable)));
+    namespace bp = boost::python;
+    
+    Copyable *newCopyable = new Copyable(bp::extract<const Copyable &>(copyable));
+    bp::object result =
+        bp::object(bp::detail::new_reference(bp::managingPyObject(newCopyable)));
 
-    boost::python::extract<boost::python::dict>(result.attr("__dict__"))().update(
+    bp::extract<bp::dict>(result.attr("__dict__"))().update(
         copyable.attr("__dict__"));
 
     return result;
@@ -180,19 +183,22 @@ template<class Copyable>
 boost::python::object
 generic__deepcopy__(boost::python::object copyable, boost::python::dict memo)
 {
-    boost::python::object copyMod = boost::python::import("copy");
-    boost::python::object deepcopy = copyMod.attr("deepcopy");
+    namespace bp = boost::python;
+    
+    bp::object copyMod = bp::import("copy");
+    bp::object deepcopy = copyMod.attr("deepcopy");
 
-    Copyable *newCopyable(new Copyable(boost::python::extract<const Copyable &>(copyable)));
-    boost::python::object result(boost::python::detail::new_reference(boost::python::managingPyObject(newCopyable)));
+    Copyable *newCopyable = new Copyable(bp::extract<const Copyable &>(copyable));
+    bp::object result =
+        bp::object(bp::detail::new_reference(bp::managingPyObject(newCopyable)));
 
     // HACK: copyableId shall be the same as the result of id(copyable) in Python -
     // please tell me that there is a better way! (and which ;-p)
     int copyableId = (int)(copyable.ptr());
     memo[copyableId] = result;
 
-    boost::python::extract<boost::python::dict>(result.attr("__dict__"))().update(
-        deepcopy(boost::python::extract<boost::python::dict>(copyable.attr("__dict__"))(), memo));
+    bp::extract<bp::dict>(result.attr("__dict__"))().update(
+        deepcopy(bp::extract<bp::dict>(copyable.attr("__dict__"))(), memo));
 
     return result;
 }
