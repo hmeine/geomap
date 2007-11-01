@@ -672,7 +672,7 @@ struct GeoMapPickleSuite : bp::pickle_suite
                     bp::extract<CellLabel>(faceLabels[i])();
         }
 
-        if(hasLabels)
+        if(mapInitialized && hasLabels)
             map.changeFaceLabels(newFaceLabels, newMaxFaceLabel);
 
         bp::extract<bp::dict>(pyMap.attr("__dict__"))().update(__dict__);

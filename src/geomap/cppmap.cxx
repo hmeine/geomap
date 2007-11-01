@@ -1094,6 +1094,8 @@ void GeoMap::changeFaceLabels(
     const std::vector<CellLabel> &newFaceLabels,
     CellLabel maxFaceLabel)
 {
+    vigra_precondition(mapInitialized(),
+        "changeFaceLabels() called on graph (no faces available)");
     vigra_precondition(newFaceLabels.size() == faces_.size(),
         "changeFaceLabels(): 1-to-1 mapping expected (wrong newFaceLabels size)");
 
