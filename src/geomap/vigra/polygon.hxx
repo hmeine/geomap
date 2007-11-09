@@ -1792,6 +1792,82 @@ struct Scanlines
     }
 };
 
+/// iterator over the crossed pixels:
+class ScanlinesIter
+{
+    const Scanlines &scanlines;
+    int x, y;
+    unsigned int si;
+
+        // check that current position is valid,
+        // else move until true or atEnd()
+    void ensureValid()
+    {
+        vigra_assert(
+            (y < scanlines.endIndex()) && (si < scanlines[y].size()),
+            "invalid Scanline or ScanlineSegment");
+        while(x >= scanlines[y][si].end)
+        {
+            ++si;
+            while(si >= scanlines[y].size())
+            {
+                ++y;
+                if(y >= scanlines.endIndex())
+                    return;
+                si = 0;
+            }
+            x = scanlines[y][si].begin;
+        }
+    }
+
+  public:
+    typedef vigra::Point2D value_type;
+
+    ScanlinesIter(const Scanlines &sl)
+    : scanlines(sl),
+      x(0),
+      y(scanlines.startIndex()),
+      si(0)
+    {
+        while(y < scanlines.endIndex() && !scanlines[y].size())
+            ++y;
+        if(y < scanlines.endIndex())
+            x = scanlines[y][0].begin;
+        ensureValid();
+    }
+
+    ScanlinesIter & operator++()
+    {
+        vigra_precondition(inRange(),
+            "ScanlinesIter::operator++ called on out-of-range iterator!");
+        ++x;
+        ensureValid();
+        return *this;
+    }
+
+    ScanlinesIter operator++(int)
+    {
+        ScanlinesIter ret(*this);
+        operator++();
+        return ret;
+    }
+
+    bool atEnd() const
+    {
+        return y >= scanlines.endIndex();
+    }
+
+    bool inRange() const
+    {
+        return y < scanlines.endIndex();
+    }
+
+    Point2D operator*() const
+    {
+        return Point2D(x, y);
+    }
+};
+
 template<class Point>
 std::auto_ptr<Scanlines> scanPoly(const BBoxPolygon<Point> &poly)
 {

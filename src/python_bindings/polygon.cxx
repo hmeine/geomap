@@ -284,6 +284,11 @@ Array polygonSplineControlPoints(const Array &a, int segmentCount)
     return result;
 }
 
+ScanlinesIter createScanlinesIter(const Scanlines &sl)
+{
+    return ScanlinesIter(sl);
+}
+
 unsigned int pyFillScannedPoly(
     const Scanlines &scanlines,
     PythonImage &targetV,
@@ -2014,7 +2019,11 @@ void defPolygon()
         .def("__getitem__", &Scanlines__getitem__, return_internal_reference<>())
         .def("startIndex", &Scanlines::startIndex)
         .def("endIndex", &Scanlines::endIndex)
+        .def("points", &createScanlinesIter,
+             with_custodian_and_ward_postcall<0, 1>())
     ;
+
+    RangeIterWrapper<ScanlinesIter>("_ScanlinesIter");
 
     class_<Scanlines::Scanline>("Scanline", no_init)
         .def("__len__", &Scanlines::Scanline::size)
