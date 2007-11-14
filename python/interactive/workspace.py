@@ -1,5 +1,6 @@
 import copy, qt
-import mapdisplay, icons, maputils, statistics, flag_constants
+import vigra, mapdisplay, icons, maputils, statistics, flag_constants
+import progress
 
 def labelRoot(lut, label):
     result = lut[label]
@@ -101,7 +102,8 @@ class Workspace(mapdisplay.MapDisplay):
 
     # actually, this has only documenting effect; since this inherits
     # PyQt widgets, any attribute may be used:
-    __slots__ = ("_level0", "_manualCK", "_seeds", "_pyramidCK",
+    __slots__ = ("_level0", "_manualCK", "_seeds",
+                 "_pyramidCK", "activeCostMeasure",
                  "_mapRestartAction", "_levelSlider", "_estimatedApexFaceCount",
                  "_history", "_activeTool")
     
@@ -113,6 +115,7 @@ class Workspace(mapdisplay.MapDisplay):
         self._protectedFaceAnchors = []
         self._pyramidCK = None
         self._history = []
+        self.activeCostMeasure = 2 # faceHomogeneity
 
         # needed for backpropagation of protection:
         if not hasattr(self.map, "mergedEdges"):
@@ -205,13 +208,17 @@ class Workspace(mapdisplay.MapDisplay):
         if self._seeds is None:
             self._seeds = []
         self._seeds.append(pos)
-        self.displayLevel(faceCount = self.map.faceCount + 1, force = True)
+        self._pyramidCK = None
+        if self._levelSlider.value():
+            self.displayLevel(faceCount = self.map.faceCount + 1)
 
     def seedRemoved(self, pos):
         self._seeds.remove(pos)
         if not self._seeds:
             self._seeds = None # switch back to ARM
-        self.displayLevel(faceCount = self.map.faceCount - 1, force = True)
+        self._pyramidCK = None
+        if self._levelSlider.value():
+            self.displayLevel(faceCount = self.map.faceCount - 1)
 
     def setMap(self, map):
         """Make the given map (which must belong to the current
@@ -234,11 +241,14 @@ class Workspace(mapdisplay.MapDisplay):
         self.setMap(self.manualBaseMap())
 
     def manualBaseMap(self):
+        p = progress.StatusMessage("restoring pyramid bottom")
         result = copy.deepcopy(self._level0)
         if not hasattr(result, "mergedEdges"):
             result.mergedEdges = statistics.MergedEdges(result)
+        p = progress.StatusMessage("  applying manual changes")
         maputils.applyFaceClassification(result, self._manualCK)
 
+        p = progress.StatusMessage("  applying face protection + seeds")
         self._estimatedApexFaceCount = 2 # infinite + one remaining finite
         for dartLabel in self._protectedFaceAnchors:
             face = result.dart(dartLabel).leftFace()
@@ -270,9 +280,17 @@ class Workspace(mapdisplay.MapDisplay):
         return getattr(map, attr)
 
     def costMeasure(self, map):
-        #return self.faceMeans().faceMeanDiff
-        return self.faceMeans(map).faceHomogeneity
-        #return self.faceMeans().faceTTest
+        if self.activeCostMeasure == 1:
+            return self.faceMeans(map).faceMeanDiff
+        elif self.activeCostMeasure == 2:
+            return self.faceMeans(map).faceHomogeneity
+        elif self.activeCostMeasure == 3:
+            return self.faceMeans(map).faceTTest
+        elif self.activeCostMeasure == 4:
+            def brightness(dart, fm = self.faceMeans(map)):
+                return max(vigra.norm(fm[dart.leftFaceLabel()]),
+                           vigra.norm(fm[dart.rightFaceLabel()]))
+            return brightness
 
     def _levelSliderChanged(self, levelIndex):
         self.displayLevel(levelIndex = levelIndex)
@@ -284,9 +302,8 @@ class Workspace(mapdisplay.MapDisplay):
         If `faceCount` is not given, `levelIndex` must be given and
         faceCount is calculated accordingly (from the slider range).
 
-        If `force` is True, the complete pyramid is re-calculated from
-        the bottom layer.  Otherwise, if the displayed map has more
-        faces than `faceCount`, it is reduced appropriately (and
+        If the displayed map has more faces than `faceCount`, and a
+        self._pyramidCK is available, it is reduced incrementally (and
         nothing happens if the number of faces is already the desired
         one)."""
         
@@ -297,18 +314,15 @@ class Workspace(mapdisplay.MapDisplay):
                          (levelIndex - self._estimatedApexFaceCount))
 
         if force or not self._pyramidCK:
-            if self._seeds is None:
-                self.automaticRegionMerging()
-            else:
-                self.seededRegionGrowing()
             force = True # force display of level from this new pyramid
 
-        if force or faceCount > self.map.faceCount:
+        if not self._pyramidCK or faceCount > self.map.faceCount:
             map = self.manualBaseMap()
-            self._pyramidCK.applyToFaceCount(map, faceCount)
+            if faceCount < map.faceCount:
+                self.pyramidCK().applyToFaceCount(map, faceCount)
             self.setMap(map)
         elif faceCount < self.map.faceCount:
-            self._pyramidCK.applyToFaceCount(self.map, faceCount)
+            self.pyramidCK().applyToFaceCount(self.map, faceCount)
             
             self._levelSlider.blockSignals(True)
             self._levelSlider.setValue(
@@ -316,11 +330,26 @@ class Workspace(mapdisplay.MapDisplay):
                 (self.map.faceCount - self._estimatedApexFaceCount))
             self._levelSlider.blockSignals(False)
 
+    def pyramidCK(self):
+        if not self._pyramidCK:
+            if self._seeds is None:
+                self.automaticRegionMerging()
+            else:
+                self.seededRegionGrowing()
+        return self._pyramidCK
+
     def automaticRegionMerging(self):
         map = self.manualBaseMap()
         map.pyramidCK = PyramidContractionKernel(map)
+
         amr = maputils.AutomaticRegionMerger(map, self.costMeasure(map))
-        amr.merge()
+        stepsTotal = map.faceCount - self._estimatedApexFaceCount
+        p = progress.ProgressHook(
+            progress.StatusMessage("automatic region merging")) \
+            .rangeTicker(stepsTotal / 50)
+        while amr.mergeSteps(50):
+            p()
+
         self._detachMapStats(map)
         self._pyramidCK = map.pyramidCK
 
@@ -329,7 +358,14 @@ class Workspace(mapdisplay.MapDisplay):
         for pos in self._seeds:
             map.faceAt(pos).setFlag(flag_constants.SRG_SEED)
         map.pyramidCK = PyramidContractionKernel(map)
+
         srg = maputils.SeededRegionGrowing(map, self.costMeasure(map))
-        srg.grow()
+        stepsTotal = map.faceCount - self._estimatedApexFaceCount
+        p = progress.ProgressHook(
+            progress.StatusMessage("seeded region growing")) \
+            .rangeTicker(stepsTotal / 50)
+        while srg.growSteps(50):
+            p()
+
         self._detachMapStats(map)
         self._pyramidCK = map.pyramidCK
