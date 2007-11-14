@@ -973,86 +973,8 @@ def removeCruft(map, what = 3, doChecks = False):
     print "removeCruft(): %d operations performed." % result.count
     return result.count
 
-def removeIsolatedNodes(map):
-    """removeIsolatedNodes(map)
-
-    Removes all isolated nodes with map.removeIsolatedNode(...) and
-    returns the number of successful operations (= nodes removed)."""
-    
-    result = 0
-    for node in map.nodeIter():
-        if node.isIsolated():
-            if map.removeIsolatedNode(node):
-                result += 1
-    return result
-
-def mergeDegree2Nodes(map):
-    """mergeDegree2Nodes(map)
-
-    Removes all degree-2-nodes with map.mergeEdges(...) and
-    returns the number of successful operations (= nodes removed)."""
-    
-    result = 0
-    for node in map.nodeIter():
-        if node.hasDegree(2) and not node.anchor().edge().isLoop():
-            if map.mergeEdges(node.anchor()):
-                result += 1
-    return result
-
-def removeBridges(map):
-    """Remove all bridges within map and returns the number of
-    successful operations (= bridges removed)."""
-
-    result = 0
-    for edge in map.edgeIter():
-        if edge.isBridge() and map.removeBridge(edge.dart()):
-            result += 1
-    return result
-
-def removeEdges(map, edgeLabels):
-    """Removes all edges whose labels are in `edgeLabels`.
-    Uses an optimized sequence of basic Euler operations."""
-    
-    result = 0
-
-    bridges = []
-    for edgeLabel in edgeLabels:
-        edge = map.edge(edgeLabel)
-        if edge.isBridge():
-            bridges.append(edge)
-        elif map.mergeFaces(edge.dart()):
-            result += 1
-
-    while bridges:
-        # search for bridge with endnode of degree 1:
-        for i, edge in enumerate(bridges):
-            dart = edge.dart()
-            if dart.endNode().hasDegree(1):
-                dart.nextAlpha()
-                break
-            # degree 1?
-            if dart.clone().nextSigma() == dart:
-                break
-        
-        while True:
-            del bridges[i]
-            next = dart.clone().nextPhi()
-            if map.removeBridge(dart):
-                result += 1
-            if not next.edge():
-                break
-            # degree 1?
-            if next.clone().nextSigma() != next:
-                break
-            dart = next
-            try:
-                i = bridges.index(dart.edge())
-            except ValueError:
-                break
-
-    result += removeIsolatedNodes(map) # FIXME: depend on allowIsolatedNodes
-    result += mergeDegree2Nodes(map)
-    return result
+from hourglass import \
+     removeIsolatedNodes, mergeDegree2Nodes, removeBridges, removeEdges
 
 def removeUnProtectedEdges(map):
     return removeEdges(map, [
@@ -1192,7 +1114,8 @@ class History(list):
             if verbose:
                 print "replaying %s(dart %d)" % (opName, param)
             op = getattr(map, opName)
-            op(map.dart(param))
+            assert op(map.dart(param)) != None, \
+                   "History.replay failed (history does not match GeoMap anymore?)"
             result += 1
 
 #             counter -= 1
