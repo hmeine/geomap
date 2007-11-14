@@ -88,7 +88,7 @@ class MapEdges(vigrapyqt.Overlay):
     def _calculateZoomedEdge(self, edgeLabel, edge):
         offset = Vector2(self._zoom / 2.0 - 0.5, self._zoom / 2.0 - 0.5)
         origEdgePoints = (
-            simplifyPolygon(edge * self._zoom, 0.4)
+            simplifyPolygon(edge * self._zoom, 0.1)
             + offset).roundToInteger()
 
         qpa = self._zoomedEdges[edgeLabel]
