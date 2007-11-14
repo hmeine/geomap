@@ -1,4 +1,8 @@
 class ProgressHook(object):
+    """Represents a sub-progress range.  When called with a number
+    between 0.0 and 1.0, calls the next hook with the scaled range.
+    Sub-ranges can be created with subProgress."""
+    
     def __init__(self, hook, range = (0.0, 1.0)):
         self._start = range[0]
         self._end = range[1]
