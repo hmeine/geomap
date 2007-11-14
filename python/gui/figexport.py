@@ -387,8 +387,20 @@ class FigExporter:
                 color = qtColor2figColor(color, self.f)
             attr[colorAttr] = color
             #print "fetched %s %s from %s" % (colorAttr, color, overlay)
-        if hasattr(overlay, "width") and "lineWidth" not in attr:
-            attr["lineWidth"] = overlay.width + 1
+
+        if colorAttr == "penColor" and \
+               hasattr(overlay, "fillColor") and "fillColor" not in attr:
+            color = overlay.fillColor
+            if type(color) == qt.QColor:
+                color = qtColor2figColor(color, self.f)
+            if color is not None:
+                attr["fillColor"] = color
+
+        if "lineWidth" not in attr:
+            if colorAttr == "penColor" and overlay.color is None:
+                attr["lineWidth"] = 0
+            elif hasattr(overlay, "width"):
+                attr["lineWidth"] = overlay.width + 1
 
     def addPointOverlay(self, pointOverlay, container = True, **attr):
         """See addPointCircles(), this function simply takes the
