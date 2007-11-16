@@ -92,21 +92,21 @@ def clipPoly(polygon, clipRect, closeAtBorder = None):
 
             if prevRP:
                 # segment may cross cliprect, calc. start intersection
-                pl = -1.0
+                pl = 2.0
                 if prevRP & LEFT:
-                    pl = max(pl, (x1 - p[0]) / diff[0])
+                    pl = min(pl, (x1 - p[0]) / diff[0])
                     startBorder = LEFT
                 if prevRP & RIGHT:
-                    pl = max(pl, (x2 - p[0]) / diff[0])
+                    pl = min(pl, (x2 - p[0]) / diff[0])
                     startBorder = RIGHT
                 if prevRP & TOP:
                     npl = (y1 - p[1]) / diff[1]
-                    if npl >= pl:
+                    if npl < pl:
                         pl = npl
                         startBorder = TOP
                 if prevRP & BOTTOM:
                     npl = (y2 - p[1]) / diff[1]
-                    if npl >= pl:
+                    if npl < pl:
                         pl = npl
                         startBorder = BOTTOM
                 if pl <= l:
