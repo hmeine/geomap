@@ -1401,11 +1401,15 @@ void defMap()
         .def("segmentIndex", &DartPosition::segmentIndex)
         .def("arcLength", &DartPosition::arcLength)
         .def("segmentStart", &DartPosition::segmentStart,
-             return_value_policy<copy_const_reference>())
+             return_value_policy<copy_const_reference>(),
+             "Return start position of current segment.\n"
+             "(I.e. dp() is always on the segment between dp.segmentStart() and dp.segmentEnd().)")
         .def("segmentEnd", &DartPosition::segmentEnd,
              return_value_policy<copy_const_reference>())
         .def("segmentLength", &DartPosition::segmentLength)
-        .def("gotoArcLength", &DartPosition::gotoArcLength)
+        .def("gotoArcLength", &DartPosition::gotoArcLength,
+             """Try to go to the exact given arcLength (forward or backward).\n"
+             """Returns false iff not possible (i.e. arcLength out of range).\n")
         .def("gotoNextSegment", &DartPosition::gotoNextSegment)
         .def("gotoPrevSegment", &DartPosition::gotoPrevSegment)
         .def("leaveCircle", &DartPosition::leaveCircle)
