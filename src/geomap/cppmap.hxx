@@ -403,6 +403,16 @@ class GeoMap::Node : boost::noncopyable
         map_->nodeMap_.insert(PositionedNodeLabel(position_, label_));
     }
 
+        // copy constructor for copying GeoMaps
+    Node(GeoMap *map, const Node &other)
+    : map_(map),
+      label_(other.label_),
+      position_(other.position_),
+      anchor_(other.anchor_)
+    {
+        map_->nodeMap_.insert(PositionedNodeLabel(position_, label_));
+    }
+
   public:
     bool initialized() const
     {
@@ -469,7 +479,7 @@ class GeoMap::Edge
         ALL_PROTECTION = 0xff,
         REMOVE_BRIDGE = 0x80000000,
     };
-    
+
   protected:
     GeoMap      *map_;
     CellLabel    label_;
@@ -496,11 +506,23 @@ class GeoMap::Edge
       endNodeLabel_(endNodeLabel),
       leftFaceLabel_(UNINITIALIZED_CELL_LABEL),
       rightFaceLabel_(UNINITIALIZED_CELL_LABEL),
-      flags_(0),
-      scanLines_(NULL)
+      flags_(0)
     {
         map_->edges_.push_back(GeoMap::Edges::value_type(this));
         ++map_->edgeCount_;
+    }
+
+        // copy constructor for copying GeoMaps
+    Edge(GeoMap *map, const Edge &other)
+    : Base(static_cast<const Base &>(other)),
+      map_(map),
+      label_(other.label_),
+      startNodeLabel_(other.startNodeLabel_),
+      endNodeLabel_(other.endNodeLabel_),
+      leftFaceLabel_(other.leftFaceLabel_),
+      rightFaceLabel_(other.rightFaceLabel_),
+      flags_(other.flags_)
+    {        
     }
 
   public:
@@ -1037,6 +1059,19 @@ class GeoMap::Face : boost::noncopyable
         }
     }
 
+        // copy constructor for copying GeoMaps
+    Face(GeoMap *map, const Face &other)
+    : map_(map),
+      label_(other.label_),
+      flags_(other.flags_),
+      boundingBox_(other.boundingBox_),
+      area_(other.area_),
+      pixelArea_(other.pixelArea_)
+    {
+        for(unsigned int i = 0; i < other.anchors_.size(); ++i)
+            anchors_.push_back(Dart(map, other.anchors_[i].label()));
+    }
+
   public:
     bool initialized() const
     {
@@ -1365,6 +1400,18 @@ class GeoMap::SigmaAnchor
 
 #include <iostream> // FIXME: not here, please!
 
+/**
+ * A DartPosition object represents a (variable) position on a (fixed)
+ * dart.
+ *
+ * The exact current position can be queried with dp() (where dp
+ * denotes a DartPosition object), and always lies on the Dart's
+ * polygon.  It may not be identical to any of the Dart's support
+ * points though, but may lie on the polyline segment between to
+ * support points.  This segment is then called the "current segment",
+ * and segmentIndex() gives its index between 0 and N-2, where N is
+ * the number of points in the Dart.
+ */
 class DartPosition
 {
   public:
@@ -1425,6 +1472,8 @@ class DartPosition
         return (p2_ - p1_).magnitude();
     }
 
+        /// Try to go to the exact given arcLength (forward or backward).
+        /// Returns false iff not possible (i.e. arcLength out of range).
     bool gotoArcLength(double arcLength)
     {
         while(arcLength < arcLength_)
@@ -1442,10 +1491,15 @@ class DartPosition
             }
         }
         while(nextSegmentInternal());
+
+        // hit end
         partialArcLength_ = 0.0;
         return false;
     }
 
+        // Go to the beginning of the next segment if possible
+        // (i.e. segmentIndex() will increase).  Otherwise, return
+        // false.
     bool gotoNextSegment()
     {
         bool result = nextSegmentInternal();

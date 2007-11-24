@@ -207,22 +207,25 @@ GeoMap::GeoMap(const GeoMap &other)
   sigmaMapping_(sigmaMappingArray_.begin() + sigmaMappingArray_.size()/2),
   sigmaInverseMapping_(sigmaInverseMappingArray_.begin()
                        + sigmaInverseMappingArray_.size()/2),
-  nodeCount_(0),
-  edgeCount_(0),
-  faceCount_(0),
+  nodeCount_(other.nodeCount_),
+  edgeCount_(other.edgeCount_),
+  faceCount_(other.faceCount_),
   imageSize_(other.imageSize()),
   labelImage_(NULL),
   edgesSorted_(false)
 {
+    nodes_.resize(other.nodes_.size(), NULL_PTR(GeoMap::Node));
     for(ConstNodeIterator it = other.nodesBegin(); it.inRange(); ++it)
-        addNode((*it)->position(), (*it)->label());
+    {
+        nodes_[(*it)->label()] =
+            CELL_PTR(GeoMap::Node)(new GeoMap::Node(this, **it));
+    }
+
+    edges_.resize(other.edges_.size(), NULL_PTR(GeoMap::Edge));
     for(ConstEdgeIterator it = other.edgesBegin(); it.inRange(); ++it)
     {
-        addEdge(*node((*it)->startNodeLabel()),
-                *node((*it)->endNodeLabel()),
-                *(*it),
-                (*it)->label())
-            ->setFlag((*it)->flags());
+        edges_[(*it)->label()] =
+            CELL_PTR(GeoMap::Edge)(new GeoMap::Edge(this, **it));
     }
 
     // slightly more efficient than calling setSigmaMapping():
@@ -234,25 +237,20 @@ GeoMap::GeoMap(const GeoMap &other)
               sigmaInverseMappingArray_.begin());
     edgesSorted_ = other.edgesSorted_;
 
-    if(other.mapInitialized())
+    if(other.faces_.size())
     {
-        initializeMap(other.hasLabelImage());
-
+        faces_.resize(other.faces_.size(), NULL_PTR(GeoMap::Face));
         for(ConstFaceIterator it = other.facesBegin(); it.inRange(); ++it)
         {
-            unsigned int flags((*it)->flags() & ~GeoMap::Face::INTERNAL_FLAGS);
-            CellLabel anchorLabel = (*it)->contour().label();
-            dart(anchorLabel).leftFace()->setFlag(flags);
+            faces_[(*it)->label()] =
+                CELL_PTR(GeoMap::Face)(new GeoMap::Face(this, **it));
         }
 
-        std::vector<CellLabel> newFaceLabels(faces_.size());
-        for(FaceIterator it = facesBegin(); it.inRange(); ++it)
+        if(other.hasLabelImage())
         {
-            newFaceLabels[(*it)->label()] =
-                const_cast<GeoMap &>(other).dart( // FIXME: see constdart.diff
-                    (*it)->contour().label()).leftFaceLabel();
+            labelImage_ = new LabelImage(*other.labelImage_);
+            faceLabelLUT_ = other.faceLabelLUT_;
         }
-        changeFaceLabels(newFaceLabels, other.faces_.size());
     }
 }
 
@@ -911,6 +909,9 @@ void GeoMap::initContours()
 {
     new Face(this, Dart(this, 0)); // create infinite face, dart will be ignored
 
+    // fill list of faces with contours, i.e. no face will have a
+    // contour after this, but all faces will carry the properties
+    // (area, bbox, ...) of the phi orbit:
     for(EdgeIterator it = edgesBegin(); it.inRange(); ++it)
     {
         if((*it)->leftFaceLabel_ == UNINITIALIZED_CELL_LABEL)
@@ -940,6 +941,14 @@ void markEdgeInLabelImage(
 
 void GeoMap::embedFaces(bool initLabelImage)
 {
+    // the result of this function is to transform the result of
+    // initContours (i.e. preliminary faces, which are just phi
+    // orbits) into the final faces; many "faces" will disappear (if
+    // they represent hole contours) and be embedded as holes into
+    // their surrounding faces.
+    //
+    // second, the label image will be set up
+
     vigra_precondition(!labelImage_,
         "embedFaces() called with already-initialized labelImage");
 
@@ -1486,8 +1495,11 @@ bool GeoMap::checkConsistency()
             result = false;
     }
 
+    // make the following checks and output more intuitive:
+    actualNodeCount -= isolatedNodesCount;
+
     if(actualNodeCount - actualEdgeCount + actualFaceCount
-       != (connectedComponentsCount + isolatedNodesCount) + 1)
+       - connectedComponentsCount != 1)
     {
         std::cerr << "  Euler-Poincare invariant violated! (N - E + F - C = "
                   << actualNodeCount << " - " << actualEdgeCount << " + "
@@ -1499,7 +1511,7 @@ bool GeoMap::checkConsistency()
     }
 
     if(actualNodeCount - actualEdgeCount + contourCount
-       != 2*connectedComponentsCount + isolatedNodesCount)
+       - 2*connectedComponentsCount != 0)
     {
         std::cerr << "  Euler-Poincare invariant violated! (N - E + B - 2*C = "
                   << actualNodeCount << " - " << actualEdgeCount << " + "
