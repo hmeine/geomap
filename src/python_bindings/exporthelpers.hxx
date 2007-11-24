@@ -130,7 +130,7 @@ struct RangeIterWrapper
     {
         if(!v.inRange())
         {
-            PyErr_SetString(PyExc_StopIteration, "cells iterator exhausted");
+            PyErr_SetString(PyExc_StopIteration, "iterator exhausted");
             boost::python::throw_error_already_set();
         }
         return *v++;
@@ -168,7 +168,7 @@ boost::python::object
 generic__copy__(boost::python::object copyable)
 {
     namespace bp = boost::python;
-    
+
     Copyable *newCopyable = new Copyable(bp::extract<const Copyable &>(copyable));
     bp::object result =
         bp::object(bp::detail::new_reference(bp::managingPyObject(newCopyable)));
@@ -184,7 +184,7 @@ boost::python::object
 generic__deepcopy__(boost::python::object copyable, boost::python::dict memo)
 {
     namespace bp = boost::python;
-    
+
     bp::object copyMod = bp::import("copy");
     bp::object deepcopy = copyMod.attr("deepcopy");
 
