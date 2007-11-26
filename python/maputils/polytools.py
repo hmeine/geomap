@@ -258,6 +258,10 @@ class Line(object):
         """Return direction vector."""
         return Vector2(self.norm[1], -self.norm[0])
 
+    def orthogonalDistance(self, point):
+        """Return distance between given point and this line"""
+        return dot(point, self.norm) - self.dist
+
     def point(self, l = 0):
         """Return point on line.  For l == 0 (default), this will be
         the closest point to the origin.  l moves on the line."""
@@ -278,6 +282,7 @@ class LineSegment(object):
         return Vector2(-d[1], d[0])
     
     def dist(self):
+        """distance to origin"""
         return dot(self.p1, self.norm())
     
     def line(self):
@@ -286,11 +291,13 @@ class LineSegment(object):
 def polyLineSegment(poly, index):
     return LineSegment(poly[index % len(poly)], poly[(index+1) % len(poly)])
 
+def polyLineSegments(poly):
+    for i in range(len(poly)-1):
+        yield polyLineSegment(poly, i)
+
 def shrinkPoly(poly, offset):
     assert poly[0] == poly[-1], "polygon should be closed"
-    sideCount = len(poly)-1
-    lines = [polyLineSegment(poly, i).line()
-             for i in range(sideCount)]
+    lines = [seg.line() for seg in polyLineSegments(poly)]
     for line in lines:
         line.dist -= offset
     i = 1
@@ -333,6 +340,36 @@ def subsetDigitization(poly, shift = None, size = None):
     for p in vigra.meshIter(size):
         result[p] = poly.contains(Vector2(p[0], p[1])) and 1 or 0
     return result
+
+# --------------------------------------------------------------------
+
+def smallestBoundingBox(ch):
+    """Determine rotated bbox from convex hull"""
+    # FIXME: use rotating calipers for O(N) instead of O(N^2)!
+    assert ch.closed()
+    bboxes = []
+    for seg in polyLineSegments(ch):
+        line = seg.line()
+        norm = line.norm
+        dir = line.dir()
+        dists = []
+        positions = []
+        for p in ch:
+            dists.append(dot(norm, p))
+            positions.append(dot(dir, p))
+        l1 = min(positions)
+        l2 = max(positions)
+        l3 = min(dists)
+        l4 = max(dists)
+        area = (l2 - l1) * (l4 - l3)
+        bboxes.append((area, line, l1, l2, l3, l4))
+    bboxes.sort()
+    _, line, l1, l2, l3, l4 = bboxes[0]
+    p1 = l1 * line.dir() + l3 * line.norm
+    p2 = l1 * line.dir() + l4 * line.norm
+    p3 = l2 * line.dir() + l4 * line.norm
+    p4 = l2 * line.dir() + l3 * line.norm
+    return Polygon([p1, p2, p3, p4, p1])
 
 # --------------------------------------------------------------------
 
