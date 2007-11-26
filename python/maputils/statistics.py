@@ -535,9 +535,11 @@ class StaticEdgeCosts(DetachableStatistics):
         DynamicEdgeStatistics.__setstate__(self, (map, ))
         self._costs = tree
 
+# formerly, this was called EdgeMergeTree:
 class MergedEdges(DynamicEdgeStatistics):
-    """Actually, this is not a tree but it manages a list of edges
-    that have been merged into each edge."""
+    """This class manages a list of edges (from the moment of
+    attaching, usually from level 0) that have been merged into each
+    edge."""
 
     __slots__ = ["_labelLUT",
                  "_merged"]
