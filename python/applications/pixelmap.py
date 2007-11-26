@@ -42,6 +42,8 @@ def pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0),
     # mark as sorted (sigma order will be copied from source map):
     result.sortEdgesDirectly()
 
+    undesirable = []
+
     edges = [None] * (geomap.maxEdgeLabel() + 1)
     for edge in geomap.edges:
         points = [(Vector2(p[0], p[1])+offset) * scale for p in iter(edge.start)]
@@ -75,10 +77,13 @@ def pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0),
             points = [points[i] for i in range(0, len(points), 2)]
 
         newEdge = result.addEdge(startNeighbor, endNeighbor, points)
+        edges[edge.label] = newEdge
+
         if newEdge.isLoop() and newEdge.partialArea() == 0.0:
-            result.removeEdge(newEdge.dart())
-        else:
-            edges[edge.label] = newEdge
+            undesirable.append(newEdge.dart())
+
+    for dart in undesirable:
+        result.removeEdge(dart)
 
     result.initializeMap()
 
