@@ -208,8 +208,7 @@ class MapEdges(vigrapyqt.Overlay):
 class MapNodes(vigrapyqt.Overlay):
     __base = vigrapyqt.Overlay
     
-    def __init__(self, map, color,
-                 radius = 1, relativeRadius = False):
+    def __init__(self, map, color, radius = 0.2, relativeRadius = True):
         self.__base.__init__(self, color)
         self.setMap(map)
         self.setRadius(radius, relativeRadius)
@@ -480,6 +479,7 @@ class MapDisplay(displaysettings.DisplaySettings):
         self.addOverlay = self.viewer.addOverlay
         self.replaceOverlay = self.viewer.replaceOverlay
         self.removeOverlay = self.viewer.removeOverlay
+        self.applyExpression = self._imageWindow.applyExpression
 
         self.map = map
         if not faceMeans and hasattr(map, "faceMeans"):
@@ -511,7 +511,7 @@ class MapDisplay(displaysettings.DisplaySettings):
         self.edgeOverlay = MapEdges(map, qt.Qt.red,
                                     protectedColor = qt.Qt.green,
                                     protectedWidth = 2)
-        self.nodeOverlay = MapNodes(map, qt.Qt.blue, 1)
+        self.nodeOverlay = MapNodes(map, qt.Qt.blue)
         self.viewer.addOverlay(self.edgeOverlay)
         self.viewer.addOverlay(self.nodeOverlay)
         self._dh = DartHighlighter(map, self.viewer)
@@ -869,20 +869,24 @@ class MapDisplay(displaysettings.DisplaySettings):
 
         Saves an XFig file as <basepath>.fig (see saveFig()
         documentation for details) and calls fig2dev to create an
-        additional <basepath>.eps."""
+        additional <basepath>.eps.
+
+        Returns the final filename (result of calling fig.File.fig2dev)."""
 
         fe = self.saveFig(basepath, *args, **kwargs)
-        fe.f.fig2dev(lang = "eps")
+        return fe.f.fig2dev(lang = "eps")
 
     def savePDF(self, basepath, *args, **kwargs):
         """display.savePDF(basepath, roi = None, scale = None)
 
         Saves an XFig file as <basepath>.fig (see saveFig()
         documentation for details) and calls fig2dev to create an
-        additional <basepath>.pdf."""
+        additional <basepath>.pdf.
+
+        Returns the final filename (result of calling fig.File.fig2dev)."""
 
         fe = self.saveFig(basepath, *args, **kwargs)
-        fe.f.fig2dev(lang = "pdf")
+        return fe.f.fig2dev(lang = "pdf")
 
 # --------------------------------------------------------------------
 #                         dart navigation dialog
