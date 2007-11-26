@@ -1370,7 +1370,7 @@ def applyFaceClassification(map, faceClasses, ignoreNone = True):
     return removeEdges(map, [
         edge.label() for edge in map.edgeIter()
         if faceClasses[edge.leftFaceLabel()] == faceClasses[edge.rightFaceLabel()]
-        and not ignoreNone or faceClasses[edge.leftFaceLabel()] is not None])
+        and (not ignoreNone or faceClasses[edge.leftFaceLabel()] is not None)])
 
 def extractContractionKernel(map):
     """Returns a face classification suitable for
