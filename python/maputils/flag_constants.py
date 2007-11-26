@@ -47,7 +47,10 @@ PROTECTED_FACE = 2 # flag which leads to CONTOUR_PROTECTION
 
 # alphashapes:
 #ALPHA_MARK = 4096 # see above
+CORNER_FACE = 32
 
 # maputils:
 SRG_SEED = 8
 SRG_BORDER = 16
+
+FACE_USER = 0x100000
