@@ -52,6 +52,10 @@ def colorGradient(img, scale, sqrt = True):
     return gm2, grad
 
 def gaussianGradient(img, scale, sqrt = True):
+    """Return (gm, grad) tuple, which is either the result of
+    `colorGradient`, or of the usual `vigra.gaussianGradient` family
+    for single-band images."""
+    
     if img.bands() > 1:
         return colorGradient(img, scale, sqrt)
 
