@@ -197,10 +197,18 @@ def findCandidatesForPointCorrection(abm):
 def outputMarkedShapes(delaunayMap, fe, skipInnerEdges = True,
                        regionDepth = 50, edgeDepth = 49,
                        capStyle = fig.capStyleRound, **kwargs):
+    """IIRC, this assumes that delaunayMap contains only triangles."""
 
     # output all cells only once:
     edgeOutput = [False] * delaunayMap.maxEdgeLabel()
     faceOutput = [False] * delaunayMap.maxFaceLabel()
+
+    faceAttr = dict(kwargs)
+    if not "lineWidth" in kwargs:
+        faceAttr["lineWidth"] = 0
+    faceAttr["depth"] = regionDepth
+    faceAttr["fillStyle"] = fig.fillStyleSolid
+    faceAttr["capStyle"] = capStyle
 
     print "- exporting marked regions as filled polygons..."
     for triangle in delaunayMap.faceIter(skipInfinite = True):
@@ -232,9 +240,7 @@ def outputMarkedShapes(delaunayMap, fe, skipInnerEdges = True,
             else:
                 i += 1
         #print "  * %d points (area %s)" % (len(contour), contour.partialArea())
-        fe.addClippedPoly(contour, depth = regionDepth, lineWidth = 0,
-                          fillStyle = fig.fillStyleSolid, capStyle = capStyle,
-                          **kwargs)
+        fe.addClippedPoly(contour, **faceAttr)
 
     if "fillColor" in kwargs:
         del kwargs["fillColor"]
