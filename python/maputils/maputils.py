@@ -684,10 +684,11 @@ def copyMapContents(sourceMap, destMap = None, edgeTransform = None):
             
             neighbor = edge.dart()
             while neighbor.nextSigma().edgeLabel() > edge.label() \
-                      or neighbor.label() == -edge.label():
+                      or neighbor.label() == -edge.label() \
+                      or (edges[neighbor.edgeLabel()] is None
+                          and neighbor.edgeLabel() != edge.label()):
+                # (last cond. because edgeTransform may throw away edges)
                 pass
-            assert neighbor.edgeLabel() < edge.label(), \
-                   "since !startNeighbor.isIsolated(), there should be an (already handled) edge with a smaller label in this orbit!"
             startNeighbor = edges[neighbor.edgeLabel()].dart()
             if neighbor.label() < 0:
                 startNeighbor.nextAlpha()
@@ -702,10 +703,11 @@ def copyMapContents(sourceMap, destMap = None, edgeTransform = None):
             
             neighbor = edge.dart().nextAlpha()
             while neighbor.nextSigma().edgeLabel() > edge.label() \
-                      or neighbor.label() == edge.label():
+                      or neighbor.label() == edge.label() \
+                      or (edges[neighbor.edgeLabel()] is None
+                          and neighbor.edgeLabel() != edge.label()):
+                # (last cond. because edgeTransform may throw away edges)
                 pass
-            assert neighbor.edgeLabel() < edge.label(), \
-                   "since !endNeighbor.isIsolated(), there should be an (already handled) edge with a smaller label in this orbit!"
             endNeighbor = edges[neighbor.edgeLabel()].dart()
             if neighbor.label() < 0:
                 endNeighbor.nextAlpha()
@@ -1130,36 +1132,49 @@ class History(list):
 class LiveHistory(History):
     """`History` list which attaches to a GeoMap and updates itself
     via Euler operation callbacks."""
+
+    __slots__ = ("_map", "_op")
     
     _mergeFaces = 'mergeFaces'
     _removeBridge = 'removeBridge'
     _mergeEdges = 'mergeEdges'
-    
+
     def __init__(self, map):
+        self._map = weakref.ref(map) # only needed for pickle support
+        self._attachHooks()
+    
+    def _attachHooks(self):
         self._attachedHooks = (
-            map.addMergeFacesCallbacks(self.preMergeFaces, self.confirm),
-            map.addRemoveBridgeCallbacks(self.preRemoveBridge, self.confirm),
-            map.addMergeEdgesCallbacks(self.preMergeEdges, self.confirm),
+            self._map().addMergeFacesCallbacks(self.preMergeFaces, self.confirm),
+            self._map().addRemoveBridgeCallbacks(self.preRemoveBridge, self.confirm),
+            self._map().addMergeEdgesCallbacks(self.preMergeEdges, self.confirm),
             )
-        
+
+    def __getstate__(self):
+        return (self._map(), )
+
+    def __setstate__(self, (map, )): # cf. __init__
+        self._map = weakref.ref(map)
+        self._attachHooks()
+
     def detachHooks(self):
         for cb in self._attachedHooks:
             cb.disconnect()
     
     def preMergeFaces(self, dart):
-        self.op = (self._mergeFaces, dart.label())
+        self._op = (self._mergeFaces, dart.label())
         return True
     
     def preRemoveBridge(self, dart):
-        self.op = (self._removeBridge, dart.label())
+        self._op = (self._removeBridge, dart.label())
         return True
     
     def preMergeEdges(self, dart):
-        self.op = (self._mergeEdges, dart.label())
+        self._op = (self._mergeEdges, dart.label())
         return True
     
     def confirm(self, *args):
-        self.append(self.op)
+        self.append(self._op)
 
 # --------------------------------------------------------------------
 #                      Automatic Region Merger
@@ -1355,7 +1370,7 @@ def applyFaceClassification(map, faceClasses, ignoreNone = True):
     return removeEdges(map, [
         edge.label() for edge in map.edgeIter()
         if faceClasses[edge.leftFaceLabel()] == faceClasses[edge.rightFaceLabel()]
-        and not faceClasses[edge.leftFaceLabel()] is None])
+        and not ignoreNone or faceClasses[edge.leftFaceLabel()] is not None])
 
 def extractContractionKernel(map):
     """Returns a face classification suitable for
