@@ -1840,8 +1840,9 @@ def dualMap(map, edgeLabels = None, midPoints = None):
             midPoint = midPoints
             if midPoints == None:
                 # auto-detect if midPoint is necessary (no intersection):
-                clipped = hourglass.intersectLine(edge, *poly)
-                midPoint = (len(clipped) == 1 and len(clipped[0]) == len(edge))
+                clipped = hourglass.intersectLine(edge, poly[0], poly[1])
+                midPoint = not len(clipped) or (
+                    len(clipped) == 1 and len(clipped[0]) == len(edge))
             if midPoint:
                 dp = hourglass.DartPosition(edge.dart())
                 dp.gotoArcLength(edge.length()/2)
