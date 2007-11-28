@@ -187,6 +187,9 @@ class FigExporter:
 
     def addPixelRaster(self, rect = None, labels = None, fill = None,
                        container = True, labelType = int, **attr):
+        """The default label size looks good with 1cm^2 pixels
+        (scale = 450)."""
+        
         assert rect or labels or fill
         if rect is None:
             rect = Rect2D((labels or fill).size())
@@ -211,9 +214,10 @@ class FigExporter:
                 textX = (boxX1 + boxX2) / 2
                 textY = (boxY1 + boxY2) / 2
 
-                label = fig.Text((textX, textY),
-                                 str(labelType(labels[x, y])), fig.alignCentered)
-                label.y += label.height / 2
+                label = fig.Text(Vector2(textX, textY),
+                                 str(labelType(labels[x, y])),
+                                 alignment = fig.alignCentered)
+                label.pos += (0, label.height / 2)
 
                 label.depth = pixelRect.depth - 10
                 label.font = fig.fontHelvetica
