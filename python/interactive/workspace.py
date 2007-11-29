@@ -175,7 +175,7 @@ class Workspace(mapdisplay.MapDisplay):
             0, level0.faceCount - self._estimatedApexFaceCount)
         self.connect(self._levelSlider, qt.SIGNAL("valueChanged(int)"),
                      self._levelSliderChanged)
-        self._imageWindow._layout.addWidget(self._levelSlider)
+        self._imageWindow._layout.insertWidget(1, self._levelSlider)
         if self.isShown():
             automaticOptions.show()
             self._levelSlider.show()
@@ -397,16 +397,14 @@ class Workspace(mapdisplay.MapDisplay):
         if force:
             self._pyramidCK = None # force recomputation of pyramid CK
 
-        print "trying to reach faceCount %d, having %d now..." % (
-            faceCount, self.map.faceCount)
+#         print "trying to reach faceCount %d, having %d now..." % (
+#             faceCount, self.map.faceCount)
         if not self._pyramidCK or faceCount > self.map.faceCount:
             map = self.manualBaseMap()
-            print "  manual base map has %d faces..." % map.faceCount
             if faceCount < map.faceCount:
                 self.pyramidCK().applyToFaceCount(map, faceCount)
             self.setMap(map)
         elif faceCount < self.map.faceCount:
-            print "  applying pyramid CK..."
             self.pyramidCK().applyToFaceCount(self.map, faceCount)
             
             self._levelSlider.blockSignals(True)
