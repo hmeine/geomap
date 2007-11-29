@@ -119,7 +119,7 @@ class SeedSelector(qt.QObject):
             self.seeds.append(seed)
             self.emit(qt.PYSIGNAL("seedAdded"), (seed, ))
             if self.map and self.markFlags:
-                self.map.faceAt((x, y)).setFlag(self.markFlags)
+                self.map.faceAt(seed).setFlag(self.markFlags)
         else:
             seed = self.seedMap()((x, y), 10./viewer.zoomFactor())
             if not seed:
