@@ -374,7 +374,7 @@ class DartHighlighter(object):
 #                             MapDisplay
 # --------------------------------------------------------------------
 
-def addMapOverlay(fe, overlay, **attr):
+def addMapOverlay(fe, overlay, skipBorder = False, **attr):
     qtColor2figColor = figexport.qtColor2figColor
 
     # FIXME: str(type(overlay)).contains(...) instead?
@@ -410,17 +410,21 @@ def addMapOverlay(fe, overlay, **attr):
                         fe.addClippedPoly(edge,
                             penColor = qtColor2figColor(edgeColor, fe.f),
                             container = result, **attr)
-            else:
+            elif overlay.color:
                 result = fe.addMapEdges(
                     overlay._map(),
                     penColor = qtColor2figColor(overlay.color, fe.f),
                     **attr)
+            else:
+                result = fig.Compound(fe.f)
 
             if overlay.protectedColor:
-                attr["lineWidth"] = overlay.protectedWidth or overlay.width
                 attr["penColor"] = \
                     qtColor2figColor(overlay.protectedColor, fe.f)
-                for edge in overlay._map().edgeIter():
+                attr["lineWidth"] = overlay.protectedWidth or overlay.width
+                it = skipBorder and maputils.nonBorderEdges(overlay._map()) \
+                     or overlay._map().edgeIter()
+                for edge in it:
                     if edge.flag(flag_constants.ALL_PROTECTION):
                         fe.addClippedPoly(edge, container = result, **attr)
 
@@ -466,7 +470,7 @@ class MapDisplay(displaysettings.DisplaySettings):
             preparedImage = preparedImage.view
         else:
             self.images = {}
-            self.setImage(preparedImage) # auto-detects role
+            self.setImage(preparedImage, normalize = False) # auto-detects role
 
         self.image = preparedImage
         self._imageWindow = vigrapyqt.ImageWindow(self.image, vigra.BYTE, self)
@@ -488,9 +492,13 @@ class MapDisplay(displaysettings.DisplaySettings):
         self._attachedHooks = None
 
         self._normalizeStates = [False, False, True, True, False]
-        self._backgroundMode = 0
+        if self.image.bands() == 3:
+            self._backgroundMode = 1
+            self.displayColoredAction.setOn(True)
+        else:
+            self._backgroundMode = 0
+            self.displayOriginalAction.setOn(True)
         self._enableImageActions()
-        self.displayOriginalAction.setOn(True)
 
         self.connect(self.backgroundGroup, qt.SIGNAL("selected(QAction*)"),
                      self.setBackgroundMode)
@@ -824,12 +832,9 @@ class MapDisplay(displaysettings.DisplaySettings):
         image.subImage(roi).write(filename, normalize)
 
     def saveFig(self, basepath, roi = None, scale = None,
-                bgFilename = None, faceMeans = False, similarity = None):
-        """display.saveFig(basepath,
-                           roi=None, scale=None, bgFilename = None,
-                           faceMeans = False)
-
-        Saves an XFig file as <basepath>.fig (and the pixel background
+                bgFilename = None, faceMeans = False, similarity = None,
+                skipBorder = False):
+        """Saves an XFig file as <basepath>.fig (and the pixel background
         as <basepath>_bg.png if `bgFilename` is not given) and returns
         the FigExporter object.
 
@@ -846,13 +851,20 @@ class MapDisplay(displaysettings.DisplaySettings):
         filename for the picture box in the XFig file, or False if no
         background is desired."""
 
+        def addMapOverlayWithoutBorder(*args, **kwargs):
+            kwargs["skipBorder"] = True
+            return addMapOverlay(*args, **kwargs)
+
+        overlayHandler = \
+            skipBorder and addMapOverlayWithoutBorder or addMapOverlay
+
         if bgFilename == None and faceMeans:
             bgFilename = False
 
         fe = figexport.exportImageWindow(
             self._imageWindow, basepath, roi = roi, scale = scale,
             bgFilename = bgFilename,
-            overlayHandler = addMapOverlay)
+            overlayHandler = overlayHandler)
         
         if faceMeans in (None, True):
             faceMeans = self._faceMeans
