@@ -65,9 +65,7 @@ class PaintbrushStroke(object):
         for fl, ov in zip(self.faces, self.oldValues):
             manualCK[fl] = ov
 
-        self.workspace._pyramidCK = None
-        # TODO: add number of undone merges
-        #self.workspace.displayLevel(faceCount = self.workspace.map.faceCount)
+        # TODO: add number of undone merges (faceCountOffset)
         self.workspace.recomputeAutomaticLevels()
 
 class FaceProtection(object):
@@ -119,7 +117,7 @@ class Workspace(mapdisplay.MapDisplay):
         self._seeds = None
         self._protectedFaceAnchors = []
         self._pyramidCK = None
-        self.activeCostMeasure = 2 # faceHomogeneity
+        self.activeCostMeasure = 1 # faceHomogeneity
         self.dynamicCosts = True
         self._history = []
         self._activeTool = None
@@ -146,12 +144,13 @@ class Workspace(mapdisplay.MapDisplay):
 
         cml = qt.QLabel("Merge &cost measure:", automaticOptions)
         l.addWidget(cml)
-        cmChooser = qt.QComboBox(automaticOptions, "cmChooser")
+        self.cmChooser = qt.QComboBox(automaticOptions, "cmChooser")
         for name in self.costMeasureNames:
-            cmChooser.insertItem(name)
-        self.connect(cmChooser, qt.SIGNAL("activated(int)"), self.setCostMeasure)
-        l.addWidget(cmChooser)
-        cml.setBuddy(cmChooser)
+            self.cmChooser.insertItem(name)
+        self.cmChooser.setCurrentItem(self.activeCostMeasure)
+        self.connect(self.cmChooser, qt.SIGNAL("activated(int)"), self.setCostMeasure)
+        l.addWidget(self.cmChooser)
+        cml.setBuddy(self.cmChooser)
         
         csl = qt.QLabel("C&olor space:", automaticOptions)
         l.addWidget(csl)
@@ -225,6 +224,9 @@ class Workspace(mapdisplay.MapDisplay):
     def paintbrushFinished(self, survivor):
         self._perform(PaintbrushStroke(self, survivor.label()))
         self._pyramidCK = None
+        # FIXME: in theory, we would need recomputeAutomaticLevels here
+        # (the performed operations could differ, if the manually
+        # merged faces result in significantly differing costs)
 
     def faceProtectionChanged(self, face):
         #assert face.map() == self.map
@@ -248,17 +250,13 @@ class Workspace(mapdisplay.MapDisplay):
         if self._seeds is None:
             self._seeds = []
         self._seeds.append(pos)
-        self._pyramidCK = None
-        if self._levelSlider.value():
-            self.displayLevel(faceCount = self.map.faceCount + 1)
+        self.recomputeAutomaticLevels(faceCountOffset = 1)
 
     def seedRemoved(self, pos):
         self._seeds.remove(pos)
         if not self._seeds:
             self._seeds = None # switch back to ARM
-        self._pyramidCK = None
-        if self._levelSlider.value():
-            self.displayLevel(faceCount = self.map.faceCount - 1)
+        self.recomputeAutomaticLevels(faceCountOffset = -1)
 
     def setMap(self, map):
         """Make the given map (which must belong to the current
@@ -342,12 +340,12 @@ class Workspace(mapdisplay.MapDisplay):
     colorSpaceNames = ["RGB", "RGBPrime", "Luv", "Lab"]
 
     def setCostMeasure(self, index):
-        index += 1
         if self.activeCostMeasure != index:
             self.activeCostMeasure = index
             self.recomputeAutomaticLevels()
             tools.activeCostMeasure = \
                 statistics.HyperbolicInverse(self.costMeasure(self.map))
+            self.cmChooser.setCurrentItem(index)
 
     costMeasureNames = ["face mean difference",
                         "face homogeneity",
@@ -358,13 +356,13 @@ class Workspace(mapdisplay.MapDisplay):
         """Instantiate and return the currently chosen type of cost
         measure for the given map."""
 
-        if self.activeCostMeasure == 1:
+        if self.activeCostMeasure == 0:
             return self.faceMeans(map).faceMeanDiff
-        elif self.activeCostMeasure == 2:
+        elif self.activeCostMeasure == 1:
             return self.faceMeans(map).faceHomogeneity
-        elif self.activeCostMeasure == 3:
+        elif self.activeCostMeasure == 2:
             return self.faceMeans(map).faceTTest
-        elif self.activeCostMeasure == 4:
+        elif self.activeCostMeasure == 3:
             def brightness(dart, fm = self.faceMeans(map)):
                 return max(vigra.norm(fm[dart.leftFaceLabel()]),
                            vigra.norm(fm[dart.rightFaceLabel()]))
@@ -373,8 +371,9 @@ class Workspace(mapdisplay.MapDisplay):
     def _levelSliderChanged(self, levelIndex):
         self.displayLevel(levelIndex = levelIndex)
 
-    def recomputeAutomaticLevels(self):
-        self.displayLevel(faceCount = self.map.faceCount, force = True)
+    def recomputeAutomaticLevels(self, faceCountOffset = 0):
+        self.displayLevel(faceCount = self.map.faceCount + faceCountOffset,
+                          force = True)
 
     def displayLevel(self, levelIndex = None, faceCount = None,
                      force = False):
