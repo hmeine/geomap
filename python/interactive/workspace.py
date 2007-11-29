@@ -1,5 +1,5 @@
 import copy, qt
-import vigra, mapdisplay, icons, maputils, statistics, flag_constants
+import vigra, mapdisplay, icons, maputils, statistics, flag_constants, tools
 import progress
 
 def labelRoot(lut, label):
@@ -65,6 +65,11 @@ class PaintbrushStroke(object):
         for fl, ov in zip(self.faces, self.oldValues):
             manualCK[fl] = ov
 
+        self.workspace._pyramidCK = None
+        # TODO: add number of undone merges
+        #self.workspace.displayLevel(faceCount = self.workspace.map.faceCount)
+        self.workspace.recomputeAutomaticLevels()
+
 class FaceProtection(object):
     __slots__ = ("workspace", "dartLabel", "protected")
 
@@ -103,19 +108,22 @@ class Workspace(mapdisplay.MapDisplay):
     # actually, this has only documenting effect; since this inherits
     # PyQt widgets, any attribute may be used:
     __slots__ = ("_level0", "_manualCK", "_seeds",
-                 "_pyramidCK", "activeCostMeasure",
+                 "_pyramidCK", "activeCostMeasure", "dynamicCosts",
                  "_mapRestartAction", "_levelSlider", "_estimatedApexFaceCount",
-                 "_history", "_activeTool")
+                 "_history", "_activeTool", "colorSpace")
     
-    def __init__(self, level0, originalImage):
+    def __init__(self, level0, originalImage, bi = None):
         self.__base.__init__(self, copy.deepcopy(level0), originalImage)
         self._level0 = level0
         self._manualCK = range(level0.maxFaceLabel())
         self._seeds = None
         self._protectedFaceAnchors = []
         self._pyramidCK = None
-        self._history = []
         self.activeCostMeasure = 2 # faceHomogeneity
+        self.dynamicCosts = True
+        self._history = []
+        self._activeTool = None
+        self.colorSpace = ""
 
         # needed for backpropagation of protection:
         if not hasattr(self.map, "mergedEdges"):
@@ -132,6 +140,32 @@ class Workspace(mapdisplay.MapDisplay):
         self.connect(ra, qt.SIGNAL("activated()"), self.restart)
         self._mapRestartAction = ra
 
+        # set up HBox with cost measure options:
+        automaticOptions = qt.QWidget(self._imageWindow, "automaticOptions")
+        l = qt.QHBoxLayout(automaticOptions, 0, 6)
+
+        cml = qt.QLabel("Merge &cost measure:", automaticOptions)
+        l.addWidget(cml)
+        cmChooser = qt.QComboBox(automaticOptions, "cmChooser")
+        for name in self.costMeasureNames:
+            cmChooser.insertItem(name)
+        self.connect(cmChooser, qt.SIGNAL("activated(int)"), self.setCostMeasure)
+        l.addWidget(cmChooser)
+        cml.setBuddy(cmChooser)
+        
+        csl = qt.QLabel("C&olor space:", automaticOptions)
+        l.addWidget(csl)
+        csChooser = qt.QComboBox(automaticOptions, "csChooser")
+        for name in self.colorSpaceNames:
+            csChooser.insertItem(name)
+        self.connect(csChooser, qt.SIGNAL("activated(int)"), self.setColorSpace)
+        l.addWidget(csChooser)
+        csl.setBuddy(csChooser)
+        
+        l.addItem(qt.QSpacerItem(
+            10, 1, qt.QSizePolicy.Expanding, qt.QSizePolicy.Minimum))
+        self._imageWindow._layout.insertWidget(0, automaticOptions)
+
         #sws.imageFrame.addWidget(self.imageFrame)
         self._estimatedApexFaceCount = 2
         self._levelSlider = qt.QSlider(self._imageWindow, "_levelSlider")
@@ -143,7 +177,11 @@ class Workspace(mapdisplay.MapDisplay):
                      self._levelSliderChanged)
         self._imageWindow._layout.addWidget(self._levelSlider)
         if self.isShown():
+            automaticOptions.show()
             self._levelSlider.show()
+
+        if bi is not None:
+            self.setImage(bi, role = "bi")
 
     @staticmethod
     def _detachMapStats(map):
@@ -160,6 +198,9 @@ class Workspace(mapdisplay.MapDisplay):
         self.__base.setTool(self, tool)
         if not self.tool:
             return
+        if isinstance(self.tool, tools.IntelligentScissors):
+            tools.activeCostMeasure = \
+                statistics.HyperbolicInverse(self.costMeasure(self.map))
         self.connect(self.tool, qt.PYSIGNAL("paintbrushFinished"),
                      self.paintbrushFinished)
         self.connect(self.tool, qt.PYSIGNAL("faceProtectionChanged"),
@@ -180,7 +221,6 @@ class Workspace(mapdisplay.MapDisplay):
         # FIXME: redo support
         self._history[-1].undo()
         del self._history[-1]
-        self._pyramidCK = None # FIXME
 
     def paintbrushFinished(self, survivor):
         self._perform(PaintbrushStroke(self, survivor.label()))
@@ -272,14 +312,52 @@ class Workspace(mapdisplay.MapDisplay):
         self._levelSlider.blockSignals(False)
         return result
 
-    def faceMeans(self, map, colorSpace = ""):
-        attr = "faceMeans" + colorSpace
+    def faceMeans(self, map):
+        attr = "faceMeans" + self.colorSpace
         if not hasattr(map, attr):
             img = self.images.get("colored", self.images["original"])
-            setattr(map, attr, statistics.FaceColorStatistics(map, img))
+            if self.colorSpace:
+                if img.bands() != 3:
+                    sys.stderr.write("WARNING: Color space '%s' requested but ignored; image has only %d band!\n" % (img.bands(), ))
+                else:
+                    img = vigra.transformImage(
+                        img, "\l x: RGB2%s(x)" % self.colorSpace)
+            stats = statistics.FaceColorStatistics(map, img)
+            stats.image = img
+            setattr(map, attr, stats)
         return getattr(map, attr)
 
+    def setColorSpace(self, colorSpace):
+        if isinstance(colorSpace, int):
+            colorSpace = self.colorSpaceNames[colorSpace]
+        if colorSpace == "RGB":
+            colorSpace = ""
+        if self.colorSpace != colorSpace:
+            self.colorSpace = colorSpace
+            self.recomputeAutomaticLevels()
+            # FIXME: for scissors:?
+#             tools.activeCostMeasure = \
+#                 statistics.HyperbolicInverse(self.costMeasure(self.map))
+
+    colorSpaceNames = ["RGB", "RGBPrime", "Luv", "Lab"]
+
+    def setCostMeasure(self, index):
+        index += 1
+        if self.activeCostMeasure != index:
+            self.activeCostMeasure = index
+            self.recomputeAutomaticLevels()
+            tools.activeCostMeasure = \
+                statistics.HyperbolicInverse(self.costMeasure(self.map))
+
+    costMeasureNames = ["face mean difference",
+                        "face homogeneity",
+                        "face t-test",
+                        "face brightness"]
+
     def costMeasure(self, map):
+        """Instantiate and return the currently chosen type of cost
+        measure for the given map."""
+
         if self.activeCostMeasure == 1:
             return self.faceMeans(map).faceMeanDiff
         elif self.activeCostMeasure == 2:
@@ -294,6 +372,9 @@ class Workspace(mapdisplay.MapDisplay):
 
     def _levelSliderChanged(self, levelIndex):
         self.displayLevel(levelIndex = levelIndex)
+
+    def recomputeAutomaticLevels(self):
+        self.displayLevel(faceCount = self.map.faceCount, force = True)
 
     def displayLevel(self, levelIndex = None, faceCount = None,
                      force = False):
@@ -313,15 +394,19 @@ class Workspace(mapdisplay.MapDisplay):
             faceCount = (self._levelSlider.maxValue() -
                          (levelIndex - self._estimatedApexFaceCount))
 
-        if force or not self._pyramidCK:
-            force = True # force display of level from this new pyramid
+        if force:
+            self._pyramidCK = None # force recomputation of pyramid CK
 
+        print "trying to reach faceCount %d, having %d now..." % (
+            faceCount, self.map.faceCount)
         if not self._pyramidCK or faceCount > self.map.faceCount:
             map = self.manualBaseMap()
+            print "  manual base map has %d faces..." % map.faceCount
             if faceCount < map.faceCount:
                 self.pyramidCK().applyToFaceCount(map, faceCount)
             self.setMap(map)
         elif faceCount < self.map.faceCount:
+            print "  applying pyramid CK..."
             self.pyramidCK().applyToFaceCount(self.map, faceCount)
             
             self._levelSlider.blockSignals(True)
@@ -342,7 +427,8 @@ class Workspace(mapdisplay.MapDisplay):
         map = self.manualBaseMap()
         map.pyramidCK = PyramidContractionKernel(map)
 
-        amr = maputils.AutomaticRegionMerger(map, self.costMeasure(map))
+        amr = maputils.AutomaticRegionMerger(
+            map, self.costMeasure(map), updateNeighborHood = self.dynamicCosts)
         stepsTotal = map.faceCount - self._estimatedApexFaceCount
         p = progress.ProgressHook(
             progress.StatusMessage("automatic region merging")) \
@@ -359,7 +445,8 @@ class Workspace(mapdisplay.MapDisplay):
             map.faceAt(pos).setFlag(flag_constants.SRG_SEED)
         map.pyramidCK = PyramidContractionKernel(map)
 
-        srg = maputils.SeededRegionGrowing(map, self.costMeasure(map))
+        srg = maputils.SeededRegionGrowing(
+            map, self.costMeasure(map), dynamic = self.dynamicCosts)
         stepsTotal = map.faceCount - self._estimatedApexFaceCount
         p = progress.ProgressHook(
             progress.StatusMessage("seeded region growing")) \
