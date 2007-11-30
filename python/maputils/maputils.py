@@ -1180,7 +1180,67 @@ class LiveHistory(History):
 #                      Automatic Region Merger
 # --------------------------------------------------------------------
 
-class AutomaticRegionMerger(object):
+class AutomaticMethodBase(object):
+    __slots__ = ["_step", "_queue"]
+
+    def nextCost(self):
+        """Returns the cost of the merge operation that would be
+        performed next by `mergeStep()`.
+
+        Note that `mergeStep` does not always perform a step (i.e. the
+        edge at the front of the internal priority queue might have
+        been removed already); see `ensureValidNext()`."""
+
+        return self._queue.top()[1]
+
+    def ensureValidNext(self):
+        """Ensure that the next `mergeStep()` really performs a merge
+        operation.  This also means that `nextCost()` /
+        `nextEdgeLabel()` return the corresponding valid values."""
+        
+        q = self._queue
+        map = self._map
+        while q and not map.edge(q.top()[0]):
+            q.pop()
+
+    def nextEdgeLabel(self):
+        """Returns the label of the dart that would be the parameter
+        of the merge operation that would be performed next by
+        `mergeStep()`.
+        
+        Note that `mergeStep` does not always perform a step (i.e. the
+        edge at the front of the internal priority queue might have
+        been removed already); see `ensureValidNext()`."""
+        
+        self._ensureValidNext()
+        return self._queue.top()[0]
+
+    def step(self):
+        """Returns the number of steps performed so far."""
+        return self._step
+
+    def merge(self):
+        oldStep = self._step
+        while self._queue:
+            self.mergeStep()
+        return self._step - oldStep
+
+    def mergeSteps(self, count):
+        return self.mergeToStep(self._step + count)
+
+    def mergeToStep(self, targetStep):
+        oldStep = self._step
+        while self._queue and self._step < targetStep:
+            self.mergeStep()
+        return self._step - oldStep
+
+    def mergeToCost(self, maxCost):
+        oldStep = self._step
+        while self._queue and self.nextCost() <= maxCost:
+            self.mergeStep()
+        return self._step - oldStep
+
+class AutomaticRegionMerger(AutomaticMethodBase):
     """Merges faces in order of increasing costs.  The given
     mergeCostMeasure is called on a dart for each edge to determine
     the cost of removing that edge / merging the adjacent regions.
@@ -1189,8 +1249,8 @@ class AutomaticRegionMerger(object):
     the edge with the lowest assigned cost.  After each operation, the
     costs of all edges around the surviving face are recalculated."""
 
-    __slots__ = ["_map", "_mergeCostMeasure", "_step", "_queue",
-                 "_mergeOperation", "_updateNeighborHood", "_costLog"]
+    __slots__ = ["_map", "_mergeCostMeasure", "_costLog",
+                 "_mergeOperation", "_updateNeighborHood"]
 
     def __init__(self, map, mergeCostMeasure, q = None,
                  completeMerge = True, updateNeighborHood = True):
@@ -1225,27 +1285,6 @@ class AutomaticRegionMerger(object):
         self._queue = q
         self._costLog = None
 
-    def ensureValidNext(self):
-        q = self._queue
-        map = self._map
-        while q and not map.edge(q.top()[0]):
-            q.pop()
-
-    def nextCost(self):
-        """Returns the cost of the merge operation that would be
-        performed next by `mergeStep()`."""
-        return self._queue.top()[1]
-
-    def nextEdgeLabel(self):
-        """Returns the label of the dart that would be the parameter
-        of the merge operation that would be performed next by
-        `mergeStep()`."""
-        return self._queue.top()[0]
-
-    def step(self):
-        """Returns the number of steps performed so far."""
-        return self._step
-
     def mergeStep(self):
         """Fetch next edge from cost queue and remove it from the map.
         
@@ -1259,7 +1298,8 @@ class AutomaticRegionMerger(object):
         if not edge or edge.flag(flag_constants.ALL_PROTECTION):
             return
 
-        assert mergeCost == self._mergeCostMeasure(edge.dart())
+#         assert not self._updateNeighborHood or \
+#                mergeCost == self._mergeCostMeasure(edge.dart())
 
         d = edge.dart()
         if edge.isBridge():
@@ -1282,27 +1322,6 @@ class AutomaticRegionMerger(object):
             self._step += 1
 
         return survivor
-
-    def merge(self):
-        oldStep = self._step
-        while self._queue:
-            self.mergeStep()
-        return self._step - oldStep
-
-    def mergeSteps(self, count):
-        return self.mergeToStep(self._step + count)
-
-    def mergeToStep(self, targetStep):
-        oldStep = self._step
-        while self._queue and self._step < targetStep:
-            self.mergeStep()
-        return self._step - oldStep
-
-    def mergeToCost(self, maxCost):
-        oldStep = self._step
-        while self._queue and self.nextCost() <= maxCost:
-            self.mergeStep()
-        return self._step - oldStep
 
 def thresholdMergeCost(map, mergeCostMeasure, maxCost, costs = None, q = None):
     """thresholdMergeCost(map, mergeCostMeasure, maxCost, costs = None, q = None)
@@ -1590,9 +1609,9 @@ class StandardCostQueue(object):
         cost, index = heappop(self.heap)
         return index, cost
 
-class SeededRegionGrowing(object):
-    __slots__ = ["_map", "_mergeCostMeasure", "_step", "_queue",
-                 "_neighborSkipFlags", "_costLog"]
+class SeededRegionGrowing(AutomaticMethodBase):
+    __slots__ = ["_map", "_mergeCostMeasure", "_costLog",
+                 "_neighborSkipFlags"]
     
     def __init__(self, map, mergeCostMeasure,
                  dynamic = True, stupidInit = False):
@@ -1621,21 +1640,6 @@ class SeededRegionGrowing(object):
             self._neighborSkipFlags |= flag_constants.SRG_BORDER
 
         self._costLog = None
-
-    def nextCost(self):
-        """Returns the cost of the merge operation that would be
-        performed next by `mergeStep()`."""
-        return self._queue.top()[1]
-
-    def nextEdgeLabel(self):
-        """Returns the label of the dart that would be the parameter
-        of the merge operation that would be performed next by
-        `mergeStep()`."""
-        return self._queue.top()[0]
-
-    def step(self):
-        """Returns the number of steps performed so far."""
-        return self._step
 
     def _addNeighborsToQueue(self, face):
         for dart in neighborFaces(face):
@@ -1676,32 +1680,11 @@ class SeededRegionGrowing(object):
 
         return survivor
 
-    def merge(self):
-        oldStep = self._step
-        while self._queue:
-            self.mergeStep()
-        return self._step - oldStep
-
-    def mergeSteps(self, count):
-        return self.mergeToStep(self._step + count)
-
-    def mergeToStep(self, targetStep):
-        oldStep = self._step
-        while self._queue and self._step < targetStep:
-            self.mergeStep()
-        return self._step - oldStep
-
-    def mergeToCost(self, maxCost):
-        oldStep = self._step
-        while self._queue and self.nextCost() <= maxCost:
-            self.mergeStep()
-        return self._step - oldStep
-
-    growStep = mergeStep
-    grow = merge
-    growSteps = mergeSteps
-    growToStep = mergeToStep
-    growToCost = mergeToCost
+    growStep   = mergeStep
+    grow       = AutomaticMethodBase.merge
+    growSteps  = AutomaticMethodBase.mergeSteps
+    growToStep = AutomaticMethodBase.mergeToStep
+    growToCost = AutomaticMethodBase.mergeToCost
 
 def seededRegionGrowing(map, mergeCostMeasure, dynamic = False, stupidInit = False):
     """seededRegionGrowing(map, mergeCostMeasure, dynamic = False, stupidInit = False)
