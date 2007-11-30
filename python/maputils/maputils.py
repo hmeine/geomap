@@ -1190,8 +1190,7 @@ class AutomaticRegionMerger(object):
     costs of all edges around the surviving face are recalculated."""
 
     __slots__ = ["_map", "_mergeCostMeasure", "_step", "_queue",
-                 "_mergeOperation", "_updateNeighborHood",
-                 "_costLog"]
+                 "_mergeOperation", "_updateNeighborHood", "_costLog"]
 
     def __init__(self, map, mergeCostMeasure, q = None,
                  completeMerge = True, updateNeighborHood = True):
@@ -1247,15 +1246,6 @@ class AutomaticRegionMerger(object):
         """Returns the number of steps performed so far."""
         return self._step
 
-    def merge(self, maxCost = None):
-        if maxCost:
-            return self.mergeToCost(maxCost)
-
-        oldStep = self._step
-        while self._queue:
-            self.mergeStep()
-        return self._step - oldStep
-
     def mergeStep(self):
         """Fetch next edge from cost queue and remove it from the map.
         
@@ -1293,6 +1283,12 @@ class AutomaticRegionMerger(object):
 
         return survivor
 
+    def merge(self):
+        oldStep = self._step
+        while self._queue:
+            self.mergeStep()
+        return self._step - oldStep
+
     def mergeSteps(self, count):
         return self.mergeToStep(self._step + count)
 
@@ -1304,7 +1300,7 @@ class AutomaticRegionMerger(object):
 
     def mergeToCost(self, maxCost):
         oldStep = self._step
-        while self._queue and self.nextCost() < maxCost:
+        while self._queue and self.nextCost() <= maxCost:
             self.mergeStep()
         return self._step - oldStep
 
@@ -1595,9 +1591,11 @@ class StandardCostQueue(object):
         return index, cost
 
 class SeededRegionGrowing(object):
-    __slots__ = ["_map", "_mergeCostMeasure", "_step", "_queue", "_neighborSkipFlags"]
+    __slots__ = ["_map", "_mergeCostMeasure", "_step", "_queue",
+                 "_neighborSkipFlags", "_costLog"]
     
-    def __init__(self, map, mergeCostMeasure, dynamic = True, stupidInit = False):
+    def __init__(self, map, mergeCostMeasure,
+                 dynamic = True, stupidInit = False):
         self._map = map
         self._mergeCostMeasure = mergeCostMeasure
         self._step = 0
@@ -1622,10 +1620,21 @@ class SeededRegionGrowing(object):
         if not dynamic and not stupidInit:
             self._neighborSkipFlags |= flag_constants.SRG_BORDER
 
+        self._costLog = None
+
     def nextCost(self):
+        """Returns the cost of the merge operation that would be
+        performed next by `mergeStep()`."""
         return self._queue.top()[1]
 
+    def nextEdgeLabel(self):
+        """Returns the label of the dart that would be the parameter
+        of the merge operation that would be performed next by
+        `mergeStep()`."""
+        return self._queue.top()[0]
+
     def step(self):
+        """Returns the number of steps performed so far."""
         return self._step
 
     def _addNeighborsToQueue(self, face):
@@ -1636,17 +1645,7 @@ class SeededRegionGrowing(object):
                 self._queue.setCost(neighbor.label(), cost)
                 neighbor.setFlag(flag_constants.SRG_BORDER)
 
-    def grow(self, maxCost = None):
-        oldStep = self._step
-        if maxCost:
-            while self._queue and self.nextCost() <= maxCost:
-                self.growStep()
-        else:
-            while self._queue:
-                self.growStep()
-        return self._step - oldStep
-
-    def growStep(self):
+    def mergeStep(self):
         # fetch candidate Face from queue:
         while True:
             faceLabel, _ = self._queue.pop()
@@ -1671,22 +1670,38 @@ class SeededRegionGrowing(object):
             survivor.setFlag(flag_constants.SRG_BORDER, False)
             survivor.setFlag(flag_constants.SRG_SEED)
             self._addNeighborsToQueue(survivor)
+            if self._costLog is not None:
+                self._costLog.append(mergeCost)
             self._step += 1
 
-    def growSteps(self, count):
-        return self.growToStep(self._step + count)
+        return survivor
 
-    def growToStep(self, targetStep):
+    def merge(self):
+        oldStep = self._step
+        while self._queue:
+            self.mergeStep()
+        return self._step - oldStep
+
+    def mergeSteps(self, count):
+        return self.mergeToStep(self._step + count)
+
+    def mergeToStep(self, targetStep):
         oldStep = self._step
         while self._queue and self._step < targetStep:
-            self.growStep()
+            self.mergeStep()
         return self._step - oldStep
 
-    def growToCost(self, maxCost):
+    def mergeToCost(self, maxCost):
         oldStep = self._step
-        while self._queue and self.nextCost() < maxCost:
-            self.growStep()
+        while self._queue and self.nextCost() <= maxCost:
+            self.mergeStep()
         return self._step - oldStep
+
+    growStep = mergeStep
+    grow = merge
+    growSteps = mergeSteps
+    growToStep = mergeToStep
+    growToCost = mergeToCost
 
 def seededRegionGrowing(map, mergeCostMeasure, dynamic = False, stupidInit = False):
     """seededRegionGrowing(map, mergeCostMeasure, dynamic = False, stupidInit = False)
