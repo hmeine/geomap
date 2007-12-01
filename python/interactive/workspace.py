@@ -10,10 +10,11 @@ def labelRoot(lut, label):
     return result
 
 class PyramidContractionKernel(statistics.DetachableStatistics):
+    __base = statistics.DetachableStatistics
     __slots__ = ("ck", "_mergedFaceLabels")
     
     def __init__(self, map):
-        statistics.DetachableStatistics.__init__(self, map)
+        self.__base.__init__(self, map)
         self.ck = [None] * map.maxFaceLabel()
         self._attachHooks()
 
@@ -140,7 +141,7 @@ class Workspace(mapdisplay.MapDisplay):
 
         # set up HBox with cost measure options:
         automaticOptions = qt.QWidget(self._imageWindow, "automaticOptions")
-        l = qt.QHBoxLayout(automaticOptions, 0, 6)
+        l = qt.QHBoxLayout(automaticOptions, 2, 6)
 
         cml = qt.QLabel("Merge &cost measure:", automaticOptions)
         l.addWidget(cml)
@@ -160,6 +161,12 @@ class Workspace(mapdisplay.MapDisplay):
         self.connect(csChooser, qt.SIGNAL("activated(int)"), self.setColorSpace)
         l.addWidget(csChooser)
         csl.setBuddy(csChooser)
+
+        self.dynamicCheckBox = qt.QCheckBox("&Dynamic costs", automaticOptions)
+        l.addWidget(self.dynamicCheckBox)
+        self.dynamicCheckBox.setChecked(self.dynamicCosts)
+        self.connect(self.dynamicCheckBox, qt.SIGNAL("toggled(bool)"),
+                     self.setDynamicCosts)
         
         l.addItem(qt.QSpacerItem(
             10, 1, qt.QSizePolicy.Expanding, qt.QSizePolicy.Minimum))
@@ -283,10 +290,10 @@ class Workspace(mapdisplay.MapDisplay):
         result = copy.deepcopy(self._level0)
         if not hasattr(result, "mergedEdges"):
             result.mergedEdges = statistics.MergedEdges(result)
-        p = progress.StatusMessage("  applying manual changes")
+        #p = progress.StatusMessage("  applying manual changes")
         maputils.applyFaceClassification(result, self._manualCK)
 
-        p = progress.StatusMessage("  applying face protection + seeds")
+        #p = progress.StatusMessage("  applying face protection + seeds")
         self._estimatedApexFaceCount = 2 # infinite + one remaining finite
         for dartLabel in self._protectedFaceAnchors:
             face = result.dart(dartLabel).leftFace()
@@ -325,6 +332,12 @@ class Workspace(mapdisplay.MapDisplay):
             setattr(map, attr, stats)
         return getattr(map, attr)
 
+    def setDynamicCosts(self, dc):
+        if dc != self.dynamicCosts:
+            self.dynamicCosts = dc
+            self.recomputeAutomaticLevels()
+            self.dynamicCheckBox.setChecked(dc)
+
     def setColorSpace(self, colorSpace):
         if isinstance(colorSpace, int):
             colorSpace = self.colorSpaceNames[colorSpace]
@@ -350,7 +363,10 @@ class Workspace(mapdisplay.MapDisplay):
     costMeasureNames = ["face mean difference",
                         "face homogeneity",
                         "face t-test",
-                        "face brightness"]
+                        "face brightness",
+                        "isoperimetric quotient of result",
+                        "isoperimetric quotient after/before",
+                        "contour length"]
 
     def costMeasure(self, map):
         """Instantiate and return the currently chosen type of cost
@@ -367,6 +383,14 @@ class Workspace(mapdisplay.MapDisplay):
                 return max(vigra.norm(fm[dart.leftFaceLabel()]),
                            vigra.norm(fm[dart.rightFaceLabel()]))
             return brightness
+        elif self.activeCostMeasure == 4:
+            return statistics.mergedIsoperimetricQuotient
+        elif self.activeCostMeasure == 5:
+            return statistics.seedIsoperimetricQuotient
+        elif self.activeCostMeasure == 6:
+            return statistics.mergedContourLength
+        else:
+            raise RuntimeError("Wrong cost measure (%s)" % self.activeCostMeasure)
 
     def _levelSliderChanged(self, levelIndex):
         self.displayLevel(levelIndex = levelIndex)
@@ -414,41 +438,29 @@ class Workspace(mapdisplay.MapDisplay):
 
     def pyramidCK(self):
         if not self._pyramidCK:
-            if self._seeds is None:
-                self.automaticRegionMerging()
-            else:
-                self.seededRegionGrowing()
+            self.startAutomaticMethod()
         return self._pyramidCK
 
-    def automaticRegionMerging(self):
+    def startAutomaticMethod(self):
         map = self.manualBaseMap()
         map.pyramidCK = PyramidContractionKernel(map)
 
-        amr = maputils.AutomaticRegionMerger(
-            map, self.costMeasure(map), updateNeighborHood = self.dynamicCosts)
+        if self._seeds is None:
+            methodName = "automatic region merging"
+            am = maputils.AutomaticRegionMerger(
+                map, self.costMeasure(map), updateNeighborHood = self.dynamicCosts)
+        else:
+            methodName = "seeded region growing"
+            am = maputils.SeededRegionGrowing(
+                map, self.costMeasure(map), dynamic = self.dynamicCosts)
+
+        am._costLog = []
+        self._costLog = am._costLog
         stepsTotal = map.faceCount - self._estimatedApexFaceCount
         p = progress.ProgressHook(
-            progress.StatusMessage("automatic region merging")) \
+            progress.StatusMessage(methodName)) \
             .rangeTicker(stepsTotal / 50)
-        while amr.mergeSteps(50):
-            p()
-
-        self._detachMapStats(map)
-        self._pyramidCK = map.pyramidCK
-
-    def seededRegionGrowing(self):
-        map = self.manualBaseMap()
-        for pos in self._seeds:
-            map.faceAt(pos).setFlag(flag_constants.SRG_SEED)
-        map.pyramidCK = PyramidContractionKernel(map)
-
-        srg = maputils.SeededRegionGrowing(
-            map, self.costMeasure(map), dynamic = self.dynamicCosts)
-        stepsTotal = map.faceCount - self._estimatedApexFaceCount
-        p = progress.ProgressHook(
-            progress.StatusMessage("seeded region growing")) \
-            .rangeTicker(stepsTotal / 50)
-        while srg.growSteps(50):
+        while am.mergeSteps(50):
             p()
 
         self._detachMapStats(map)
