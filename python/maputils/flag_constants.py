@@ -19,9 +19,11 @@ ALL_PROTECTION = hourglass.GeoMap.Edge.ALL_PROTECTION
 assert ALL_PROTECTION & 31 == 31, "must include or'ed values of the ones above"
 
 # delaunay:
-CONTOUR_SEGMENT = 256
-WEAK_CHORD      = 512
-IS_BARB         = 1024
+CONTOUR_SEGMENT  = 256
+WEAK_CHORD       = 512
+IS_BARB          = 1024
+START_NODE_ADDED = 8192
+END_NODE_ADDED   = 16384
 
 # tools/IntelligentScissors:
 CURRENT_CONTOUR = 2048
@@ -54,3 +56,9 @@ SRG_SEED = 8
 SRG_BORDER = 16
 
 FACE_USER = 0x100000
+
+if __name__ == "__main__":
+    for name in dir():
+        value = eval(name)
+        if isinstance(value, int):
+            print "%20s: %8x (%d)" % (name, value, value)
