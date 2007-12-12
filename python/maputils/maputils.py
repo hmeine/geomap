@@ -1203,10 +1203,11 @@ class AutomaticMethodBase(object):
         while q and not map.edge(q.top()[0]):
             q.pop()
 
-    def nextEdgeLabel(self):
+    def nextLabel(self):
         """Returns the label of the dart that would be the parameter
         of the merge operation that would be performed next by
-        `mergeStep()`.
+        `mergeStep()` (for SRG, return the label of the face being
+        associated next).
         
         Note that `mergeStep` does not always perform a step (i.e. the
         edge at the front of the internal priority queue might have
@@ -1652,7 +1653,7 @@ class SeededRegionGrowing(AutomaticMethodBase):
     def mergeStep(self):
         # fetch candidate Face from queue:
         while True:
-            faceLabel, _ = self._queue.pop()
+            faceLabel, mergeCost = self._queue.pop()
             face = self._map.face(faceLabel)
             if face and not face.flag(flag_constants.SRG_SEED):
                 break
