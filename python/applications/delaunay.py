@@ -497,7 +497,23 @@ def catMap(delaunayMap,
     >>> del2 = copy.copy(del1) # if you want to keep the original
     >>> removeWeakChords(del2)
     >>> rcat2 = delaunay.catMap(del2)
-    """
+
+    The resulting map will have two additional attributes that relate
+    the skeleton with the original boundary:
+
+    subtendedLengths:
+      This is a list mapping edge labels of the skeleton to the
+      accumulated lengths of all contour segments within the contours
+      of the sleeve- and terminal-faces that comprise the sleeve
+      represented by that skeleton edge.
+
+    nodeChordLabels:
+      This is a list mapping node labels of the skeleton to lists of
+      (sleeveLabel, chordLabel) pairs, where sleeveLabel is the label
+      of a skeleton edge and chordLabel is the dart label of the first
+      chord from the `delaunayMap` within that sleeve.  (This is
+      needed for later corrections of the junction node positions
+      after pruning.)"""
 
     if rectified:
         junctionPos = rectifiedJunctionNodePosition
@@ -590,10 +606,13 @@ def catMap(delaunayMap,
                     if includeTerminalPositions:
                         endNode.setPosition((dart.clone().nextPhi())[-1])
 
+                flags = 0
                 if not edgePoints or edgePoints[0] != startNode.position():
                     edgePoints.insert(0, startNode.position())
+                    flags |= START_NODE_ADDED
                 if edgePoints[-1] != endNode.position():
                     edgePoints.append(endNode.position())
+                    flags |= END_NODE_ADDED
 
                 if len(edgePoints) < 2:
                     # don't add edges with only 1 point (two adjacent
@@ -607,6 +626,7 @@ def catMap(delaunayMap,
                 
                 sleeve = result.addEdge(
                     startNode, endNode, edgePoints)
+                sleeve.setFlag(flags)
 
                 result.subtendedLengths.append(subtendedBoundaryLength)
                 if faceType[face.label()] == "J":
@@ -788,6 +808,8 @@ def pruneBySubtendedLength(skelMap, delaunayMap = None,
             if dart.startNode().hasMinDegree(2):
                 continue # no barb (yet?)
 
+            # (dart now belongs to a barb, startNode().degree() == 1)
+            
             neighbor = dart.clone().nextPhi()
             skelMap.subtendedLengths[neighbor.edgeLabel()] \
                 += subtendedBoundaryLength
@@ -795,6 +817,8 @@ def pruneBySubtendedLength(skelMap, delaunayMap = None,
             # correct junction node position when cutting off sleeve:
             if (delaunayMap and dart.endNode().hasMinDegree(2)) or \
                    (not delaunayMap and dart.endNode().hasDegree(3)):
+
+                # update skelMap.nodeChordLabels:
                 chordLabels = skelMap.nodeChordLabels[dart.endNodeLabel()]
                 assert len(chordLabels) == dart.endNode().degree()
                 for i, (sleeve, _) in enumerate(chordLabels):
@@ -802,19 +826,22 @@ def pruneBySubtendedLength(skelMap, delaunayMap = None,
                         del chordLabels[i]
                         break
                 assert sleeve == dart.edgeLabel()
+                
                 if delaunayMap and dart.endNode().hasMinDegree(3):
                     dart.endNode().setPosition(
                         rectifiedJunctionNodePosition(
                         [delaunayMap.dart(dl) for _, dl in chordLabels]))
                 else: # junction face -> sleeve face
                     remaining = dart.clone().nextPhi()
-                    remaining.startNode().setPosition(remaining[1])
+                    re = remaining.edge()
                     if remaining.label() < 0:
-                        assert remaining.edge()[-1] == remaining.edge()[-2]
-                        del remaining.edge()[-1] # delete duplicate point
+                        if re.flag(END_NODE_ADDED):
+                            re.endNode().setPosition(re[-2])
+                            del re[-1] # delete duplicate point
                     else:
-                        assert remaining.edge()[0] == remaining.edge()[1]
-                        del remaining.edge()[1] # delete duplicate point
+                        if re.flag(START_NODE_ADDED):
+                            re.startNode().setPosition(re[1])
+                            del re[1] # delete duplicate point
 
             skelMap.removeEdge(dart)
             changed = True
