@@ -108,7 +108,8 @@ class Workspace(mapdisplay.MapDisplay):
     # PyQt widgets, any attribute may be used:
     __slots__ = ("_level0", "_manualCK", "_seeds",
                  "_pyramidCK", "activeCostMeasure", "dynamicCosts",
-                 "_mapRestartAction", "_levelSlider", "_estimatedApexFaceCount",
+                 "_mapRestartAction", "_levelSlider",
+                 "_manualBaseMapFaceCount", "_estimatedApexFaceCount",
                  "_history", "_activeTool", "colorSpace")
     
     def __init__(self, level0, originalImage, bi = None):
@@ -145,13 +146,14 @@ class Workspace(mapdisplay.MapDisplay):
 
         cml = qt.QLabel("Merge &cost measure:", automaticOptions)
         l.addWidget(cml)
-        self.cmChooser = qt.QComboBox(automaticOptions, "cmChooser")
+        cmChooser = qt.QComboBox(automaticOptions, "cmChooser")
         for name in self.costMeasureNames:
-            self.cmChooser.insertItem(name)
-        self.cmChooser.setCurrentItem(self.activeCostMeasure)
-        self.connect(self.cmChooser, qt.SIGNAL("activated(int)"), self.setCostMeasure)
-        l.addWidget(self.cmChooser)
-        cml.setBuddy(self.cmChooser)
+            cmChooser.insertItem(name)
+        cmChooser.setCurrentItem(self.activeCostMeasure)
+        self.connect(cmChooser, qt.SIGNAL("activated(int)"), self.setCostMeasure)
+        l.addWidget(cmChooser)
+        cml.setBuddy(cmChooser)
+        self._cmChooser = cmChooser
         
         csl = qt.QLabel("C&olor space:", automaticOptions)
         l.addWidget(csl)
@@ -161,6 +163,7 @@ class Workspace(mapdisplay.MapDisplay):
         self.connect(csChooser, qt.SIGNAL("activated(int)"), self.setColorSpace)
         l.addWidget(csChooser)
         csl.setBuddy(csChooser)
+        self._csChooser = csChooser
 
         self.dynamicCheckBox = qt.QCheckBox("&Dynamic costs", automaticOptions)
         l.addWidget(self.dynamicCheckBox)
@@ -292,6 +295,7 @@ class Workspace(mapdisplay.MapDisplay):
             result.mergedEdges = statistics.MergedEdges(result)
         #p = progress.StatusMessage("  applying manual changes")
         maputils.applyFaceClassification(result, self._manualCK)
+        self._manualBaseMapFaceCount = result.faceCount
 
         #p = progress.StatusMessage("  applying face protection + seeds")
         self._estimatedApexFaceCount = 2 # infinite + one remaining finite
@@ -325,8 +329,12 @@ class Workspace(mapdisplay.MapDisplay):
                 if img.bands() != 3:
                     sys.stderr.write("WARNING: Color space '%s' requested but ignored; image has only %d band!\n" % (img.bands(), ))
                 else:
-                    img = vigra.transformImage(
-                        img, "\l x: RGB2%s(x)" % self.colorSpace)
+                    rgbNames = self.colorSpaceNames[-3:]
+                    if self.colorSpace in rgbNames:
+                        img = vigra.GrayImage(img[rgbNames.index(self.colorSpace)])
+                    else:
+                        img = vigra.transformImage(
+                            img, "\l x: RGB2%s(x)" % self.colorSpace)
             stats = statistics.FaceColorStatistics(map, img)
             stats.image = img
             setattr(map, attr, stats)
@@ -341,6 +349,9 @@ class Workspace(mapdisplay.MapDisplay):
     def setColorSpace(self, colorSpace):
         if isinstance(colorSpace, int):
             colorSpace = self.colorSpaceNames[colorSpace]
+        else:
+            assert colorSpace in self.colorSpaceNames, \
+                   "invalid colorSpace '%s'" % colorSpace
         if colorSpace == "RGB":
             colorSpace = ""
         if self.colorSpace != colorSpace:
@@ -349,8 +360,10 @@ class Workspace(mapdisplay.MapDisplay):
             # FIXME: for scissors:?
 #             tools.activeCostMeasure = \
 #                 statistics.HyperbolicInverse(self.costMeasure(self.map))
+            self._csChooser.setCurrentItem(
+                self.colorSpaceNames.index(colorSpace or "RGB"))
 
-    colorSpaceNames = ["RGB", "RGBPrime", "Luv", "Lab"]
+    colorSpaceNames = ["RGB", "RGBPrime", "Luv", "Lab", "red", "green", "blue"]
 
     def setCostMeasure(self, index):
         if self.activeCostMeasure != index:
@@ -358,7 +371,7 @@ class Workspace(mapdisplay.MapDisplay):
             self.recomputeAutomaticLevels()
             tools.activeCostMeasure = \
                 statistics.HyperbolicInverse(self.costMeasure(self.map))
-            self.cmChooser.setCurrentItem(index)
+            self._cmChooser.setCurrentItem(index)
 
     costMeasureNames = ["face mean difference",
                         "face homogeneity",
