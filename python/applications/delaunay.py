@@ -794,58 +794,103 @@ def pruneBySubtendedLength(skelMap, delaunayMap = None,
         totalBL = sum(skelMap.subtendedLengths)
         minLength = (ratio or 0.01) * totalBL
 
-    while changed:
-        changed = False
+    from heapq import heappush, heappop
 
-        for edge in skelMap.edgeIter():
-            subtendedBoundaryLength = skelMap.subtendedLengths[edge.label()]
-            if subtendedBoundaryLength >= minLength:
-                continue
+    # update nodeChordLabels and subtendedLengths via hooks:
+    mergedValues = [None, None, None]
+    # (merged edge label, merged subtendedLength, changed endNode)
+    def preMergeEdges(dart):
+        merged = dart.clone().nextSigma()
+        mergedValues[0] = merged.edgeLabel()
+        mergedValues[1] = skelMap.subtendedLengths[merged.edgeLabel()]
+        mergedValues[2] = merged.endNodeLabel()
+        return True
+    def postMergeEdges(survivor):
+        merged = mergedValues[0]
+        chordLabel = skelMap.nodeChordLabels[mergedValues[2]]
+        for i, (sleeve, chord) in enumerate(chordLabel):
+            if sleeve == merged:
+                chordLabel[i] = survivor.label(), chord
+        skelMap.subtendedLengths[survivor.label()] += mergedValues[0]
+    hooks = skelMap.addMergeEdgesCallbacks(preMergeEdges, postMergeEdges)
+
+    barbs = []
+    for edge in skelMap.edgeIter():
+        subtendedBoundaryLength = skelMap.subtendedLengths[edge.label()]
+        if subtendedBoundaryLength >= minLength:
+            continue
+        
+        dart = edge.dart()
+        if dart.startNode().hasMinDegree(2):
+            dart.nextAlpha()
+        if dart.startNode().hasMinDegree(2):
+            continue # no barb (yet?)
+
+        heappush(barbs, (subtendedBoundaryLength, dart))
+
+    while barbs:
+        subtendedBoundaryLength, dart = heappop(barbs)
+        if not dart.edge() or \
+           skelMap.subtendedLengths[dart.edgeLabel()] > subtendedBoundaryLength:
+            continue
+
+        # (dart now belongs to a barb, startNode().degree() == 1)
+        
+        neighbor = dart.clone().nextPhi()
+        skelMap.subtendedLengths[neighbor.edgeLabel()] \
+            += subtendedBoundaryLength
+
+        # correct junction node position when cutting off sleeve:
+        if (delaunayMap and dart.endNode().hasMinDegree(2)) or \
+               (not delaunayMap and dart.endNode().hasDegree(3)):
+
+            # update skelMap.nodeChordLabels:
+            chordLabels = skelMap.nodeChordLabels[dart.endNodeLabel()]
+            assert len(chordLabels) == dart.endNode().degree()
+            for i, (sleeve, _) in enumerate(chordLabels):
+                if sleeve == dart.edgeLabel():
+                    del chordLabels[i]
+                    break
+            assert sleeve == dart.edgeLabel()
             
-            dart = edge.dart()
-            if dart.startNode().hasMinDegree(2):
-                dart.nextAlpha()
-            if dart.startNode().hasMinDegree(2):
-                continue # no barb (yet?)
+            if delaunayMap and dart.endNode().hasMinDegree(3):
+                dart.endNode().setPosition(
+                    rectifiedJunctionNodePosition(
+                    [delaunayMap.dart(dl) for _, dl in chordLabels]))
+            else: # junction face -> sleeve face
+                remaining = dart.clone().nextPhi()
+                re = remaining.edge()
+                if remaining.label() < 0:
+                    if re.flag(END_NODE_ADDED):
+                        re.endNode().setPosition(re[-2])
+                        del re[-1] # delete duplicate point
+                else:
+                    if re.flag(START_NODE_ADDED):
+                        re.startNode().setPosition(re[1])
+                        del re[1] # delete duplicate point
 
-            # (dart now belongs to a barb, startNode().degree() == 1)
-            
-            neighbor = dart.clone().nextPhi()
-            skelMap.subtendedLengths[neighbor.edgeLabel()] \
-                += subtendedBoundaryLength
+        skelMap.removeEdge(dart)
+        result += 1
 
-            # correct junction node position when cutting off sleeve:
-            if (delaunayMap and dart.endNode().hasMinDegree(2)) or \
-                   (not delaunayMap and dart.endNode().hasDegree(3)):
+        if not neighbor.edge() or neighbor.startNode().hasMinDegree(3):
+            continue
 
-                # update skelMap.nodeChordLabels:
-                chordLabels = skelMap.nodeChordLabels[dart.endNodeLabel()]
-                assert len(chordLabels) == dart.endNode().degree()
-                for i, (sleeve, _) in enumerate(chordLabels):
-                    if sleeve == dart.edgeLabel():
-                        del chordLabels[i]
-                        break
-                assert sleeve == dart.edgeLabel()
-                
-                if delaunayMap and dart.endNode().hasMinDegree(3):
-                    dart.endNode().setPosition(
-                        rectifiedJunctionNodePosition(
-                        [delaunayMap.dart(dl) for _, dl in chordLabels]))
-                else: # junction face -> sleeve face
-                    remaining = dart.clone().nextPhi()
-                    re = remaining.edge()
-                    if remaining.label() < 0:
-                        if re.flag(END_NODE_ADDED):
-                            re.endNode().setPosition(re[-2])
-                            del re[-1] # delete duplicate point
-                    else:
-                        if re.flag(START_NODE_ADDED):
-                            re.startNode().setPosition(re[1])
-                            del re[1] # delete duplicate point
+        if neighbor.startNode().hasDegree(2):
+            survSBL = skelMap.subtendedLengths[neighbor.edgeLabel()] + \
+                      skelMap.subtendedLengths[neighbor.nextSigma().edgeLabel()]
+            survivor = skelMap.mergeEdges(neighbor)
+            skelMap.subtendedLengths[survivor.label()] = survSBL
 
-            skelMap.removeEdge(dart)
-            changed = True
-            result += 1
+            if survSBL < minLength:
+                dart = survivor.dart()
+                if dart.startNode().hasMinDegree(2):
+                    dart.nextAlpha()
+                if dart.startNode().hasMinDegree(2):
+                    continue # no barb (yet?)
+                heappush(barbs, (survSBL, dart))
+        else:
+            if skelMap.subtendedLengths[neighbor.edgeLabel()] < minLength:
+                heappush(barbs, (survSBL, neighbor))
 
     return result
 
