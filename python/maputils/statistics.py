@@ -384,6 +384,55 @@ def faceAreaHomogeneity(dart):
 
 # --------------------------------------------------------------------
 
+def _ipqLengths(dart):
+    ll = dart.leftFaceLabel()
+    rl = dart.rightFaceLabel()
+
+    left = 0.0
+    common = 0.0
+    right = 0.0
+
+    for d in dart.phiOrbit():
+        if d.rightFaceLabel() == rl:
+            common += d.edge().length()
+        else:
+            left += d.edge().length()
+
+    for d in dart.clone().nextAlpha().phiOrbit():
+        if d.rightFaceLabel() != ll:
+            right += d.edge().length()
+
+    return left, common, right
+
+def mergedContourLength(dart):
+    left, common, right = _ipqLengths(dart)
+    return (left+right)
+
+def mergedIsoperimetricQuotient(dart):
+    left, common, right = _ipqLengths(dart)
+    return vigra.sq(left+right) \
+           / (4*math.pi*(dart.leftFace().area() + dart.rightFace().area()))
+
+def mergedIsoperimetricQuotient2(dart):
+    left, common, right = _ipqLengths(dart)
+    after = vigra.sq(left+right) \
+            / ((dart.leftFace().area() + dart.rightFace().area()))
+    beforeLeft = vigra.sq(left+common) / dart.leftFace().area()
+    beforeRight = vigra.sq(right+common) / dart.rightFace().area()
+    return after / (beforeLeft + beforeRight)
+
+def seedIsoperimetricQuotient(dart):
+    left, common, right = _ipqLengths(dart)
+    after = vigra.sq(left+right) \
+            / ((dart.leftFace().area() + dart.rightFace().area()))
+    if dart.leftFace().flag(flag_constants.SRG_SEED):
+        beforeLeft = vigra.sq(left+common) / dart.leftFace().area()
+        return after / beforeLeft
+    beforeRight = vigra.sq(right+common) / dart.rightFace().area()
+    return after / beforeRight
+
+# --------------------------------------------------------------------
+
 class HyperbolicInverse(object):
     """Cost measure for a (e.g. livewire) path, which takes the
     inverse of a darts' removal costs (given a dart cost measure) as
