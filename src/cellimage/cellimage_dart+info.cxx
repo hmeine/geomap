@@ -13,7 +13,7 @@ public:
       cellsUL_(dart.segmentation()->cells)
     {}
 
-    DartIterator __iter__()
+    DartIterator &__iter__()
     {
         return *this;
     }
@@ -28,6 +28,13 @@ public:
         Diff2D result(it_.neighborCirculator().base() - cellsUL_);
         ++it_;
         return result;
+    }
+
+    Diff2D nodePosition() const
+    {
+        if(it_->type() == CellTypeVertex)
+            return it_.neighborCirculator().base() - cellsUL_;
+        return it_.neighborCirculator().center() - cellsUL_;
     }
 
     EdgelIterator it_;
@@ -80,7 +87,9 @@ void defineDartTraverser()
         .def("rightFace", &DT::rightFace, return_internal_reference<>())
         .def("__iter__", &DartTraverser__iter__)
         .def(self == self)
-        .def(self != self);
+        .def(self != self)
+        .def(self_ns::str(self))
+    ;
 #else  // _MSC_VER
     scope
         .def("nextAlpha", &pyTraverserFct<DT&, &DT::nextAlpha>, return_internal_reference<>())
@@ -104,13 +113,18 @@ void defineDartTraverser()
         .def("rightFace", &pyTraverserConstFct<GeoMap::FaceInfo &,&DT::rightFace>, return_internal_reference<>())
         .def("__iter__", &DartTraverser__iter__)
         .def(self == self)
-        .def(self != self);
+        .def(self != self)
+        .def(str(self))
+    ;
 #endif
+    scope.attr("__repr__") = scope.attr("__str__");
 
     class_<DartIterator>("DartIterator", init<const DT &>())
-        .def("__iter__", &DartIterator::__iter__)
-        .def("next", &DartIterator::next);
-
+        .def("__iter__", &DartIterator::__iter__,
+             return_internal_reference<>())
+        .def("next", &DartIterator::next)
+        .def("nodePosition", &DartIterator::nodePosition)
+    ;
 }
 
 GeoMap::DartTraverser &contourGetItem(
