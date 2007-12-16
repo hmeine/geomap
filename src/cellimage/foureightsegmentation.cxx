@@ -141,7 +141,7 @@ unsigned int GeoMap::findComponentAnchor(
     }
 
     std::cerr << "DART NOT FOUND IN CONTOURS OF FACE " << face.label
-              << ": "; debugDart(dart);
+              << ": " << dart << "\n";
     result = 1;
     for(ConstContourComponentsIterator contour= contours.begin();
         contour != contours.end(); ++contour, ++result)
@@ -149,7 +149,7 @@ unsigned int GeoMap::findComponentAnchor(
         std::cerr << "contour " << result << ":\n";
         DartTraverser dart2(*contour);
         do {
-            std::cerr << "  "; debugDart(dart2);
+            std::cerr << "  " << dart2 << "\n";
         } while(dart2.nextPhi() != *contour);
     }
 
@@ -470,8 +470,8 @@ void GeoMap::checkConsistency()
         if(it->anchor.neighborCirculator().center()->type() != CellTypeVertex)
         {
             consistent = false;
-            std::cerr << "node " << it->label << "'s anchor is broken: ";
-            debugDart(it->anchor);
+            std::cerr << "node " << it->label << "'s anchor is broken: "
+					  << it->anchor << "\n";
         }
         if(!it->anchor.isSingular())
         {
@@ -484,13 +484,12 @@ void GeoMap::checkConsistency()
             consistent = false;
             std::cerr << "node " << it->label << " has degree stored as "
                       << it->degree << " but seems to be of degree "
-                      << realDegree << "\n  anchor:";
-            debugDart(it->anchor);
+                      << realDegree << "\n  anchor:"
+					  << it->anchor << "\n";
             std::cerr << "  sigma-successors:\n";
             for(DartTraverser dart(it->anchor); dart.nextSigma() != it->anchor; )
             {
-                std::cerr << "   ";
-                debugDart(dart);
+                std::cerr << "   " << dart << "\n";
             }
         }
 
@@ -523,8 +522,8 @@ void GeoMap::checkConsistency()
         if(it->start.neighborCirculator().center()->type() != CellTypeVertex)
         {
             consistent = false;
-            std::cerr << "edge " << it->label << "'s start is broken: ";
-            debugDart(it->start);
+            std::cerr << "edge " << it->label << "'s start is broken: "
+					  << it->start << "\n";
         }
         if(it->start.edgeLabel() != it->label)
         {
@@ -535,8 +534,8 @@ void GeoMap::checkConsistency()
         if(it->end.neighborCirculator().center()->type() != CellTypeVertex)
         {
             consistent = false;
-            std::cerr << "edge " << it->label << "'s end is broken: ";
-            debugDart(it->end);
+            std::cerr << "edge " << it->label << "'s end is broken: "
+					  << it->end << "\n";
         }
         if(it->end.edgeLabel() != it->label)
         {
@@ -569,8 +568,8 @@ void GeoMap::checkConsistency()
             {
                 consistent = false;
                 std::cerr << "face " << it->label << "'s anchor at position "
-                          << (cc - it->contours.begin()) << " is broken: ";
-                debugDart(*cc);
+                          << (cc - it->contours.begin()) << " is broken: "
+						  << *cc << "\n";
             }
             DartTraverser dart(*cc);
             dart.nextSigma();
@@ -579,8 +578,8 @@ void GeoMap::checkConsistency()
             {
                 consistent = false;
                 std::cerr << "face " << it->label << "'s contours are broken:\n"
-                          << "  anchor:  "; debugDart(*cc);
-                std::cerr << "  becomes: "; debugDart(dart);
+                          << "  anchor:  " << *cc << "\n"
+						  << "  becomes: " << dart << "\n";
             }
             int maxSteps= 10000;
             do
@@ -597,9 +596,9 @@ void GeoMap::checkConsistency()
             {
                 consistent = false;
                 std::cerr << "face " << it->label << "'s contours are broken:\n"
-                          << "  anchor: "; debugDart(*cc);
-                std::cerr << "  did not return after " << maxSteps << " steps: ";
-                debugDart(dart);
+                          << "  anchor: " << *cc << "\n"
+						  << "  did not return after " << maxSteps << " steps: "
+						  << dart << "\n";
             }
 
 //  for(unsigned int i = 1; i < face.contours.size(); ++i)
@@ -1046,8 +1045,8 @@ void GeoMap::initEdgeList(CellLabel maxEdgeLabel)
                           << Point2D(dartEnd.neighborCirculator().base() - cells) << "\n";
                 debugImage(crop(srcIterRange(cells, cells), dr),
                            std::cerr, 4);
-                std::cerr << "dartEnd: "; debugDart(dartEnd);
-                std::cerr << "dart:    "; debugDart(dart);
+                std::cerr << "dartEnd: " << dartEnd << "\n";
+                std::cerr << "dart:    " << dart << "\n";
             }
         }
         while(dart.nextSigma() != dartEnd);
@@ -1206,7 +1205,8 @@ void GeoMap::initFaceList(BImage & contourImage, CellLabel maxFaceLabel)
 }
 
 std::ostream &
-operator<<(std::ostream & out, const GeoMap::DartTraverser & d)
+operator<<(std::ostream & out,
+		   const vigra::cellimage::GeoMap::DartTraverser & d)
 {
     static const char * const dirStr[] = {
         " E",
@@ -1279,12 +1279,6 @@ operator<<(std::ostream & out, const GeoMap::DartTraverser & d)
 
     out << "]";
     return out;
-}
-
-
-void debugDart(const GeoMap::DartTraverser &dart)
-{
-    std::cerr << dart << "\n";
 }
 
 } // namespace cellimage

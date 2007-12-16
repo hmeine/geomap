@@ -958,14 +958,12 @@ void initGeoMapContourImage(SrcIter ul, SrcIter lr, SrcAcc src,
     }
 }
 
-void debugDart(const GeoMap::DartTraverser &dart);
+std::ostream &
+operator<<(std::ostream & out,
+           const GeoMap::DartTraverser & d);
 
 } // namespace cellimage
 
 } // namespace vigra
-
-std::ostream &
-operator<<(std::ostream & out,
-           const vigra::cellimage::GeoMap::DartTraverser & d);
 
 #endif /* VIGRA_GEOMAP_HXX */
