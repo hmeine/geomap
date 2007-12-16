@@ -47,7 +47,18 @@ convertCellImage(
     transformImage(srcImageRange(simage), destImage(*result),
                    vigra::cellimage::CellPixelSerializer());
     return result;
-}   
+}
+
+vigra::PythonGrayImage
+serializeCellImage(
+    const vigra::cellimage::CellImage &cellImage)
+{
+    vigra::PythonGrayImage result(cellImage.size());
+    transformImage(srcImageRange(cellImage), destImage(result),
+                   vigra::cellimage::CellPixelSerializer());
+    return result;
+}
+
 
 vigra::cellimage::GeoMap *
 createGeoMap(
@@ -100,6 +111,11 @@ std::string CellPixel__repr__(const vigra::cellimage::CellPixel p)
     return s.str();
 }
 
+unsigned int CellPixel__int__(const vigra::cellimage::CellPixel p)
+{
+    return vigra::cellimage::CellPixelSerializer()(p);
+}
+
 using namespace boost::python;
 using namespace vigra::cellimage;
 
@@ -126,6 +142,7 @@ BOOST_PYTHON_MODULE_INIT(cellimage)
         .add_property("label", &CellPixel::label,
                       (void(CellPixel::*)(CellLabel))&CellPixel::setLabel)
         .def("__repr__", &CellPixel__repr__)
+        .def("__int__", &CellPixel__int__)
         .def(self == self);
 
     class_<CellImage>("CellImage", no_init)
@@ -140,12 +157,13 @@ BOOST_PYTHON_MODULE_INIT(cellimage)
         .def("get", &getPixel)
         .def("set", &setPixel)
         .def("get", &getPixelXY)
-        .def("set", &setPixelXY);
+        .def("set", &setPixelXY)
+        .def("serialize", &serializeCellImage)
+    ;
 
     definePyramid();
 
     def("validateDart", &validateDart);
-    def("debugDart", &debugDart);
 
     scope geoMap(
         class_<GeoMap>("GeoMap", init<const CellImage &>(args("importImage")))
