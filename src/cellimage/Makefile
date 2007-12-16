@@ -1,7 +1,7 @@
-PLATFORM = $(shell /software/Modules/bin/platform)
-#PLATFORM = gentoo
+PLATFORM = $(shell PATH=/software/Modules/bin:$(PATH) platform)
 curdir = .
 
+# should point to build directory of interactive2 (where configure was called):
 INT2BUILDDIR = ../../interactive2/build-$(PLATFORM)
 include $(INT2BUILDDIR)/config/Makefile.include
 
