@@ -46,15 +46,28 @@ def pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0),
 
     edges = [None] * (geomap.maxEdgeLabel() + 1)
     for edge in geomap.edges:
-        points = [(Vector2(p[0], p[1])+offset) * scale for p in iter(edge.start)]
+        it = iter(edge.start)
+        startPos = it.nodePosition()
+        points = list(it)
         if midCracks:
-            points = [points[i] for i in range(0, len(points), 2)]
+            points = points[::2]
+        endPos = it.nodePosition()
+
+        points.insert(0, startPos)
+        points.append(endPos)
+
+        if skipEverySecond:
+            points = points[::2]
+
+        points = [(Vector2(p[0], p[1])+offset) * scale for p in points]
 
         startNeighbor = nodes[edge.start.startNodeLabel()]
         endNeighbor = nodes[edge.end.startNodeLabel()]
 
-        points.insert(0, startNeighbor.position())
-        points.append(endNeighbor.position())
+        if startNeighbor.position() != points[0]:
+            points.insert(0, startNeighbor.position())
+        if endNeighbor.position() != points[-1]:
+            points.append(endNeighbor.position())
 
         # re-use sigma order from source map:
         if not startNeighbor.isIsolated():
@@ -73,9 +86,6 @@ def pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0),
             if neighbor == neighbor.edge().end:
                 endNeighbor.nextAlpha()
                 
-        if skipEverySecond:
-            points = [points[i] for i in range(0, len(points), 2)]
-
         newEdge = result.addEdge(startNeighbor, endNeighbor, points)
         edges[edge.label] = newEdge
 
