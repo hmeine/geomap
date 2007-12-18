@@ -72,22 +72,23 @@ class PaintbrushStroke(object):
         self.workspace.recomputeAutomaticLevels()
 
 class FaceProtection(object):
-    __slots__ = ("workspace", "dartLabel", "protected")
+    __slots__ = ("workspace", "faceLabel", "protected")
 
-    def __init__(self, workspace, dartLabel):
+    def __init__(self, workspace, faceLabel):
         self.workspace = workspace
-        self.dartLabel = dartLabel
-        self.protected = workspace.map.dart(dartLabel).leftFace().flag(
+        self.faceLabel = faceLabel
+        self.protected = workspace.map.face(faceLabel).flag(
             flag_constants.PROTECTED_FACE)
         self.redo()
 
     def protect(self, protect):
         if protect:
-            self.workspace._protectedFaceAnchors.append(self.dartLabel)
+            self.workspace._protectedFaces.append(self.faceLabel)
         else:
-            self.workspace._protectedFaceAnchors.remove(self.dartLabel)
-        maputils.protectFace(
-            self.workspace.map.dart(self.dartLabel).leftFace(), protect)
+            self.workspace._protectedFaces.remove(self.faceLabel)
+        map = self.workspace.map
+        face = map.face(map.faceLabelLUT()[self.faceLabel])
+        maputils.protectFace(face, protect)
 
     def redo(self):
         self.protect(self.protected)
@@ -119,7 +120,7 @@ class Workspace(mapdisplay.MapDisplay):
         self._level0 = level0
         self._manualCK = range(level0.maxFaceLabel())
         self._seeds = None
-        self._protectedFaceAnchors = []
+        self._protectedFaces = []
         self._pyramidCK = None
         self.activeCostMeasure = 1 # faceHomogeneity
         self.dynamicCosts = True
@@ -257,7 +258,7 @@ class Workspace(mapdisplay.MapDisplay):
 
     def faceProtectionChanged(self, face):
         #assert face.map() == self.map
-        self._perform(FaceProtection(self, face.contour().label()))
+        self._perform(FaceProtection(self, face.label()))
 
         bbox = face.boundingBox()
         updateRect = qt.QRect(
@@ -312,8 +313,9 @@ class Workspace(mapdisplay.MapDisplay):
 
         #p = progress.StatusMessage("  applying face protection + seeds")
         self._estimatedApexFaceCount = 2 # infinite + one remaining finite
-        for dartLabel in self._protectedFaceAnchors:
-            face = result.dart(dartLabel).leftFace()
+        faceLabelLUT = result.faceLabelLUT()
+        for faceLabel in self._protectedFaces:
+            face = result.face(faceLabelLUT[faceLabel])
             if not face.flag(flag_constants.PROTECTED_FACE):
                 maputils.protectFace(face)
                 self._estimatedApexFaceCount += 1
@@ -534,4 +536,7 @@ if __name__ == "__main__":
     wsm = maputils.subpixelWatershedMap(
         gm, saddleThreshold = saddleThreshold)
 
+    app = qt.QApplication(sys.argv)
     w = Workspace(wsm, img)
+    app.connect(app, qt.SIGNAL("lastWindowClosed()"), app, qt.SLOT("quit()"))
+    app.exec_loop()
