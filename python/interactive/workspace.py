@@ -2,6 +2,8 @@ import copy, qt
 import vigra, mapdisplay, icons, maputils, statistics, flag_constants, tools
 import progress
 
+# FIXME: how to adjust the slider range when switching between slider modes?
+
 def labelRoot(lut, label):
     result = lut[label]
     if lut[result] != result:
@@ -124,6 +126,8 @@ class Workspace(mapdisplay.MapDisplay):
         self._history = []
         self._activeTool = None
         self.colorSpace = ""
+        self._estimatedApexFaceCount = 2
+        self._sliderCosts = None
 
         # needed for backpropagation of protection:
         if not hasattr(self.map, "mergedEdges"):
@@ -175,19 +179,32 @@ class Workspace(mapdisplay.MapDisplay):
             10, 1, qt.QSizePolicy.Expanding, qt.QSizePolicy.Minimum))
         self._imageWindow._layout.insertWidget(0, automaticOptions)
 
-        #sws.imageFrame.addWidget(self.imageFrame)
-        self._estimatedApexFaceCount = 2
-        self._levelSlider = qt.QSlider(self._imageWindow, "_levelSlider")
+        # set up HBox with level slider:
+        sliderBox = qt.QWidget(self._imageWindow, "sliderBox")
+        l = qt.QHBoxLayout(sliderBox, 2, 6)
+
+        self.sliderModeChooser = qt.QComboBox(sliderBox, "sliderModeChooser")
+        self.sliderModeChooser.insertItem("Steps:")
+        self.sliderModeChooser.insertItem("Cost:")
+        self.connect(self.sliderModeChooser, qt.SIGNAL("activated(int)"),
+                     self.setSliderMode)
+        l.addWidget(self.sliderModeChooser)
+
+        self._levelSlider = qt.QSlider(sliderBox, "_levelSlider")
         self._levelSlider.setOrientation(qt.QSlider.Horizontal)
-        self._levelSlider.setSteps(-1, -10)
+        #self._levelSlider.setSteps(-1, -10)
         self._levelSlider.setRange(
             0, level0.faceCount - self._estimatedApexFaceCount)
         self.connect(self._levelSlider, qt.SIGNAL("valueChanged(int)"),
                      self._levelSliderChanged)
-        self._imageWindow._layout.insertWidget(1, self._levelSlider)
+        l.addWidget(self._levelSlider)
+
+        self._imageWindow._layout.insertWidget(1, sliderBox)
+
+        # (finished setting up widgets)
         if self.isShown():
             automaticOptions.show()
-            self._levelSlider.show()
+            sliderBox.show()
 
         if bi is not None:
             self.setImage(bi, role = "bi")
@@ -277,12 +294,8 @@ class Workspace(mapdisplay.MapDisplay):
         self.__base.setMap(self, map)
         if activeTool:
             self.setTool(activeTool)
-        
-        self._levelSlider.blockSignals(True)
-        self._levelSlider.setValue(
-            self._levelSlider.maxValue() -
-            (self.map.faceCount - self._estimatedApexFaceCount))
-        self._levelSlider.blockSignals(False)
+
+        self._updateLevelSlider()
 
     def restart(self):
         """Restart with the manually created level."""
@@ -406,7 +419,26 @@ class Workspace(mapdisplay.MapDisplay):
             raise RuntimeError("Wrong cost measure (%s)" % self.activeCostMeasure)
 
     def _levelSliderChanged(self, levelIndex):
-        self.displayLevel(levelIndex = levelIndex)
+        if self._sliderCosts:
+            maxCost = (self._sliderCosts[-1] * levelIndex /
+                       self._levelSlider.maxValue())
+            print "maxCost:", maxCost
+            for i, c in enumerate(self._sliderCosts):
+                if c > maxCost:
+                    self.displayLevel(levelIndex = max(0, i-1))
+                    break
+        else:
+            self.displayLevel(levelIndex = levelIndex)
+
+    def _updateLevelSlider(self):
+        self._levelSlider.blockSignals(True)
+        if self._sliderCosts:
+            pass # FIXME?
+        else:
+            self._levelSlider.setValue(
+                self._levelSlider.maxValue() -
+                (self.map.faceCount - self._estimatedApexFaceCount))
+        self._levelSlider.blockSignals(False)
 
     def recomputeAutomaticLevels(self, faceCountOffset = 0):
         self.displayLevel(faceCount = self.map.faceCount + faceCountOffset,
@@ -442,17 +474,25 @@ class Workspace(mapdisplay.MapDisplay):
             self.setMap(map)
         elif faceCount < self.map.faceCount:
             self.pyramidCK().applyToFaceCount(self.map, faceCount)
-            
-            self._levelSlider.blockSignals(True)
-            self._levelSlider.setValue(
-                self._levelSlider.maxValue() -
-                (self.map.faceCount - self._estimatedApexFaceCount))
-            self._levelSlider.blockSignals(False)
 
     def pyramidCK(self):
         if not self._pyramidCK:
             self.startAutomaticMethod()
         return self._pyramidCK
+
+    def setSliderMode(self, sm):
+        if not sm:
+            self._sliderCosts = None
+            self._updateLevelSlider()
+            return
+
+        if not self._pyramidCK:
+            self.startAutomaticMethod()
+        self._sliderCosts = self._costLog
+#         self._sliderCosts = []
+#         for i, c in enumerate(self._costLog):
+#             self._sliderCosts.append(c) # if ...
+        self._updateLevelSlider()
 
     def startAutomaticMethod(self):
         map = self.manualBaseMap()
@@ -478,3 +518,20 @@ class Workspace(mapdisplay.MapDisplay):
 
         self._detachMapStats(map)
         self._pyramidCK = map.pyramidCK
+
+if __name__ == "__main__":
+    import sys, bi_utils
+    filename = "../../../Testimages/lenna_original_color.png"
+    biScale = 1.6
+    saddleThreshold = 0.2
+    if len(sys.argv) > 1:
+        filename = sys.argv[1]
+    if len(sys.argv) > 2:
+        biScale = float(sys.argv[2])
+
+    img = vigra.readImage(filename)
+    gm, grad = bi_utils.gaussianGradient(img, biScale)
+    wsm = maputils.subpixelWatershedMap(
+        gm, saddleThreshold = saddleThreshold)
+
+    w = Workspace(wsm, img)
