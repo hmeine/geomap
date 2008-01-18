@@ -150,10 +150,12 @@ unsigned int mergeDegree2Nodes(GeoMap &map)
 }
 
 unsigned int removeBridges(GeoMap &map, std::list<CellLabel> &bridges)
-{    
+{
     unsigned int result = 0;
 
     typedef std::list<CellLabel> Bridges;
+
+    unsigned int const UNREMOVABLE_BRIDGE = 0x80000;
 
     while(bridges.size())
     {
@@ -177,6 +179,8 @@ unsigned int removeBridges(GeoMap &map, std::list<CellLabel> &bridges)
                 GeoMap::Dart next = dart.clone().nextPhi();
                 if(map.removeBridge(dart))
                     ++result;
+                else
+                    dart.edge()->setFlag(UNREMOVABLE_BRIDGE);
 
                 if(next.edgeLabel() == dart.edgeLabel())
                     break;
@@ -195,8 +199,14 @@ unsigned int removeBridges(GeoMap &map, std::list<CellLabel> &bridges)
         {
             Bridges::iterator it = next;
             ++next;
-            if(!map.edge(*it))
+            CELL_PTR(GeoMap::Edge) bridge = map.edge(*it);
+            if(!bridge)
                 bridges.erase(it);
+            else if(bridge->flag(UNREMOVABLE_BRIDGE))
+            {
+                bridge->setFlag(UNREMOVABLE_BRIDGE, false); // clean up
+                bridges.erase(it);
+            }
         }
         while(next != bridges.end());
 
@@ -230,7 +240,7 @@ unsigned int removeBridges(GeoMap &map)
 template<class ITERATOR>
 unsigned int removeEdges(
     GeoMap &map, ITERATOR edgeLabelsBegin, ITERATOR edgeLabelsEnd)
-{    
+{
     unsigned int result = 0;
 
     typedef std::list<CellLabel> Bridges;
