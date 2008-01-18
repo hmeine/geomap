@@ -197,14 +197,23 @@ def findCandidatesForPointCorrection(abm):
 def outputMarkedShapes(delaunayMap, fe, skipInnerEdges = True,
                        regionDepth = 50, edgeDepth = 49,
                        capStyle = fig.capStyleRound, **kwargs):
-    """IIRC, this assumes that delaunayMap contains only triangles."""
+    """IIRC, this assumes that delaunayMap contains only triangles.
+
+    Contiguous thick parts of the alpha shape will be exported as
+    single regions (as if removeInterior[Edges] had been used for
+    alphaBetaMap or removeUnmarkedEdges, but without modifying
+    `delaunayMap`).
+
+    You may set `edgeDepth` to None to disable the output of edges.
+    If lineWidth is not set explicitly, it then defaults to zero for
+    faces."""
 
     # output all cells only once:
     edgeOutput = [False] * delaunayMap.maxEdgeLabel()
     faceOutput = [False] * delaunayMap.maxFaceLabel()
 
     faceAttr = dict(kwargs)
-    if not "lineWidth" in kwargs:
+    if edgeDepth is None and not "lineWidth" in kwargs:
         faceAttr["lineWidth"] = 0
     faceAttr["depth"] = regionDepth
     faceAttr["fillStyle"] = fig.fillStyleSolid
