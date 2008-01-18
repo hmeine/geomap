@@ -1,5 +1,7 @@
+#!/usr/bin/env python
 import copy, qt
-import vigra, mapdisplay, icons, maputils, statistics, flag_constants, tools
+import vigra, hourglass
+import mapdisplay, icons, maputils, statistics, flag_constants, tools
 import progress
 
 # FIXME: how to adjust the slider range when switching between slider modes?
@@ -128,6 +130,7 @@ class Workspace(mapdisplay.MapDisplay):
         self._activeTool = None
         self.colorSpace = ""
         self._estimatedApexFaceCount = 2
+        self._sliderMode = 0
         self._sliderCosts = None
 
         # needed for backpropagation of protection:
@@ -186,6 +189,7 @@ class Workspace(mapdisplay.MapDisplay):
 
         self.sliderModeChooser = qt.QComboBox(sliderBox, "sliderModeChooser")
         self.sliderModeChooser.insertItem("Steps:")
+        self.sliderModeChooser.insertItem("Steps*:")
         self.sliderModeChooser.insertItem("Cost:")
         self.connect(self.sliderModeChooser, qt.SIGNAL("activated(int)"),
                      self.setSliderMode)
@@ -355,6 +359,24 @@ class Workspace(mapdisplay.MapDisplay):
             setattr(map, attr, stats)
         return getattr(map, attr)
 
+    def edgeGradients(self, map, quantiles = False):
+        if quantiles and hasattr(map, "egs") and not map.egs.supportsQuantile():
+            # FIXME: this should only be done if map.egs is from us:
+            map.egs.detachHooks()
+            del map.egs
+        if not hasattr(map, "egs"):
+            bi = self.images["bi"]
+            if hasattr(bi, "siv"):
+                biSiv = bi.siv
+            else:
+                biSiv = vigra.SplineImageView5(bi)
+            Functor = quantiles \
+                      and hourglass.QuantileStatistics \
+                      or hourglass.PolylineStatistics
+            map.egs = statistics.EdgeGradientStatistics(
+                map, biSiv, Functor = Functor)
+        return map.egs
+
     def setDynamicCosts(self, dc):
         if dc != self.dynamicCosts:
             self.dynamicCosts = dc
@@ -381,6 +403,23 @@ class Workspace(mapdisplay.MapDisplay):
     colorSpaceNames = ["RGB", "RGBPrime", "Luv", "Lab", "red", "green", "blue"]
 
     def setCostMeasure(self, index):
+        if isinstance(index, str):
+            index = self.costMeasureNames.index(index)
+        elif index < 0 or index > len(self.costMeasureNames):
+            sys.stderr.write("ERROR: Invalid cost measure %d, give\n" % index)
+            for i, name in enumerate(self.costMeasureNames):
+                sys.stderr.write("  %d for %s\n" % (i, name))
+            return
+        if index in (4,5) and not hasattr(self._level0, "wsStats"):
+            sys.stderr.write("ERROR: cost measure %d not possible -- no WatershedStatistics available!\n" % index)
+            return
+        if index == 5 and not hasattr(self._level0, "wsBasinStats"):
+            sys.stderr.write("ERROR: cost measure %d not possible -- no WatershedBasinStatistics available!\n" % index)
+            return
+        if index in range(6, 10) and "bi" not in self.images:
+            sys.stderr.write("ERROR: cost measure %d not possible -- no boundary indicator image available!\n" % index)
+            return
+        #if index == 8 and not foo.supportsQuantile():
         if self.activeCostMeasure != index:
             self.activeCostMeasure = index
             self.recomputeAutomaticLevels()
@@ -392,8 +431,13 @@ class Workspace(mapdisplay.MapDisplay):
                         "face homogeneity",
                         "face t-test",
                         "face brightness",
-                        "isoperimetric quotient of result",
-                        "isoperimetric quotient after/before",
+                        "pass value",
+                        "watershed dynamics",
+                        "minimum gradient magnitude",
+                        "average gradient magnitude",
+                        "median gradient magnitude",
+                        "maximum gradient magnitude",
+                        "isoperimetric quotient of survivor",
                         "contour length"]
 
     def costMeasure(self, map):
@@ -412,34 +456,47 @@ class Workspace(mapdisplay.MapDisplay):
                            vigra.norm(fm[dart.rightFaceLabel()]))
             return brightness
         elif self.activeCostMeasure == 4:
-            return statistics.mergedIsoperimetricQuotient
+            return map.wsStats.dartPassValue
         elif self.activeCostMeasure == 5:
-            return statistics.seedIsoperimetricQuotient
+            return map.wsStats.dynamics
         elif self.activeCostMeasure == 6:
+            return self.edgeGradients(map).dartMin
+        elif self.activeCostMeasure == 7:
+            return self.edgeGradients(map).average
+        elif self.activeCostMeasure == 8:
+            return self.edgeGradients(map, True).quantile(0.5)
+        elif self.activeCostMeasure == 9:
+            return self.edgeGradients(map).max
+        elif self.activeCostMeasure == 10:
+            return statistics.mergedIsoperimetricQuotient
+        elif self.activeCostMeasure == 11:
             return statistics.mergedContourLength
         else:
             raise RuntimeError("Wrong cost measure (%s)" % self.activeCostMeasure)
 
     def _levelSliderChanged(self, levelIndex):
+        if self._sliderMode == 0:
+            self.displayLevel(levelIndex = levelIndex)
+            return
+        p = float(levelIndex) / self._levelSlider.maxValue()
         if self._sliderCosts:
-            maxCost = (self._sliderCosts[-1] * levelIndex /
-                       self._levelSlider.maxValue())
-            print "maxCost:", maxCost
+            maxCost = self._sliderCosts[-1] * p
             for i, c in enumerate(self._sliderCosts):
                 if c > maxCost:
                     self.displayLevel(levelIndex = max(0, i-1))
                     break
         else:
-            self.displayLevel(levelIndex = levelIndex)
+            self.displayLevel(
+                levelIndex = int(p**0.2 * self._levelSlider.maxValue()))
 
     def _updateLevelSlider(self):
         self._levelSlider.blockSignals(True)
-        if self._sliderCosts:
-            pass # FIXME?
-        else:
+        if self._sliderMode == 0:
             self._levelSlider.setValue(
                 self._levelSlider.maxValue() -
                 (self.map.faceCount - self._estimatedApexFaceCount))
+        else:
+            pass # FIXME
         self._levelSlider.blockSignals(False)
 
     def recomputeAutomaticLevels(self, faceCountOffset = 0):
@@ -457,7 +514,7 @@ class Workspace(mapdisplay.MapDisplay):
         self._pyramidCK is available, it is reduced incrementally (and
         nothing happens if the number of faces is already the desired
         one)."""
-        
+
         assert (levelIndex is None) != (faceCount is None), \
                "displayLevel: give exactly one of levelIndex or faceCount!"
         if faceCount is None:
@@ -483,7 +540,8 @@ class Workspace(mapdisplay.MapDisplay):
         return self._pyramidCK
 
     def setSliderMode(self, sm):
-        if not sm:
+        self._sliderMode = sm
+        if sm != 2:
             self._sliderCosts = None
             self._updateLevelSlider()
             return
@@ -537,6 +595,6 @@ if __name__ == "__main__":
         gm, saddleThreshold = saddleThreshold)
 
     app = qt.QApplication(sys.argv)
-    w = Workspace(wsm, img)
+    w = Workspace(wsm, img, bi = gm)
     app.connect(app, qt.SIGNAL("lastWindowClosed()"), app, qt.SLOT("quit()"))
     app.exec_loop()
