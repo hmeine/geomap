@@ -414,7 +414,7 @@ def addMapOverlay(fe, overlay, skipBorder = False, **attr):
                 result = fe.addMapEdges(
                     overlay._map(),
                     penColor = qtColor2figColor(overlay.color, fe.f),
-                    **attr)
+                    skipBorder = skipBorder, **attr)
             else:
                 result = fig.Compound(fe.f)
 
