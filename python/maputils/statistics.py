@@ -744,14 +744,22 @@ class WatershedStatistics(DynamicEdgeIndices):
             self._indices[edge.label()].append(saddleIndex)
 
         self._gmSiv = gmSiv
+        self._basinDepth = None
         self._attachHooks()
 
     def __getstate__(self):
-        return self.__base.__getstate__(self) + (self._passValues, )
+        result = self.__base.__getstate__(self) + (
+            self._passValues, self._basinDepth)
+        return result
 
-    def __setstate__(self, (map, indices, passValues)):
+    def __setstate__(self, s):
+        map, indices, passValues = s[:3]
         self.__base.__setstate__(self, (map, indices))
         self._passValues = passValues
+        if len(s) > 3:
+            self._basinDepth = s[3]
+        else:
+            self._basinDepth = None
         self._gmSiv = None
 
     def nonWatershedEdgesAdded(self):
@@ -884,10 +892,15 @@ class WatershedBasinStatistics(DetachableStatistics):
                     samples = [gmSiv[pos] for pos in superSample(face, level)]
                     if len(samples) > 10:
                         break
-                print "  (got %d samples at supersampling level %d)" % (
-                    len(samples), level)
-                self._basinDepth[face.label()] = min(samples)
-                assert self._basinDepth[face.label()] != None, str(samples)
+                sys.stderr.write(
+                    "  (got %d samples at supersampling level %d)\n" % (
+                    len(samples), level))
+                if samples:
+                    self._basinDepth[face.label()] = min(samples)
+                    assert self._basinDepth[face.label()] != None, str(samples)
+                else:
+                    sys.stderr.write("  *** BIG FAT WARNING: faking basin depth! ***\n")
+                    self._basinDepth[face.label()] = 0.0
 
         self._attachHooks()
 
@@ -1070,6 +1083,10 @@ class EdgeGradientStatistics(BoundaryIndicatorStatistics):
         def specificQuantile(dart):
             return self.combinedStatistics(dart).quantile(q)
         return specificQuantile
+
+    def supportsQuantile(self):
+        """Returns True iff the internally used statistics functor supports quantiles"""
+        return hasattr(self._Functor, "quantile")
 
     def average(self, dart):
         """Return the average gradient on this common contour
