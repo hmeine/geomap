@@ -24,6 +24,23 @@ def gm2Gradient(gm, sigma):
     return vigra.transformImage(
         er, gm, "\l e,i: i*Vector(-sin(e[2]), cos(e[2]))")
 
+def gradientTensor(img, scale):
+    """Returns a 3-band image with gradient tensor summed over all
+    bands.  For single-band images, this is equivalent to::
+    
+      vigra.vectorToTensor(
+          vigra.gaussianGradientAsVector(img, scale)
+
+    (Otherwise, it is the sum of the same for all bands.)"""
+    
+    bandTensors = [
+        vigra.vectorToTensor(
+        vigra.gaussianGradientAsVector(img.subImage(i), scale))
+        for i in range(img.bands())]
+    if img.bands() > 1:
+        return sum(bandTensors[1:], bandTensors[0])
+    return bandTensors[0]
+
 def colorGradient(img, scale, sqrt = True):
     """Calculate Gaussian color gradient.  Calculates sum of Gaussian
     gradient tensors in all single bands, and returns pair of (gm,
@@ -35,11 +52,7 @@ def colorGradient(img, scale, sqrt = True):
     not apply sqrt to the first image (slight optimization if you
     don't need the gm image)."""
     
-    bandTensors = [
-        vigra.vectorToTensor(
-        vigra.gaussianGradientAsVector(img.subImage(i), scale))
-        for i in range(img.bands())]
-    colorTensor = sum(bandTensors[1:], bandTensors[0])
+    colorTensor = gradientTensor(img, scale)
     # gm2 := sum of squared magnitudes of grad. in each channel
     gm2 = vigra.tensorTrace(colorTensor)
     # rebuild vector in dir. of large eigenvector with length sqrt(gm2):
@@ -65,6 +78,12 @@ def gaussianGradient(img, scale, sqrt = True):
     else:
         gm = vigra.transformImage(grad, "\l x: squaredNorm(x)")
     return gm, grad
+
+def structureTensor(img, innerScale, outerScale):
+    """Returns structure tensor as 3-band image.  Equivalent to
+    vigra.gaussianSmoothing(gradientTensor(img, innerScale),
+    outerScale)."""
+    return vigra.gaussianSmoothing(gradientTensor(img, innerScale), outerScale)
 
 def structureTensorFromGradient(grad, scale):
     return vigra.gaussianSmoothing(vigra.vectorToTensor(grad), scale)
