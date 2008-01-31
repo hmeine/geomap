@@ -999,8 +999,10 @@ def removeSmallRegions(map, minArea = None, minPixelArea = None, costMeasure = N
     
     If there is more than one neighbor sharing an unprotected edge
     with the face, it must be decided which neighbor to merge into.
-    If no costMeasure has been passed for this decision, an arbitrary
-    neighbor is chosen and a warning is issued."""
+    If no `costMeasure` has been passed for this decision, an
+    arbitrary neighbor is chosen and a warning is issued.  (Otherwise,
+    the `costMeasure` is called for one dart per neighbored face and
+    the lowest value decides about the merged faces.)"""
 
     assert minArea or minPixelArea, "either give minArea or minPixelArea!"
 
