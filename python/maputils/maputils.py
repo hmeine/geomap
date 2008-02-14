@@ -1350,7 +1350,7 @@ def thresholdMergeCost(map, mergeCostMeasure, maxCost, costs = None, q = None):
     arm = AutomaticRegionMerger(map, mergeCostMeasure, q)
     arm._costLog = costs
 
-    return arm.merge(maxCost = maxCost), arm._queue
+    return arm.mergeToCost(maxCost), arm._queue
 
 # --------------------------------------------------------------------
 
