@@ -1588,7 +1588,11 @@ def calculateTangentListsGaussianReflective(map, sigma, diff=0.0):
 
 class EdgeTangents(DynamicEdgeStatistics):
     """Stores precomputed tangent lists for each edge and merges then
-    when merging edges."""
+    when merging edges.  (In the past, EdgeTangents would
+    automatically call calculateTangentLists(*args) - this has been
+    changed in order to make it possible to use any tangent
+    calculation method and pass the resulting tangents to the
+    constructor instead of *args for the fixed method above.)"""
 
     __slots__ = ["tangents",
                  "_mergedTangents", "_mergeLabels"]
