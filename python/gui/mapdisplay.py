@@ -719,8 +719,9 @@ class MapDisplay(displaysettings.DisplaySettings):
             self.nodeOverlay.visible = False
             self.tool = tools.IntelligentScissors(
                 self.map, self.edgeOverlay, self)
-            tools.activeCostMeasure = \
-                statistics.HyperbolicInverse(self._faceMeans.faceMeanDiff)
+            if self._faceMeans:
+                tools.activeCostMeasure = \
+                    statistics.HyperbolicInverse(self._faceMeans.faceMeanDiff)
         elif tool == 4:
             self.tool = tools.SeedSelector(map = self.map, parent = self)
         elif hasattr(tool, "disconnectViewer"):
