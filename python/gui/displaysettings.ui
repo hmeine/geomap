@@ -36,8 +36,10 @@
         <action name="normalizeAction"/>
     </item>
     <item text="&amp;Tools" name="Tools">
+        <action name="undoAction"/>
         <action name="mapCleanupAction"/>
         <action name="paintbrushAction"/>
+        <action name="scissorsAction"/>
         <action name="navigateAction"/>
     </item>
 </menubar>
@@ -57,8 +59,9 @@
         <separator/>
         <action name="normalizeAction"/>
         <separator/>
-        <action name="paintbrushAction"/>
         <action name="navigateAction"/>
+        <action name="paintbrushAction"/>
+        <action name="scissorsAction"/>
     </toolbar>
 </toolbars>
 <actions>
@@ -250,6 +253,43 @@
             <string>Shift+N</string>
         </property>
     </action>
+    <action>
+        <property name="name">
+            <cstring>scissorsAction</cstring>
+        </property>
+        <property name="toggleAction">
+            <bool>true</bool>
+        </property>
+        <property name="iconSet">
+            <iconset>image9</iconset>
+        </property>
+        <property name="text">
+            <string>Intelligent Scissors</string>
+        </property>
+        <property name="menuText">
+            <string>&amp;Intelligent Scissors</string>
+        </property>
+        <property name="accel">
+            <string>I</string>
+        </property>
+    </action>
+    <action>
+        <property name="name">
+            <cstring>undoAction</cstring>
+        </property>
+        <property name="iconSet">
+            <iconset>image10</iconset>
+        </property>
+        <property name="text">
+            <string>Undo</string>
+        </property>
+        <property name="menuText">
+            <string>&amp;Undo</string>
+        </property>
+        <property name="accel">
+            <string>Ctrl+Z</string>
+        </property>
+    </action>
 </actions>
 <images>
     <image name="image0">
@@ -278,6 +318,12 @@
     </image>
     <image name="image8">
         <data format="PNG" length="1091">89504e470d0a1a0a0000000d4948445200000016000000160806000000c4b46c3b0000040a49444154388d6d954b6f13491485bfaebafd70cb4e9cd8890531222321c406cd965f31ff8f5f33b398051a05660141164121891c03318d9ffd703faa66917413c39454bbbae79e7bcea92ae7e5cb977dc7719e01c7800f38fccf721ca7d9d65aacb53f1fb1d7d7d7879bcde64244fe12adf5336bed1fc00ba063ad553f1729a5504afd02583701383f3f3f582e975e1004ff00a9388ef31bf0c25afbdc5a1bd68ceb02dff7d9dddd250802d23425cb32cab2a4aa2a8c31388ec3d9d9999e4c26caf33c03fceebaee53b1d6fa774c436bad00ca5a8b88b0bfbfcfa3478fe8f57a8808599611c7318bc582f97c4e92247cf8f081288ad05a535595027c6bad2ff5b48ee338800268b7db3c7cf890e170c8eeee2eaeeb02d0e974d8dfdf673018902409373737000441c0d7af5f59ad56dc4dac6a6000b4d6f47a3d1e3f7eccc1c1016118a294e2b6e70fbd45846eb7cbd1d1114f9e3ce1eaea8a376fdef0eedd3b8c3100486d8288b0b7b7c77038e4f0f09020087e01ad57abd5c2f33c8c318808f3f99c388e09c3903ccf6f81eb62cff30882802ccbf8fefd3b9d4e872008705d77ab410d9ae739d3e994d3d3535ebf7ecd62b1c05adb906c18d7d149d394b22c89e318dff769b55ab45a2d7cdf6fa4592e978cc763debf7fcf783c268a228c3168ad9b184a1dadfbf9b4d65214056559926519ebf59a3ccf11115cd7258a22aeaeae98cd66c4714c966588483395b5962df3fe6f596bf9f6ed1bcbe512630c4992309bcdb61a976589520aad35c6985bedabaa6a4630c6509625c6183ccf436bcd6c36234912f23ca72c4bd23465b3d934e7aaaa6aa6ad13a194fa2185e33854554559964da3c562d180d440799e374dea9de779635acd5aeeeb52555523fe643261b3d9e0baeed615de6c36e479deb0cdb2acd1f87e7ae43e68555528a5984c26bf18a2946ad81645d1c896a62945516c5da02d296a8d2e2f2fc9b28c56abd530544a6d79705f8ae9744a1445f8becfcecece76dceaa293931346a311070707f4fb7dbadd6ef34e28a5b6cc8de398f178cc683422cff3e605f43cef96719de1d3d353fdead52b46a31122c283070f383e3ea6dfefb3b3b343a7d34129459aa67cf9f285f3f3733e7dfac462b1a0d7ebfd48c39d7c628cb1676767071717172a8e63e238264912a6d3291f3f7ec4f77d068301c3e190200888a288cf9f3f73737343922400846178ff6db18091ebebebc16ab5f23ccf3322a2c230a4280aaaaa62bd5eb35eaf99cfe75c5e5e222218639adfc4755d8220a0d7ebd5d7be149195526a2545515c846178023c1f0c067e9ee74eb7dbdd725a6b8debba884813bdaaaa701c8776bbcdd1d111fd7edf763a9d5510047f8bc85b514afde9fb7e22224f8ba2f0cbb254699a36857536ef7e08cab26c9a6aad69b7db0c0603f6f6f62adff7d7aeebbed55afffb1ff6b59353392d4a020000000049454e44ae426082</data>
+    </image>
+    <image name="image9">
+        <data format="PNG" length="777">89504e470d0a1a0a0000000d4948445200000016000000160806000000c4b46c3b000002d049444154388dad956f48dc751cc75fdfbb53377713b9ecb631170765c17612954c7c206241031fb4a04073b1dc3f09a9460f8c3d88401a48ea1e4c3606d18388aec38a64adb827e79104c56ada624dd89fdb74ce9c6d5eacced3f3f7bbdfbb0773ec0ff773e6fcc0fbc9f7fbf9be3e7cdf9fef1f24914f56829ecc519e729b7f903cb884c7bb6747e1d68f86af1c322fdc3d7ef37bf374f6a4e99e3e62426e6b015c2be67edb754ed64de5c60f5b535f15b6cf0eae7dc3bab67dd899ffc0b12e954dec7c8e4dc01ab7f53ed7825cbd86937ed253b6cd17dcb6a10b9f0f0a3ce0f99de4991b473e1bc206b2ae3bce37983966d69935ce639006d250f02878bd60d264a7bf9d78651f5f003392ec255991e9a5d41aafec71d25d73b2ce4af34352f607297b42b22252ae4ea933c480f58067b1e6dd3905515e74928129d97f48ce4529372cd98392fd9d641f9372cf4869e44ca1e4d77c087817031b490064bb4ce9f4265e32416f5549285c5554f678d8e77f7e2dfa15ac2fc19a853960169c34bafc0b079ed8cd2149b9075a0118a000288ebcc996dc04b6ae234da23f0736ea783793a918897f629cfef71bcebff72c9bdd2c59f4905ba7185112cdfcc4f88f0327661a1b1be5f7fb5f06824009500aacfaffe038d1dc499c9f0fb2abb5b5b523994c2a1c0e0f011b808225352f9fe63ee7edeb9ff2f102a8289148fcdddedeae6030f83a105836f8f42dcf57032592686b6bdb9b4aa5545f5f7f6ea158e1b2c0f9148bc5feeaecec544545c55bc0232b066e696979756c6c4ccdcdcd57818d40d18a8025d1dfdf7fa5b7b757d5d5d5ef0365f9725c9fcdc5221a8deeaeababa3b6b6f65da0d818b3fafe9c6581fbfafae223232317cacbcb030d0d0dfb01ff8a80012291c80edbb6555353b30ff01b638aef49588ec7b7150a85a21d1d1d6a6a6afa845bb7d13c94c7b7637474f4403c1eb742a1d06bc0aa0501b8ff204b0949638140e09d4c2653094c73d78ff21f526348eb758151350000000049454e44ae426082</data>
+    </image>
+    <image name="image10">
+        <data format="PNG" length="628">89504e470d0a1a0a0000000d4948445200000016000000160806000000c4b46c3b0000023b49444154388dedd54f68d30014c7f16fd2ac71eb562b1b76b021ab0c640c598720881e36f02244d8403d88487af5e09fb183f71d15c744c483909d77b1d0c0f030eac59b87ce8b30d0669b75d35517d7d4a66dfe78a8741b5dd5293b0806dee5c7cb87e4e525117cdfe7200ef140d47f1216144569085f0ea5545146f3cacc9e5dbc98f813b8e18a17ba52aa9d439b3a99255ad85417ba52ea5fc3f391d488e3a2dd1bcb31341863ea4a804eb9a0cd47f68fd761bd2319773dffd9ddf3ef091de961690d2c37cc9d0b3e87e592a67724f7858b007a682e8eefa413a7d7228edccbd21af5cadb61ae9da9100c789a1e9afb6d5ce0f2561c414c9fea9723c7a352d3c6ad6285e7af0570ed8452ba3afb6bf8d2974dc460a4450e012005e0dc89ed0663a35600d56a151c0b6058b1af677e064bf8de38ae4df59b5d3bd977a63f7d8dc6c3adb506cf876af1a389202640340194b2da14d5834fe340ba618f75e989d679b447edefdece5ebd03d75acd00a38a73c36c8a4a8f6f83380d241be1c0a3110287d283fd51a41dcbb8b8ec4271c504668059c5bb6900e8e2c33e600cb805f401268218dbf3cdd3850769da7a47068eb5eecaf305d8d82c41691dbc4a2d94daa0250c8850fa602288a38a3f91d97b0d7c6f9ce24af6cd6a5f241695eb71bb0cedddad40ac9e551cc87d2e836598c0a8e24f64a0c9474861d20486b18c4c7639879107ab0c7675bbf205c8ae97c8adbe05cb48023185c9fa43dd7314bbc6c27df5c7fce288c1daad574c00037801ccec04ebf0ff3fc881c3df0122e6e0f16d7121140000000049454e44ae426082</data>
     </image>
 </images>
 <layoutdefaults spacing="6" margin="11"/>
