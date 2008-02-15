@@ -443,16 +443,22 @@ class IntelligentScissors(qt.QObject):
         self._expandTimer.stop()
 
     def stopCurrentContour(self):
+        """Called when the current contour is stopped, e.g. with
+        middle MB (cancel) or with a LMB double click (confirm)."""
+        
         self.stopLiveWire()
 
         #updateViewer(self.currentPathBounds)
         self._startNodeLabel = self._liveWire.endNodeLabel()
         self._loopNodeLabel = None # not really needed I think
         self._liveWire = None
-        for dart in self._contour:
-            dart.edge().setFlag(CURRENT_CONTOUR, False)
-        self._prevContour = self._contour
-        self._contour = []
+
+        if self._contour:
+            for dart in self._contour:
+                dart.edge().setFlag(CURRENT_CONTOUR, False)
+            self.emit(qt.PYSIGNAL("contourFinished"), (self._contour, ))
+            self._prevContour = self._contour
+            self._contour = []
 
     def _expandBorder(self):
         if not self._liveWire.expandBorder():
@@ -463,8 +469,10 @@ class IntelligentScissors(qt.QObject):
         """With left mouse button, the live wire is started, with the
         middle mouse button it can be cancelled."""
 
-        if button == qt.Qt.MidButton and self._liveWire:
-            return self.stopCurrentContour()
+        if button == qt.Qt.MidButton:
+            if self._liveWire:
+                return self.stopCurrentContour()
+            return
 
         if button == qt.Qt.LeftButton:
             if not self._liveWire:
@@ -512,7 +520,9 @@ class IntelligentScissors(qt.QObject):
 
     def mouseDoubleClicked(self, x, y, button):
         """With a double left click, the current live wire is fixed
-        (by mouseReleased) and becomes inactive."""
+        (by mousePressed) and becomes inactive.  If _loop is available
+        (i.e. a path back to the starting node), this becomes
+        protected in addition to the last segment."""
 
         if button == qt.Qt.LeftButton:
             if self._loop:
