@@ -98,6 +98,41 @@ class FaceProtection(object):
     def undo(self):
         self.protect(not self.protected)
 
+class ScissorsProtection(object):
+    __slots__ = ("workspace", "contour")
+
+    def __init__(self, workspace, contour):
+        self.workspace = workspace
+        self.contour = []
+        
+        level0 = workspace._level0
+        mergedEdges = workspace.map.mergedEdges
+        for dart in contour:
+            for edgeLabel in mergedEdges[dart.edgeLabel()]:
+                edge = level0.edge(edgeLabel)
+                p = edge.flag(flag_constants.SCISSOR_PROTECTION)
+                self.contour.append((edgeLabel, p))
+                if not p:
+                    edge.setFlag(flag_constants.SCISSOR_PROTECTION)
+
+    def redo(self):
+        level0 = self.workspace._level0
+        for edgeLabel, _ in self.contour:
+            edge = level0.edge(edgeLabel)
+            edge.setFlag(flag_constants.SCISSOR_PROTECTION)
+        # FIXME: if all protected edges still exist, protect them
+        # and skip recomputeAutomaticLevels():
+        self.workspace.recomputeAutomaticLevels()
+
+    def undo(self):
+        level0 = self.workspace._level0
+        for edgeLabel, p in self.contour:
+            edge = level0.edge(edgeLabel)
+            edge.setFlag(flag_constants.SCISSOR_PROTECTION, p)
+        # FIXME: remove protection flag from edges, or is
+        # recomputeAutomaticLevels always needed?  (I think so.)        
+        self.workspace.recomputeAutomaticLevels()
+
 class Workspace(mapdisplay.MapDisplay):
     """Workspace for region-based segmentation.
 
@@ -147,6 +182,8 @@ class Workspace(mapdisplay.MapDisplay):
         ra.addTo(self.Tools)
         self.connect(ra, qt.SIGNAL("activated()"), self.restart)
         self._mapRestartAction = ra
+
+        self.connect(self.undoAction, qt.SIGNAL("activated()"), self.undo)
 
         # set up HBox with cost measure options:
         automaticOptions = qt.QWidget(self._imageWindow, "automaticOptions")
@@ -236,6 +273,9 @@ class Workspace(mapdisplay.MapDisplay):
                      self.paintbrushFinished)
         self.connect(self.tool, qt.PYSIGNAL("faceProtectionChanged"),
                      self.faceProtectionChanged)
+        self.connect(self.tool, qt.PYSIGNAL("contourFinished"),
+                     self.scissorsFinished)
+
         if hasattr(self.tool, "setSeeds"): # SeedSelector?
             if self._seeds is not None:
                 self.tool.setSeeds(list(self._seeds))
@@ -272,11 +312,8 @@ class Workspace(mapdisplay.MapDisplay):
         updateRect.addCoords(-lw, -lw, lw, lw)
         self.viewer.update(updateRect)
 
-#         for dart in maputils.contourDarts(face):
-#             protected = dart.edge().flag(flag_constants.CONTOUR_PROTECTION)
-#             for edgeLabel in self.map.mergedEdges[dart.edgeLabel()]:
-#                 self._level0.edge(edgeLabel).setFlag(
-#                     flag_constants.CONTOUR_PROTECTION, protected)
+    def scissorsFinished(self, contour):
+        self._perform(ScissorsProtection(self, contour))
 
     def seedAdded(self, pos):
         if self._seeds is None:
@@ -581,7 +618,8 @@ class Workspace(mapdisplay.MapDisplay):
 
 if __name__ == "__main__":
     import sys, bi_utils
-    filename = "../../../Testimages/lenna_original_color.png"
+    #filename = "../../../Testimages/lenna_original_color.png"
+    filename = "../../../Testimages/blox.png"
     biScale = 1.6
     saddleThreshold = 0.2
     if len(sys.argv) > 1:
