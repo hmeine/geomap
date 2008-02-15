@@ -508,6 +508,8 @@ class MapDisplay(displaysettings.DisplaySettings):
                      self.cleanupMap)
         self.connect(self.paintbrushAction, qt.SIGNAL("toggled(bool)"),
                      self.activatePaintbrush)
+        self.connect(self.scissorsAction, qt.SIGNAL("toggled(bool)"),
+                     self.activateScissors)
         self.connect(self.navigateAction, qt.SIGNAL("toggled(bool)"),
                      self.activateNavigator)
         self.connect(self._imageWindow, qt.PYSIGNAL("captionChanged"),
@@ -731,9 +733,13 @@ class MapDisplay(displaysettings.DisplaySettings):
             print "  give 1 for MapSearcher, 2 for ActivePaintbrush, 3 for IntelligentScissors, 4 for SeedSelector"
             tool = 0
         self._togglingGUI = True
+        self.scissorsAction.setOn(tool == 3)
         self.paintbrushAction.setOn(tool == 2)
         self.navigateAction.setOn(tool == 1)
         self._togglingGUI = False
+
+    def activateScissors(self, onoff = True):
+        self.setTool(onoff and 3 or None)
 
     def activatePaintbrush(self, onoff = True):
         self.setTool(onoff and 2 or None)
