@@ -729,13 +729,13 @@ class WatershedStatistics(DynamicEdgeIndices):
             if edge.flag(flag_constants.BORDER_PROTECTION):
                 continue
             
-            saddleIndex = flowlines[edge.label()][3]
+            flowline = flowlines[edge.label()]
+            saddleIndex = flowline[3]
 
             # flowline tracing might have stopped, in which case the
             # polygon can be modified by connecting to the nearest
             # maximum/node, possibly adding a point and thus shifting
             # the indices:
-            flowline = flowlines[edge.label()]
             if len(edge) != len(flowline[2]) and edge[1] == flowline[2][0]:
                 assert flowline[0] <= 0
                 saddleIndex += 1
@@ -1537,9 +1537,10 @@ def calculateTangentLists(map, dx = 5, skipPoints = 1):
     """calculateTangentLists(map, dx = 5, skipPoints = 1)
 
     Returns a list that for each edge contains the result of running
-    tangentList(edge, ...) with the given parameters.  Special care is
-    taken to ensure that the list will never be empty (by reducing the
-    dx or finally set skipPoints to zero to get at least one tangent)."""
+    `hourglass.tangentList`(edge, ...) with the given parameters.
+    Special care is taken to ensure that the list will never be empty
+    (by reducing the dx or finally set skipPoints to zero to get at
+    least one tangent)."""
 
     result = [None] * map.maxEdgeLabel()
     badCount = 0
@@ -1621,6 +1622,9 @@ class EdgeTangents(DynamicEdgeStatistics):
         else:
             self.tangents[self._mergeLabels[0]] = None
 
+    def __getitem__(self, index):
+        return self.tangents[index]
+
     def dartTangents(self, dart):
         """Return (tangents, dirLength) pair, where dirLength is
         negative if dart.label > 0 (the darts are supposed to be
@@ -1632,3 +1636,24 @@ class EdgeTangents(DynamicEdgeStatistics):
             return (t,  e.length())
         else:
             return (t, -e.length())
+
+# --------------------------------------------------------------------
+
+def gcByArcLength(al):
+    """Local measure for good continuation: compares secant directions
+    around node"""
+    def goodContinuation(dart1, dart2):
+        assert dart1.endNode() == dart2.startNode()
+        # find one-sided tangents:
+        dp1 = hourglass.DartPosition(dart1.clone().nextAlpha())
+        dp1.gotoArcLength(al)
+        dp2 = hourglass.DartPosition(dart2)
+        dp2.gotoArcLength(al)
+
+        p1 = dart2[0] # node position
+        t1 = p1 - dp1() # tangents
+        t2 = dp2() - p1
+        # tangent direction agreement:
+        return dot(t1, t2) / (t1.magnitude() * t2.magnitude())
+
+    return goodContinuation
