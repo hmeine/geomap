@@ -61,6 +61,9 @@ for conn in connections:
         if i & conn:
             degree[i] += 1
 
+degree = degree + degree
+degree[31] = 2
+
 def pyCrackConnectionImage(labelImage):
     result = GrayImage(labelImage.size()+Size2D(1,1))
 
@@ -132,6 +135,13 @@ def crackEdgeGraph(labelImage, progressHook = None):
     result = GeoMap(labelImage.size())
 
     cc = crackConnectionImage(labelImage)
+    for y in range(1, cc.height()-1):
+        for x in range(1, cc.width()-1):
+            if cc[x,y] == 15 and (
+                labelImage[x,y] == labelImage[x-1,y-1] or
+                labelImage[x-1,y] == labelImage[x,y-1]):
+                cc[x,y] = 31
+    
     nodeImage = GrayImage(cc.size())
 
     progressHook = progressHook and progressHook.rangeTicker(cc.height())
@@ -187,6 +197,20 @@ if __name__ == "__main__":
             g = GrayImage(10, 10)
             for y in range(5, 10):
                 g[5,y] = 1
+            cem = crackEdgeMap(g)
+            self.assertEqual(cem.faceCount, 3) # should be one infinite, one background, and one foreground region
+
+        def test8Connected(self):
+            g = GrayImage(10, 10)
+            for xy in range(3, 7):
+                g[xy,xy] = 1
+            cem = crackEdgeMap(g)
+            self.assertEqual(cem.faceCount, 3) # should be one infinite, one background, and one foreground region
+
+        def test8ConnectedOpposite(self):
+            g = GrayImage(10, 10)
+            for xy in range(3, 7):
+                g[8-xy,xy] = 1
             cem = crackEdgeMap(g)
             self.assertEqual(cem.faceCount, 3) # should be one infinite, one background, and one foreground region
 
