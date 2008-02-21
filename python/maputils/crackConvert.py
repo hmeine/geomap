@@ -7,6 +7,8 @@ import progress
 
 __all__ = ["crackEdgeMap", "crackEdgeGraph"]
 
+# FIXME: 8-connected regions with holes (see testcase)
+
 # --------------------------------------------------------------------
 #                              FRONTEND
 # --------------------------------------------------------------------
@@ -63,6 +65,8 @@ for conn in connections:
 
 degree = degree + degree
 degree[31] = 2
+degree = degree + degree
+degree[47] = 2
 
 def pyCrackConnectionImage(labelImage):
     result = GrayImage(labelImage.size()+Size2D(1,1))
@@ -125,6 +129,14 @@ def followEdge(crackConnectionImage, pos, direction):
         if isNode(connection):
             break
 
+        if connection >= 16:
+            if connection & 16 and direction in (1, 3):
+                direction = _turnLeft[direction]
+                continue
+            elif connection & 32 and direction in (0, 2):
+                direction = _turnLeft[direction]
+                continue
+
         direction = _turnRight[direction]
         while connection & connections[direction] == 0:
             direction = _turnLeft[direction]
@@ -137,10 +149,16 @@ def crackEdgeGraph(labelImage, progressHook = None):
     cc = crackConnectionImage(labelImage)
     for y in range(1, cc.height()-1):
         for x in range(1, cc.width()-1):
-            if cc[x,y] == 15 and (
-                labelImage[x,y] == labelImage[x-1,y-1] or
-                labelImage[x-1,y] == labelImage[x,y-1]):
-                cc[x,y] = 31
+            if cc[x,y] == 15:
+                if labelImage[x,y] == labelImage[x-1,y-1]:
+                    cc[x,y] += 16
+                if labelImage[x-1,y] == labelImage[x,y-1]:
+                    cc[x,y] += 32
+                if cc[x,y] == 15+16+32: # crossing regions?
+                    if labelImage[x,y-1] > labelImage[x-1,y-1]:
+                        cc[x,y] -= 16
+                    else:
+                        cc[x,y] -= 32
     
     nodeImage = GrayImage(cc.size())
 
@@ -213,6 +231,15 @@ if __name__ == "__main__":
                 g[8-xy,xy] = 1
             cem = crackEdgeMap(g)
             self.assertEqual(cem.faceCount, 3) # should be one infinite, one background, and one foreground region
+
+        def test8ConnectedLoop(self):
+            g = GrayImage(10, 10)
+            g[4,4] = 1
+            g[5,5] = 1
+            g[4,6] = 1
+            g[3,5] = 1
+            cem = crackEdgeMap(g)
+            self.assertEqual(cem.faceCount, 4) # as above, plus one hole
 
         def testHeadlineMap(self):
             from vigra import readImage
