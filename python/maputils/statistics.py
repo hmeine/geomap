@@ -517,6 +517,10 @@ class DynamicEdgeStatistics(DetachableStatistics):
             self.preMergeEdges, self.postMergeEdges), )
 
 def mergedEdgeCostWeightedByLength(edge1, cost1, edge2, cost2):
+    """Combiner function for `StaticEdgeCosts`.  Defines the cost for
+    a merged edge as the average of the costs from the merged edges,
+    weighted by their lengths."""
+    
     l1 = edge1.length()
     l2 = edge2.length()
     return (cost1*l1 + cost2*l2)/(l1+l2)
@@ -533,19 +537,26 @@ class StaticEdgeCosts(DetachableStatistics):
     
       mergedCost = combiner(edge1, cost1, edge2, cost2)
 
-    and must return a combined cost."""
+    and must return a combined cost.  An example of a suitable
+    `combiner` is `mergedEdgeCostWeightedByLength`."""
 
     __slots__ = ["_costs", "_combiner",
                  "_mergedCost"]
 
-    def __init__(self, map, costMeasure, skipBorder = True, combiner = None):
+    def __init__(self, map, costMeasure = None, costs = None,
+                 skipBorder = True, combiner = None):
         DetachableStatistics.__init__(self, map)
-        self._costs = [None] * map.maxEdgeLabel()
+        assert costs is not None or costMeasure, "need static costs either as costs-array or indirectly as a costMeasure"
+        if costs is None:
+            self._costs = [None] * map.maxEdgeLabel()
+        else:
+            self._costs = costs
         self._combiner = combiner
-        for edge in map.edgeIter():
-            if skipBorder and edge.flag(flag_constants.BORDER_PROTECTION):
-                continue
-            self._costs[edge.label()] = costMeasure(edge.dart())
+        if costMeasure:
+            for edge in map.edgeIter():
+                if skipBorder and edge.flag(flag_constants.BORDER_PROTECTION):
+                    continue
+                self._costs[edge.label()] = costMeasure(edge.dart())
         self._attachHooks()
 
     def _attachHooks(self):
@@ -962,10 +973,9 @@ class BoundaryIndicatorStatistics(DynamicEdgeStatistics):
             self._functors[dart.clone().nextSigma().edgeLabel()])
         return True
 
-    def __getitem__(self, index):
-#         if hasattr(index, "label"):
-#             index = index.label()
-        return self._functors[index]
+    def __getitem__(self, edgeLabel):
+        """Return the functor for the given edge label."""
+        return self._functors[edgeLabel]
 
     def postMergeEdges(self, survivor):
         self._functors[survivor.label()] = self._mergedStats
@@ -986,6 +996,7 @@ class EdgeGradientStatistics(BoundaryIndicatorStatistics):
     quantile queries).  This functor object can be of any
     user-specified type (see constructor)."""
 
+    __base = BoundaryIndicatorStatistics
     __slots__ = ["_Functor"]
     
     def __init__(self, map, gradSiv, resample = 0.1, tangents = None,
@@ -1038,9 +1049,12 @@ class EdgeGradientStatistics(BoundaryIndicatorStatistics):
 
         self._attachHooks()
 
-    def __getitem__(self, edgeLabel):
-        """Return the functor for the given edge label."""
-        return self._functors[edgeLabel]
+    def __getstate__(self):
+        return self.__base.__getstate__(self) + (self._Functor, )
+
+    def __setstate__(self, state):
+        self.__base.__setstate__(self, state[:-1])
+        self._Functor = state[-1]
 
     def dartMin(self, dart):
         """Returns the minimum gradient on the edge."""
@@ -1642,6 +1656,7 @@ class EdgeTangents(DynamicEdgeStatistics):
 def gcByArcLength(al):
     """Local measure for good continuation: compares secant directions
     around node"""
+
     def goodContinuation(dart1, dart2):
         assert dart1.endNode() == dart2.startNode()
         # find one-sided tangents:
