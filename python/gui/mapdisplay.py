@@ -674,11 +674,11 @@ class MapDisplay(displaysettings.DisplaySettings):
 
     def showEvent(self, e):
         self.attachHooks()
-        self.__base.showEvent(self, e)
+        return self.__base.showEvent(self, e)
 
     def hideEvent(self, e):
         self.detachHooks()
-        self.__base.hideEvent(self, e)
+        return self.__base.hideEvent(self, e)
 
     def showMarkedEdges(self, colorMarked = qt.Qt.green, colorUnmarked = None,
                         markFlags = flag_constants.ALL_PROTECTION):
