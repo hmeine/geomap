@@ -444,12 +444,16 @@ def euclideanPath(crackPoly, closed = None):
         result[i] += offset2(fc, i, closed)
     return result
 
+def crackEdge2EuclideanPath(crackEdge):
+    if crackEdge.flag(1): # flag_constants.BORDER_PROTECTION
+        return crackEdge
+    closed = crackEdge.isLoop() and crackEdge.startNode().hasDegree(2)
+    return euclideanPath(crackEdge, closed)
+
 def crackEdges2EuclideanPaths(crackEdgeMap):
     import maputils, flag_constants
     return maputils.copyMapContents(
-        crackEdgeMap, None, edgeTransform = \
-        lambda e: e.flag(flag_constants.BORDER_PROTECTION) and e or \
-        euclideanPath(e, e.isLoop() and e.startNode().hasDegree(2)))[0]
+        crackEdgeMap, None, edgeTransform = crackEdge2EuclideanPath)[0]
 
 class DSLExperiment(object):
     def __init__(self, reverse = False):
