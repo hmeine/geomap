@@ -71,19 +71,47 @@ class MapEdges(vigrapyqt.Overlay):
         return True
 
     def changeColor(self, edge, newColor):
-        if isinstance(edge, int):
-            edge = self._map().edge(edge)
+        """Change the color of `edge` to `newColor` and update the
+        viewer.  `edge` may be an int, an Edge object, or a tuple/list
+        of one of the two.  (Passing multiple edges results in only
+        one call to viewer.update(ROI).)"""
+        
         if not self.colors:
             self.colors = [self.color] * self._map().maxEdgeLabel()
-        self.colors[edge.label()] = newColor
-        self._updateEdgeROI(edge)
 
-    def _updateEdgeROI(self, edge):
-        """FIXME: only used by changeColor so far, similar to setEdgePoints"""
-        result = self._getZoomedEdge(edge).boundingRect()
-        result.moveBy(self.viewer.upperLeft().x(),
-                      self.viewer.upperLeft().y())
-        self.viewer.update(result)
+        if isinstance(edge, (tuple, list)):
+            if isinstance(edge[0], int):
+                edge = map(self._map().edge, edge)
+            updateROI = qt.QRect()
+            for edge in edge:
+                self.colors[edge.label()] = newColor
+                updateROI |= self._edgeROI(edge)
+        else:
+            if isinstance(edge, int):
+                edge = self._map().edge(edge)
+            self.colors[edge.label()] = newColor
+            updateROI = self._edgeROI(edge)
+
+        self.viewer.update(updateROI)
+
+    def _edgeROI(self, edge):
+        return self._getZoomedEdge(edge).boundingRect()
+
+    def _unused_updateEdgeROI(self, edge):
+        """Update the ROI containing the given edge(s) in the viewer.
+        `edge` may be an int, an Edge object, or a tuple/list
+        of one of the two.  (Passing multiple edges results in only
+        one call to viewer.update(ROI).)"""
+        
+        if isinstance(edge, (tuple, list)):
+            roi = qt.QRect()
+            for edge in edge:
+                roi |= self._edgeROI(edge)
+        else:
+            roi = self._edgeROI(edge)
+        roi.moveBy(self.viewer.upperLeft().x(),
+                   self.viewer.upperLeft().y())
+        self.viewer.update(roi)
 
     def _calculateZoomedEdge(self, edgeLabel, edge):
         offset = Vector2(self._zoom / 2.0 - 0.5, self._zoom / 2.0 - 0.5)
