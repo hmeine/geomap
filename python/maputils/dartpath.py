@@ -160,8 +160,7 @@ def allContinuations(startDart, length, klass = Path):
 from flag_constants import BORDER_PROTECTION
 
 def _fillContinuations(prefix, dart, length, allPaths):
-    currentPath = prefix.__class__(prefix)
-    currentPath.append(dart.clone())
+    currentPath = prefix + dart.clone()
 
     if length == 1:
         allPaths.append(currentPath)
