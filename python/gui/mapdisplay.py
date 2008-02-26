@@ -184,11 +184,10 @@ class MapEdges(vigrapyqt.Overlay):
         if self.colors:
             try:
                 for edge in map.edgeIter():
-                    if bbox.intersects(edge.boundingBox()):
-                        edgeColor = self.colors[edge.label()]
-                        if edgeColor:
-                            p.setPen(qt.QPen(edgeColor, self.width))
-                            p.drawPolyline(self._getZoomedEdge(edge))
+                    edgeColor = self.colors[edge.label()]
+                    if edgeColor and bbox.intersects(edge.boundingBox()):
+                        p.setPen(qt.QPen(edgeColor, self.width))
+                        p.drawPolyline(self._getZoomedEdge(edge))
             except IndexError, e:
                 print e #"IndexError: %d > %d (maxEdgeLabel: %d)!" % (
                     #i, len(self.colors), map.maxEdgeLabel())
