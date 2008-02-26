@@ -1,10 +1,13 @@
 #!/usr/bin/env python
-import copy, qt
+import copy, sys, qt
 import vigra, hourglass
 import mapdisplay, icons, maputils, statistics, flag_constants, tools
 import progress
 
 # FIXME: how to adjust the slider range when switching between slider modes?
+
+# FIXME: let recomputeAutomaticLevels() be a no-op if current level is bottom
+# (maybe introduce invalidateAuto... and/or change displayLevel(), too?!)
 
 def labelRoot(lut, label):
     result = lut[label]
@@ -14,6 +17,10 @@ def labelRoot(lut, label):
     return result
 
 class PyramidContractionKernel(statistics.DetachableStatistics):
+    """Represents a merge tree annotated with the number of remaining
+    faces.  Thus, it can be used to compute a contraction kernel that
+    encodes all merges up to a specific pyramid level / face count."""
+    
     __base = statistics.DetachableStatistics
     __slots__ = ("ck", "_mergedFaceLabels")
     
@@ -50,14 +57,22 @@ class PyramidContractionKernel(statistics.DetachableStatistics):
         ck = self.kernelForFaceCount(faceCount)
         maputils.applyFaceClassification(map, ck)
 
+# --------------------------------------------------------------------
+#                        Undo-able Action Classes
+# --------------------------------------------------------------------
+
 class PaintbrushStroke(object):
-    __slots__ = ("workspace", "survivorLabel", "faces", "oldValues")
+    __slots__ = ("workspace", "survivorLabel",
+                 "faces", "mergeCount", "oldValues")
 
     def __init__(self, workspace, survivorLabel):
         self.workspace = workspace
         self.survivorLabel = survivorLabel
         self.faces = list(workspace.map.faceLabelLUT().merged(survivorLabel))
-        self.redo()
+        self.mergeCount = len(dict.fromkeys(
+            [workspace._manualCK[faceLabel] for faceLabel in self.faces])) - 1
+        if self.mergeCount:
+            self.redo()
 
     def redo(self):
         manualCK = self.workspace._manualCK
@@ -72,6 +87,9 @@ class PaintbrushStroke(object):
 
         # TODO: add number of undone merges (faceCountOffset)
         self.workspace.recomputeAutomaticLevels()
+
+    def __str__(self):
+        return "Paintbrush stroke"
 
 class FaceProtection(object):
     __slots__ = ("workspace", "faceLabel", "protected")
@@ -98,12 +116,19 @@ class FaceProtection(object):
     def undo(self):
         self.protect(not self.protected)
 
+    def __str__(self):
+        if self.protected:
+            return "Face protected"
+        else:
+            return "Face protection removed"
+
 class ScissorsProtection(object):
     __slots__ = ("workspace", "contour")
 
     def __init__(self, workspace, contour):
         self.workspace = workspace
         self.contour = []
+        #self.closed # see TODO below
         
         level0 = workspace._level0
         mergedEdges = workspace.map.mergedEdges
@@ -130,8 +155,15 @@ class ScissorsProtection(object):
             edge = level0.edge(edgeLabel)
             edge.setFlag(flag_constants.SCISSOR_PROTECTION, p)
         # FIXME: remove protection flag from edges, or is
-        # recomputeAutomaticLevels always needed?  (I think so.)        
+        # recomputeAutomaticLevels always needed?  (I think so.)
         self.workspace.recomputeAutomaticLevels()
+
+    def __str__(self):
+        return "Scissors" # TODO: path length, closedness?
+
+# --------------------------------------------------------------------
+#                          Main Workspace Class
+# --------------------------------------------------------------------
 
 class Workspace(mapdisplay.MapDisplay):
     """Workspace for region-based segmentation.
@@ -294,7 +326,10 @@ class Workspace(mapdisplay.MapDisplay):
         del self._history[-1]
 
     def paintbrushFinished(self, survivor):
-        self._perform(PaintbrushStroke(self, survivor.label()))
+        s = PaintbrushStroke(self, survivor.label())
+        if not s.mergeCount:
+            return
+        self._perform(s)
         self._pyramidCK = None
         # FIXME: in theory, we would need recomputeAutomaticLevels here
         # (the performed operations could differ, if the manually
