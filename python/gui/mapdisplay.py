@@ -1,5 +1,5 @@
-_cvsVersion = "$Id$" \
-              .split(" ")[2:-2]
+__version__ = "$Id$" \
+              .split()[2:-2]
 
 import sys, os, math, time, qt
 import fig, figexport
@@ -29,6 +29,100 @@ def findZoomFactor(srcSize, destSize):
         srcSize = srcSize * 2
         result *= 2
     return result
+
+class MapFaces(vigrapyqt.Overlay):
+    __base = vigrapyqt.Overlay
+
+    # TODO: remove _map (reuse from edgeOverlay)
+
+    def __init__(self, map, edgeOverlay,
+                 color = None, width = 0, fillColor = None,
+                 flags = None):
+        self.__base.__init__(self, color, width, fillColor)
+        self.setMap(map)
+        self.edgeOverlay = edgeOverlay
+        self.flags = flags
+        self.colors = None
+
+    def setMap(self, map):
+        self._map = ref(map)
+
+    def _faceROI(self, face):
+        # FIXME: very inefficient (use face.boundingBox() instead?!)
+        return self._getZoomedFace(face).boundingRect()
+
+    def updateFaceROI(self, face):
+        """Update the ROI containing the given face(s) in the viewer.
+        `face` may be an int, an Face object, or a tuple/list
+        of one of the two.  (Passing multiple faces results in only
+        one call to viewer.update(ROI).)"""
+        
+        if isinstance(face, (tuple, list)):
+            roi = qt.QRect()
+            for face in face:
+                roi |= self._faceROI(face)
+        else:
+            roi = self._faceROI(face)
+        roi.moveBy(self.viewer.upperLeft().x(),
+                   self.viewer.upperLeft().y())
+        self.viewer.update(roi)
+
+    def _getZoomedFace(self, face):
+        """Return the QPointArray for the given GeoMap.Face object."""
+
+        zoomedEdge = self.edgeOverlay._getZoomedEdge
+        edges = [(zoomedEdge(dart.edge()), dart.label() < 0)
+                 for dart in maputils.contourDarts(face)]
+
+        result = qt.QPointArray(sum(edge.size() for edge, _ in edges))
+        ti = 0
+        for edge, reverse in edges:
+            if reverse:
+                ti += edge.size()
+                for i in range(edge.size()):
+                    result.setPoint(ti-i-1, edge.at(i))
+            else:
+                for i in range(edge.size()):
+                    result.setPoint(ti+i, edge.at(i))
+                ti += edge.size()
+        return result
+
+    def setZoom(self, zoom):
+        pass # zoom is managed via self.edgeOverlay
+    
+    def draw(self, p):
+        if not self._map():
+            return
+
+        self._setupPainter(p)
+
+        zoomFactor = self.edgeOverlay._zoom
+
+        #p.drawPolygon(self._qpointarray, True, s, e-s)
+
+        r = p.clipRegion().boundingRect()
+        r.moveBy(-self.viewer.upperLeft().x(),
+                 -self.viewer.upperLeft().y())
+        bbox = BoundingBox(Vector2(r.left() / zoomFactor - 0.5,
+                                   r.top() / zoomFactor - 0.5),
+                           Vector2(r.right() / zoomFactor + 0.5,
+                                   r.bottom() / zoomFactor + 0.5))
+        map = self._map()
+        if self.colors:
+            try:
+                for edge in map.edgeIter():
+                    edgeColor = self.colors[edge.label()]
+                    if edgeColor and bbox.intersects(edge.boundingBox()):
+                        p.setPen(qt.QPen(edgeColor, self.width))
+                        p.drawPolyline(self._getZoomedEdge(edge))
+            except IndexError, e:
+                print e #"IndexError: %d > %d (maxEdgeLabel: %d)!" % (
+                    #i, len(self.colors), map.maxEdgeLabel())
+        elif self.color:
+            for face in map.faceIter():
+                if face.flag(self.flags) and \
+                       bbox.intersects(face.boundingBox()):
+                    p.drawPolygon(self._getZoomedFace(face))
 
 class MapEdges(vigrapyqt.Overlay):
     __slots__ = ("colors", "protectedColor", "protectedWidth",
