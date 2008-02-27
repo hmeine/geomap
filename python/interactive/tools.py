@@ -43,7 +43,7 @@ class MapSearcher(qt.QObject):
         self.disconnect(self.display.viewer, qt.PYSIGNAL("mousePressed"),
                         self.search)
 
-class ManualClassifier(qt.QObject):
+class _OldManualClassifier(qt.QObject):
     classes = [None, False, True]
 
     def __init__(self, map, foreground, parent = None, name = None):
@@ -70,6 +70,65 @@ class ManualClassifier(qt.QObject):
         viewer = self.parent().viewer
         self.disconnect(viewer, qt.PYSIGNAL("mousePressed"),
                         self.mousePressed)
+
+class ManualClassifier(qt.QObject):
+    __slots__ = ("manual",
+                 "_map", "_classes", "_classMask", "_overlays")
+
+    def __init__(self, map, edgeOverlay,
+                 classes = (FOREGROUND_FACE,
+                            BACKGROUND_FACE,
+                            0),
+                 colors = (qt.Qt.yellow, qt.Qt.cyan),
+                 parent = None, name = None):
+        qt.QObject.__init__(self, parent, name)
+
+        self.manual = {}
+
+        self._map = map
+        self._classes = list(classes)
+        if len(colors) != len(classes):
+            colors = list(colors)[:len(classes)]
+            if len(colors) < len(classes):
+                colors += [None] * (len(classes) - len(colors))
+        import mapdisplay
+        self._overlays = [
+            mapdisplay.MapFaces(map, edgeOverlay, color = c, flags = f)
+            for c, f in zip(colors, classes) if f and c]
+        self._classMask = 0
+        for c in classes:
+            self._classMask |= c
+
+        viewer = parent.viewer
+        self.connect(viewer, qt.PYSIGNAL("mousePressed"),
+                     self.mousePressed)
+        for o in self._overlays:
+            viewer.addOverlay(o)
+
+    def setClassIndex(self, face, newClassIndex):
+        face.setFlag(self._classMask, False)
+        face.setFlag(self._classes[newClassIndex])
+        self.manual[face.label()] = newClassIndex
+        #print "manually changed face %d to %s" % (face.label(), newClassIndex)
+        self._overlays[0].updateFaceROI(face)
+        self.emit(qt.PYSIGNAL("classChanged"), (face, ))
+
+    def mousePressed(self, x, y, button):
+        if button not in (qt.Qt.LeftButton, qt.Qt.MidButton):
+            return
+        face = self._map.faceAt((x, y))
+        oldClass = face.flag(self._classMask)
+        classes = self._classes
+        offset = button == qt.Qt.LeftButton and 1 or (len(classes) - 1)
+        self.setClassIndex(
+            face, (classes.index(oldClass) + offset) % len(classes))
+
+    def disconnectViewer(self):
+        viewer = self.parent().viewer
+        self.disconnect(viewer, qt.PYSIGNAL("mousePressed"),
+                        self.mousePressed)
+        for o in self._overlays:
+            viewer.removeOverlay(o)
 
 class SeedSelector(qt.QObject):
     def __init__(self, map = None, markFlags = SRG_SEED,
@@ -202,8 +261,9 @@ class ActivePaintbrush(qt.QObject):
 
     def mouseReleased(self, x, y):
         self._painting = False
-        self.emit(qt.PYSIGNAL("paintbrushFinished"), (
-            self._map.face(self._currentLabel), ))
+        if self._currentLabel is not None:
+            self.emit(qt.PYSIGNAL("paintbrushFinished"), (
+                self._map.face(self._currentLabel), ))
 
     def mouseDoubleClicked(self, x, y):
         face = self._map.faceAt((x, y))
