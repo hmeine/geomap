@@ -73,7 +73,8 @@ class _OldManualClassifier(qt.QObject):
 
 class ManualClassifier(qt.QObject):
     __slots__ = ("manual",
-                 "_map", "_classes", "_classMask", "_overlays")
+                 "_map", "_classes", "_classMask", "_overlays",
+                 "_pressed", "_toggling", "_paintClassIndex", "_currentLabel")
 
     def __init__(self, map, edgeOverlay,
                  classes = (FOREGROUND_FACE,
@@ -102,9 +103,15 @@ class ManualClassifier(qt.QObject):
 
         self.filter = filter
 
+        self._pressed = False
+
         viewer = parent.viewer
         self.connect(viewer, qt.PYSIGNAL("mousePressed"),
                      self.mousePressed)
+        self.connect(viewer, qt.PYSIGNAL("mousePosition"),
+                     self.mouseMoved)
+        self.connect(viewer, qt.PYSIGNAL("mouseReleased"),
+                     self.mouseReleased)
         for o in self._overlays:
             viewer.addOverlay(o)
 
@@ -122,11 +129,42 @@ class ManualClassifier(qt.QObject):
         face = self._map.faceAt((x, y))
         if self.filter and not self.filter(face):
             return
-        oldClass = face.flag(self._classMask)
-        classes = self._classes
-        offset = button == qt.Qt.LeftButton and 1 or (len(classes) - 1)
-        self.setClassIndex(
-            face, (classes.index(oldClass) + offset) % len(classes))
+
+        self._pressed = button
+        self._toggling = True
+        self._paintClassIndex = self._classes.index(
+            face.flag(self._classMask))
+        self._currentLabel = face.label()
+
+    def mouseMoved(self, x, y):
+        if not self._pressed:
+            return
+
+        face = self._map.faceAt((x, y))
+        if self._currentLabel == face.label():
+            return
+
+        # moved into a different face:
+        self._currentLabel = face.label()
+        self._toggling = False
+
+        if self.filter and not self.filter(face):
+            return
+
+        # apply painting classification to that face, too:
+        self.setClassIndex(face, self._paintClassIndex)
+
+    def mouseReleased(self, x, y):
+        if self._toggling:
+            face = self._map.face(self._currentLabel)
+            classes = self._classes
+            offset = self._pressed == qt.Qt.LeftButton \
+                     and 1 or (len(classes) - 1)
+            self.setClassIndex(
+                face, (self._paintClassIndex + offset) % len(classes))
+            self._toggling = False
+
+        self._pressed = False
 
     def disconnectViewer(self):
         viewer = self.parent().viewer
