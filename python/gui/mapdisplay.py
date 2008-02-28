@@ -665,11 +665,11 @@ class MapDisplay(displaysettings.DisplaySettings):
         self.edgeOverlay = MapEdges(map, qt.Qt.red,
                                     protectedColor = qt.Qt.green,
                                     protectedWidth = 2)
+        self.viewer.addOverlay(self.edgeOverlay)
         self.edgeOverlay.visible = self.edgeDisplayAction.isOn()
         self.nodeOverlay = MapNodes(map, qt.Qt.blue)
-        self.nodeOverlay.visible = self.nodeDisplayAction.isOn()
-        self.viewer.addOverlay(self.edgeOverlay)
         self.viewer.addOverlay(self.nodeOverlay)
+        self.nodeOverlay.visible = self.nodeDisplayAction.isOn()
         self._dh = DartHighlighter(map, self.viewer)
         self.dn = None
 
