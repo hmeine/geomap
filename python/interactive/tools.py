@@ -80,8 +80,9 @@ class ManualClassifier(qt.QObject):
                             BACKGROUND_FACE,
                             0),
                  colors = (qt.Qt.yellow, qt.Qt.cyan),
-                 parent = None, name = None):
-        qt.QObject.__init__(self, parent, name)
+                 filter = None,
+                 parent = None):
+        qt.QObject.__init__(self, parent)
 
         self.manual = {}
 
@@ -98,6 +99,8 @@ class ManualClassifier(qt.QObject):
         self._classMask = 0
         for c in classes:
             self._classMask |= c
+
+        self.filter = filter
 
         viewer = parent.viewer
         self.connect(viewer, qt.PYSIGNAL("mousePressed"),
@@ -117,6 +120,8 @@ class ManualClassifier(qt.QObject):
         if button not in (qt.Qt.LeftButton, qt.Qt.MidButton):
             return
         face = self._map.faceAt((x, y))
+        if self.filter and not self.filter(face):
+            return
         oldClass = face.flag(self._classMask)
         classes = self._classes
         offset = button == qt.Qt.LeftButton and 1 or (len(classes) - 1)
