@@ -55,6 +55,10 @@ CORNER_FACE = 32
 SRG_SEED = 8
 SRG_BORDER = 16
 
+# levelcontours:
+BACKGROUND_FACE = 1 # cf. OUTER_FACE
+FOREGROUND_FACE = 32
+
 FACE_USER = 0x100000
 
 if __name__ == "__main__":
