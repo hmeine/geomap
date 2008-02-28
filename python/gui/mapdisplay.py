@@ -49,7 +49,7 @@ class MapFaces(vigrapyqt.Overlay):
 
     def _faceROI(self, face):
         # FIXME: very inefficient (use face.boundingBox() instead?!)
-        return self._getZoomedFace(face).boundingRect()
+        return self._getZoomedFace(face)[0].boundingRect()
 
     def updateFaceROI(self, face):
         """Update the ROI containing the given face(s) in the viewer.
@@ -71,21 +71,28 @@ class MapFaces(vigrapyqt.Overlay):
         """Return the QPointArray for the given GeoMap.Face object."""
 
         zoomedEdge = self.edgeOverlay._getZoomedEdge
-        edges = [(zoomedEdge(dart.edge()), dart.label() < 0)
-                 for dart in maputils.contourDarts(face)]
+        edges = []
+        sizes = []
+        for anchor in face.contours():
+            contourSize = 0
+            for dart in anchor.phiOrbit():
+                ze = zoomedEdge(dart.edge())
+                edges.append((ze, dart.label() < 0))
+                contourSize += ze.size()
+            sizes.append(contourSize)
 
-        result = qt.QPointArray(sum(edge.size() for edge, _ in edges))
+        qpa = qt.QPointArray(sum(sizes))
         ti = 0
         for edge, reverse in edges:
             if reverse:
                 ti += edge.size()
                 for i in range(edge.size()):
-                    result.setPoint(ti-i-1, edge.at(i))
+                    qpa.setPoint(ti-i-1, edge.at(i))
             else:
                 for i in range(edge.size()):
-                    result.setPoint(ti+i, edge.at(i))
+                    qpa.setPoint(ti+i, edge.at(i))
                 ti += edge.size()
-        return result
+        return qpa, sizes
 
     def setZoom(self, zoom):
         pass # zoom is managed via self.edgeOverlay
@@ -122,7 +129,19 @@ class MapFaces(vigrapyqt.Overlay):
             for face in map.faceIter():
                 if face.flag(self.flags) and \
                        bbox.intersects(face.boundingBox()):
-                    p.drawPolygon(self._getZoomedFace(face))
+                    qpa, sizes = self._getZoomedFace(face)
+                    if face.holeCount():
+                        index = 0
+                        for size in sizes:
+                            p.drawPolyline(qpa, index, size)
+                            index += size
+                        if self.fillColor:
+                            p.save()
+                            p.setPen(qt.Qt.NoPen)
+                            p.drawPolygon(qpa)
+                            p.restore()
+                    else:
+                        p.drawPolygon(qpa)
 
 class MapEdges(vigrapyqt.Overlay):
     __slots__ = ("colors", "protectedColor", "protectedWidth",
@@ -623,6 +642,10 @@ class MapDisplay(displaysettings.DisplaySettings):
 
         self.connect(self.backgroundGroup, qt.SIGNAL("selected(QAction*)"),
                      self.setBackgroundMode)
+        self.connect(self.nodeDisplayAction, qt.SIGNAL("toggled(bool)"),
+                     self.toggleNodeDisplay)
+        self.connect(self.edgeDisplayAction, qt.SIGNAL("toggled(bool)"),
+                     self.toggleEdgeDisplay)
         self.connect(self.normalizeAction, qt.SIGNAL("toggled(bool)"),
                      self.toggleNormalize)
         self.connect(self.mapCleanupAction, qt.SIGNAL("activated()"),
@@ -642,7 +665,9 @@ class MapDisplay(displaysettings.DisplaySettings):
         self.edgeOverlay = MapEdges(map, qt.Qt.red,
                                     protectedColor = qt.Qt.green,
                                     protectedWidth = 2)
+        self.edgeOverlay.visible = self.edgeDisplayAction.isOn()
         self.nodeOverlay = MapNodes(map, qt.Qt.blue)
+        self.nodeOverlay.visible = self.nodeDisplayAction.isOn()
         self.viewer.addOverlay(self.edgeOverlay)
         self.viewer.addOverlay(self.nodeOverlay)
         self._dh = DartHighlighter(map, self.viewer)
@@ -739,6 +764,16 @@ class MapDisplay(displaysettings.DisplaySettings):
             self.normalizeAction.setOn(normalize)
         else:
             self._setImage(self.image, normalize)
+
+    def toggleNodeDisplay(self, onoff):
+        if self.nodeOverlay.visible != onoff:
+            self.nodeOverlay.visible = onoff
+            self.viewer.update()
+
+    def toggleEdgeDisplay(self, onoff):
+        if self.edgeOverlay.visible != onoff:
+            self.edgeOverlay.visible = onoff
+            self.viewer.update()
 
     def toggleNormalize(self, normalize):
         self._normalizeStates[self._backgroundMode] = normalize

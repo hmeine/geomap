@@ -33,6 +33,9 @@
         <action name="displayLabelsAction"/>
         <action name="displayMeansAction"/>
         <separator/>
+        <action name="nodeDisplayAction"/>
+        <action name="edgeDisplayAction"/>
+        <separator/>
         <action name="normalizeAction"/>
     </item>
     <item text="&amp;Tools" name="Tools">
@@ -288,6 +291,37 @@
         </property>
         <property name="accel">
             <string>Ctrl+Z</string>
+        </property>
+    </action>
+    <action>
+        <property name="name">
+            <cstring>edgeDisplayAction</cstring>
+        </property>
+        <property name="toggleAction">
+            <bool>true</bool>
+        </property>
+        <property name="on">
+            <bool>true</bool>
+        </property>
+        <property name="text">
+            <string>Display Edges</string>
+        </property>
+        <property name="accel">
+            <string>E</string>
+        </property>
+    </action>
+    <action>
+        <property name="name">
+            <cstring>nodeDisplayAction</cstring>
+        </property>
+        <property name="toggleAction">
+            <bool>true</bool>
+        </property>
+        <property name="text">
+            <string>Display Nodes</string>
+        </property>
+        <property name="accel">
+            <string>Shift+*</string>
         </property>
     </action>
 </actions>
