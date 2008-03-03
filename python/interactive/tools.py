@@ -96,7 +96,7 @@ class ManualClassifier(qt.QObject):
         import mapdisplay
         self._overlays = [
             mapdisplay.MapFaces(map, edgeOverlay, color = c, flags = f)
-            for c, f in zip(colors, classes) if f and c]
+            for c, f in zip(colors, classes) if c]
         self._classMask = 0
         for c in classes:
             self._classMask |= c
@@ -104,6 +104,7 @@ class ManualClassifier(qt.QObject):
         self.filter = filter
 
         self._pressed = False
+        self._toggling = False
 
         viewer = parent.viewer
         self.connect(viewer, qt.PYSIGNAL("mousePressed"),
