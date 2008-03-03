@@ -522,7 +522,7 @@ class GeoMap::Edge
       leftFaceLabel_(other.leftFaceLabel_),
       rightFaceLabel_(other.rightFaceLabel_),
       flags_(other.flags_)
-    {        
+    {
     }
 
   public:
@@ -1493,6 +1493,7 @@ class DartPosition
         while(nextSegmentInternal());
 
         // hit end
+        position_ = p1_;
         partialArcLength_ = 0.0;
         return false;
     }
