@@ -1487,10 +1487,20 @@ def edgeAtBorder(edge):
     return edge.flag(flag_constants.BORDER_PROTECTION)
 
 def nonBorderEdges(map):
-    """Iterate over all edges that do not have the BORDER_PROTECTION flag."""
+    """Iterate over all edges that do not have the BORDER_PROTECTION
+    flag."""
+    
     for edge in map.edgeIter():
         if not edge.flag(flag_constants.BORDER_PROTECTION):
             yield edge
+
+def nonBackgroundFaces(map):
+    """Iterate over all faces that do not have the BACKGROUND_FACE (=
+    OUTER_FACE) flag."""
+    
+    for face in map.faceIter():
+        if not face.flag(flag_constants.BACKGROUND_FACE):
+            yield face
 
 def nodeAtBorder(node):
     """nodeAtBorder(node) -> bool
