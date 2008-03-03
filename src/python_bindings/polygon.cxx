@@ -2225,7 +2225,7 @@ void defPolygon()
              "  a * x + b * y + p == 0\n\n"
              "holds for all (x,y) on the line.\n"
              "'res' is the residual of the estimate, namely\n"
-             "the std.dev. perpendicular to the line.\n")
+             "the std.dev. perpendicular to the line.")
         .def("computeParametricEquation",
              &LineFit::pyComputeParametricEquation,
              "computeParametricEquation() -> res, (center, orientation)\n\n"
@@ -2233,7 +2233,7 @@ void defPolygon()
              "  (x,y) = center + t * orientation\n\n"
              "holds for all (x,y) on the line.\n"
              "'res' is the residual of the estimate, namely\n"
-             "the std.dev. perpendicular to the line.\n")
+             "the std.dev. perpendicular to the line.")
     ;
 
     class_<ParabolaFit>("ParabolaFit")
