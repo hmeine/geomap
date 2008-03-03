@@ -1390,9 +1390,18 @@ void defMap()
         "contourPoly(anchor) -> Polygon\n\n"
         "Returns a Polygon composed by traversing anchor's phi orbit once.");
 
-    class_<DartPosition>("DartPosition",
-                         "Helper class for traversing a Dart's geometry.",
-                         init<GeoMap::Dart>())
+    class_<DartPosition>(
+        "DartPosition",
+        "A DartPosition object represents a (variable) position on a (fixed)\n"
+        "dart.\n\n"
+        "The exact current position can be queried with dp() (where dp\n"
+        "denotes a DartPosition object), and always lies on the Dart's\n"
+        "polygon.  It may not be identical to any of the Dart's support\n"
+        "points though, but may lie on the polyline segment between to\n"
+        "support points.  This segment is then called the \"current segment\",\n"
+        "and segmentIndex() gives its index between 0 and N-2, where N is\n"
+        "the number of points in the Dart.",
+        init<GeoMap::Dart>())
         .def("atEnd", &DartPosition::atEnd)
         .def("__call__", &DartPosition::operator(),
              return_value_policy<copy_const_reference>())
