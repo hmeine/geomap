@@ -550,7 +550,12 @@ class StaticEdgeCosts(DetachableStatistics):
         if costs is None:
             self._costs = [None] * map.maxEdgeLabel()
         else:
-            self._costs = costs
+            if combiner:
+                # let _costs be a copy (we don't want to modify the
+                # caller's data structure with the combined values):
+                self._costs = list(costs)
+            else:
+                self._costs = costs
         self._combiner = combiner
         if costMeasure:
             for edge in map.edgeIter():
@@ -1655,12 +1660,12 @@ class EdgeTangents(DynamicEdgeStatistics):
 
 def gcByArcLength(al):
     """Local measure for good continuation: compares secant directions
-    around node"""
+    around node.  Range is -1..1, where 1 means perfect continuation."""
 
     def goodContinuation(dart1, dart2):
-        assert dart1.endNode() == dart2.startNode()
+        assert dart1.startNode() == dart2.startNode()
         # find one-sided tangents:
-        dp1 = hourglass.DartPosition(dart1.clone().nextAlpha())
+        dp1 = hourglass.DartPosition(dart1)
         dp1.gotoArcLength(al)
         dp2 = hourglass.DartPosition(dart2)
         dp2.gotoArcLength(al)
