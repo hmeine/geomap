@@ -723,6 +723,17 @@ def copyMapContents(sourceMap, destMap = None, edgeTransform = None):
 
     return destMap, nodes, edges
 
+def detachMapStats(map, verbose = False):
+    """Calls 'detachHooks' on all properties of the given map.
+    (Use this to prevent leaking statistics when discarding maps.)"""
+    
+    for a in map.__dict__:
+        o = getattr(map, a)
+        if hasattr(o, "detachHooks"):
+            if verbose:
+                print "detaching hooks of", o
+            o.detachHooks()
+
 # --------------------------------------------------------------------
 #                         consistency checks
 # --------------------------------------------------------------------
@@ -1514,17 +1525,18 @@ def nodeAtBorder(node):
             return True
     return False
 
-def mapValidEdges(function, geomap, default = None):
+def mapValidEdges(function, geomap, default = None, skipBorder = False):
     """Similar to map(function, geomap.edgeIter()), but preserves
     labels.  I.e., equivalent to [default] * geomap.maxEdgeLabel() and
     a successive filling in of function results for valid edges.
 
-    Note that due to the analogy to the builtin map, the order of the
+    Note that due to the analogy to the builtin `map`, the order of the
     arguments is different to most other functions within this module,
     which usually have the geomap as first argument."""
     
     result = [default] * geomap.maxEdgeLabel()
-    for edge in geomap.edgeIter():
+    for edge in \
+            skipBorder and nonBorderEdges(geomap) or geomap.edgeIter():
         result[edge.label()] = function(edge)
     return result
 
@@ -1533,7 +1545,7 @@ def mapValidFaces(function, geomap, default = None):
     labels.  I.e., equivalent to [default] * geomap.maxFaceLabel() and
     a successive filling in of function results for valid faces.
 
-    Note that due to the analogy to the builtin map, the order of the
+    Note that due to the analogy to the builtin `map`, the order of the
     arguments is different to most other functions within this module,
     which usually have the geomap as first argument."""
     
