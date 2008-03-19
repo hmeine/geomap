@@ -1481,9 +1481,9 @@ bool GeoMap::checkConsistency()
             if(!seenAnchor.second)
             {
                 std::cerr << "  Face " << face.label()
-                          << " contains duplicate anchors at (contour indices "
+                          << " contains duplicate anchors at contour indices "
                           << contourIndex << " and "
-                          << seenAnchor.first->second << ")!\n";
+                          << seenAnchor.first->second << "!\n";
                 result = false;
             }
         }
