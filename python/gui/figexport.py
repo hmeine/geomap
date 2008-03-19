@@ -100,22 +100,21 @@ class FigExporter:
         The fig.PolyBox object is returned."""
         
         assert roi or self.roi, "addROIRect(): no ROI given!?"
-        if roi == None:
-            roi = BoundingBox(self.roi)
-            roi.moveBy((-0.5, -0.5))
+
         if container == True:
             container = self.f
 
-        # convert to BoundingBox if necessary and don't modify in-place
         if isinstance(roi, Rect2D):
             roi = BoundingBox(roi)
-        else:
-            roi = BoundingBox(roi)
-            roi.moveBy(self.offset)
+            roi.moveBy((-0.5, -0.5))
 
-        if self.roi and not self.roi.contains(roi):
+        if roi is None:
+            roi = self.roi
+            assert not isinstance(roi, Rect2D)
+            roi = BoundingBox(roi)
+            roi.moveBy(-self.offset) # BAAH!  What a bad design (self.roi)
+        elif self.roi and not self.roi.contains(roi):
             sys.stderr.write("WARNING: addROIRect: ROI out of bounds!\n")
-            roi.moveBy(-self.offset)
             poly = Polygon([roi.begin(), roi.begin() + (0, roi.size()[1]),
                             roi.end(), roi.begin() + (roi.size()[0], 0),
                             roi.begin()])
@@ -127,6 +126,8 @@ class FigExporter:
                 return result[0]
             return
 
+        roi = BoundingBox(roi)
+        roi.moveBy(self.offset)
         if self.roi:
             roi.moveBy(-self.roi.begin())
 
@@ -523,8 +524,8 @@ class FigExporter:
         """fe.addMapFaces(geomap, faceMeans, ...)
 
         Adds and returns fig.Polygons for all map faces (or -parts,
-        see addClippedPoly).  Clipping is experimental, since clipping
-        arbitrary closed polygons is much harder than just open ones."""
+        see addClippedPoly).  Clipping closed polygons should work
+        nowadays, too."""
 
         import maputils
 
