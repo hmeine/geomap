@@ -6,8 +6,7 @@ from vigra import *
 import hourglass
 from hourglass import \
      FaceGrayStatistics, FaceRGBStatistics, \
-     spatialStabilityImage, resamplePolygon, \
-     tangentList, tangentListGaussianReflective
+     resamplePolygon, tangentList, tangentListGaussianReflective
 import sivtools, flag_constants
 
 class DetachableStatistics(object):
@@ -1327,7 +1326,7 @@ class EdgeGradScaleSum(BoundaryIndicatorStatistics):
 class EdgeSpatialStability(BoundaryIndicatorStatistics):
     def __init__(self, map, image, radius, propexp, splineOrder):
         BoundaryIndicatorStatistics.__init__(self, map, "spatialStability_%s_%s" % (radius, propexp))
-        ss = spatialStabilityImage(image, 4, radius, propexp)
+        ss = hourglass.spatialStabilityImage(image, 4, radius, propexp)
         ss.siv = eval("SplineImageView%d(ss)" % (splineOrder, ))
         for edge in map.edgeIter():
             setattr(edge, self.attrName, EdgeStatistics(edge, ss.siv))
