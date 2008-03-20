@@ -16,7 +16,7 @@ LOCAL_CPPFLAGS = -I. -I../cellimage `pkg-config --cflags sigc++-2.0`
 
 CXXFLAGS += -Wall -Wno-strict-aliasing
 #CXXFLAGS += -g -W
-CXXFLAGS += -O3 -DNDEBUG
+CXXFLAGS += -pipe -DNDEBUG
 CPPFLAGS := $(LOCAL_CPPFLAGS) $(CPPFLAGS)
 LIBCPPFLAGS := $(LOCAL_CPPFLAGS) $(LIBCPPFLAGS)
 TARGET = hourglassmodule.la
@@ -24,14 +24,15 @@ MODULE = $(patsubst %.la,%.so,$(TARGET))
 
 OBJS = \
 	shapecontext.lo \
-    hourglassmodule.lo \
+	hourglassmodule.lo \
 	polygon.lo \
 	statistics.lo \
+	features.lo \
 	delaunay.lo \
-	cppmap.lo \
-	cppmapmodule.lo \
-	cppmapmodule_stats.lo \
 	cppmapmodule_utils.lo \
+	cppmapmodule_stats.lo \
+	cppmapmodule.lo \
+	cppmap.lo \
 	dsl.lo \
 
 IMPEX_LIB = `vigra-config --impex_lib`
