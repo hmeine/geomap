@@ -377,7 +377,10 @@ def addFlowLinesToMap(edges, map):
 
     This function expects `edges` to be a list of
     SubPixelWatersheds.edge() return values and adds edges for each
-    flowline.  It contains some special handling of flowlines:
+    flowline.  The edge labels are valid indices into the `edges`
+    sequence for the corresponding source data.
+
+    It contains some special handling of flowlines:
 
     * Additional Nodes may be added for flowlines that did not end in
       a maximum - extra care is taken not to insert multiple Nodes at
@@ -398,6 +401,15 @@ def addFlowLinesToMap(edges, map):
 
         startNodeLabel = edgeTuple[0]
         endNodeLabel = edgeTuple[1]
+
+        # meaning of node labels:
+        #   >0: index of maximum
+        # =  0: step size below threshold
+        # = -1: dito, at image border
+        # = -2: unwanted edge parallel to border (CODE REMOVED)
+        # = -3: too many steps
+        # = -4: dito, at image border
+
         if startNodeLabel == -2 and endNodeLabel == -2:
             # FIXME: check that partialArea of closed edge is near zero
             result.append(edgeTuple)
