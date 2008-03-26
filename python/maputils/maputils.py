@@ -247,7 +247,16 @@ def subpixelWatershedMapFromData(
     print "- initializing GeoMap from flowlines..."
     spmap = Map(maxima, [], imageSize)
 
-    deleted = addFlowLinesToMap(flowlines, spmap)
+    # copy flowline data (may be modified by addFlowLinesToMap for
+    # proper WatershedStatistics):    
+    flowlines = list(flowlines)
+
+    w, h = imageSize
+    borderParallelEpsilon = 1e-4
+    deleted = addFlowLinesToMap(
+        flowlines, spmap, hourglass.BoundingBox(
+        (borderParallelEpsilon, borderParallelEpsilon),
+        (w-1-borderParallelEpsilon, h-1-borderParallelEpsilon)))
     if deleted:
         print "  skipped %d flowlines (at border / degenerate loops)" \
               % len(deleted)
@@ -372,13 +381,13 @@ def subpixelWatershedMap(
 
     return spwsMap
 
-def addFlowLinesToMap(edges, map):
+def addFlowLinesToMap(edges, map, boundingBox = None):
     """addFlowLinesToMap(edges, map)
 
     This function expects `edges` to be a list of
     SubPixelWatersheds.edge() return values and adds edges for each
-    flowline.  The edge labels are valid indices into the `edges`
-    sequence for the corresponding source data.
+    flowline.  The labels of the resulting edges will be valid indices
+    into the `edges` sequence for the corresponding source data.
 
     It contains some special handling of flowlines:
 
@@ -387,6 +396,11 @@ def addFlowLinesToMap(edges, map):
       (nearly) the same position.
 
     * Self-loops with area zero are not added.
+
+    * Flowlines that run outside the given bounding box are clipped,
+      and *the given `edges` sequence is modified in-place*(!) in
+      order to allow later WatershedStatistics to know about the
+      modified saddle indices.
 
     Returns edgeTuples that could not be added to the GeoMap."""
     
@@ -401,6 +415,37 @@ def addFlowLinesToMap(edges, map):
 
         startNodeLabel = edgeTuple[0]
         endNodeLabel = edgeTuple[1]
+        points = hourglass.Polygon(edgeTuple[2])
+
+        if boundingBox and not boundingBox.contains(points.boundingBox()):
+            print "polygon out of range:", points
+            
+            saddleIndex = edgeTuple[3]
+            if not boundingBox.contains(points[saddleIndex]):
+                result.append(edgeTuple)
+                continue
+
+            if startNodeLabel >= 0 and \
+                   not boundingBox.contains(points[0]):
+                startNodeLabel = -1
+
+            if endNodeLabel >= 0 and \
+                   not boundingBox.contains(points[-1]):
+                endNodeLabel = -1
+            
+            import polytools
+            for cp in polytools.clipPoly(points, boundingBox):
+                print "part: %d points" % len(cp)
+                try:
+                    newSaddleIndex = list(cp).index(points[saddleIndex])
+                except ValueError:
+                    continue
+                sys.stderr.write("WARNING: flowline left image range, clipped from %d to %d points (saddle index %d->%d)\n" % (len(edgeTuple[2]), len(cp), saddleIndex, newSaddleIndex))
+                points = cp
+                edgeTuple = (
+                    startNodeLabel, endNodeLabel, points, newSaddleIndex)
+                edges[edgeLabel] = edgeTuple # write back (see docstring)
+                break
 
         # meaning of node labels:
         #   >0: index of maximum
@@ -1016,7 +1061,8 @@ def mergeFaceToBestNeighbor(face, costMeasure):
             best = cost, dart
     return mergeFacesCompletely(best[1])
 
-def removeSmallRegions(map, minArea = None, minPixelArea = None, costMeasure = None):
+def removeSmallRegions(
+    map, minArea = None, minPixelArea = None, costMeasure = None):
     """Merge faces whose area is < minArea with any neighor.
     Alternatively, pixelArea() is compared with minPixelArea.
     
