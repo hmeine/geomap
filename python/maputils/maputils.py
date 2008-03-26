@@ -417,9 +417,8 @@ def addFlowLinesToMap(edges, map, boundingBox = None):
         endNodeLabel = edgeTuple[1]
         points = hourglass.Polygon(edgeTuple[2])
 
-        if boundingBox and not boundingBox.contains(points.boundingBox()):
-            print "polygon out of range:", points
-            
+        if boundingBox and \
+               not boundingBox.contains(points.boundingBox()):
             saddleIndex = edgeTuple[3]
             if not boundingBox.contains(points[saddleIndex]):
                 result.append(edgeTuple)
@@ -435,12 +434,11 @@ def addFlowLinesToMap(edges, map, boundingBox = None):
             
             import polytools
             for cp in polytools.clipPoly(points, boundingBox):
-                print "part: %d points" % len(cp)
                 try:
                     newSaddleIndex = list(cp).index(points[saddleIndex])
                 except ValueError:
                     continue
-                sys.stderr.write("WARNING: flowline left image range, clipped from %d to %d points (saddle index %d->%d)\n" % (len(edgeTuple[2]), len(cp), saddleIndex, newSaddleIndex))
+                #sys.stderr.write("WARNING: flowline left image range, clipped from %d to %d points (saddle index %d->%d)\n" % (len(edgeTuple[2]), len(cp), saddleIndex, newSaddleIndex))
                 points = cp
                 edgeTuple = (
                     startNodeLabel, endNodeLabel, points, newSaddleIndex)
