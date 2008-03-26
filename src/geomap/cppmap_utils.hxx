@@ -250,6 +250,9 @@ unsigned int removeEdges(
     {
         CELL_PTR(GeoMap::Edge)
             edge = map.edge(*edgeLabelsBegin);
+
+        vigra_precondition(edge, "removeEdges: illegal edge label");
+
         if(edge->isBridge())
         {
             edge->setFlag(GeoMap::Edge::REMOVE_BRIDGE);
