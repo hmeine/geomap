@@ -521,13 +521,18 @@ def addMapOverlay(fe, overlay, skipBorder = False, **attr):
     if isinstance(overlay, ROISelector):
         color = qtColor2figColor(overlay.color, fe.f)
         return fe.addROIRect(overlay.roi, penColor = color, **attr)
-    elif isinstance(overlay, (MapNodes, MapEdges)):
+    elif isinstance(overlay, (MapNodes, MapEdges, MapFaces)):
         oldScale, oldOffset, oldROI = fe.scale, fe.offset, fe.roi
 
-        extraZoom = float(overlay._zoom) / overlay.viewer.zoomFactor()
+        if isinstance(overlay, MapFaces):
+            zoom = overlay.edgeOverlay._zoom
+        else:
+            zoom = overlay._zoom
+        extraZoom = float(zoom) / overlay.viewer.zoomFactor()
         fe.scale *= extraZoom
         fe.roi = BoundingBox(fe.roi.begin() / extraZoom,
                              fe.roi.end() / extraZoom)
+        map = overlay._map()
 
         if isinstance(overlay, MapNodes):
             radius = overlay.origRadius
@@ -535,16 +540,16 @@ def addMapOverlay(fe, overlay, skipBorder = False, **attr):
                 radius /= float(overlay._zoom)
             color = qtColor2figColor(overlay.color, fe.f)
 
-            result = fe.addMapNodes(overlay._map(), radius,
+            result = fe.addMapNodes(map, radius,
                                     fillColor = color, lineWidth = 0, **attr)
-        else:
+        elif isinstance(overlay, MapEdges):
             attr = dict(attr)
             if overlay.width:
                 attr["lineWidth"] = overlay.width
 
             if overlay.colors:
                 result = fig.Compound(fe.f)
-                for edge in overlay._map().edgeIter():
+                for edge in map.edgeIter():
                     edgeColor = overlay.colors[edge.label()]
                     if edgeColor:
                         fe.addClippedPoly(edge,
@@ -552,9 +557,9 @@ def addMapOverlay(fe, overlay, skipBorder = False, **attr):
                             container = result, **attr)
             elif overlay.color:
                 result = fe.addMapEdges(
-                    overlay._map(),
+                    map, skipBorder = skipBorder,
                     penColor = qtColor2figColor(overlay.color, fe.f),
-                    skipBorder = skipBorder, **attr)
+                    **attr)
             else:
                 result = fig.Compound(fe.f)
 
@@ -562,11 +567,27 @@ def addMapOverlay(fe, overlay, skipBorder = False, **attr):
                 attr["penColor"] = \
                     qtColor2figColor(overlay.protectedColor, fe.f)
                 attr["lineWidth"] = overlay.protectedWidth or overlay.width
-                it = skipBorder and maputils.nonBorderEdges(overlay._map()) \
-                     or overlay._map().edgeIter()
+                it = skipBorder and maputils.nonBorderEdges(map) \
+                     or map.edgeIter()
                 for edge in it:
                     if edge.flag(flag_constants.ALL_PROTECTION):
                         fe.addClippedPoly(edge, container = result, **attr)
+        else:
+            attr = dict(attr)
+            if overlay.width:
+                attr["lineWidth"] = overlay.width
+            attr["penColor"] = qtColor2figColor(overlay.color, fe.f)
+            if overlay.fillColor:
+                attr["fillColor"] = qtColor2figColor(overlay.fillColor, fe.f)
+                attr["fillStyle"] = fig.fillStyleSolid
+            result = fig.Compound(fe.f)
+            for face in map.faceIter():
+                if face.flag(overlay.flags):
+                    if face.holeCount:
+                        assert not overlay.fillColor, "FIXME: cannot currently export filled polygons with holes"
+                    for dart in face.contours():
+                        fe.addClippedPoly(contourPoly(dart),
+                                          container = result, **attr)
 
         fe.scale, fe.offset, fe.roi = oldScale, oldOffset, oldROI
         return result
@@ -816,7 +837,8 @@ class MapDisplay(displaysettings.DisplaySettings):
     def _postMergeFacesHook(self, survivor):
         if self._backgroundMode < 3:
             return
-        self._redisplayROIImage(intPos(survivor.boundingBox()))
+        if survivor.label():
+            self._redisplayROIImage(intPos(survivor.boundingBox()))
 
     def _preRemoveBridgeHook(self, dart):
         if self._backgroundMode >= 3:
@@ -940,7 +962,7 @@ class MapDisplay(displaysettings.DisplaySettings):
         self._imageWindow.replaceImage(
             self.image, normalize and vigra.NBYTE or vigra.BYTE)
 
-    def setImage(self, image, normalize = True, role = None):
+    def setImage(self, image, normalize = None, role = None):
         if role == None:
             if image.bands() == 3:
                 self.images["original"] = vigra.transformImage(
@@ -951,6 +973,8 @@ class MapDisplay(displaysettings.DisplaySettings):
                 role = "original"
         self.images[role] = image
         self._enableImageActions()
+        if normalize == None:
+            normalize = self._normalizeStates[self._backgroundMode]
         if self._imageWindow and role == self.currentRole():
             self._setImage(image, normalize)
 
@@ -1098,7 +1122,8 @@ class DartNavigator(dartnavigator.DartNavigatorBase):
     def closeEvent(self, e):
         self.dh.highlight(None)
         self.__base.closeEvent(self, e)
-        self.deleteLater() # like qt.Qt.WDestructiveClose ;-)
+        if e.isAccepted():
+            self.deleteLater() # like qt.Qt.WDestructiveClose ;-)
 
     def highlightNext(self):
         self.activePerm()
