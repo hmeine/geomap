@@ -248,7 +248,7 @@ def subpixelWatershedMapFromData(
     spmap = Map(maxima, [], imageSize)
 
     # copy flowline data (may be modified by addFlowLinesToMap for
-    # proper WatershedStatistics):    
+    # proper WatershedStatistics):
     flowlines = list(flowlines)
 
     w, h = imageSize
@@ -405,8 +405,9 @@ def addFlowLinesToMap(edges, map, boundingBox = None):
     Returns edgeTuples that could not be added to the GeoMap."""
     
     # Node 0 conflicts with our special handling of 0 values:
-    assert not map.node(0), \
-           "addFlowLinesToMap: Node with label zero should not exist!"
+    if map.maxNodeLabel():
+        assert map.node(0), \
+               "addFlowLinesToMap: Node with label zero should not exist!"
 
     result = []
     for edgeLabel, edgeTuple in enumerate(edges):
@@ -687,8 +688,20 @@ def connectBorderNodes(map, epsilon,
     for points, node in borderEdges:
         startNode = endNode
         endNode = node
-        map.addEdge(startNode, endNode, points) \
-                        .setFlag(flag_constants.BORDER_PROTECTION)
+        if not map.edgesSorted():
+            map.addEdge(startNode, endNode, points) \
+                                   .setFlag(flag_constants.BORDER_PROTECTION)
+        else: # ouch! map already sorted!
+            start = startNode
+            if not startNode.isIsolated():
+                start = startNode.anchor()
+            end = endNode
+            if not endNode.isIsolated():
+                end = endNode.anchor()
+            map.addEdge(start, end, points) \
+                               .setFlag(flag_constants.BORDER_PROTECTION)
+    if map.edgesSorted():
+        sys.stderr.write("*** BIG FAT WARNING! ***\n  connectBorderNodes() called on already sorted map - resorting necessary!\n")
 
 def copyMapContents(sourceMap, destMap = None, edgeTransform = None):
     """Add all nodes and edges of sourceMap to the destMap.  The sigma
