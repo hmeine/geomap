@@ -283,14 +283,6 @@ class Workspace(mapdisplay.MapDisplay):
         if bi is not None:
             self.setImage(bi, role = "bi")
 
-    @staticmethod
-    def _detachMapStats(map):
-        for a in map.__dict__:
-            o = getattr(map, a)
-            if hasattr(o, "detachHooks"):
-                #print "detaching hooks of", o
-                o.detachHooks()
-
     def setTool(self, tool = None):
         if tool:
             assert type(tool) == int, "Workspace needs to remember the tool - only ints allowed!"
@@ -365,7 +357,7 @@ class Workspace(mapdisplay.MapDisplay):
     def setMap(self, map):
         """Make the given map (which must belong to the current
         pyramid) the currently displayed level."""
-        self._detachMapStats(self.map)
+        maputils.detachMapStats(self.map)
 
         activeTool = self._activeTool
         self.__base.setMap(self, map)
@@ -648,7 +640,7 @@ class Workspace(mapdisplay.MapDisplay):
         while am.mergeSteps(50):
             p()
 
-        self._detachMapStats(map)
+        maputils.detachMapStats(map)
         self._pyramidCK = map.pyramidCK
 
 if __name__ == "__main__":
