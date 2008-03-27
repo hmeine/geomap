@@ -80,6 +80,7 @@ class ManualClassifier(qt.QObject):
                  classes = (FOREGROUND_FACE,
                             BACKGROUND_FACE,
                             0),
+                 classNames = None,
                  colors = (qt.Qt.yellow, qt.Qt.cyan),
                  filter = None,
                  parent = None):
@@ -93,13 +94,20 @@ class ManualClassifier(qt.QObject):
             colors = list(colors)[:len(classes)]
             if len(colors) < len(classes):
                 colors += [None] * (len(classes) - len(colors))
-        import mapdisplay
-        self._overlays = [
-            mapdisplay.MapFaces(map, edgeOverlay, color = c, flags = f)
-            for c, f in zip(colors, classes) if c]
+
         self._classMask = 0
         for c in classes:
             self._classMask |= c
+
+        import mapdisplay
+        # (nb: MapFaces cannot display faces with flags = 0)
+        self._overlays = [
+            mapdisplay.MapFaces(map, edgeOverlay, color = c, flags = f)
+            for c, f in zip(colors, classes) if c and f]
+        if classNames:
+            for o in self._overlays:
+                i = self._classes.index(o.flags)
+                o.name = classNames[i]
 
         self.filter = filter
 
@@ -123,6 +131,14 @@ class ManualClassifier(qt.QObject):
         #print "manually changed face %d to %s" % (face.label(), newClassIndex)
         self._overlays[0].updateFaceROI(face)
         self.emit(qt.PYSIGNAL("classChanged"), (face, ))
+
+    def toggleOverlays(self, onoff = None):
+        if onoff is None:
+            onoff = not self._overlays[0].visible
+        for o in self._overlays:
+            o.visible = onoff
+        viewer = self.parent().viewer
+        viewer.update()
 
     def mousePressed(self, x, y, button):
         if button not in (qt.Qt.LeftButton, qt.Qt.MidButton):
