@@ -1352,8 +1352,8 @@ class GeoMap::SigmaAnchor
       nodeLabel_(node.label()),
       map_(node.map())
     {
-        vigra_precondition(isSingular_ || !node.map()->mapInitialized(),
-            "sigma position of initialized GeoMap not fully specified");
+        vigra_precondition(isSingular_ || !node.map()->edgesSorted(),
+            "sigma position of sorted GeoMap not fully specified");
     }
 
     SigmaAnchor(const GeoMap::Dart &dart)
