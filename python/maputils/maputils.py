@@ -406,7 +406,7 @@ def addFlowLinesToMap(edges, map, boundingBox = None):
     
     # Node 0 conflicts with our special handling of 0 values:
     if map.maxNodeLabel():
-        assert map.node(0), \
+        assert not map.node(0), \
                "addFlowLinesToMap: Node with label zero should not exist!"
 
     result = []
