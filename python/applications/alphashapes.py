@@ -341,11 +341,15 @@ def findMaxBeta(dm, alpha, badBeta):
 from heapq import * # requires Python 2.3+
 
 def alphaShapeThinning(dm):
-    """Region-growing based thinning."""
+    """Region-growing based thinning.  The ALPHA_MARK flag is removed
+    from the thinned edges and faces, but they are not removed from
+    the GeoMap; use removeUnmarkedEdges for that."""
 
     def isSimple(edge):
         """returns True iff the edge is in the contour of a thick
-        alpha shape region"""
+        alpha shape region and not protected"""
+        if edge.flag(ALL_PROTECTION):
+            return False
         return edge.leftFace().flag(ALPHA_MARK) != edge.rightFace().flag(ALPHA_MARK)
 
     changedCount = 0
