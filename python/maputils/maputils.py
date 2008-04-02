@@ -338,7 +338,7 @@ def subpixelWatershedMap(
         SIV = sivtools.sivByOrder(splineOrder)
         siv = SIV(boundaryIndicator)
 
-    if mask == None and saddleThreshold or saddleOrthoGrad:
+    if mask is None and saddleThreshold or saddleOrthoGrad:
         threshold = saddleThreshold or saddleOrthoGrad
         mask = vigra.transformImage(
             boundaryIndicator, "\l x: x > %s ? 1 : 0" % (threshold/2, ))
@@ -425,21 +425,17 @@ def addFlowLinesToMap(edges, map, boundingBox = None):
                 result.append(edgeTuple)
                 continue
 
-            if startNodeLabel >= 0 and \
-                   not boundingBox.contains(points[0]):
-                startNodeLabel = -1
-
-            if endNodeLabel >= 0 and \
-                   not boundingBox.contains(points[-1]):
-                endNodeLabel = -1
-            
             import polytools
             for cp in polytools.clipPoly(points, boundingBox):
                 try:
                     newSaddleIndex = list(cp).index(points[saddleIndex])
                 except ValueError:
                     continue
-                #sys.stderr.write("WARNING: flowline left image range, clipped from %d to %d points (saddle index %d->%d)\n" % (len(edgeTuple[2]), len(cp), saddleIndex, newSaddleIndex))
+                #sys.stderr.write("WARNING: flowline (edge label %d) left image range, clipped from %d to %d points (saddle index %d->%d)\n" % (edgeLabel, len(edgeTuple[2]), len(cp), saddleIndex, newSaddleIndex))
+                if points[0] != cp[0]:
+                    startNodeLabel = -1
+                if points[-1] != cp[-1]:
+                    endNodeLabel = -1
                 points = cp
                 edgeTuple = (
                     startNodeLabel, endNodeLabel, points, newSaddleIndex)
