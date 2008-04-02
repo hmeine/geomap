@@ -632,11 +632,13 @@ class IntelligentScissors(qt.QObject):
                         self.overlayIndex)
 
     def _protectPath(self, darts):
+        edges = []
         for dart in darts:
             edge = dart.edge()
             edge.setFlag(SCISSOR_PROTECTION | CURRENT_CONTOUR, self.protect)
-            self._mapEdges._updateEdgeROI(edge)
+            edges.append(edge)
             self._contour.append(dart)
+        self._mapEdges.updateEdgeROI(edges)
 
     def mouseDoubleClicked(self, x, y, button):
         """With a double left click, the current live wire is fixed

@@ -210,7 +210,7 @@ class MapEdges(vigrapyqt.Overlay):
     def _edgeROI(self, edge):
         return self._getZoomedEdge(edge).boundingRect()
 
-    def _unused_updateEdgeROI(self, edge):
+    def updateEdgeROI(self, edge):
         """Update the ROI containing the given edge(s) in the viewer.
         `edge` may be an int, an Edge object, or a tuple/list
         of one of the two.  (Passing multiple edges results in only
