@@ -445,7 +445,7 @@ class LiveWire(object):
         sigmaOrbit.next() # skip prevPath[1] where we're coming from
 
         for dart in sigmaOrbit:
-            if dart.edge().flag(CURRENT_CONTOUR):
+            if dart.edge().flag(CURRENT_CONTOUR | BORDER_PROTECTION):
                 continue
             heappush(self._searchBorder, (
                 prevPath[0] + self._costMeasure(dart), dart.label()))
