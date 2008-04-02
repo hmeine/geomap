@@ -1,6 +1,25 @@
 # -*- coding: iso-8859-1 -*-
-_cvsVersion = "$Id$" \
-              .split(" ")[2:-2]
+
+"""# EXAMPLE CODE FOR CHORDAL AXIS TRANSFORM:
+
+ms = levelcontours.marchingSquares(..., 128)
+
+# note that marchingSquares marked holes/background faces with OUTER_FACE:
+cdt = delaunay.cdtFromPSLG(ms)
+
+# keep original cdt map (may be needed for pruneBySubtendedLength):
+r_cdt = copy.deepcopy(cdt)
+
+# rectified chordal axis transform:
+delaunay.removeWeakChords(r_cdt)
+r_cat = delaunay.catMap(r_cdt, rectified = True)
+
+delaunay.pruneBySubtendedLength(r_cat, cdt, minLength = 10)
+"""
+
+__version__ = \
+    "$Id$" \
+    .split(" ")[2:-2]
 
 import math, sys, vigra, hourglass, numpy
 #from map import GeoMap, contourPoly
@@ -308,9 +327,13 @@ def _oppositeAngle(p1, p2, p3):
     Given the triangle (p1, p2, p3), returns angle at p3 (in radians)"""
     a = p1 - p3
     b = p2 - p3
-    return math.acos(
-        dot(a, b) /
-        math.sqrt(a.squaredMagnitude()*b.squaredMagnitude()))
+    c = dot(a, b) / \
+        math.sqrt(a.squaredMagnitude()*b.squaredMagnitude())
+    if abs(c) < 1:
+        return math.acos(c)
+    elif abs(c) > 0:
+        return 0
+    return math.pi
 
 def chordStrength(edge):
     p1 = edge[0]
