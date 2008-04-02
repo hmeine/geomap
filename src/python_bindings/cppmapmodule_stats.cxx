@@ -16,7 +16,7 @@ struct CastingAccessor
 
 template<class OriginalImage>
 class FaceColorStatisticsWrapper
-: bp::class_<FaceColorStatistics<OriginalImage>, boost::noncopyable>
+: public bp::class_<FaceColorStatistics<OriginalImage>, boost::noncopyable>
 {
   public:
     typedef FaceColorStatistics<OriginalImage> Statistics;
@@ -76,7 +76,8 @@ class FaceColorStatisticsWrapper
                  &StatsFunctor::operator())
             .def("__call__",
                  (void (StatsFunctor::*)(typename StatsFunctor::argument_type const &))
-                 &StatsFunctor::operator())
+                 &StatsFunctor::operator(),
+                 bp::args("sample"))
         ;
     }
 
@@ -199,6 +200,12 @@ class FaceColorStatisticsWrapper
 
 void defMapStats()
 {
-    FaceColorStatisticsWrapper<vigra::PythonGrayImage>("FaceGrayStatistics");
-    FaceColorStatisticsWrapper<vigra::PythonVector3Image>("FaceRGBStatistics");
+    FaceColorStatisticsWrapper<vigra::PythonGrayImage>("FaceGrayStatistics")
+        .def("__copy__", &generic__copy__<LabelLUT>)
+        .def("__deepcopy__", &generic__deepcopy__<LabelLUT>)
+    ;
+    FaceColorStatisticsWrapper<vigra::PythonVector3Image>("FaceRGBStatistics")
+        .def("__copy__", &generic__copy__<LabelLUT>)
+        .def("__deepcopy__", &generic__deepcopy__<LabelLUT>)
+    ;
 }
