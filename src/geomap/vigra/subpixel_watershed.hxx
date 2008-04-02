@@ -655,7 +655,7 @@ findCriticalPointsInFacet(
         double x = rx[i];
 
         // ensure that x is in the current facet,
-        // and that a multilple root is only used once (this may be
+        // and that a multiple root is only used once (this may be
         // wrong, as perhaps several y's share the same x)
         if(std::abs(x) <= 0.5 && std::abs(x-xold) >= eps)
         {
@@ -1753,13 +1753,6 @@ SubPixelWatersheds<SplineImageView>::flowLine(double x, double y, bool forward, 
 
     x = x + dx;
     y = y + dy;
-
-    // FIXME: conceptually, this belongs in the caller's code...
-    if(x < epsilon || x > (double)(image_.width())-1.0-epsilon ||
-       y < epsilon || y > (double)(image_.height())-1.0-epsilon)
-    {
-        return -2; // unwanted edge parallel to border
-    }
 
     curve.push_back(PointType(x, y));
     dx = image_.dx(x, y);
