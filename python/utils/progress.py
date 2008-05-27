@@ -39,17 +39,38 @@ class RangeTicker(object):
         self._index += 1
         self._progressHook(self._index / self._count)
 
+def progressIter(progressHook, sequence, l = None):
+    if l is None:
+        l = len(sequence)
+    it = iter(sequence)
+    rt = RangeTicker(progressHook, l)
+    for v in it:
+        yield v
+        rt()
+
 # --------------------------------------------------------------------
 
 import sys, time
 
+_messages = []
+_level = 1
+
+# TODO: add newMessage() (instead of p.finish(); p = StatusMessage(...))
+
 class StatusMessage(object):
     def __init__(self, message, stream = None):
-        self._message = message
-        self._promille = 0
-        self._startClock = time.clock()
         if stream is None:
             stream = sys.stdout
+
+        global _messages, _level
+        _messages.append(self)
+        if len(_messages) > _level:
+            stream.write("\n")
+        _level = len(_messages)
+        
+        self._message = "  "*(_level - 1) + message
+        self._promille = 0
+        self._startClock = time.clock()
         self._stream = stream
         self._stream.write("\r%s... " % (self._message, ))
         self._stream.flush()
@@ -74,6 +95,7 @@ class StatusMessage(object):
             self._stream.write("\r%s... done. (%ss.)\n" % (
                 self._message, self._totalTime))
             self._promille = None
+            _messages.pop()
 
 if __name__ == "__main__":
     sm = StatusMessage("please wait")
@@ -89,3 +111,13 @@ if __name__ == "__main__":
     p2(0.8)
     p2(1.0)
     sm.finish()
+
+    import cStringIO
+    s = cStringIO.StringIO()
+    sm = StatusMessage("long calculation", stream = s)
+    sub = StatusMessage("subprocess 1", stream = s); sub.finish()
+    sub = StatusMessage("subprocess 2", stream = s)
+    subsub = StatusMessage("subprocess 2a", stream = s); subsub.finish()
+    sub.finish()
+    sm.finish()
+    assert s.getvalue() == '\rlong calculation... \n\r  subprocess 1... \r  subprocess 1... done. (0.0s.)\n\r  subprocess 2... \n\r    subprocess 2a... \r    subprocess 2a... done. (0.0s.)\n\r  subprocess 2... done. (0.0s.)\n\rlong calculation... done. (0.0s.)\n', s.getvalue()
