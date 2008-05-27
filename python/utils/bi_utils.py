@@ -3,7 +3,8 @@ import vigra
 def tensor2Gradient(tensor):
     """rebuild vectors in dir. of large eigenvectors with lengths sqrt(trace)"""
     return vigra.transformImage(
-        vigra.tensorEigenRepresentation(tensor), "\l e: sqrt(e[0]*e[0]+e[1]*e[1])*Vector(cos(-e[2]), sin(-e[2]))", {})
+        vigra.tensorEigenRepresentation(tensor),
+        "\l e: sqrt(e[0]+e[1])*Vector(cos(-e[2]), sin(-e[2]))", {})
 
 def gaussianHessian(image, sigma):
     """Return three-band tensor image containing the second
@@ -56,7 +57,7 @@ def colorGradient(img, scale, sqrt = True):
     # gm2 := sum of squared magnitudes of grad. in each channel
     gm2 = vigra.tensorTrace(colorTensor)
     # rebuild vector in dir. of large eigenvector with length sqrt(gm2):
-    grad = vigra.transformImage(
+    grad = vigra.transformImage( # FIXME: use tensor2Gradient?
         vigra.tensorEigenRepresentation(colorTensor), gm2,
         "\l e, mag2: sqrt(mag2)*Vector(cos(-e[2]), sin(-e[2]))", {})
     if sqrt:
@@ -74,7 +75,7 @@ def gaussianGradient(img, scale, sqrt = True):
 
     grad = vigra.gaussianGradientAsVector(img, scale)
     if sqrt:
-        gm = vigra.transformImage(grad, "\l x: norm(x)")
+        gm = vigra.norm(grad)
     else:
         gm = vigra.transformImage(grad, "\l x: squaredNorm(x)")
     return gm, grad
