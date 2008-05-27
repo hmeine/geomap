@@ -644,6 +644,7 @@ class MapDisplay(displaysettings.DisplaySettings):
         self.addOverlay = self.viewer.addOverlay
         self.replaceOverlay = self.viewer.replaceOverlay
         self.removeOverlay = self.viewer.removeOverlay
+        self.overlays = self.viewer.overlays
         self.applyExpression = self._imageWindow.applyExpression
 
         self.map = map
