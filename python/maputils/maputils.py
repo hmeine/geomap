@@ -53,7 +53,7 @@ class SaddleTensorFeature(object):
 
         # component of structure tensor in normal direction:
         s11, s12, s22 = self._stSIV[position]
-        og2 = s11*vigra.sq(s) - 2*s12*c*s + s22*vigra.sq(c)
+        og2 = max(0, s11*vigra.sq(s) - 2*s12*c*s + s22*vigra.sq(c))
 
         if onlyDir:
             # large eigenvalue of structure tensor:
