@@ -1,4 +1,4 @@
-import vigra, hourglass, sys, math, time, weakref
+import vigra, hourglass, sys, math, time, weakref, copy
 
 import flag_constants, progress, sivtools
 
