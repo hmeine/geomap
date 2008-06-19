@@ -224,7 +224,8 @@ def _handleUnsortable(map, unsortable):
             unsortable.remove([])
     except ValueError:
         pass
-    assert not unsortable, "unhandled unsortable edges occured"
+    if unsortable:
+        raise RuntimeError("unhandled unsortable edges occured (%s)" % unsortable)
 
 def subpixelWatershedMapFromData(
     maxima, flowlines, imageSize,
@@ -425,7 +426,7 @@ def addFlowLinesToMap(edges, map, boundingBox = None):
         endNodeLabel = edgeTuple[1]
         points = hourglass.Polygon(edgeTuple[2])
 
-        if innerBox and not innerBox.contains(points.boundingBox()):
+        if boundingBox and not innerBox.contains(points.boundingBox()):
             continue # don't add edges that run along the border at all
 
         if boundingBox and \
