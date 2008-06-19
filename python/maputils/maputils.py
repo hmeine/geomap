@@ -252,12 +252,8 @@ def subpixelWatershedMapFromData(
     # proper WatershedStatistics):
     flowlines = list(flowlines)
 
-    w, h = imageSize
-    borderParallelEpsilon = 1e-4
-    deleted = addFlowLinesToMap(
-        flowlines, spmap, hourglass.BoundingBox(
-        (borderParallelEpsilon, borderParallelEpsilon),
-        (w-1-borderParallelEpsilon, h-1-borderParallelEpsilon)))
+    boundingBox = hourglass.BoundingBox(imageSize - (1,1))
+    deleted = addFlowLinesToMap(flowlines, spmap, boundingBox)
     if deleted:
         print "  skipped %d flowlines (at border / degenerate loops)" \
               % len(deleted)
@@ -427,12 +423,9 @@ def addFlowLinesToMap(edges, map, boundingBox = None):
         points = hourglass.Polygon(edgeTuple[2])
 
         if boundingBox and not innerBox.contains(points.boundingBox()):
-            continue # don't add edges that run along the border at all
-
-        if boundingBox and \
-               not boundingBox.contains(points.boundingBox()):
             saddleIndex = edgeTuple[3]
-            if not boundingBox.contains(points[saddleIndex]):
+            if not innerBox.contains(points[saddleIndex]):
+                # don't add edges that run along the border at all
                 result.append(edgeTuple)
                 continue
 
