@@ -414,7 +414,7 @@ def addFlowLinesToMap(edges, map, boundingBox = None):
     # parallel, double border edges lead to unsortable edges:
     if boundingBox:
         innerBox = copy.copy(boundingBox)
-        innerBox.addBorder(1e-2)
+        innerBox.addBorder(-1e-2)
 
     result = []
     for edgeLabel, edgeTuple in enumerate(edges):
