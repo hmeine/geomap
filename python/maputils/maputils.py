@@ -253,6 +253,7 @@ def subpixelWatershedMapFromData(
     flowlines = list(flowlines)
 
     boundingBox = hourglass.BoundingBox(imageSize - (1,1))
+    boundingBox.addBorder(-1e-4) # cut off flowlines near the border
     deleted = addFlowLinesToMap(flowlines, spmap, boundingBox)
     if deleted:
         print "  skipped %d flowlines (at border / degenerate loops)" \
