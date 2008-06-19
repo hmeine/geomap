@@ -397,7 +397,7 @@ def addFlowLinesToMap(edges, map, boundingBox = None):
 
     * Self-loops with area zero are not added.
 
-    * Flowlines that run outside the given bounding box are clipped,
+    * Flowlines that run outside the given `boundingBox` are clipped,
       and *the given `edges` sequence is modified in-place*(!) in
       order to allow later WatershedStatistics to know about the
       modified saddle indices.
@@ -409,6 +409,13 @@ def addFlowLinesToMap(edges, map, boundingBox = None):
         assert not map.node(0), \
                "addFlowLinesToMap: Node with label zero should not exist!"
 
+    # we don't want to add edges that run along the border to the Map
+    # - a border can be added by connectBorderNodes if desired, and
+    # parallel, double border edges lead to unsortable edges:
+    if boundingBox:
+        innerBox = copy.copy(boundingBox)
+        innerBox.addBorder(1e-2)
+
     result = []
     for edgeLabel, edgeTuple in enumerate(edges):
         if not edgeTuple:
@@ -417,6 +424,9 @@ def addFlowLinesToMap(edges, map, boundingBox = None):
         startNodeLabel = edgeTuple[0]
         endNodeLabel = edgeTuple[1]
         points = hourglass.Polygon(edgeTuple[2])
+
+        if innerBox and not innerBox.contains(points.boundingBox()):
+            continue # don't add edges that run along the border at all
 
         if boundingBox and \
                not boundingBox.contains(points.boundingBox()):
