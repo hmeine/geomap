@@ -325,7 +325,14 @@ def subpixelWatershedMap(
 
     If `initWSStats` is True, the resulting GeoMap will have an
     attribute 'wsStats' with a `statistics.WatershedStatistics`
-    instance."""
+    instance.
+
+    For an explanation of the parameters, look for the documentation
+    of the two main internally used functions `subpixelWatershedData`
+    (which creates the subpixel watershed data, i.e. critical points
+    and flowlines) and `subpixelWatershedMapFromData` (which
+    initializes the GeoMap and uses the sigma sorting and statistics
+    parameters)."""
 
     SPWS = getattr(hourglass, "SubPixelWatersheds%d" % splineOrder)
     spws = SPWS(boundaryIndicator)
