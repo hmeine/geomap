@@ -61,22 +61,26 @@ class StatusMessage(object):
     def __init__(self, message, stream = None):
         if stream is None:
             stream = sys.stdout
+        self._stream = stream
 
         global _messages, _level
         _messages.append(self)
         if len(_messages) > _level:
             stream.write("\n")
         _level = len(_messages)
-        
+
+        self._start(message)
+
+    def _start(self, message):
         self._message = "  "*(_level - 1) + message
         self._promille = 0
         self._startClock = time.clock()
-        self._stream = stream
         self._stream.write("\r%s... " % (self._message, ))
         self._stream.flush()
 
     def __del__(self):
-        self.finish()
+        if _messages is not None: # prevent error when this object is garbage-collected after cleaning up _messages on python exit (I think)
+            self.finish()
 
     def __call__(self, percent):
         promille = int(percent * 1000)
@@ -86,14 +90,21 @@ class StatusMessage(object):
             self._stream.flush()
             self._promille = promille
 
+    def stopStart(self, newMessage):
+        self.finish()
+        _messages.append(self)
+        self._start(newMessage)
+
     def totalTime(self):
         return self._totalTime
 
     def finish(self):
         if self._promille is not None:
             self._totalTime = time.clock() - self._startClock
-            self._stream.write("\r%s... done. (%ss.)\n" % (
-                self._message, self._totalTime))
+            timeStr = " (%ss.)" % self._totalTime
+            if timeStr == " (0.0s.)":
+                timeStr = "    "
+            self._stream.write("\r%s... done.%s\n" % (self._message, timeStr))
             self._promille = None
             _messages.pop()
 
@@ -115,9 +126,9 @@ if __name__ == "__main__":
     import cStringIO
     s = cStringIO.StringIO()
     sm = StatusMessage("long calculation", stream = s)
-    sub = StatusMessage("subprocess 1", stream = s); sub.finish()
-    sub = StatusMessage("subprocess 2", stream = s)
+    sub = StatusMessage("subprocess 1", stream = s)
+    sub.stopStart("subprocess 2")
     subsub = StatusMessage("subprocess 2a", stream = s); subsub.finish()
     sub.finish()
     sm.finish()
-    assert s.getvalue() == '\rlong calculation... \n\r  subprocess 1... \r  subprocess 1... done. (0.0s.)\n\r  subprocess 2... \n\r    subprocess 2a... \r    subprocess 2a... done. (0.0s.)\n\r  subprocess 2... done. (0.0s.)\n\rlong calculation... done. (0.0s.)\n', s.getvalue()
+    assert s.getvalue() == '\rlong calculation... \n\r  subprocess 1... \r  subprocess 1... done.    \n\r  subprocess 2... \n\r    subprocess 2a... \r    subprocess 2a... done.    \n\r  subprocess 2... done.    \n\rlong calculation... done.    \n', s.getvalue()
