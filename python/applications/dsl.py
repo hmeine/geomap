@@ -253,9 +253,9 @@ def DigitalStraightLine_plotEquation(self, leaningType = LeaningType.CenterLine)
     return ("%s*x + (%s)" % (self.slope(), self.axisIntercept(leaningType))).replace("/", "./")
 
 def DigitalStraightLine_plotItems(self):
-    return [Gnuplot.Func(self.plotEquation(), title = "center line", with = "l 1"),
-            Gnuplot.Func(self.plotEquation(LeaningType.LowerLeaningLine), title = "lower leaning line", with = "l 4"),
-            Gnuplot.Func(self.plotEquation(LeaningType.UpperLeaningLine), title = "upper leaning line", with = "l 5")]
+    return [Gnuplot.Func(self.plotEquation(), title = "center line", with_ = "l 1"),
+            Gnuplot.Func(self.plotEquation(LeaningType.LowerLeaningLine), title = "lower leaning line", with_ = "l 4"),
+            Gnuplot.Func(self.plotEquation(LeaningType.UpperLeaningLine), title = "upper leaning line", with_ = "l 5")]
 
 def DigitalStraightLine8__repr__(self):
     return "DigitalStraightLine8(%d, %d, %d)" % (self.a, self.b, self.pos)
@@ -491,7 +491,7 @@ class DSLExperiment(object):
                 result = False
         if plot:
             self.g.plot(Gnuplot.Data(self.points,
-                                     title = "discrete line", with = "lp 3"),
+                                     title = "discrete line", with_ = "lp 3"),
                         *self.dsl.plotItems())
         return result
 
@@ -513,8 +513,8 @@ if __name__ == "__main__":
     fc = freeman(crackPoly)
 
     import Gnuplot
-    def gpLine(points, with = "lines", **kwargs):
-        return Gnuplot.Data(points, with = with, **kwargs)
+    def gpLine(points, with_ = "lines", **kwargs):
+        return Gnuplot.Data(points, with_ = with_, **kwargs)
 
     g = Gnuplot.Gnuplot()
     g("set size ratio -1")
