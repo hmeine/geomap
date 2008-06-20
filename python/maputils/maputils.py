@@ -252,9 +252,7 @@ def subpixelWatershedMapFromData(
     # proper WatershedStatistics):
     flowlines = list(flowlines)
 
-    boundingBox = hourglass.BoundingBox(imageSize - (1,1))
-    boundingBox.addBorder(-1e-4) # cut off flowlines near the border
-    deleted = addFlowLinesToMap(flowlines, spmap, boundingBox)
+    deleted = addFlowLinesToMap(flowlines, spmap, imageSize)
     if deleted:
         print "  skipped %d flowlines (at border / degenerate loops)" \
               % len(deleted)
@@ -386,8 +384,10 @@ def subpixelWatershedMap(
 
     return spwsMap
 
-def addFlowLinesToMap(edges, map, boundingBox = None):
-    """addFlowLinesToMap(edges, map)
+def addFlowLinesToMap(edges, map, imageSize = None,
+                      minSaddleBorderDist = 1e-4,
+                      minMaxBorderDist = 1e-2):
+    """addFlowLinesToMap(edges, map, imageSize = None)
 
     This function expects `edges` to be a list of
     SubPixelWatersheds.edge() return values and adds edges for each
@@ -396,18 +396,31 @@ def addFlowLinesToMap(edges, map, boundingBox = None):
 
     It contains some special handling of flowlines:
 
+    * Some artifact flowlines will be recognized and not added:
+
+      * Self-loops with area zero are not added.
+    
+      * Flowlines whose saddles are within `minSaddleBorderDist` of the
+        image border are presumed to be parallel to the border and are
+        not added at all.
+
+      * Flowlines that are entirely within `minMaxBorderDist` of the
+        image border are handled the same.
+        
+    * Flowlines that partially run outside the image are clipped (at a
+      `minSaddleBorderDist` border within the image range), and only
+      the part containing the saddle point will be added to the map.
+      Additionally, the given `edges` sequence is modified in-place(!) 
+      in order to allow later WatershedStatistics to know about the
+      modified saddle indices.
+
     * Additional Nodes may be added for flowlines that did not end in
       a maximum - extra care is taken not to insert multiple Nodes at
       (nearly) the same position.
 
-    * Self-loops with area zero are not added.
-
-    * Flowlines that run outside the given `boundingBox` are clipped,
-      and *the given `edges` sequence is modified in-place*(!) in
-      order to allow later WatershedStatistics to know about the
-      modified saddle indices.
-
-    Returns edgeTuples that could not be added to the GeoMap."""
+    Returns list of edgeTuples that were not added to the GeoMap.
+    This includes clipped parts of flowlines, with node labels
+    etc. set to None."""
     
     # Node 0 conflicts with our special handling of 0 values:
     if map.maxNodeLabel():
@@ -417,9 +430,13 @@ def addFlowLinesToMap(edges, map, boundingBox = None):
     # we don't want to add edges that run along the border to the Map
     # - a border can be added by connectBorderNodes if desired, and
     # parallel, double border edges lead to unsortable edges:
-    if boundingBox:
-        innerBox = copy.copy(boundingBox)
-        innerBox.addBorder(-1e-2)
+    if imageSize:
+        imageBox = hourglass.BoundingBox(imageSize - (1,1))
+        clipBox  = copy.copy(imageBox)
+        innerBox = copy.copy(imageBox)
+
+        clipBox.addBorder(-minSaddleBorderDist)
+        innerBox.addBorder(-minMaxBorderDist)
 
     result = []
     for edgeLabel, edgeTuple in enumerate(edges):
@@ -429,29 +446,39 @@ def addFlowLinesToMap(edges, map, boundingBox = None):
         startNodeLabel = edgeTuple[0]
         endNodeLabel = edgeTuple[1]
         points = hourglass.Polygon(edgeTuple[2])
+        #saddleLabel = edgeTuple[4]
 
-        if boundingBox and not innerBox.contains(points.boundingBox()):
+        if imageSize and not innerBox.contains(points.boundingBox()):
             saddleIndex = edgeTuple[3]
-            if not innerBox.contains(points[saddleIndex]):
-                # don't add edges that run along the border at all
+            # don't add edges that run along the border at all,
+            # i.e. exclude edges whose saddle point is not within
+            # the boundingBox
+            if not clipBox.contains(points[saddleIndex]):
+                result.append(edgeTuple)
+                continue
+
+            if (innerBox & points.boundingBox()).isEmpty():
                 result.append(edgeTuple)
                 continue
 
             import polytools
-            for cp in polytools.clipPoly(points, boundingBox):
+            for cp in polytools.clipPoly(points, clipBox):
                 try:
                     newSaddleIndex = list(cp).index(points[saddleIndex])
                 except ValueError:
+                    result.append((None, None, cp, None, None))
                     continue
                 #sys.stderr.write("WARNING: flowline (edge label %d) left image range, clipped from %d to %d points (saddle index %d->%d)\n" % (edgeLabel, len(edgeTuple[2]), len(cp), saddleIndex, newSaddleIndex))
+
+                # correct edgeTuple - check which end nodes are still connected:
                 if points[0] != cp[0]:
                     startNodeLabel = -1
                 if points[-1] != cp[-1]:
                     endNodeLabel = -1
                 points = cp
                 edgeTuple = (
-                    startNodeLabel, endNodeLabel, points, newSaddleIndex)
-                edges[edgeLabel] = edgeTuple # write back (see docstring)
+                    startNodeLabel, endNodeLabel, points, newSaddleIndex, ) + edgeTuple[4:]
+                edges[edgeLabel] = edgeTuple # write back for statistics (see docstring)
                 break
 
         # meaning of node labels:
