@@ -1,6 +1,7 @@
-from vigra import *
-addPathFromHere('../cellimage')
-import vigra, hourglass, cellimage
+import vigra, hourglass
+vigra.addPathFromHere('../cellimage')
+import cellimage
+from vigra import transformImage, Vector2, Size2D, Point2D, Rect2D
 from flag_constants import BORDER_PROTECTION
 
 __all__ = ["pixelMap2subPixelMap", "crackEdgeMap",
@@ -130,7 +131,7 @@ def cannyEdgeImageThinning(img):
     for k in [183, 222, 123, 237, 219, 111, 189, 246, 220, 115, 205,
               55, 103, 157, 118, 217]:
         lut[k] = 1
-    res = GrayImage(img.size())
+    res = vigra.GrayImage(img.size())
     res[1:-1,1:-1].copyValues(img[1:-1,1:-1])
     for y in range(1, res.height()-1):
         for x in range(1, res.width()-1):
@@ -164,7 +165,7 @@ def cannyEdgeMap(image, scale, thresh):
     obtained from cannyEdgeImage(image, scale, thresh).
     (Internally creates a pixel GeoMap first.)"""
     
-    edgeImage = cannyEdgeImage(image, scale, thresh)
+    edgeImage = vigra.cannyEdgeImage(image, scale, thresh)
     edgeImage = cannyEdgeImageThinning(edgeImage)
     geomap = cellimage.GeoMap(edgeImage, 0, cellimage.CellType.Line)
     spmap = pixelMap2subPixelMap(
@@ -180,7 +181,8 @@ def crackEdgeMap(labelImage, midCracks = False):
     midpoints of the cracks, not of the crack segments themselves."""
 
     print "- creating pixel-based GeoMap..."
-    ce = regionImageToCrackEdgeImage(transformImage(labelImage, "\l x:x+1"), 0)
+    ce = vigra.regionImageToCrackEdgeImage(
+        transformImage(labelImage, "\l x:x+1"), 0)
     geomap = cellimage.GeoMap(ce, 0, cellimage.CellType.Line)
 
     print "- converting pixel-based GeoMap..."
@@ -216,7 +218,7 @@ def pixelWatershedMap(biImage, crackEdges = 4, midCracks = False):
         return crackEdgeMap(lab, midCracks)
 
     print "- watershed segmentation..."
-    lab, count = watershedSegmentation(biImage, KeepContours)
+    lab, count = vigra.watershedSegmentation(biImage, vigra.KeepContours)
 
     print "- creating pixel-based GeoMap..."
     geomap = cellimage.GeoMap(lab, 0, cellimage.CellType.Vertex)
@@ -235,9 +237,9 @@ def cellImage2display(cellImage, background = None,
     if background is None:
         background = cellImage / 4
     if background.bands() < 3:
-        background = RGBImage(background)
+        background = vigra.RGBImage(background)
     if background.size() != cellImage.size():
-        nbg = RGBImage(cellImage.size())
+        nbg = vigra.RGBImage(cellImage.size())
         shift = Point2D((cellImage.width() - background.width())/2,
                         (cellImage.height() - background.height())/2)
         nbg.subImage(Rect2D(shift, background.size())).copyValues(background)
