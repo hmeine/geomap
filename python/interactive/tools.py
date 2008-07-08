@@ -10,11 +10,10 @@ You will find the following tool classes:
 _cvsVersion = "$Id$" \
               .split(" ")[2:-2]
 
-import sys, qt, math, maputils, hourglass
-from maputils import mergeFacesByLabel, contourDarts
-from flag_constants import *
+import sys, qt, maputils, hourglass
+from maputils import mergeFacesByLabel
+from flag_constants import FOREGROUND_FACE, BACKGROUND_FACE, SRG_SEED
 from vigrapyqt import EdgeOverlay, PointOverlay
-from vigra import *
 
 __all__ = ["MapSearcher", "ManualClassifier", "ActivePaintbrush", "SeedSelector",
            "IntelligentScissors", "LiveWire"]
@@ -259,6 +258,10 @@ class SeedSelector(qt.QObject):
         viewer.removeOverlay(self.overlay)
         viewer.removeEventFilter(self)
 
+# --------------------------------------------------------------------
+
+from flag_constants import PROTECTED_FACE
+
 class ActivePaintbrush(qt.QObject):
     def __init__(self, map, parent = None, name = None):
         qt.QObject.__init__(self, parent, name)
@@ -343,7 +346,9 @@ class ActivePaintbrush(qt.QObject):
 
 # --------------------------------------------------------------------
 
-from heapq import * # requires Python 2.3+
+from heapq import heappush, heappop # requires Python 2.3+
+
+from flag_constants import CURRENT_CONTOUR, SCISSOR_PROTECTION, BORDER_PROTECTION
 
 class LiveWire(object):
     """The LiveWire class does not only represent a single live wire
