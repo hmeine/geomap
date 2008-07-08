@@ -1,13 +1,11 @@
 import os, sys, qt, fig, math
 
-from vigra import Vector2, readImage, Rect2D, Point2D, Size2D, meshIter
+from vigra import Vector2, readImage, Rect2D, Size2D, meshIter
 import vigrapyqt
 from hourglass import BoundingBox, Polygon, simplifyPolygon, intPos, contourPoly
-from dartpath import Path
 from polytools import clipPoly
 import flag_constants
 
-import qt, fig
 _qtColor2figColorMapping = {
     qt.Qt.black : fig.colorBlack,
     qt.Qt.blue : fig.colorBlue,
@@ -696,9 +694,9 @@ def exportImageWindow(
 
 if False:
     # default scale, no ROI:
-    fe = figexport.FigExporter()
+    fe = FigExporter()
     # use given scale and ROI:
-    fe = figexport.FigExporter(scale = 15, roi = BoundingBox(Rect2D(dm.imageSize())))
+    fe = FigExporter(scale = 15, roi = BoundingBox(Rect2D(dm.imageSize())))
     # add background image:
     fe.addBackgroundWithFrame("background.png")
     fe.addMapEdges(someMap) # give optional properties like lineWidth = 4
