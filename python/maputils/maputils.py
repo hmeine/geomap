@@ -410,7 +410,7 @@ def addFlowLinesToMap(edges, map, imageSize = None,
     * Flowlines that partially run outside the image are clipped (at a
       `minSaddleBorderDist` border within the image range), and only
       the part containing the saddle point will be added to the map.
-      Additionally, the given `edges` sequence is modified in-place(!) 
+      Additionally, the given `edges` sequence is modified in-place(!)
       in order to allow later WatershedStatistics to know about the
       modified saddle indices.
 
@@ -1054,7 +1054,7 @@ def removeCruft(map, what = 3, doChecks = False):
     class CarefulCounter(OperationCounter):
         def perform(self, op, dart):
             OperationCounter.perform(self, op, dart)
-            return checkConsistency(map)
+            return map.checkConsistency()
 
     if doChecks:
         result = CarefulCounter()
