@@ -8,16 +8,22 @@ import progress
 __all__ = ["crackEdgeMap", "crackEdgeGraph"]
 
 # FIXME: 8-connected regions with holes (see testcase)
+# (details: normally, every upper left corner is considered to be a
+# node, but a holes' upper left corner may be a 4-junction which has
+# explicitly been marked as degree 2 position, such that no start/end
+# for the hole exists)
 
 # --------------------------------------------------------------------
 #                              FRONTEND
 # --------------------------------------------------------------------
 
-def crackEdgeMap(labelImage, initLabelImage = True):
+def crackEdgeMap(labelImage, initLabelImage = True,
+                 eightConnectedRegions = True):
     c = time.clock()
     msg = progress.StatusMessage("- following crack edges")
     result = crackEdgeGraph(
-        labelImage, progressHook = progress.ProgressHook(msg))
+        labelImage, eightConnectedRegions = eightConnectedRegions,
+        progressHook = progress.ProgressHook(msg))
     msg.finish()
 
     sys.stdout.write("  removing deg.2 nodes..."); c1 = time.clock()
@@ -63,6 +69,7 @@ for conn in connections:
         if i & conn:
             degree[i] += 1
 
+# extend degree LUT for special handling of 8-connected regions:
 degree = degree + degree
 degree[31] = 2
 degree = degree + degree
@@ -116,6 +123,8 @@ def isNode(connValue):
     return degree[connValue] > 2 or connValue == (CONN_RIGHT | CONN_DOWN)
 
 def followEdge(crackConnectionImage, pos, direction):
+    """Follow edge starting at `pos` in `direction` until
+    crackConnectionImage[pos] fulfills `isNode`."""
     pos = Point2D(pos[0], pos[1])
     vPos = Vector2(pos[0] - 0.5, pos[1] - 0.5)
     result = Polygon([vPos])
@@ -126,9 +135,6 @@ def followEdge(crackConnectionImage, pos, direction):
         pos += _dirOffset[direction]
 
         connection = int(crackConnectionImage[pos])
-        if isNode(connection):
-            break
-
         if connection >= 16:
             if connection & 16 and direction in (1, 3):
                 direction = _turnLeft[direction]
@@ -136,6 +142,8 @@ def followEdge(crackConnectionImage, pos, direction):
             elif connection & 32 and direction in (0, 2):
                 direction = _turnLeft[direction]
                 continue
+        elif isNode(connection):
+            break
 
         direction = _turnRight[direction]
         while connection & connections[direction] == 0:
@@ -143,12 +151,15 @@ def followEdge(crackConnectionImage, pos, direction):
 
     return result, pos, connections[(direction+2)%4]
 
-def crackEdgeGraph(labelImage, progressHook = None):
+def crackEdgeGraph(labelImage, eightConnectedRegions = True,
+                   progressHook = None):
     result = GeoMap(labelImage.size())
 
     cc = crackConnectionImage(labelImage)
-    for y in range(1, cc.height()-1):
-        for x in range(1, cc.width()-1):
+
+    if eightConnectedRegions:
+        for y in range(1, cc.height()-1):
+          for x in range(1, cc.width()-1):
             if cc[x,y] == 15:
                 if labelImage[x,y] == labelImage[x-1,y-1]:
                     cc[x,y] += 16
