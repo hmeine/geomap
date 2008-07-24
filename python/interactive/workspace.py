@@ -9,6 +9,10 @@ import progress
 # FIXME: let recomputeAutomaticLevels() be a no-op if current level is bottom
 # (maybe introduce invalidateAuto... and/or change displayLevel(), too?!)
 
+# FIXME: complextest.py works, but slider-to-the-left acts very strangely!
+
+# TODO: add API for adding cost measures (obviously needs factories)
+
 def labelRoot(lut, label):
     result = lut[label]
     if lut[result] != result:
@@ -284,8 +288,6 @@ class Workspace(mapdisplay.MapDisplay):
             self.setImage(bi, role = "bi")
 
     def setTool(self, tool = None):
-        if tool:
-            assert type(tool) == int, "Workspace needs to remember the tool - only ints allowed!"
         self._activeTool = tool
         self.__base.setTool(self, tool)
         if not self.tool:
