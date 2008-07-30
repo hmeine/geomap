@@ -219,12 +219,17 @@ def marchingSquares(image, level, variant = True, border = True,
 
     result = hourglass.GeoMap(image.size())
     
-    def addNodeX(x, y, ofs):
-        return result.addNode((x + ofs, y))
+    def addNodeDirectX(x, y, ofs):
+        pos = Vector2(x+ofs, y)
+        # out of three successive pixels, the middle one may be the
+        # threshold, then we would get duplicate points already in the
+        # horizontal pass:
+        node = result.nearestNode(pos, 1e-8)
+        return node or result.addNode(pos)
 
-    def addNodeY(x, y, ofs):
+    def addNodeDirectY(x, y, ofs):
         pos = Vector2(x, y+ofs)
-        node = result.nearestNode(pos, 1e-8) # already exists? (i.e. hNodes?)
+        node = result.nearestNode(pos, 1e-8) # already exists? (e.g. hNodes?)
         return node or result.addNode(pos)
 
     def addNodeNewtonRefinementX(x, y, ofs):
@@ -238,7 +243,7 @@ def marchingSquares(image, level, variant = True, border = True,
                 break
             if abs(o) < 1e-4:
                 break
-        return result.addNode((x+ofs, y))
+        return addNodeDirectX(x, y, ofs)
 
     def addNodeNewtonRefinementY(x, y, ofs):
         for i in range(100):
@@ -251,13 +256,14 @@ def marchingSquares(image, level, variant = True, border = True,
                 break
             if abs(o) < 1e-4:
                 break
-        pos = Vector2(x, y+ofs)
-        node = result.nearestNode(pos, 1e-8) # already exists? (i.e. hNodes?)
-        return node or result.addNode(pos)
+        return addNodeDirectY(y, y, ofs)
 
     if hasattr(image, "siv"):
         addNodeX = addNodeNewtonRefinementX
         addNodeY = addNodeNewtonRefinementY
+    else:
+        addNodeX = addNodeDirectX
+        addNodeY = addNodeDirectY
 
     hNodes = vigra.GrayImage(image.size())
     for y in range(image.height()):
