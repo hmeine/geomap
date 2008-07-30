@@ -158,7 +158,12 @@ def delaunayMap(points, imageSize = (0, 0)):
 def cdtFromPSLG(pslg, onlyInner = False):
     """Return a CDT for the given planar straight line graph.  `pslg`
     should be a GeoMap whose node positions are simple input points
-    and edges define constraint segments."""
+    and edges define constraint segments.
+
+    FIXME: ATM, this function may crash if the input contains
+    duplicate points (e.g. within the same edge).  This is due to a
+    limitation of the triangle module, i.e. J. Shewchuck's code.
+    """
 #     return constrainedDelaunayMap(
 #         list(pslg.edgeIter()), pslg.imageSize(),
 #         [node.position() for node in pslg.nodeIter() if node.isIsolated()],
@@ -178,10 +183,11 @@ def cdtFromPSLG(pslg, onlyInner = False):
         edgeSegments = [(l+i-1, l+i) for i in range(len(edge)-1)]
         edgeSegments[0] = (nodes[edge.startNodeLabel()], edgeSegments[0][1])
         edgeSegments[-1] = (edgeSegments[-1][0], nodes[edge.endNodeLabel()])
-        for i in range(1, len(edge)-1):
+        points.extend(edge[1:-1])
+#         for i in range(1, len(edge)-1):
 #             assert edge[i] not in points, "%s[%d] = ..%s,%s,%s,.. is already present!" % (
 #                 edge, i, edge[i-1], edge[i], edge[i+1])
-            points.append(edge[i])
+#             points.append(edge[i])
         segments.extend(edgeSegments)
 
     for face in pslg.faceIter(skipInfinite = True):
