@@ -312,6 +312,9 @@ CELL_PTR(GeoMap::Edge) GeoMap::addEdge(
     const GeoMap::SigmaAnchor &endNeighbor,
     const Vector2Array &points, CellLabel label)
 {
+    vigra_precondition(!mapInitialized(),
+        "addEdge() called after initializeMap() (updating faces not implemented yet)");
+
     if(label > edges_.size())
         edges_.resize(label, NULL_PTR(GeoMap::Edge));
     GeoMap::Edge *result = new GeoMap::Edge(
