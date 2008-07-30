@@ -214,7 +214,7 @@ def pixelWatershedMap(biImage, crackEdges = 4, midCracks = False):
     
     if crackEdges:
         print "- Union-Find watershed segmentation..."
-        lab, count = eval('watershedUnionFind' + str(crackEdges))(biImage)
+        lab, count = getattr(vigra, 'watershedUnionFind' + str(crackEdges))(biImage)
         return crackEdgeMap(lab, midCracks)
 
     print "- watershed segmentation..."
