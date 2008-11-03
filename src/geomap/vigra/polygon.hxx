@@ -1990,7 +1990,7 @@ unsigned int fillScannedPoly(
 
     // clip to image range vertically:
     int y = std::max(0, scanlines.startIndex()),
-     endY = std::min(ds[1], scanlines.endIndex());
+     endY = std::min((int)ds[1], scanlines.endIndex());
 
     for(DestIterator row(dul + y); y < endY; ++y, ++row)
     {
@@ -2057,7 +2057,7 @@ unsigned int drawScannedPoly(
 
     // clip to image range vertically:
     int y = std::max(0, scanlines.startIndex()),
-     endY = std::min(ds[1], scanlines.endIndex());
+     endY = std::min((int)ds[1], scanlines.endIndex());
 
     for(DestIterator row(dul + y); y < endY; ++y, ++row)
     {

@@ -1548,7 +1548,7 @@ void rawAddEdgeToLabelImage(
 {
     // clip to image range vertically:
     int y = std::max(0, scanlines.startIndex()),
-     endY = std::min(labelImage.size(1), scanlines.endIndex());
+     endY = std::min((int)labelImage.size(1), scanlines.endIndex());
 
     for(; y < endY; ++y)
     {
@@ -1574,7 +1574,7 @@ void markEdgeInLabelImage(
 {
     // clip to image range vertically:
     int y = std::max(0, scanlines.startIndex()),
-     endY = std::min(labelImage.size(1), scanlines.endIndex());
+     endY = std::min((int)labelImage.size(1), scanlines.endIndex());
 
     for(; y < endY; ++y)
     {
@@ -1607,7 +1607,7 @@ void removeEdgeFromLabelImage(
 {
     // clip to image range vertically:
     int y = std::max(0, scanlines.startIndex()),
-     endY = std::min(labelImage.size(1), scanlines.endIndex());
+     endY = std::min((int)labelImage.size(1), scanlines.endIndex());
 
     for(; y < endY; ++y)
     {

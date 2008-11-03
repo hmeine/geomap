@@ -192,9 +192,9 @@ generic__deepcopy__(boost::python::object copyable, boost::python::dict memo)
     bp::object result =
         bp::object(bp::detail::new_reference(bp::managingPyObject(newCopyable)));
 
-    // HACK: copyableId shall be the same as the result of id(copyable) in Python -
-    // please tell me that there is a better way! (and which ;-p)
-    int copyableId = (int)(copyable.ptr());
+    // (cf. builtin_id() in Python/bltinmodule.c; copyableId must be
+    // the same as the value of id(copyable))
+    bp::object copyableId(bp::handle<>(PyLong_FromVoidPtr(copyable.ptr())));
     memo[copyableId] = result;
 
     bp::extract<bp::dict>(result.attr("__dict__"))().update(
