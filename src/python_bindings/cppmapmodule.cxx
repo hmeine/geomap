@@ -576,7 +576,8 @@ struct GeoMapPickleSuite : bp::pickle_suite
         bp::list nodePositions;
         for(GeoMap::NodeIterator it = map.nodesBegin(); it.inRange(); ++it)
         {
-            for(unsigned int i = 0; i < (len(nodePositions)- (*it)->label()); ++i)
+            unsigned int missingNones = (*it)->label() - len(nodePositions);
+            for(unsigned int i = 0; i < missingNones; ++i)
                 nodePositions.append(bp::object());
             nodePositions.append((*it)->position());
         }
@@ -584,7 +585,8 @@ struct GeoMapPickleSuite : bp::pickle_suite
         bp::list edgeTuples;
         for(GeoMap::EdgeIterator it = map.edgesBegin(); it.inRange(); ++it)
         {
-            for(unsigned int i = 0; i < (len(edgeTuples)- (*it)->label()); ++i)
+            unsigned int missingNones = (*it)->label() - len(edgeTuples);
+            for(unsigned int i = 0; i < missingNones; ++i)
                 edgeTuples.append(bp::object());
             edgeTuples.append(
                 bp::make_tuple(
@@ -809,8 +811,8 @@ void defMap()
                 "  called when the removal of edges results in pixels being\n"
                 "  associated with the surrounding face (called with the face as\n"
                 "  first, and a list of Point2Ds as second parameter)\n\n"
-                "GeoMap objects can be pickled, at will guarantee persistence of edges\n"
-                "and nodes with their geometry and labels (face labels may change!).",
+                "GeoMap objects can be pickled, which will preserve most of the GeoMap's\n"
+                "state, e.g. node/edge/face geometry, anchors, labels, and flags.",
                 init<vigra::Size2D>(arg("imageSize"),
                     "GeoMap(nodePositions, edges, imageSize)\n\n"
                     "Creates a GeoMap of the given `imageSize`.\n\n"
