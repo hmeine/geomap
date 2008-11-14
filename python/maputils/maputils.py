@@ -9,9 +9,9 @@ import flag_constants, progress, sivtools
 from hourglass import EdgeProtection
 
 def protectFace(face, protect = True, flag = flag_constants.PROTECTED_FACE):
-    """Sets the PROTECTED_FACE flag of 'face' according to 'protect'.
+    """Sets the PROTECTED_FACE flag of `face` according to `protect`.
     Subsequently, sets the CONTOUR_PROTECTION of each edge in the
-    contours of 'face' iff either of the adjacent faces is
+    contours of `face` iff either of the adjacent faces is
     protected."""
     
     face.setFlag(flag, protect)
@@ -103,9 +103,9 @@ class FilterGroup(tuple):
 
 def filterSaddlePoints(rawSaddles, biSIV, filter, maxDist):
     """Filter saddle points first by checking the passValue in the
-    boundary indicator SplineImageView 'biSIV', then by removing
+    boundary indicator SplineImageView `biSIV`, then by removing
     duplicates (points which are nearer to previous points than
-    maxDist - IOW: Points that come first win.)
+    `maxDist` - IOW: Points that come first win.)
 
     Return a list of the remaining points together with their indices
     in the original array (in enumerate() fashion)."""
@@ -136,7 +136,7 @@ def subpixelWatershedData(spws, biSIV, filter = None, mask = None,
                           perpendicularDistEpsilon = 0.1, maxStep = 0.1):
     """Calculates and returns a pair with a list of maxima and a list of
     edges (composed flowline pairs) from the SubPixelWatersheds object
-    'spws'.  Each edge is represented with a quadrupel of
+    `spws`.  Each edge is represented with a quadrupel of
     startNodeIndex, endNodeIndex, edge polygon and the index of the
     original saddle within that polygon.  The first edge is None.
     That output is suitable and intended for addFlowLinesToMap().
@@ -144,7 +144,7 @@ def subpixelWatershedData(spws, biSIV, filter = None, mask = None,
     Gives verbose output during operation and uses filterSaddlePoints
     to filter out saddle points using the given filter criterion and
     to filter out duplicate saddlepoints (pass the optional argument
-    'minSaddleDist' to change the default of 0.1 here).
+    `minSaddleDist` to change the default of 0.1 here).
 
     Each found edge polygon is simplified using simplifyPolygon with
     perpendicularDistEpsilon = 0.1 and maxStep = 0.1 (use the optional
@@ -1702,7 +1702,7 @@ def seededRegionGrowingStatic(map, faceLabels, edgeCosts):
         _, dartLabel = heappop(heap)
         dart = map.dart(dartLabel)
         if faceLabels[dart.rightFaceLabel()]:
-            continue # labelled in the meantime
+            continue # labeled in the meantime
         faceLabels[dart.rightFaceLabel()] = faceLabels[dart.leftFaceLabel()]
         for dart in contourDarts(dart.rightFace()):
             if not faceLabels[dart.rightFaceLabel()]:
@@ -1739,6 +1739,12 @@ class StandardCostQueue(object):
         return index, cost
 
 class SeededRegionGrowing(AutomaticMethodBase):
+    """Implements Seeded Region Growing [Adams, Bischof].  Expects seed
+    faces to be marked with the SRG_SEED flag.  Modifies the map by
+    merging all non-seed faces into the growing seed regions until
+    only these are left (or no more merges are possible, e.g. due to
+    edge protection)."""
+    
     __slots__ = ["_map", "_mergeCostMeasure", "_costLog",
                  "_neighborSkipFlags"]
     
@@ -1824,17 +1830,22 @@ def seededRegionGrowing(map, mergeCostMeasure, dynamic = False, stupidInit = Fal
     only these are left (or no more merges are possible, e.g. due to
     edge protection).
 
-    The optional parameter 'dynamic' decides whether the costs of each
+    The optional parameter `dynamic` decides whether the costs of each
     possible merge shall be updated in each step.
 
-    If stupidInit is set, the initialization is done exactly as in the
+    If `stupidInit` is set, the initialization is done exactly as in the
     original paper - the difference is that a face adjacent to two
     seeds will be associated the cost of merging it into the neighbor
     with the lower label (processing order) instead of the minimum of
     all costs.  Note that this streamlines the algorithm, but is
     dangerous when using superpixels, which makes the mentioned case
     happen regularly (instead of being an exception as in the original
-    pixel-based SRG application)."""
+    pixel-based SRG application).
+
+    Equivalent to::
+
+      srg = SeededRegionGrowing(map, mergeCostMeasure, dynamic, stupidInit)
+      srg.grow()"""
 
     srg = SeededRegionGrowing(map, mergeCostMeasure, dynamic, stupidInit)
     srg.grow()
@@ -1883,12 +1894,10 @@ def minimumSpanningTree(map, edgeCosts):
     return result
 
 def regionalMinima(map, mst):
-    """regionalMinima(map, mst)
-
-    Returns an array with face labels, where only 'regional minima' of
-    the given MSt are labelled (i.e. the rest is labelled None).  See
-    the article 'Fast Implementation of Waterfall Based on Graphs' by
-    Marcotegui and Beucher."""
+    """Return an array with face labels, where only 'regional minima'
+    of the given MST are labeled (i.e. the rest is labeled None).
+    See the article 'Fast Implementation of Waterfall Based on Graphs'
+    by Marcotegui and Beucher."""
 
     faceLabels = [None] * map.maxFaceLabel()
     for edge in map.edgeIter():
@@ -1897,7 +1906,7 @@ def regionalMinima(map, mst):
             continue
         isMinimum = True
         # FIXME: this finds only local minima - in theory extended
-        # local minima should be labelled, too
+        # local minima should be labeled, too
         for start in edge.dart().alphaOrbit():
             # note that contourDarts is sigmaOrbit in the dual graph:
             for dart in contourDarts(start.leftFace()):
