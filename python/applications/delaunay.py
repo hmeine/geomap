@@ -1,20 +1,34 @@
 # -*- coding: iso-8859-1 -*-
 
-"""# EXAMPLE CODE FOR CHORDAL AXIS TRANSFORM:
+"""(Constrained) Delaunay Triangulation and Chordal Axis Transform
 
-ms = levelcontours.marchingSquares(..., 128)
+Here's a complete walk-through how to compute the CAT skeleton:
 
-# note that marchingSquares marked holes/background faces with OUTER_FACE:
-cdt = delaunay.cdtFromPSLG(ms)
+>>> ms = levelcontours.marchingSquares(..., 128)
 
-# keep original cdt map (may be needed for pruneBySubtendedLength):
-r_cdt = copy.deepcopy(cdt)
+Note that marchingSquares marks holes/background faces with
+OUTER_FACE; depending on your application, you might have to mark
+faces whose skeleton you don't need.
 
-# rectified chordal axis transform:
-delaunay.removeWeakChords(r_cdt)
-r_cat = delaunay.catMap(r_cdt, rectified = True)
+Then, you can compute the CDT of all remaining foreground faces:
 
-delaunay.pruneBySubtendedLength(r_cat, cdt, minLength = 10)
+>>> cdt = delaunay.cdtFromPSLG(ms)
+
+You might want to keep the original CDT map (e.g. needed for
+`pruneBySubtendedLength`):
+
+>>> r_cdt = copy.deepcopy(cdt)
+
+The rectified CAT reduces oscillations and leads to much nicer
+skeletons:
+
+>>> delaunay.removeWeakChords(r_cdt)
+>>> r_cat = delaunay.catMap(r_cdt, rectified = True)
+
+Finally, it makes sense to prune the skeleton, i.e. remove small
+barbs:
+
+>>> delaunay.pruneBySubtendedLength(r_cat, cdt, minLength = 10)
 """
 
 __version__ = \
@@ -527,14 +541,21 @@ def catMap(delaunayMap,
     >>> removeWeakChords(del2)
     >>> rcat2 = delaunay.catMap(del2)
 
-    The resulting map will have two additional attributes that relate
-    the skeleton with the original boundary:
+    The resulting map will have additional attributes that relate the
+    skeleton with the original boundary:
 
     subtendedLengths:
       This is a list mapping edge labels of the skeleton to the
       accumulated lengths of all contour segments within the contours
       of the sleeve- and terminal-faces that comprise the sleeve
       represented by that skeleton edge.
+
+    shapeWidths:
+      This is a list mapping edge labels of the skeleton to lists of
+      shape widths at each support point of the polygon (may be None
+      at the ends).  In theory, this allows to reconstruct the
+      original boundary and thus makes the CAT fully reversible (see
+      Prasad's papers).
 
     nodeChordLabels:
       This is a list mapping node labels of the skeleton to lists of
@@ -553,6 +574,7 @@ def catMap(delaunayMap,
 
     result = GeoMap(delaunayMap.imageSize())
     result.subtendedLengths = [0] # unused Edge 0
+    result.shapeWidths = [None]
     result.nodeChordLabels = []
 
     faceChords = [None] * delaunayMap.maxFaceLabel()
@@ -606,6 +628,7 @@ def catMap(delaunayMap,
                 startDart = dart.clone()
                 edgePoints = []
                 subtendedBoundaryLength = 0.0
+                shapeWidth = []
 
                 if faceType[face.label()] == "T":
                     subtendedBoundaryLength += boundaryLength[face.label()]
@@ -615,6 +638,7 @@ def catMap(delaunayMap,
 
                 while True:
                     edgePoints.append(middlePoint(dart))
+                    shapeWidth.append(dart.edge().length())
                     dart.nextAlpha()
                     nextFace = dart.leftFace()
                     if faceType[nextFace.label()] == "S":
@@ -638,9 +662,11 @@ def catMap(delaunayMap,
                 flags = 0
                 if not edgePoints or edgePoints[0] != startNode.position():
                     edgePoints.insert(0, startNode.position())
+                    shapeWidth.insert(0, None)
                     flags |= START_NODE_ADDED
                 if edgePoints[-1] != endNode.position():
                     edgePoints.append(endNode.position())
+                    shapeWidth.append(None)
                     flags |= END_NODE_ADDED
 
                 if len(edgePoints) < 2:
@@ -658,6 +684,7 @@ def catMap(delaunayMap,
                 sleeve.setFlag(flags)
 
                 result.subtendedLengths.append(subtendedBoundaryLength)
+                result.shapeWidths.append(shapeWidth)
                 if faceType[face.label()] == "J":
                     result.nodeChordLabels[startNode.label()].append(
                         (sleeve.label(), startDart.label()))
@@ -798,9 +825,11 @@ def pruneBySubtendedLength(skelMap, delaunayMap = None,
     by each terminal sleeve.  You can pass either of the following two
     arguments to determine the threshold:
 
-    minLength: minimal boundary length in pixels
+    minLength:
+      minimal boundary length in pixels
 
-    ratio: fraction of total boundary length (default: 0.01 == 1%)
+    ratio:
+      fraction of total boundary length (default: 0.01 == 1%)
 
     Also, you can pass the delaunayMap which the skelMap has been
     extracted from as second argument; this allows this function to
@@ -810,11 +839,11 @@ def pruneBySubtendedLength(skelMap, delaunayMap = None,
     whose degree went down to two are removed (junction -> sleeve face
     conversion).
 
-    Examples:
+    Examples::
 
-    pruneBySubtendedLength(catMap, delMap, minLength = 3)
-    pruneBySubtendedLength(catMap, delMap, ratio = 0.02)
-    pruneBySubtendedLength(catMap) # use default: 1%"""
+      pruneBySubtendedLength(catMap, delMap, minLength = 3)
+      pruneBySubtendedLength(catMap, delMap, ratio = 0.02)
+      pruneBySubtendedLength(catMap) # use default: 1%"""
     
     changed = True
     result = 0
@@ -970,7 +999,7 @@ def circumCircle(p1, p2, p3):
     return circumCenter, circumRadius
 
 def calculateTriangleCircumcircles(delaunayMap):
-    """calculateTriangleCircumcircles(delaunayMap)
+    """calculateTriangleCircumcircles(delaunayMap) -> list of (Vector2, float)
 
     Returns a list of circumcircles for each face in the delaunayMap
     (with the face labels as indices).  Entries for faces marked with
