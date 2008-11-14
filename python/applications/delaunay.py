@@ -35,11 +35,13 @@ __version__ = \
     "$Id$" \
     .split(" ")[2:-2]
 
-import math, sys, vigra, hourglass, numpy
+import math, sys, hourglass, numpy
 #from map import GeoMap, contourPoly
 from hourglass import GeoMap, contourPoly
 from vigra import Vector2, Vector, dot
-from flag_constants import *
+from flag_constants import \
+     START_NODE_ADDED, END_NODE_ADDED, CONTOUR_SEGMENT, OUTER_FACE, \
+     IS_BARB, WEAK_CHORD
 
 try:
     import triangle
@@ -90,18 +92,20 @@ def _pointInHole(polygon, level = 2):
 
 def constrainedDelaunayMap(polygons, imageSize, extraPoints = [],
                            onlyInner = True):
-    """constrainedDelaunayMap(polygons, imageSize, extraPoints = [],
-                           onlyInner = True)
+    """constrainedDelaunayMap(polygons, imageSize, extraPoints, onlyInner) -> GeoMap
 
     Returns a new GeoMap containing a Constrained Delaunay
     Triangulation of all points of the polygons plus the extraPoints
     if given.  The segments of the polygons will be constrained
     segments of the CDT.
 
-    If the optional onlyInner parameter is True (default), then all
+    If the optional `onlyInner` parameter is True (default), then all
     edge segments in the 'outside' will be removed.  (This assumes
     that all closed polygons with a negative partialArea() are
-    holes.)"""
+    holes.)
+
+    **NOTE**: You probably want to use `cdtFromPSLG` or `faceCDTMap`
+    instead, both of which have a much simpler API."""
 
     assert triangle, """For correct CDT, you need to compile the
     triangle module (vigra/experiments/triangle).  You might want to
@@ -121,7 +125,7 @@ def constrainedDelaunayMap(polygons, imageSize, extraPoints = [],
             if partPoints[0] in points:
                 for i, (s, e) in enumerate(partSegments):
                     partSegments[i] = (s-1, e-1) # partPoints[0] will be deleted
-                partSegments[0] = (existingIndex, partSegments[0][1])
+                partSegments[0] = (points.index(partPoints[0]), partSegments[0][1])
                 del partPoints[0]
             partSegments[-1] = (partSegments[-1][0], partSegments[0][0])
             if onlyInner and polygon.partialArea() < 0:
@@ -170,7 +174,9 @@ def delaunayMap(points, imageSize = (0, 0)):
                                 sigma)
 
 def cdtFromPSLG(pslg, onlyInner = False):
-    """Return a CDT for the given planar straight line graph.  `pslg`
+    """cdtFromPSLG(pslg, onlyInner) -> GeoMap
+
+    Return a CDT for the given planar straight line graph.  `pslg`
     should be a GeoMap whose node positions are simple input points
     and edges define constraint segments.
 
@@ -525,14 +531,14 @@ def catMap(delaunayMap,
     >>> del1 = delaunay.faceCDTMap(map1.face(173), map1.imageSize())
     >>> cat1 = delaunay.catMap(del1, rectified = False)
 
-    The optional parameter 'rectified' has been set to False here to
+    The optional parameter `rectified` has been set to False here to
     use the original definition of junction node positions (using the
     circumcenter if possible) which works only for triangulations (and
     is therefore disabled by default).
 
     For triangulations, it is also possible to include the opposite
     vertex of the terminal triangles into the skeleton by setting
-    includeTerminalPositions to True.
+    `includeTerminalPositions` to True.
 
     If you want to use the rectified CAT (with weak chords being
     suppressed), you would use removeWeakChords before calling catMap:
@@ -991,7 +997,7 @@ def circumCircle(p1, p2, p3):
     except ValueError:
         sys.stderr.write("WARNING: Could not calculate triangle circumcircle!\n")
         lengths = [dart.edge().length()
-                   for dart in contours[0].phiOrbit()]
+                   for dart in contours[0].phiOrbit()] # FIXME: which `contours`?
         lengths.sort()
         circumRadius = (lengths[1] + lengths[2]) / 4.0
         sys.stderr.write("  Side lengths are %s -> improvised radius = %s\n"
