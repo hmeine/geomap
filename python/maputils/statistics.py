@@ -1552,12 +1552,10 @@ class EdgeRegularity(DetachableStatistics):
 # --------------------------------------------------------------------
 
 def calculateTangentLists(map, dx = 5, skipPoints = 1):
-    """calculateTangentLists(map, dx = 5, skipPoints = 1)
-
-    Returns a list that for each edge contains the result of running
-    `hourglass.tangentList`(edge, ...) with the given parameters.
+    """Return a list that for each edge contains the result of running
+    `hourglass.tangentList(edge, ...)` with the given parameters.
     Special care is taken to ensure that the list will never be empty
-    (by reducing the dx or finally set skipPoints to zero to get at
+    (by reducing the `dx` or finally set `skipPoints` to zero to get at
     least one tangent)."""
 
     result = [None] * map.maxEdgeLabel()
@@ -1608,7 +1606,7 @@ def calculateTangentListsGaussianReflective(map, sigma, diff=0.0):
 class EdgeTangents(DynamicEdgeStatistics):
     """Stores precomputed tangent lists for each edge and merges then
     when merging edges.  (In the past, EdgeTangents would
-    automatically call calculateTangentLists(*args) - this has been
+    automatically call `calculateTangentLists(*args)` - this has been
     changed in order to make it possible to use any tangent
     calculation method and pass the resulting tangents to the
     constructor instead of *args for the fixed method above.)"""

@@ -1,11 +1,4 @@
-"""`tools` - module with interactive GeoMap tools:
-
-You will find the following tool classes:
-* MapSearcher
-* ManualClassifier
-* ActivePaintbrush
-* IntelligentScissors
-"""
+"""tools - module with interactive GeoMap tools"""
 
 _cvsVersion = "$Id$" \
               .split(" ")[2:-2]
@@ -351,7 +344,9 @@ from heapq import heappush, heappop # requires Python 2.3+
 from flag_constants import CURRENT_CONTOUR, SCISSOR_PROTECTION, BORDER_PROTECTION
 
 class LiveWire(object):
-    """The LiveWire class does not only represent a single live wire
+    """Represents a live wire path and manages path search.
+    
+    The LiveWire class does not only represent a single live wire
     path, but also performs the complete path search in a dynamic
     programming fashion, i.e. finding the optimal paths to all
     reachable nodes.  You can then immediately switch between desired

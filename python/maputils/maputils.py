@@ -1,3 +1,5 @@
+"""maputils - general (i.e.topological) GeoMap utilities and segmentation algorithms"""
+
 import vigra, hourglass, sys, math, time, weakref, copy
 
 import flag_constants, progress, sivtools
@@ -561,7 +563,9 @@ def addFlowLinesToMap(edges, map, imageSize = None,
 # --------------------------------------------------------------------
 
 def mapFromEdges(edges, imageSize, GeoMap = hourglass.GeoMap):
-    # FIXME: comment
+    """Quickly create a GeoMap from a set of edges, i.e. derive nodes
+    from edge endpoints.  Returns a GeoMap that is not yet
+    initialized, i.e. `GeoMap.edgesSorted()` will return False."""
     
     def getNode(map, position):
         node = map.nearestNode(position, 0.001)
@@ -971,9 +975,9 @@ def checkCachedPropertyConsistency(aMap):
 
 def checkAllConsistency(aMap):
     """Return whether aMap.checkConsistency(),
-    `checkCachedPropertyConsistency`(aMap), and
-    `checkLabelConsistencyThoroughly`(aMap) succeed (the latter in turn
-    calls `checkLabelConsistency`(aMap) and is skipped if not
+    `checkCachedPropertyConsistency(aMap)`, and
+    `checkLabelConsistencyThoroughly(aMap)` succeed (the latter in turn
+    calls `checkLabelConsistency(aMap)` and is skipped if not
     aMap.hasLabelImage())."""
     return aMap.checkConsistency() and \
            checkCachedPropertyConsistency(aMap) and \
