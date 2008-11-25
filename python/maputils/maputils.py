@@ -212,6 +212,7 @@ def _handleUnsortable(map, unsortable):
     # remove unsortable self-loops (most likely flowlines which
     # did not get far and were connected to the startNode by
     # addFlowLinesToMap())
+    loopCount = 0
     for group in unsortable:
         i = 0
         while i < len(group):
@@ -219,8 +220,11 @@ def _handleUnsortable(map, unsortable):
             if dart.edge().isLoop() and -dart.label() in group:
                 group.remove(dart.label())
                 group.remove(-dart.label())
+                loopCount += 1
             else:
                 i += 1
+    if loopCount:
+        print "%d unsortable self-loops discarded." % loopCount
     try:
         while True:
             unsortable.remove([])
