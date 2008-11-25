@@ -1029,7 +1029,8 @@ class MapDisplay(displaysettings.DisplaySettings):
         If `roi` is not None, it determines the ROI to be saved.
         `roi` can be a BoundingBox or Rect2D object, a string like
         "10,10-40,30" (see fig.parseGeometry) or a tuple usable as
-        Rect2D constructor arguments.
+        Rect2D constructor arguments.  You can also specify `roi` =
+        True to export the visible image region.
 
         scale is the size of a pixel in fig units (450 = 1cm) and
         defaults to a size resulting in approx. 20cm width of the
