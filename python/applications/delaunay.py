@@ -94,7 +94,7 @@ def constrainedDelaunayMap(polygons, imageSize, extraPoints = [],
                            onlyInner = True):
     """constrainedDelaunayMap(polygons, imageSize, extraPoints, onlyInner) -> GeoMap
 
-    Returns a new GeoMap containing a Constrained Delaunay
+    Returns a new `GeoMap` containing a Constrained Delaunay
     Triangulation of all points of the polygons plus the extraPoints
     if given.  The segments of the polygons will be constrained
     segments of the CDT.
