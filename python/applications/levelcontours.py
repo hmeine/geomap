@@ -1,5 +1,5 @@
 import sys, copy
-import vigra, hourglass, maputils, flag_constants
+import vigra, hourglass, maputils, flag_constants, progress
 from vigra import Vector2, Point2D
 
 __all__ = ["levelSetMap", "marchingSquares"]
@@ -164,13 +164,17 @@ def followContour(siv, level, geomap, nodeLabel, h):
         poly.append(npos)
         pos = npos
 
-def levelSetMap(image, level, sigma = None):
+def levelSetMap(image, level = 0, sigma = None):
     siv = hasattr(image, "siv") and image.siv or vigra.SplineImageView3(image)
     
     zc = findZeroCrossingsOnGrid(siv, level)
     result = hourglass.GeoMap(zc, [], image.size())
 
+    msg = progress.StatusMessage("- following level set contours")
+    next = progress.ProgressHook(msg).rangeTicker(result.nodeCount)
+
     for node in result.nodeIter():
+        next()
         if node.isIsolated():
             followContour(siv, level, result, node.label(), 0.1)
 
@@ -186,7 +190,7 @@ def levelSetMap(image, level, sigma = None):
     
 # --------------------------------------------------------------------
 
-def marchingSquares(image, level, variant = True, border = True,
+def marchingSquares(image, level = 0, variant = True, border = True,
                     markOuter = 1):
     """Return a new GeoMap with sub-pixel level contours extracted by
     the marching squares method.  (Pixels with values < level are
@@ -334,7 +338,7 @@ def marchingSquares(image, level, variant = True, border = True,
 # addPathFromHere("../evaluation/")
 # import edgedetectors
 
-# def levelSetMap(image, level, sigma = None):
+# def levelSetMap(image, level = 0, sigma = None):
 #     ed = edgedetectors.EdgeDetector(
 #         bi = "Thresholding", s1 = sigma, nonmax = "zerosSubPixel",
 #         threshold = level)
