@@ -518,15 +518,15 @@ bp::list GeoMap_sortEdgesEventually(
     for(GeoMap::UnsortableGroups::iterator it = unsortable.begin();
         it != unsortable.end(); ++it)
     {
-        std::cerr << "copying unsortable group (" << it->size() << " darts): ";
+//         std::cerr << "copying unsortable group (" << it->size() << " darts): ";
         bp::list unsortableGroup;
         for(GeoMap::UnsortableGroups::value_type::iterator dit = it->begin();
             dit != it->end(); ++dit)
         {
-            std::cerr << ".";
+//             std::cerr << ".";
             unsortableGroup.append(*dit);
         }
-        std::cerr << "\n";
+//         std::cerr << "\n";
         result.append(unsortableGroup);
     }
     return result;
@@ -666,9 +666,9 @@ struct GeoMapPickleSuite : bp::pickle_suite
         for(i = 0; i < map.faceCount(); ++i)
         {
             GeoMap::Dart anchor =
-                map.dart(bp::extract<unsigned int>(faceAnchors[i])());
+                map.dart(bp::extract<int>(faceAnchors[i])());
             anchor.leftFace()->setFlag(
-                bp::extract<unsigned int>(faceFlags[i])() & ~0xf0000000U);
+                bp::extract<CellFlags>(faceFlags[i])() & ~(CellFlags)0xf0000000);
             if(hasLabels)
                 newFaceLabels[anchor.leftFaceLabel()] =
                     bp::extract<CellLabel>(faceLabels[i])();
