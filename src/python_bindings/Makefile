@@ -41,6 +41,9 @@ $(TARGET): $(OBJS)
 	$(LINKCXXMODULE) -o $(TARGET) $(OBJS) $(BOOST_PYTHON_LIB) `pkg-config --libs sigc++-2.0` `vigra-interactive-config --pythonimage-lib`
 	test -s $(MODULE) || ln -s .libs/$(MODULE) .
 
+test: $(TARGET)
+	python test.py
+
 install: $(TARGET)
 	$(INSTALL) -d $(dynmoddir)
 	$(LIBINSTALL) $(TARGET) $(dynmoddir)
@@ -57,7 +60,7 @@ $(INT2BUILDDIR)/config/Makefile.include:
 	@echo "*** Otherwise, change the definition of INT2BUILDDIR in the Makefile."
 
 clean:
-	rm -f $(OBJS) $(TARGET) hourglass delaunay *.o *.ld *.d
+	rm -f $(OBJS) $(TARGET) hourglass delaunay *.o *.ld *.d *.so
 
 ifneq "$(MAKECMDGOALS)" "clean"
 include hourglass.d
