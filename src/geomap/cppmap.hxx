@@ -38,6 +38,7 @@ inline int isnan(double t) { return _isnan(t); }
 #endif
 
 typedef unsigned int CellLabel;
+typedef unsigned int CellFlags;
 
 // functor for FilterIterator to skip NULL cells
 template<class POINTER>
@@ -485,7 +486,7 @@ class GeoMap::Edge
     CellLabel    label_;
     CellLabel    startNodeLabel_, endNodeLabel_;
     CellLabel    leftFaceLabel_, rightFaceLabel_;
-    unsigned int flags_;
+    CellFlags    flags_;
 
     mutable std::auto_ptr<vigra::Scanlines> scanLines_;
 
@@ -602,17 +603,17 @@ class GeoMap::Edge
         return !operator==(other);
     }
 
-    unsigned int flags() const
+    CellFlags flags() const
     {
         return flags_;
     }
 
-    unsigned int flag(unsigned int which) const
+    CellFlags flag(CellFlags which) const
     {
         return flags_ & which;
     }
 
-    void setFlag(unsigned int flag, bool onoff = true)
+    void setFlag(CellFlags flag, bool onoff = true)
     {
         if(onoff)
             flags_ |= flag;
@@ -1018,7 +1019,7 @@ class GeoMap::Face : boost::noncopyable
     GeoMap              *map_;
     CellLabel            label_;
     Contours             anchors_;
-    mutable unsigned int flags_;
+    mutable CellFlags    flags_;
     mutable BoundingBox  boundingBox_;
     mutable double       area_;
     unsigned int         pixelArea_;
@@ -1218,17 +1219,17 @@ class GeoMap::Face : boost::noncopyable
         return !operator==(other);
     }
 
-    unsigned int flags() const
+    CellFlags flags() const
     {
         return flags_;
     }
 
-    unsigned int flag(unsigned int which) const
+    CellFlags flag(CellFlags which) const
     {
         return flags_ & which;
     }
 
-    void setFlag(unsigned int flag, bool onoff = true)
+    void setFlag(CellFlags flag, bool onoff = true)
     {
         if(onoff)
             flags_ |= flag;
