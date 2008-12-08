@@ -191,7 +191,7 @@ def levelSetMap(image, level = 0, sigma = None):
 # --------------------------------------------------------------------
 
 def marchingSquares(image, level = 0, variant = True, border = True,
-                    markOuter = 1):
+                    initialize = True, markOuter = 1):
     """Return a new GeoMap with sub-pixel level contours extracted by
     the marching squares method.  (Pixels with values < level are
     separated from pixels >= level.)
@@ -214,8 +214,12 @@ def marchingSquares(image, level = 0, variant = True, border = True,
       for each ambiguous configuration, check the midpoint of the
       square; then handle as if variant = (midpoint >= level)
 
+    If `initialize` is a true value (default), the map will be
+    initialized.
+
     If markOuter is != 0, the faces above(outer == 1) / below(outer == -1)
-    the threshold are marked with the OUTER_FACE flag."""
+    the threshold are marked with the OUTER_FACE flag (this only works
+    if the map is initialized)."""
     
     connections1 = ((1, 0), (0, 2), (1, 2), (3, 1), (3, 0), (0, 2), (3, 1), (3, 2), (2, 3), (1, 0), (2, 3), (0, 3), (1, 3), (2, 1), (2, 0), (0, 1))
     connections2 = ((1, 0), (0, 2), (1, 2), (3, 1), (3, 0), (0, 1), (3, 2), (3, 2), (2, 3), (1, 3), (2, 0), (0, 3), (1, 3), (2, 1), (2, 0), (0, 1))
@@ -319,6 +323,9 @@ def marchingSquares(image, level = 0, variant = True, border = True,
     if border:
         maputils.connectBorderNodes(result, 0.5)
         result.sortEdgesEventually(0.4, 0.01)
+
+    if not initialize:
+        return result
 
     result.initializeMap()
     if markOuter:
