@@ -1,5 +1,5 @@
 import sys, time, copy
-from hourglass import GeoMap, crackConnectionImage
+from hourglass import GeoMap, crackConnectionImage, crackEdgeGraph
 import vigra
 from flag_constants import BORDER_PROTECTION
 import maputils
@@ -13,24 +13,10 @@ __all__ = ["crackEdgeMap", "crackEdgeGraph"]
 
 def crackEdgeMap(labelImage, initLabelImage = True,
                  eightConnectedRegions = True):
-    c = time.clock()
-    msg = progress.StatusMessage("- following crack edges")
-    result = crackEdgeGraph(
-        labelImage, eightConnectedRegions = eightConnectedRegions,
-        progressHook = progress.ProgressHook(msg))
-    msg.finish()
-
-    msg = progress.StatusMessage("  removing deg.2 nodes")
+    result = crackEdgeGraph(labelImage, eightConnectedRegions = eightConnectedRegions)
     maputils.mergeDegree2Nodes(result)
-    msg.finish()
-
-    msg = progress.StatusMessage("  sorting edges")
     result.sortEdgesDirectly()
-    msg.finish()
-
-    msg = progress.StatusMessage("  initializing faces")
     result.initializeMap(initLabelImage)
-    msg.finish()
     
     # mark the border edges:
     assert result.face(0).holeCount() == 1, "infinite face should have exactly one contour, not %d!?" % result.face(0).holeCount()
@@ -38,8 +24,6 @@ def crackEdgeMap(labelImage, initLabelImage = True,
         edge = dart.edge()
         if not edge.leftFaceLabel() or not edge.rightFaceLabel():
             edge.setFlag(BORDER_PROTECTION)
-
-    sys.stdout.write("  done. (%ss)\n" % (time.clock()-c, ))
 
     return result
 
@@ -186,7 +170,7 @@ def followEdge(crackConnectionImage, pos, direction):
 
     return result, pos, connections[(direction+2)%4]
 
-def crackEdgeGraph(labelImage, eightConnectedRegions = True,
+def pyCrackEdgeGraph(labelImage, eightConnectedRegions = True,
                    progressHook = None):
     result = GeoMap(labelImage.size())
 
