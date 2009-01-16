@@ -451,9 +451,9 @@ def crackEdge2EuclideanPath(crackEdge):
     return euclideanPath(crackEdge, closed)
 
 def crackEdges2EuclideanPaths(crackEdgeMap):
-    import maputils, flag_constants
-    return maputils.copyMapContents(
-        crackEdgeMap, None, edgeTransform = crackEdge2EuclideanPath)[0]
+    import maputils
+    return maputils.copyMap(
+        crackEdgeMap, edgeTransform = crackEdge2EuclideanPath)
 
 class DSLExperiment(object):
     def __init__(self, reverse = False):

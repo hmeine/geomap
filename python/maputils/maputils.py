@@ -834,6 +834,40 @@ def copyMapContents(sourceMap, destMap = None, edgeTransform = None):
 
     return destMap, nodes, edges
 
+def copyMap(sourceMap, edgeTransform = None):
+    """Copy a complete GeoMap.  This builds upon `copyMapContents`,
+    but also initializes the resulting map and copies all Face flags.
+
+    There are only two use cases for this:
+
+    1) Compressing all cell labels after many edges or nodes have been
+       removed.
+
+    2) Transforming edges, i.e. passing an `edgeTransform` that
+       changes (e.g. smoothes) each Edge's geometry.
+    
+    This function cannot be used with an edgeTransform that returns
+    None for any edge, since there must be a bijection between source
+    and target Faces (it might be possible to lift this requirement
+    w.r.t. bridges in the future)."""
+
+    assert sourceMap.mapInitialized(), \
+           "use copyMapContents for copying node/edge data only"
+
+    # store edge mapping 'em':
+    result, _, em = copyMapContents(sourceMap, None, edgeTransform)
+    result.initializeMap(sourceMap.hasLabelImage())
+
+    # transfer Face flags using 'em':
+    for face in sourceMap.faceIter():
+        anchor = face.contour()
+        newAnchor = em[abs(anchor.label())].dart()
+        if anchor.label() < 0:
+            newAnchor.nextAlpha()
+        newAnchor.leftFace().setFlag(face.flags() & 0x0fffffff)
+
+    return result
+
 def detachMapStats(map, verbose = False):
     """Calls 'detachHooks' on all properties of the given map.
     (Use this to prevent leaking statistics when discarding maps.)"""
