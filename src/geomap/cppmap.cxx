@@ -218,14 +218,14 @@ GeoMap::GeoMap(const GeoMap &other)
     for(ConstNodeIterator it = other.nodesBegin(); it.inRange(); ++it)
     {
         nodes_[(*it)->label()] =
-            CELL_PTR(GeoMap::Node)(new GeoMap::Node(this, **it));
+            GeoMap::NodePtr(new GeoMap::Node(this, **it));
     }
 
     edges_.resize(other.edges_.size(), NULL_PTR(GeoMap::Edge));
     for(ConstEdgeIterator it = other.edgesBegin(); it.inRange(); ++it)
     {
         edges_[(*it)->label()] =
-            CELL_PTR(GeoMap::Edge)(new GeoMap::Edge(this, **it));
+            GeoMap::EdgePtr(new GeoMap::Edge(this, **it));
     }
 
     // slightly more efficient than calling setSigmaMapping():
@@ -243,7 +243,7 @@ GeoMap::GeoMap(const GeoMap &other)
         for(ConstFaceIterator it = other.facesBegin(); it.inRange(); ++it)
         {
             faces_[(*it)->label()] =
-                CELL_PTR(GeoMap::Face)(new GeoMap::Face(this, **it));
+                GeoMap::FacePtr(new GeoMap::Face(this, **it));
         }
 
         if(other.hasLabelImage())
@@ -267,7 +267,7 @@ GeoMap::~GeoMap()
 
 double angleTheta(double dy, double dx); // implemented in polygon.cxx
 
-CELL_PTR(GeoMap::Face) GeoMap::faceAt(const vigra::Vector2 &position)
+GeoMap::FacePtr GeoMap::faceAt(const vigra::Vector2 &position)
 {
     vigra_precondition(mapInitialized(),
         "faceAt() called on graph (mapInitialized() == false)!");
@@ -291,14 +291,14 @@ CELL_PTR(GeoMap::Face) GeoMap::faceAt(const vigra::Vector2 &position)
     return face(0);
 }
 
-CELL_PTR(GeoMap::Node) GeoMap::addNode(
+GeoMap::NodePtr GeoMap::addNode(
     const vigra::Vector2 &position)
 {
     GeoMap::Node *result = new GeoMap::Node(this, position);
     return node(result->label());
 }
 
-CELL_PTR(GeoMap::Node) GeoMap::addNode(
+GeoMap::NodePtr GeoMap::addNode(
     const vigra::Vector2 &position, CellLabel label)
 {
     if(label > nodes_.size())
@@ -307,7 +307,7 @@ CELL_PTR(GeoMap::Node) GeoMap::addNode(
     return node(result->label());
 }
 
-CELL_PTR(GeoMap::Edge) GeoMap::addEdge(
+GeoMap::EdgePtr GeoMap::addEdge(
     const GeoMap::SigmaAnchor &startNeighbor,
     const GeoMap::SigmaAnchor &endNeighbor,
     const Vector2Array &points, CellLabel label)
@@ -343,7 +343,7 @@ CELL_PTR(GeoMap::Edge) GeoMap::addEdge(
     return edge(result->label());
 }
 
-CELL_PTR(GeoMap::Face) GeoMap::removeEdge(GeoMap::Dart &dart)
+GeoMap::FacePtr GeoMap::removeEdge(GeoMap::Dart &dart)
 {
     if(mapInitialized())
     {
@@ -795,7 +795,7 @@ void GeoMap::splitParallelEdges()
                 // checkConsistency(); // no modification should've happened so far
 
                 // re-attach relocateDart to surviving node
-                CELL_PTR(GeoMap::Edge) relocateEdge(relocateDart.edge());
+                GeoMap::EdgePtr relocateEdge(relocateDart.edge());
                 if(relocateDart.label() < 0)
                 {
                     relocateEdge->endNodeLabel_ = survivingNode.label();
@@ -842,7 +842,7 @@ void GeoMap::splitParallelEdges()
             relocateDart.nextSigma();
 
             // re-attach relocateDart to surviving node
-            CELL_PTR(GeoMap::Edge) relocateEdge(relocateDart.edge());
+            GeoMap::EdgePtr relocateEdge(relocateDart.edge());
             if(relocateDart.label() < 0)
             {
                 relocateEdge->endNodeLabel_ = survivingNode.label();
@@ -927,7 +927,7 @@ void GeoMap::initContours()
 struct AbsAreaCompare
 {
         // FIXME: actually, const pointers would suffice:
-    bool operator()(CELL_PTR(GeoMap::Face) f1, CELL_PTR(GeoMap::Face) f2) const
+    bool operator()(GeoMap::FacePtr f1, GeoMap::FacePtr f2) const
     {
         double a1 = f1->area(), a2 = f2->area();
         double absdiff = std::fabs(a1) - std::fabs(a2);
@@ -999,7 +999,7 @@ void GeoMap::embedFaces(bool initLabelImage)
         else
         {
             // contour is a hole, determine parent face
-            CELL_PTR(GeoMap::Face) parent = NULL_PTR(GeoMap::Face);
+            GeoMap::FacePtr parent = NULL_PTR(GeoMap::Face);
 
             if(initLabelImage)
             {
@@ -1192,7 +1192,7 @@ void GeoMap::detachDart(int dartLabel)
     }
 }
 
-CELL_PTR(GeoMap::Node) GeoMap::nearestNode(
+GeoMap::NodePtr GeoMap::nearestNode(
     const vigra::Vector2 &position,
     double maxSquaredDist)
 {
@@ -1639,7 +1639,7 @@ void removeEdgeFromLabelImage(
     }
 }
 
-CELL_PTR(GeoMap::Edge) GeoMap::mergeEdges(const GeoMap::Dart &dart)
+GeoMap::EdgePtr GeoMap::mergeEdges(const GeoMap::Dart &dart)
 {
     vigra_precondition(dart.edge(),
                        "mergeEdges called on removed dart!");
@@ -1743,13 +1743,13 @@ CELL_PTR(GeoMap::Edge) GeoMap::mergeEdges(const GeoMap::Dart &dart)
     return this->edge(survivor.label());
 }
 
-CELL_PTR(GeoMap::Edge) GeoMap::splitEdge(
+GeoMap::EdgePtr GeoMap::splitEdge(
     GeoMap::Edge &edge, unsigned int segmentIndex)
 {
     return splitEdge(edge, segmentIndex, edge[0], false);
 }
 
-CELL_PTR(GeoMap::Edge) GeoMap::splitEdge(
+GeoMap::EdgePtr GeoMap::splitEdge(
     GeoMap::Edge &edge, unsigned int segmentIndex,
     const vigra::Vector2 &newPoint, bool insertPoint)
 {
@@ -1830,7 +1830,7 @@ void GeoMap::associatePixels(GeoMap::Face &face, const PixelList &pixels)
     associatePixelsHook(face, pixels);
 }
 
-CELL_PTR(GeoMap::Face) GeoMap::removeBridge(const GeoMap::Dart &dart)
+GeoMap::FacePtr GeoMap::removeBridge(const GeoMap::Dart &dart)
 {
     vigra_precondition(dart.edge(),
                        "removeBridge called on removed dart!");
@@ -1906,7 +1906,7 @@ CELL_PTR(GeoMap::Face) GeoMap::removeBridge(const GeoMap::Dart &dart)
     return this->face(face.label());
 }
 
-CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(const GeoMap::Dart &dart)
+GeoMap::FacePtr GeoMap::mergeFaces(const GeoMap::Dart &dart)
 {
     vigra_precondition(dart.edge(),
                        "mergeFaces called on removed dart!");

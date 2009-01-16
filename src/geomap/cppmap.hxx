@@ -100,21 +100,25 @@ class GeoMap
     class Dart;
     class SigmaAnchor;
 
-    typedef std::vector< CELL_PTR(Node) > Nodes;
-    typedef std::vector< CELL_PTR(Edge) > Edges;
-    typedef std::vector< CELL_PTR(Face) > Faces;
+    typedef CELL_PTR(Node) NodePtr;
+    typedef CELL_PTR(Edge) EdgePtr;
+    typedef CELL_PTR(Face) FacePtr;
 
-    typedef vigra::SafeFilterIterator<Nodes::iterator, NotNull<Nodes::value_type> >
+    typedef std::vector<NodePtr> Nodes;
+    typedef std::vector<EdgePtr> Edges;
+    typedef std::vector<FacePtr> Faces;
+
+    typedef vigra::SafeFilterIterator<Nodes::iterator, NotNull<NodePtr> >
         NodeIterator;
-    typedef vigra::SafeFilterIterator<Edges::iterator, NotNull<Edges::value_type> >
+    typedef vigra::SafeFilterIterator<Edges::iterator, NotNull<EdgePtr> >
         EdgeIterator;
-    typedef vigra::SafeFilterIterator<Faces::iterator, NotNull<Faces::value_type> >
+    typedef vigra::SafeFilterIterator<Faces::iterator, NotNull<FacePtr> >
         FaceIterator;
-    typedef vigra::SafeFilterIterator<Nodes::const_iterator, NotNull<Nodes::value_type> >
+    typedef vigra::SafeFilterIterator<Nodes::const_iterator, NotNull<NodePtr> >
         ConstNodeIterator;
-    typedef vigra::SafeFilterIterator<Edges::const_iterator, NotNull<Edges::value_type> >
+    typedef vigra::SafeFilterIterator<Edges::const_iterator, NotNull<EdgePtr> >
         ConstEdgeIterator;
-    typedef vigra::SafeFilterIterator<Faces::const_iterator, NotNull<Faces::value_type> >
+    typedef vigra::SafeFilterIterator<Faces::const_iterator, NotNull<FacePtr> >
         ConstFaceIterator;
 
     typedef std::vector<int> SigmaMapping;
@@ -399,7 +403,7 @@ class GeoMap::Node : boost::noncopyable
       position_(position),
       anchor_(0)
     {
-        map_->nodes_.push_back(GeoMap::Nodes::value_type(this));
+        map_->nodes_.push_back(GeoMap::NodePtr(this));
         ++map_->nodeCount_;
         map_->nodeMap_.insert(PositionedNodeLabel(position_, label_));
     }
@@ -509,7 +513,7 @@ class GeoMap::Edge
       rightFaceLabel_(UNINITIALIZED_CELL_LABEL),
       flags_(0)
     {
-        map_->edges_.push_back(GeoMap::Edges::value_type(this));
+        map_->edges_.push_back(GeoMap::EdgePtr(this));
         ++map_->edgeCount_;
     }
 
@@ -544,7 +548,7 @@ class GeoMap::Edge
         return startNodeLabel_;
     }
 
-    GeoMap::Nodes::value_type startNode() const
+    GeoMap::NodePtr startNode() const
     {
         vigra_precondition(initialized(), "startNode() of uninitialized edge!");
         return map_->node(startNodeLabel_);
@@ -555,7 +559,7 @@ class GeoMap::Edge
         return endNodeLabel_;
     }
 
-    GeoMap::Nodes::value_type endNode() const
+    GeoMap::NodePtr endNode() const
     {
         vigra_precondition(initialized(), "endNode() of uninitialized edge!");
         return map_->node(endNodeLabel_);
@@ -566,7 +570,7 @@ class GeoMap::Edge
         return leftFaceLabel_;
     }
 
-    GeoMap::Faces::value_type leftFace() const
+    GeoMap::FacePtr leftFace() const
     {
         vigra_precondition(initialized(), "leftFace() of uninitialized edge!");
         return map_->face(leftFaceLabel());
@@ -577,7 +581,7 @@ class GeoMap::Edge
         return rightFaceLabel_;
     }
 
-    GeoMap::Faces::value_type rightFace() const
+    GeoMap::FacePtr rightFace() const
     {
         vigra_precondition(initialized(), "rightFace() of uninitialized edge!");
         return map_->face(rightFaceLabel());
@@ -805,14 +809,14 @@ class GeoMap::Dart
             return guaranteedEdge()->leftFaceLabel();
     }
 
-    GeoMap::Edges::value_type edge() const
+    GeoMap::EdgePtr edge() const
     {
         return map_->edge(edgeLabel());
     }
 
-    GeoMap::Edges::value_type guaranteedEdge() const
+    GeoMap::EdgePtr guaranteedEdge() const
     {
-        GeoMap::Edges::value_type result(edge());
+        GeoMap::EdgePtr result(edge());
         if(!result)
         {
             std::stringstream s;
@@ -823,22 +827,22 @@ class GeoMap::Dart
         return result;
     }
 
-    GeoMap::Nodes::value_type startNode() const
+    GeoMap::NodePtr startNode() const
     {
         return map_->node(startNodeLabel());
     }
 
-    GeoMap::Nodes::value_type endNode() const
+    GeoMap::NodePtr endNode() const
     {
         return map_->node(endNodeLabel());
     }
 
-    GeoMap::Faces::value_type leftFace() const
+    GeoMap::FacePtr leftFace() const
     {
         return map_->face(leftFaceLabel());
     }
 
-    GeoMap::Faces::value_type rightFace() const
+    GeoMap::FacePtr rightFace() const
     {
         return map_->face(rightFaceLabel());
     }
@@ -1042,7 +1046,7 @@ class GeoMap::Face : boost::noncopyable
       flags_(0),
       pixelArea_(0)
     {
-        map_->faces_.push_back(GeoMap::Faces::value_type(this));
+        map_->faces_.push_back(GeoMap::FacePtr(this));
         ++map_->faceCount_;
 
         if(label_)

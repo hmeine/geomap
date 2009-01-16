@@ -64,7 +64,7 @@ class EdgeProtection : boost::noncopyable
 
 /********************************************************************/
 
-CELL_PTR(GeoMap::Face) mergeFacesCompletely(
+GeoMap::FacePtr mergeFacesCompletely(
     GeoMap::Dart &dart, bool mergeDegree2Nodes)
 {
     vigra_precondition(!dart.edge()->isBridge(),
@@ -88,7 +88,7 @@ CELL_PTR(GeoMap::Face) mergeFacesCompletely(
 
     std::vector<CellLabel> affectedNodes;
 
-    CELL_PTR(GeoMap::Face) survivor = NULL_PTR(GeoMap::Face);
+    GeoMap::FacePtr survivor = NULL_PTR(GeoMap::Face);
     for(std::vector<int>::iterator it = commonDarts.begin();
         it != commonDarts.end(); ++it)
     {
@@ -104,7 +104,7 @@ CELL_PTR(GeoMap::Face) mergeFacesCompletely(
     for(std::vector<CellLabel>::iterator it = affectedNodes.begin();
         it != affectedNodes.end(); ++it)
     {
-        CELL_PTR(GeoMap::Node) node = map->node(*it);
+        GeoMap::NodePtr node = map->node(*it);
         if(!node)
             continue;
         if(node->isIsolated())
@@ -199,7 +199,7 @@ unsigned int removeBridges(GeoMap &map, std::list<CellLabel> &bridges)
         {
             Bridges::iterator it = next;
             ++next;
-            CELL_PTR(GeoMap::Edge) bridge = map.edge(*it);
+            GeoMap::EdgePtr bridge = map.edge(*it);
             if(!bridge)
                 bridges.erase(it);
             else if(bridge->flag(UNREMOVABLE_BRIDGE))
@@ -248,7 +248,7 @@ unsigned int removeEdges(
 
     for(; edgeLabelsBegin != edgeLabelsEnd; ++edgeLabelsBegin)
     {
-        CELL_PTR(GeoMap::Edge)
+        GeoMap::EdgePtr
             edge = map.edge(*edgeLabelsBegin);
 
         vigra_precondition(edge, "removeEdges: illegal edge label");
