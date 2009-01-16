@@ -203,9 +203,9 @@ def pixelWatershedMap(biImage, crackEdges = 4, midCracks = False):
     subpixel-GeoMap containing the resulting contours.  The type of
     watershed segmentation depends on the 'crackEdges' parameter:
 
-    0: 8-connected edges on 4-connected background
-    4: crack edges between 4-connected watershed regions
-    8: crack edges between 8-connected watershed regions
+    0: 8-connected edges on 4-connected background       (SRG alg.)
+    4: crack edges between 4-connected watershed regions (UF alg.)
+    8: crack edges between 8-connected watershed regions (UF alg.)
        (8-connected regions will be separated in the result ATM)
 
     If midCracks is True, the resulting edges consist of the
