@@ -128,7 +128,8 @@ class MapFaces(vigrapyqt.Overlay):
         elif self.color:
             for face in map.faceIter():
                 if face.flag(self.flags) and \
-                       bbox.intersects(face.boundingBox()):
+                   (not face.label() or \
+                    bbox.intersects(face.boundingBox())):
                     qpa, sizes = self._getZoomedFace(face)
                     if face.holeCount():
                         index = 0
