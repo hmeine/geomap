@@ -1370,6 +1370,7 @@ void defMap()
         geoMap.attr("BYTES_PER_FACE") = sizeof(GeoMap::Face);
         geoMap.attr("BYTES_PER_MAP") = sizeof(GeoMap);
     }
+    register_ptr_to_python< std::auto_ptr<GeoMap> >();
 
     RangeIterWrapper<ContourPointIter>("ContourPointIter")
         .def(init<GeoMap::Dart, bool>((arg("dart"), arg("firstTwice") = false)));

@@ -33,6 +33,7 @@ OBJS = \
 	cppmapmodule_stats.lo \
 	cppmapmodule.lo \
 	cppmap.lo \
+	crackedgemap.lo \
 	dsl.lo \
 
 IMPEX_LIB = `vigra-config --impex_lib`

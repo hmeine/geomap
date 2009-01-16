@@ -43,7 +43,7 @@ std::string EdgeProtection__repr__(EdgeProtection const &cb)
 #include <vigra/crackconnections.hxx>
 
 vigra::PythonGrayImage
-pyCrackConnectionImage(vigra::PythonImage const &labels)
+pyCrackConnectionImage(vigra::PythonSingleBandImage const &labels)
 {
     vigra::PythonGrayImage result(labels.size() + vigra::Diff2D(1, 1));
     crackConnectionImage(srcImageRange(labels), destImage(result));
@@ -70,6 +70,17 @@ pyCrackConnectionImage(vigra::PythonImage const &labels)
             row[vigra::Diff2D(1, 0)] = (int)row[vigra::Diff2D(1, 0)] | 4;
 
     return result;
+}
+
+#include "crackedgemap.hxx"
+
+std::auto_ptr<GeoMap>
+pyCrackEdgeGraph(vigra::PythonSingleBandImage const &labels,
+                 bool eightConnectedRegions)
+{
+    CrackEdgeMapGenerator cemg(
+        srcImageRange(labels), eightConnectedRegions);
+    return cemg.result;
 }
 
 unsigned int pyRemoveEdges(GeoMap &map, bp::list edgeLabels)
@@ -137,6 +148,8 @@ void defMapUtils()
         "crackConnectionImage(labelImage)\n\n"
         "Tranform a region image into an image with crack connections marked.\n"
         "(Bit 1: connected to the right, bit 2: connected downwards)");
+    def("crackEdgeGraph", &pyCrackEdgeGraph,
+        (arg("labelImage"), arg("eightConnectedRegions") = true));
 
     def("removeEdges", &pyRemoveEdges,
         args("map", "edgeLabels"));
