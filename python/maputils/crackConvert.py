@@ -1,17 +1,11 @@
-import sys, time
+import sys, time, copy
 from hourglass import GeoMap, crackConnectionImage
-from vigra import meshIter
+import vigra
 from flag_constants import BORDER_PROTECTION
 import maputils
 import progress
 
 __all__ = ["crackEdgeMap", "crackEdgeGraph"]
-
-# FIXME: 8-connected regions with holes (see testcase)
-# (details: normally, every upper left corner is considered to be a
-# node, but a holes' upper left corner may be a 4-junction which has
-# explicitly been marked as degree 2 position, such that no start/end
-# for the hole exists)
 
 # --------------------------------------------------------------------
 #                              FRONTEND
@@ -26,17 +20,17 @@ def crackEdgeMap(labelImage, initLabelImage = True,
         progressHook = progress.ProgressHook(msg))
     msg.finish()
 
-    sys.stdout.write("  removing deg.2 nodes..."); c1 = time.clock()
+    msg = progress.StatusMessage("  removing deg.2 nodes")
     maputils.mergeDegree2Nodes(result)
-    sys.stdout.write(" (%ss)\n" % (time.clock()-c1, ))
+    msg.finish()
 
-    sys.stdout.write("  sorting edges..."); c1 = time.clock()
+    msg = progress.StatusMessage("  sorting edges")
     result.sortEdgesDirectly()
-    sys.stdout.write(" (%ss)\n" % (time.clock()-c1, ))
+    msg.finish()
 
-    sys.stdout.write("  initializing faces..."); c1 = time.clock()
+    msg = progress.StatusMessage("  initializing faces")
     result.initializeMap(initLabelImage)
-    sys.stdout.write(" (%ss)\n" % (time.clock()-c1, ))
+    msg.finish()
     
     # mark the border edges:
     assert result.face(0).holeCount() == 1, "infinite face should have exactly one contour, not %d!?" % result.face(0).holeCount()
@@ -53,13 +47,27 @@ def crackEdgeMap(labelImage, initLabelImage = True,
 #                          helper functions
 # --------------------------------------------------------------------
 
-from vigra import GrayImage, Vector2, Point2D, Size2D, Rect2D
+from vigra import GrayImage, Vector2, Point2D, Size2D
 from hourglass import Polygon
 
 CONN_RIGHT = 1
 CONN_DOWN = 2
 CONN_LEFT = 4
 CONN_UP = 8
+CONN_ALL4 = 15
+_debugConn = {
+    1 : "right",
+    2 : "down",
+    4 : "left",
+    8 : "up"}
+
+CONN_DIAG_UPLEFT = 16
+CONN_DIAG_UPRIGHT = 32
+CONN_DIAG = CONN_DIAG_UPLEFT | CONN_DIAG_UPRIGHT
+
+CONN_NODE = 64
+CONN_MAYBE_NODE = 128
+CONN_ANYNODE = CONN_NODE | CONN_MAYBE_NODE
 
 connections = [CONN_RIGHT, CONN_UP, CONN_LEFT, CONN_DOWN]
 
@@ -71,9 +79,11 @@ for conn in connections:
 
 # extend degree LUT for special handling of 8-connected regions:
 degree = degree + degree
-degree[31] = 2
+degree[CONN_ALL4 + CONN_DIAG_UPLEFT] = 2
 degree = degree + degree
-degree[47] = 2
+degree[CONN_ALL4 + CONN_DIAG_UPRIGHT] = 2
+degree = degree + degree
+degree = degree + degree
 
 def pyCrackConnectionImage(labelImage):
     result = GrayImage(labelImage.size()+Size2D(1,1))
@@ -113,37 +123,62 @@ def pyCrackConnectionImage(labelImage):
 
     return result
 
+DIR_EAST   = 0
+DIR_NORTH  = 1
+DIR_WEST   = 2
+DIR_SOUTH  = 3
 _dirOffset = [Size2D(1, 0), Size2D(0, -1), Size2D(-1, 0), Size2D(0, 1)]
 _dirVector = [Vector2(1, 0), Vector2(0, -1), Vector2(-1, 0), Vector2(0, 1)]
 _turnRight = [3, 0, 1, 2]
 _turnLeft  = [1, 2, 3, 0]
-
-# for extracting loops, we add nodes at every upper left corner:
-def isNode(connValue):
-    return degree[connValue] > 2 or connValue == (CONN_RIGHT | CONN_DOWN)
+_debugDir  = ("east", "north", "west", "south")
 
 def followEdge(crackConnectionImage, pos, direction):
     """Follow edge starting at `pos` in `direction` until
-    crackConnectionImage[pos] fulfills `isNode`."""
+    crackConnectionImage[pos] has the CONN_NODE bit set, or until we
+    arrive at `pos` again (self-loop).  Any CONN_MAYBE_NODE bits along
+    the way are cleared."""
     pos = Point2D(pos[0], pos[1])
     vPos = Vector2(pos[0] - 0.5, pos[1] - 0.5)
     result = Polygon([vPos])
 
+    startPos = copy.copy(pos)
     while True:
         vPos += _dirVector[direction]
         result.append(vPos)
         pos += _dirOffset[direction]
 
-        connection = int(crackConnectionImage[pos])
-        if connection >= 16:
-            if connection & 16 and direction in (1, 3):
-                direction = _turnLeft[direction]
-                continue
-            elif connection & 32 and direction in (0, 2):
-                direction = _turnLeft[direction]
-                continue
-        elif isNode(connection):
+        if pos == startPos:
             break
+
+        connection = int(crackConnectionImage[pos])
+        if connection & CONN_DIAG:
+            if connection & CONN_DIAG_UPLEFT:
+                turnLeft = direction in (DIR_NORTH, DIR_SOUTH)
+            else:
+                turnLeft = direction in (DIR_EAST, DIR_WEST)
+
+            connection &= ~connections[(direction+2)%4]
+
+            if turnLeft:
+                direction = _turnLeft[direction]
+            else:
+                direction = _turnRight[direction]
+
+            connection &= ~connections[direction]
+
+            if not connection & CONN_ALL4:
+                connection &= ~CONN_MAYBE_NODE
+                
+            crackConnectionImage[pos] = connection
+            continue
+        elif connection & CONN_NODE:
+            break
+
+        if connection & CONN_MAYBE_NODE:
+            # we simply pass over it, but we do not want to start a
+            # new edge here during further down in the process:
+            crackConnectionImage[pos] = connection & ~CONN_MAYBE_NODE
 
         direction = _turnRight[direction]
         while connection & connections[direction] == 0:
@@ -160,33 +195,54 @@ def crackEdgeGraph(labelImage, eightConnectedRegions = True,
     if eightConnectedRegions:
         for y in range(1, cc.height()-1):
           for x in range(1, cc.width()-1):
-            if cc[x,y] == 15:
+            if cc[x,y] == CONN_ALL4:
                 if labelImage[x,y] == labelImage[x-1,y-1]:
-                    cc[x,y] += 16
+                    cc[x,y] += CONN_DIAG_UPLEFT
                 if labelImage[x-1,y] == labelImage[x,y-1]:
-                    cc[x,y] += 32
-                if cc[x,y] == 15+16+32: # crossing regions?
+                    cc[x,y] += CONN_DIAG_UPRIGHT
+
+                # crossing regions?
+                if cc[x,y] == CONN_ALL4 + CONN_DIAG_UPLEFT + CONN_DIAG_UPRIGHT:
+                    # preserve connectedness of higher label:
                     if labelImage[x,y-1] > labelImage[x-1,y-1]:
-                        cc[x,y] -= 16
+                        cc[x,y] -= CONN_DIAG_UPLEFT
                     else:
-                        cc[x,y] -= 32
+                        cc[x,y] -= CONN_DIAG_UPRIGHT
+
+    for y in range(cc.height()):
+        for x in range(cc.width()):
+            conn = int(cc[x,y])
+            if degree[conn] > 2:
+                cc[x,y] = conn | CONN_NODE
+            elif conn & CONN_ALL4 == (CONN_RIGHT | CONN_DOWN):
+                cc[x,y] = conn | CONN_MAYBE_NODE
+            if conn & CONN_DIAG:
+                cc[x,y] = conn | CONN_MAYBE_NODE
     
     nodeImage = GrayImage(cc.size())
+    # nodeImage encoding: each pixel's higher 28 bits encode the
+    # (label + 1) of a node that has been inserted into the resulting
+    # GeoMap at the corresponding position (+1 because zero is a valid
+    # node label), while the lower 4 bits encode the four CONN_
+    # directions in which a GeoMap edge is already connected to this
+    # node
 
     progressHook = progressHook and progressHook.rangeTicker(cc.height())
 
-    for y in range(cc.height()):
+    for startAt in (CONN_NODE, CONN_MAYBE_NODE):
+     for y in range(cc.height()):
       if progressHook:
           progressHook()
       for x in range(cc.width()):
         nodeConn = int(cc[x, y])
-        if isNode(nodeConn):
+        if nodeConn & startAt:
             startNodeInfo = int(nodeImage[x, y])
             if startNodeInfo:
-                startNode = result.node(startNodeInfo >> 4)
+                startNode = result.node((startNodeInfo >> 4) - 1)
             else:
                 startNode = result.addNode((x - 0.5, y - 0.5))
-                nodeImage[x, y] = startNodeInfo = startNode.label() << 4
+                nodeImage[x, y] = startNodeInfo = \
+                                  (startNode.label() + 1) << 4
 
             for direction, startConn in enumerate(connections):
                 if nodeConn & startConn and not startNodeInfo & startConn:
@@ -195,10 +251,10 @@ def crackEdgeGraph(labelImage, eightConnectedRegions = True,
                     endNodeInfo = int(nodeImage[endPos])
                     if not endNodeInfo:
                         endNode = result.addNode((endPos[0] - 0.5, endPos[1] - 0.5))
-                        endNodeInfo = endNode.label() << 4
+                        endNodeInfo = (endNode.label() + 1) << 4
                     else:
                         assert not endNodeInfo & endConn, "double connection?"
-                        endNode = result.node(endNodeInfo >> 4)
+                        endNode = result.node((endNodeInfo >> 4) - 1)
 
                     edge = result.addEdge(startNode, endNode, edge)
 
@@ -216,7 +272,7 @@ def showDegrees(crackConnectionImage):
     degreeImage = GrayImage(crackConnectionImage.size())
     for p in crackConnectionImage.size():
         degreeImage[p] = degree[int(crackConnectionImage[p])]
-    return showImage(degreeImage)
+    return vigra.showImage(degreeImage)
 
 if __name__ == "__main__":
     import unittest
@@ -253,11 +309,24 @@ if __name__ == "__main__":
             self.assertEqual(cem.faceCount, 4) # as above, plus one hole
 
         def testHeadlineMap(self):
-            from vigra import readImage
-            labels = readImage("headline.png")[0]
+            labels = vigra.readImage("headline.png")[0]
             cem = crackEdgeMap(labels)
             self.assertEqual(cem.nodeCount, 11)
             self.assertEqual(cem.edgeCount, 13)
             self.assertEqual(cem.faceCount, 11)
+
+        def testComplexImage(self):
+            labels = vigra.labelImageWithBackground8(
+                vigra.readImage("crackConvert-test1.png")[0], 0)[0]
+            cem = crackEdgeMap(labels)
+            self.assertEqual(cem.faceCount, 26)
+
+        def testCrackConnectionImage(self):
+            labels = vigra.labelImageWithBackground8(
+                vigra.readImage("crackConvert-test1.png")[0], 0)[0]
+            cc = crackConnectionImage(labels)
+            cc_ref = vigra.readImage("crackConvert-test1cc.png")
+            self.assertEqual(
+                vigra.inspectImage(cc - cc_ref, vigra.MinMax()).max(), 0)
 
     sys.exit(unittest.main())
