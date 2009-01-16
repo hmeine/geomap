@@ -103,6 +103,9 @@ class GeoMap
     typedef CELL_PTR(Node) NodePtr;
     typedef CELL_PTR(Edge) EdgePtr;
     typedef CELL_PTR(Face) FacePtr;
+    typedef CELL_PTR(const Node) ConstNodePtr;
+    typedef CELL_PTR(const Edge) ConstEdgePtr;
+    typedef CELL_PTR(const Face) ConstFacePtr;
 
     typedef std::vector<NodePtr> Nodes;
     typedef std::vector<EdgePtr> Edges;
@@ -196,7 +199,7 @@ class GeoMap
         { return NodeIterator(nodes_.begin(), nodes_.end()); }
     NodeIterator nodesEnd()
         { return NodeIterator(nodes_.end(), nodes_.end()); }
-    CELL_PTR(Node) node(CellLabel label)
+    NodePtr node(CellLabel label)
     {
         vigra_precondition(label < nodes_.size(), "invalid node label!");
         return nodes_[label];
@@ -205,7 +208,7 @@ class GeoMap
         { return ConstNodeIterator(nodes_.begin(), nodes_.end()); }
     ConstNodeIterator nodesEnd() const
         { return ConstNodeIterator(nodes_.end(), nodes_.end()); }
-    CELL_PTR(const Node) node(CellLabel label) const
+    ConstNodePtr node(CellLabel label) const
     {
         vigra_precondition(label < nodes_.size(), "invalid node label!");
         return nodes_[label];
@@ -215,7 +218,7 @@ class GeoMap
         { return EdgeIterator(edges_.begin(), edges_.end()); }
     EdgeIterator edgesEnd()
         { return EdgeIterator(edges_.end(), edges_.end()); }
-    CELL_PTR(Edge) edge(CellLabel label)
+    EdgePtr edge(CellLabel label)
     {
         vigra_precondition(label < edges_.size(), "invalid edge label!");
         return edges_[label];
@@ -224,7 +227,7 @@ class GeoMap
         { return ConstEdgeIterator(edges_.begin(), edges_.end()); }
     ConstEdgeIterator edgesEnd() const
         { return ConstEdgeIterator(edges_.end(), edges_.end()); }
-    CELL_PTR(const Edge) edge(CellLabel label) const
+    ConstEdgePtr edge(CellLabel label) const
     {
         vigra_precondition(label < edges_.size(), "invalid edge label!");
         return edges_[label];
@@ -234,7 +237,7 @@ class GeoMap
         { return FaceIterator(faces_.begin(), faces_.end()); }
     FaceIterator facesEnd()
         { return FaceIterator(faces_.end(), faces_.end()); }
-    CELL_PTR(Face) face(CellLabel label)
+    FacePtr face(CellLabel label)
     {
         vigra_precondition(label < faces_.size(), "invalid face label!");
         return faces_[label];
@@ -243,14 +246,14 @@ class GeoMap
         { return ConstFaceIterator(faces_.begin(), faces_.end()); }
     ConstFaceIterator facesEnd() const
         { return ConstFaceIterator(faces_.end(), faces_.end()); }
-    CELL_PTR(const Face) face(CellLabel label) const
+    ConstFacePtr face(CellLabel label) const
     {
         vigra_precondition(label < faces_.size(), "invalid face label!");
         return faces_[label];
     }
 
     inline Dart dart(int label);
-    CELL_PTR(Face) faceAt(const vigra::Vector2 &position);
+    FacePtr faceAt(const vigra::Vector2 &position);
 
     CellLabel nodeCount() const { return nodeCount_; }
     CellLabel maxNodeLabel() const { return nodes_.size(); }
@@ -264,13 +267,13 @@ class GeoMap
         return imageSize_;
     }
 
-    CELL_PTR(Node) addNode(const vigra::Vector2 &position);
-    CELL_PTR(Node) addNode(const vigra::Vector2 &position, CellLabel label);
-    CELL_PTR(Edge) addEdge(const SigmaAnchor &startNeighbor,
+    NodePtr addNode(const vigra::Vector2 &position);
+    NodePtr addNode(const vigra::Vector2 &position, CellLabel label);
+    EdgePtr addEdge(const SigmaAnchor &startNeighbor,
                            const SigmaAnchor &endNeighbor,
                            const Vector2Array &points, CellLabel label = 0);
     // will always return NULL if !mapInitialized():
-    CELL_PTR(Face) removeEdge(Dart &dart);
+    FacePtr removeEdge(Dart &dart);
 
     void sortEdgesDirectly();
 
@@ -336,7 +339,7 @@ class GeoMap
     void detachDart(int dartLabel);
 
   public:
-    CELL_PTR(Node) nearestNode(
+    NodePtr nearestNode(
         const vigra::Vector2 &position,
         double maxSquaredDist = vigra::NumericTraits<double>::max());
 
@@ -347,13 +350,13 @@ class GeoMap
 
   public:
     bool removeIsolatedNode(Node &node);
-    CELL_PTR(Edge) mergeEdges(const Dart &dart);
-    CELL_PTR(Edge) splitEdge(Edge &edge, unsigned int segmentIndex);
-    CELL_PTR(Edge) splitEdge(Edge &edge, unsigned int segmentIndex,
+    EdgePtr mergeEdges(const Dart &dart);
+    EdgePtr splitEdge(Edge &edge, unsigned int segmentIndex);
+    EdgePtr splitEdge(Edge &edge, unsigned int segmentIndex,
                              const vigra::Vector2 &newPoint,
                              bool insertPoint = true);
-    CELL_PTR(Face) removeBridge(const Dart &dart);
-    CELL_PTR(Face) mergeFaces(const Dart &dart);
+    FacePtr removeBridge(const Dart &dart);
+    FacePtr mergeFaces(const Dart &dart);
 
         // callbacks using libsigc++ <http://libsigc.sourceforge.net/>:
     sigc::signal<bool, Node &>::accumulated<interruptable_accumulator>
@@ -640,7 +643,7 @@ class GeoMap::Edge
 
 class DartPointIter
 {
-    CELL_PTR(GeoMap::Edge) edge_;
+    GeoMap::EdgePtr edge_;
     int index_, inc_, end_;
 
   public:
@@ -737,7 +740,7 @@ class GeoMap::Dart
     }
 
     friend class Face; // allow internalLeftFaceLabel in Face constructor
-    friend CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(const Dart &);
+    friend GeoMap::FacePtr GeoMap::mergeFaces(const Dart &);
 
   public:
     Dart(GeoMap *map, int label)

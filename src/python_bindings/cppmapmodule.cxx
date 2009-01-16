@@ -15,7 +15,7 @@
 #include <boost/python/detail/api_placeholder.hpp>
 namespace bp = boost::python;
 
-CELL_PTR(GeoMap::Edge) pySplitEdge(
+GeoMap::EdgePtr pySplitEdge(
     GeoMap &geomap, GeoMap::Edge &edge, unsigned int segmentIndex,
     bp::object newPoint)
 {
@@ -450,8 +450,8 @@ createGeoMap(bp::list nodePositions,
                     "GeoMap.__init__: edge geometry not convertable to Vector2Array");
             CellLabel startNodeLabel = bp::extract<CellLabel>(edgeTuple[0])();
             CellLabel endNodeLabel   = bp::extract<CellLabel>(edgeTuple[1])();
-            CELL_PTR(GeoMap::Node) startNode(result->node(startNodeLabel));
-            CELL_PTR(GeoMap::Node) endNode(result->node(endNodeLabel));
+            GeoMap::NodePtr startNode(result->node(startNodeLabel));
+            GeoMap::NodePtr endNode(result->node(endNodeLabel));
             vigra_precondition(
                 startNode && endNode, "invalid start- or endNodeLabel!");
             result->addEdge(*startNode, *endNode, pe(), i);
@@ -461,13 +461,13 @@ createGeoMap(bp::list nodePositions,
     return result;
 }
 
-CELL_PTR(GeoMap::Edge) addEdgeBackwardCompatibility(
+GeoMap::EdgePtr addEdgeBackwardCompatibility(
     GeoMap &geomap,
     CellLabel startNodeLabel, CellLabel endNodeLabel,
     const Vector2Array &points, CellLabel label)
 {
     std::cerr << "API warning: addEdge() now takes Node objects, not labels!\n";
-    CELL_PTR(GeoMap::Node)
+    GeoMap::NodePtr
         startNode(geomap.node(startNodeLabel)),
         endNode(geomap.node(endNodeLabel));
     vigra_precondition(
@@ -838,21 +838,21 @@ void defMap()
                       arg("imageSize") = vigra::Size2D(0, 0))))
             .def("__copy__", &generic__copy__<GeoMap>)
             .def("__deepcopy__", &generic__deepcopy__<GeoMap>)
-            .def("node", (CELL_PTR(GeoMap::Node)(GeoMap::*)(CellLabel))&GeoMap::node, crp,
+            .def("node", (GeoMap::NodePtr(GeoMap::*)(CellLabel))&GeoMap::node, crp,
                  "node(label) -> Node\n\n"
                  "Return Node object for the given label.")
             .def("nodeIter", (GeoMap::NodeIterator(GeoMap::*)())&GeoMap::nodesBegin,
                  "Iterates over all existing nodes.\n\n"
                  ">>> for node in amap.nodeIter():\n"
                  "...     print node.label(), node.degree(), node.anchor()")
-            .def("edge", (CELL_PTR(GeoMap::Edge)(GeoMap::*)(CellLabel))&GeoMap::edge, crp,
+            .def("edge", (GeoMap::EdgePtr(GeoMap::*)(CellLabel))&GeoMap::edge, crp,
                  "edge(label) -> Edge\n\n"
                  "Return Edge object for the given label.")
             .def("edgeIter", (GeoMap::EdgeIterator(GeoMap::*)())&GeoMap::edgesBegin,
                  "Iterates over all existing edges.\n\n"
                  ">>> for edge in amap.edgeIter():\n"
                  "...     print \"Edge %d has %d points\" % len(edge)")
-            .def("face", (CELL_PTR(GeoMap::Face)(GeoMap::*)(CellLabel))&GeoMap::face, crp,
+            .def("face", (GeoMap::FacePtr(GeoMap::*)(CellLabel))&GeoMap::face, crp,
                  "face(label) -> Face\n\n"
                  "Return Face object for the given label.")
             .def("faceIter", &faceIter, arg("skipInfinite") = false,
@@ -890,11 +890,11 @@ void defMap()
                  "imageSize() -> Size2D\n\n"
                  "Return the image size (as passed to __init__).\n"
                  "If the map has a labelImage, this is its size.")
-            .def("addNode", (CELL_PTR(GeoMap::Node) (GeoMap::*)(const vigra::Vector2 &))&GeoMap::addNode, crp, args("position"),
+            .def("addNode", (GeoMap::NodePtr (GeoMap::*)(const vigra::Vector2 &))&GeoMap::addNode, crp, args("position"),
                  "addNode(position) -> Node\n\n"
                  "Add node at the given position and return the new Node\n"
                  "object.")
-            .def("addNode", (CELL_PTR(GeoMap::Node) (GeoMap::*)(const vigra::Vector2 &, CellLabel))&GeoMap::addNode, crp, args("position", "label"))
+            .def("addNode", (GeoMap::NodePtr (GeoMap::*)(const vigra::Vector2 &, CellLabel))&GeoMap::addNode, crp, args("position", "label"))
             .def("addEdge", &addEdgeBackwardCompatibility, crp,
                  (arg("startNodeLabel"), arg("endNodeLabel"),
                   arg("points"), arg("label") = 0),
@@ -1300,9 +1300,9 @@ void defMap()
         register_ptr_to_python< std::auto_ptr<AlphaOrbitIterator> >();
 
 #ifndef USE_INSECURE_CELL_PTRS
-        register_ptr_to_python< CELL_PTR(GeoMap::Node) >();
-        register_ptr_to_python< CELL_PTR(GeoMap::Edge) >();
-        register_ptr_to_python< CELL_PTR(GeoMap::Face) >();
+        register_ptr_to_python< GeoMap::NodePtr >();
+        register_ptr_to_python< GeoMap::EdgePtr >();
+        register_ptr_to_python< GeoMap::FacePtr >();
 #endif
 
         class_<SimpleCallback>("SimpleCallback",
