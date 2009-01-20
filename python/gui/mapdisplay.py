@@ -291,7 +291,7 @@ class MapEdges(vigrapyqt.Overlay):
         self.setEdgePoints(edge.label(), edge)
 
     def setZoom(self, zoom):
-        if self._map():
+        if self._map() and self._map().imageSize()[0]:
             zoom *= findZoomFactor(
                 self._map().imageSize()[0],
                 self.viewer.pixmap.size().width())
@@ -408,7 +408,7 @@ class MapNodes(vigrapyqt.Overlay):
         return True
 
     def setZoom(self, zoom):
-        if self._map():
+        if self._map() and self._map().imageSize()[0]:
             zoom *= findZoomFactor(
                 self._map().imageSize()[0],
                 self.viewer.pixmap.size().width())
