@@ -262,7 +262,8 @@ class FigExporter:
             pp = simplifyPolygon(pp, simplifyEpsilon)
         fp = figClass([intPos(v) for v in pp], closed = pp[0] == pp[-1])
         for a in attr:
-            setattr(fp, a, attr[a])
+            if a != "offset":
+                setattr(fp, a, attr[a])
         container.append(fp)
         return fp
 
@@ -360,7 +361,8 @@ class FigExporter:
             p = intPos((Vector2(point[0], point[1]) + o2) * self.scale)
             dc = fig.Circle(p, radius*self.scale)
             for a in attr:
-                setattr(dc, a, attr[a])
+                if a != "offset":
+                    setattr(dc, a, attr[a])
             if returnIndices:
                 result.append((i, dc))
             compound.append(dc)
@@ -432,6 +434,8 @@ class FigExporter:
         edges = edgeOverlay.originalEdges
         attr = dict(attr)
         self._setOverlayColor(edgeOverlay, "penColor", attr)
+        attr["offset"] = Vector2(edgeOverlay.offset[0] - 0.5,
+                                 edgeOverlay.offset[1] - 0.5)
 
         result = fig.Compound(container)
         for edge in edges:
