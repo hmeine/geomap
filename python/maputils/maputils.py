@@ -1991,19 +1991,32 @@ def waterfall(map, edgeCosts, mst = None):
     applyFaceClassification(map, faceLabels)
     print "  total waterfall() time: %ss." % (time.clock() - c, )
 
-def dualMap(map, edgeLabels = None, midPoints = None):
+def dualMap(map, edgeLabels = None, nodePositions = None, midPoints = None):
     """Compute (a subset of) the dual of a GeoMap.
     `edgeLabels` determines which edges appear in the result.
     If None (default), the complete dual map is returned.
-    Note that the nodes are located at the centroids of the faces,
-    which is only a heuristic."""
+
+    `nodePositions` determines the position of each node; be default
+    (nodePositions == None), that the nodes are located at the
+    centroids of the faces as a simple heuristic.
+
+    `midPoints` determines whether connecting edges should be straight
+    connections (i.e. 2 points, midPoints = False) or have an extra
+    point in the middle of their dual edges.  Default (midPoints ==
+    None): Add midpoints for edges which otherwise do not intersect
+    their duals."""
 
     result = hourglass.GeoMap(map.imageSize())
 
+    if nodePositions is None:
+        nodePositions = mapValidFaces(lambda face: hourglass.centroid(
+            hourglass.contourPoly(face.contour())), map)
+
     nodes = [None] * map.maxFaceLabel()
     for face in map.faceIter(skipInfinite = True):
-        nodes[face.label()] = result.addNode(hourglass.centroid(
-            hourglass.contourPoly(face.contour())), label = face.label())
+        l = face.label()
+        if nodePositions[l] is not None:
+            nodes[l] = result.addNode(nodePositions[l], label = l)
 
     if edgeLabels is None:
         edgeLabels = map.edgeIter()
