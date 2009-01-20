@@ -404,6 +404,7 @@ class Workspace(mapdisplay.MapDisplay):
         self._levelSlider.setRange(
             0, result.faceCount - self._estimatedApexFaceCount)
         self._levelSlider.blockSignals(False)
+        p.finish()
         return result
 
     def faceMeans(self, map):
@@ -423,6 +424,10 @@ class Workspace(mapdisplay.MapDisplay):
             stats = statistics.FaceColorStatistics(map, img)
             stats.image = img
             setattr(map, attr, stats)
+
+            # let MapDisplay make use of attr 'faceMeans' if applicable:
+            # FIXME - 'map' != self.map here, so the action stays disabled..
+            self._enableImageActions()
         return getattr(map, attr)
 
     def edgeGradients(self, map, quantiles = False):
@@ -546,11 +551,7 @@ class Workspace(mapdisplay.MapDisplay):
             return
         p = float(levelIndex) / self._levelSlider.maxValue()
         if self._sliderCosts:
-            maxCost = self._sliderCosts[-1] * p
-            for i, c in enumerate(self._sliderCosts):
-                if c > maxCost:
-                    self.displayLevel(levelIndex = max(0, i-1))
-                    break
+            self.displayLevel(cost = self._sliderCosts[-1] * p)
         else:
             self.displayLevel(
                 levelIndex = int(p**0.2 * self._levelSlider.maxValue()))
@@ -558,6 +559,7 @@ class Workspace(mapdisplay.MapDisplay):
     def _updateLevelSlider(self):
         self._levelSlider.blockSignals(True)
         if self._sliderMode == 0:
+            # FIXME: why not level0.faceCount - map.faceCount?
             self._levelSlider.setValue(
                 self._levelSlider.maxValue() -
                 (self.map.faceCount - self._estimatedApexFaceCount))
@@ -569,8 +571,12 @@ class Workspace(mapdisplay.MapDisplay):
         self.displayLevel(faceCount = self.map.faceCount + faceCountOffset,
                           force = True)
 
+    def displayedLevelIndex(self):
+        # FIXME: quick hack, this API is needed, impl unsure:
+        return self._levelSlider.value()
+
     def displayLevel(self, levelIndex = None, faceCount = None,
-                     force = False):
+                     cost = None, force = False):
         """Display the specified level with the desired number of faces.
 
         If `faceCount` is not given, `levelIndex` must be given and
@@ -581,9 +587,18 @@ class Workspace(mapdisplay.MapDisplay):
         nothing happens if the number of faces is already the desired
         one)."""
 
-        assert (levelIndex is None) != (faceCount is None), \
-               "displayLevel: give exactly one of levelIndex or faceCount!"
+        assert (levelIndex is not None) + \
+               (faceCount is not None) + \
+               (cost is not None) == 1, \
+               "displayLevel: give exactly one of levelIndex, faceCount, or cost!"
         if faceCount is None:
+            if cost is not None:
+                # FIXME: bisect?
+                for i, c in enumerate(self._costLog):
+                    if c > cost:
+                        levelIndex = max(0, i-1)
+                        break
+
             faceCount = (self._levelSlider.maxValue() -
                          (levelIndex - self._estimatedApexFaceCount))
 
@@ -592,6 +607,7 @@ class Workspace(mapdisplay.MapDisplay):
 
 #         print "trying to reach faceCount %d, having %d now..." % (
 #             faceCount, self.map.faceCount)
+
         if not self._pyramidCK or faceCount > self.map.faceCount:
             map = self.manualBaseMap()
             if faceCount < map.faceCount:
@@ -599,6 +615,7 @@ class Workspace(mapdisplay.MapDisplay):
             self.setMap(map)
         elif faceCount < self.map.faceCount:
             self.pyramidCK().applyToFaceCount(self.map, faceCount)
+            self._updateLevelSlider()
 
     def pyramidCK(self):
         if not self._pyramidCK:
