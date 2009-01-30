@@ -1563,6 +1563,52 @@ def extractContractionKernel(map):
     return result
 
 # --------------------------------------------------------------------
+#                   geometrical utility functions
+# --------------------------------------------------------------------
+
+from hourglass import centroid, contourPoly
+
+def pointInFace(face, level = 2):
+    """Given a face, return a point for which face.contains(point)
+    returns True.  One possible use for this may be to save a
+    classification of GeoMap Faces such that it can be applied to
+    another GeoMap with different face labels, or even with slightly
+    changed boundary geometry."""
+    
+    sl = face.scanLines()
+    for y in range(sl.startIndex(), sl.endIndex()):
+        inside = 0
+        x = 0
+        for seg in sl[y]:
+            if inside and x < seg.begin:
+                return vigra.Vector2(x, y)
+            x = seg.end
+            inside += seg.direction
+
+    result = hourglass.centroid(hourglass.contourPoly(face.contour()))
+    if face.contains(result):
+        return result
+
+    import numpy
+
+    def subsampledPoint(face, level = 2):
+        result = []
+        bbox = face.boundingBox()
+        midPoint = (bbox.begin() + bbox.end())/2
+        xRange = numpy.arange(bbox.begin()[0], bbox.end()[0], 1.0/level)
+        for y in numpy.arange(bbox.begin()[1], bbox.end()[1], 1.0/level):
+            for x in xRange:
+                p = vigra.Vector2(x, y)
+                if face.contains(p):
+                    result.append(((p-midPoint).squaredMagnitude(), p))
+        if not result:
+            return _pointInHole(face, level+1)
+        result.sort()
+        return result[0][1]
+
+    return subsampledPoint(face)
+
+# --------------------------------------------------------------------
 #                   topological utility functions
 # --------------------------------------------------------------------
 
