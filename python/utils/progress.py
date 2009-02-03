@@ -50,7 +50,7 @@ def progressIter(progressHook, sequence, l = None):
 
 # --------------------------------------------------------------------
 
-import sys, time
+import sys, time, weakref
 
 _messages = []
 _level = 1
@@ -64,7 +64,7 @@ class StatusMessage(object):
         self._stream = stream
 
         global _messages, _level
-        _messages.append(self)
+        _messages.append(weakref.ref(self))
         if len(_messages) > _level:
             stream.write("\n")
         _level = len(_messages)
@@ -92,7 +92,7 @@ class StatusMessage(object):
 
     def stopStart(self, newMessage):
         self.finish()
-        _messages.append(self)
+        _messages.append(weakref.ref(self))
         self._start(newMessage)
 
     def totalTime(self):
