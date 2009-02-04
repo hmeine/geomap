@@ -235,6 +235,8 @@ class GeoMap
 
     FaceIterator facesBegin()
         { return FaceIterator(faces_.begin(), faces_.end()); }
+    FaceIterator finiteFacesBegin()
+        { return ++facesBegin(); }
     FaceIterator facesEnd()
         { return FaceIterator(faces_.end(), faces_.end()); }
     FacePtr face(CellLabel label)
@@ -244,6 +246,8 @@ class GeoMap
     }
     ConstFaceIterator facesBegin() const
         { return ConstFaceIterator(faces_.begin(), faces_.end()); }
+    ConstFaceIterator finiteFacesBegin() const
+        { return ++facesBegin(); }
     ConstFaceIterator facesEnd() const
         { return ConstFaceIterator(faces_.end(), faces_.end()); }
     ConstFacePtr face(CellLabel label) const
@@ -302,6 +306,7 @@ class GeoMap
     void initializeMap(bool initLabelImage = true);
     bool mapInitialized() const  { return faces_.size() > 0; }
     bool hasLabelImage() const { return labelImage_; }
+    void setHasLabelImage(bool onoff);
     const LabelLUT &faceLabelLUT() const { return faceLabelLUT_; }
 
     LabelImageIterator labelsUpperLeft() const

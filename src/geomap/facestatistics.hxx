@@ -490,8 +490,8 @@ void FaceColorStatistics<OriginalImage>::ensureMinSampleCount(
         typename OriginalImage::value_type>::RealPromote FloatPixel;
     std::auto_ptr<vigra::SplineImageView<5, FloatPixel> > siv;
 
-    GeoMap::FaceIterator it = map_.facesBegin();
-    for(++it; it.inRange(); ++it)
+    for(GeoMap::FaceIterator it = map_.finiteFacesBegin();
+        it.inRange(); ++it)
     {
         if(functors_[(*it)->label()]->count() < minSampleCount)
         {

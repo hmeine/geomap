@@ -283,8 +283,7 @@ GeoMap::FacePtr GeoMap::faceAt(const vigra::Vector2 &position)
         }
     }
 
-    FaceIterator it = facesBegin();
-    for(++it; it.inRange(); ++it)
+    for(FaceIterator it = finiteFacesBegin(); it.inRange(); ++it)
         if((*it)->contains(position))
             return *it;
 
@@ -908,6 +907,57 @@ void GeoMap::initializeMap(bool initLabelImage)
     embedFaces(initLabelImage);
 }
 
+typedef vigra::MultiArray<2, int> LabelImage;
+
+void markEdgeInLabelImage(
+    const vigra::Scanlines &scanlines, LabelImage &labelImage);
+
+void GeoMap::setHasLabelImage(bool onoff)
+{
+    if(onoff == hasLabelImage())
+        return;
+
+    if(onoff)
+    {
+        vigra_precondition(imageSize_.area() > 0,
+                           "initLabelImage: imageSize must be non-zero!");
+        labelImage_ = new LabelImage(
+            LabelImage::size_type(imageSize().width(), imageSize().height()), 0);
+        faceLabelLUT_.initIdentity(faces_.size());
+
+        for(FaceIterator it = finiteFacesBegin(); it.inRange(); ++it)
+        {
+            std::auto_ptr<vigra::Scanlines> scanlines =
+                (*it)->scanLines();
+            fillScannedPoly(*scanlines, (int)(*it)->label(),
+                            destMultiArrayRange(*labelImage_));
+            (*it)->pixelArea_ = 0;
+        }
+
+        for(EdgeIterator it = edgesBegin(); it.inRange(); ++it)
+            markEdgeInLabelImage((*it)->scanLines(),
+                                 *labelImage_);
+
+        // determine pixelArea_:
+        for(GeoMap::LabelImage::traverser lrow = labelImage_->traverser_begin();
+            lrow != labelImage_->traverser_end(); ++lrow)
+        {
+            for(GeoMap::LabelImage::traverser::next_type lit = lrow.begin();
+                lit != lrow.end(); ++lit)
+            {
+                int label = *lit;
+                if(label >= 0)
+                    ++face(label)->pixelArea_;
+            }
+        }
+    }
+    else
+    {
+        delete labelImage_;
+        labelImage_ = NULL;
+    }
+}
+
 void GeoMap::initContours()
 {
     new Face(this, Dart(this, 0)); // create infinite face, dart will be ignored
@@ -936,11 +986,6 @@ struct AbsAreaCompare
         return absdiff > 0; // else, prefer face with larger absolute area
     }
 };
-
-typedef vigra::MultiArray<2, int> LabelImage;
-
-void markEdgeInLabelImage(
-    const vigra::Scanlines &scanlines, LabelImage &labelImage);
 
 void GeoMap::embedFaces(bool initLabelImage)
 {

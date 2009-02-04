@@ -1018,6 +1018,12 @@ void defMap()
                  "i.e. initializeMap(...) has already been called with\n"
                  "its initLabelImage parameter set to True (default).  Then,\n"
                  "labelImage() returns a GrayImage, else None.")
+            .def("setHasLabelImage", &GeoMap::setHasLabelImage,
+                 arg("onoff"),
+                 "setHasLabelImage(onoff)\n\n"
+                 "Retroactively add/remove a label image from this GeoMap.\n"
+                 "Note that although a `faceLabelLUT()` will also appear, it\n"
+                 "will not carry any data on past merge operations.")
             .def("faceLabelLUT", &GeoMap::faceLabelLUT,
                  return_internal_reference<>(),
                  "Return the internal LabelLUT used for the labelImage.  This can\n"
