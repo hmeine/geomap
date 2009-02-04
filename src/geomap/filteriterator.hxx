@@ -1,6 +1,6 @@
 /************************************************************************/
 /*                                                                      */
-/*          Copyright 1998-2002 by Hans Meine, Ullrich Koethe           */
+/*          Copyright 1998-2007 by Hans Meine, Ullrich Koethe           */
 /*       Cognitive Systems Group, University of Hamburg, Germany        */
 /*                                                                      */
 /*    This file is part of the VIGRA computer vision library.           */
@@ -160,6 +160,19 @@ public:
     {
         this->checkPredicate();
         return Base::operator->();
+    }
+
+    SafeFilterIterator & operator++()
+    {
+        Base::operator++();
+        return *this;
+    }
+
+    SafeFilterIterator operator++(int)
+    {
+        SafeFilterIterator ret(*this);
+        operator++();
+        return ret;
     }
 
     bool atEnd()
