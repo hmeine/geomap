@@ -117,6 +117,8 @@ class GeoMap
         ConstNodeIterator;
     typedef vigra::SafeFilterIterator<Edges::const_iterator, NotNull<Edges::value_type> >
         ConstEdgeIterator;
+    typedef vigra::SafeFilterIterator<Contours::const_iterator, NotNull<Contours::value_type> >
+        ConstContourIterator;
     typedef vigra::SafeFilterIterator<Faces::const_iterator, NotNull<Faces::value_type> >
         ConstFaceIterator;
 
@@ -237,6 +239,15 @@ class GeoMap
     ContourIterator contoursEnd()
         { return ContourIterator(contours_.end(), contours_.end()); }
     CELL_PTR(Contour) contour(CellLabel label)
+    {
+        vigra_precondition(label < contours_.size(), "invalid contour label!");
+        return contours_[label];
+    }
+    ConstContourIterator contoursBegin() const
+        { return ConstContourIterator(contours_.begin(), contours_.end()); }
+    ConstContourIterator contoursEnd() const
+        { return ConstContourIterator(contours_.end(), contours_.end()); }
+    CELL_PTR(const Contour) contour(CellLabel label) const
     {
         vigra_precondition(label < contours_.size(), "invalid contour label!");
         return contours_[label];
