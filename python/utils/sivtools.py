@@ -1,7 +1,4 @@
 # -*- coding: iso-8859-1 -*-
-_cvsVersion = "$Id$" \
-              .split(" ")[2:-2]
-
 import vigra
 
 def sivByOrder(order):

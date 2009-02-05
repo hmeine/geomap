@@ -1,6 +1,3 @@
-_cvsVersion = "$Id$" \
-              .split(" ")[2:-2]
-
 import fig, delaunay, sys, math, vigra, hourglass
 from hourglass import Polygon
 from flag_constants import BORDER_PROTECTION, ALL_PROTECTION, ALPHA_MARK

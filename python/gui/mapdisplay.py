@@ -1,6 +1,3 @@
-__version__ = "$Id$" \
-              .split()[2:-2]
-
 import sys, math, time, qt
 import fig, figexport
 import vigra, vigrapyqt

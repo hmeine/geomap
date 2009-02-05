@@ -1,6 +1,3 @@
-_cvsVersion = "$Id$" \
-              .split(" ")[2:-2]
-
 import math, string, copy, weakref
 from vigra import *
 import hourglass

@@ -31,10 +31,6 @@ barbs:
 >>> delaunay.pruneBySubtendedLength(r_cat, cdt, minLength = 10)
 """
 
-__version__ = \
-    "$Id$" \
-    .split(" ")[2:-2]
-
 import math, sys, hourglass, numpy
 #from map import GeoMap, contourPoly
 from hourglass import GeoMap, contourPoly

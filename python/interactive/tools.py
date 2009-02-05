@@ -1,8 +1,5 @@
 """tools - module with interactive GeoMap tools"""
 
-_cvsVersion = "$Id$" \
-              .split(" ")[2:-2]
-
 import sys, qt, maputils, hourglass
 from maputils import mergeFacesByLabel
 from flag_constants import FOREGROUND_FACE, BACKGROUND_FACE, SRG_SEED

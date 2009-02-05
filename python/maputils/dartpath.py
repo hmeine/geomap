@@ -1,6 +1,3 @@
-_cvsVersion = "$Id$" \
-              .split(" ")[2:-2]
-
 from hourglass import composeTangentLists, Polygon
 
 class Path(list):
