@@ -893,20 +893,29 @@ class WatershedBasinStatistics(DetachableStatistics):
             if fDepth == None or fDepth > depth:
                 self._basinDepth[face.label()] = depth
 
+        import maputils
+
         for face in map.faceIter(skipInfinite = True):
             if self._basinDepth[face.label()] == None:
-                sys.stderr.write(
-                    "Face %d (area %s, anchor %d) contains no minimum!\n" % (
-                    face.label(), face.area(), face.contour().label()))
+                isAtBorder = False
+                for dart in maputils.neighborFaces(face):
+                    if dart.rightFaceLabel() == 0:
+                        isAtBorder = True
+                        break
+                if not isAtBorder:
+                    sys.stderr.write(
+                        "Face %d (area %s, anchor %d) contains no minimum!\n" % (
+                        face.label(), face.area(), face.contour().label()))
                 level = 2
                 while level < 20: # prevent endless loop
                     level += 1
                     samples = [gmSiv[pos] for pos in superSample(face, level)]
                     if len(samples) > 10:
                         break
-                sys.stderr.write(
-                    "  (got %d samples at supersampling level %d)\n" % (
-                    len(samples), level))
+                if not isAtBorder:
+                    sys.stderr.write(
+                        "  (got %d samples at supersampling level %d)\n" % (
+                        len(samples), level))
                 if samples:
                     self._basinDepth[face.label()] = min(samples)
                     assert self._basinDepth[face.label()] != None, str(samples)
