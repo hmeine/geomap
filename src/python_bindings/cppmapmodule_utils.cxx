@@ -2,6 +2,8 @@
 #include "exporthelpers.hxx"
 #include "labellut.hxx"
 
+#include <vigra/copyimage.hxx>
+
 #include <boost/python.hpp>
 namespace bp = boost::python;
 
@@ -95,6 +97,20 @@ unsigned int pyRemoveEdges(GeoMap &map, bp::list edgeLabels)
     return removeEdges(map, cppel.begin(), cppel.end());
 }
 
+vigra::PythonGrayImage
+pyDrawLabelImage(const GeoMap &map, bool negativeEdgeLabels)
+{
+    vigra::PythonGrayImage result(map.imageSize());
+    // FIXME: why doesn't this work?!?
+//     drawLabelImage(map, result.traverser_begin(), result.shape(), result.accessor(), negativeEdgeLabels);
+    // workaround: temporary copy
+    typedef vigra::MultiArray<2, int> LabelImage;
+    LabelImage temp(result.shape());
+    drawLabelImage(map, destMultiArrayRange(temp), negativeEdgeLabels);
+    copyImage(srcImageRange(makeBasicImageView(temp)), destImage(result));
+    return result;
+}
+
 /********************************************************************/
 
 void defMapUtils()
@@ -168,4 +184,6 @@ void defMapUtils()
         "removeBridges(map) -> int\n\n"
         "Remove all bridges within map and returns the number of\n"
         "successful operations (= bridges removed).");
+
+    def("drawLabelImage", &pyDrawLabelImage);
 }

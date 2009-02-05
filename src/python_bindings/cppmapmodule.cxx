@@ -869,7 +869,7 @@ void defMap()
                  "negative dart labels correspond to the opposite half-edge\n"
                  "(meaning that Darts with negative labels start at the end of\n"
                  "the corresponding edge).")
-            .def("faceAt", &GeoMap::faceAt, crp)
+            .def("faceAt", (GeoMap::FacePtr (GeoMap::*)(const vigra::Vector2 &))&GeoMap::faceAt, crp)
             .add_property("nodeCount", &GeoMap::nodeCount,
                           "Return the number of nodes in this graph/map.")
             .add_property("edgeCount", &GeoMap::edgeCount,

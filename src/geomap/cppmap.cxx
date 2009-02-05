@@ -290,6 +290,29 @@ GeoMap::FacePtr GeoMap::faceAt(const vigra::Vector2 &position)
     return face(0);
 }
 
+GeoMap::ConstFacePtr GeoMap::faceAt(const vigra::Vector2 &position) const
+{
+    vigra_precondition(mapInitialized(),
+        "faceAt() called on graph (mapInitialized() == false)!");
+
+    if(labelImage_)
+    {
+        GeoMap::LabelImage::difference_type p(detail::intVPos(position));
+        if(labelImage_->isInside(p))
+        {
+            int faceLabel = (*labelImage_)[p];
+            if(faceLabel > 0)
+                return face(faceLabelLUT_[faceLabel]);
+        }
+    }
+
+    for(ConstFaceIterator it = finiteFacesBegin(); it.inRange(); ++it)
+        if((*it)->contains(position))
+            return *it;
+
+    return face(0);
+}
+
 GeoMap::NodePtr GeoMap::addNode(
     const vigra::Vector2 &position)
 {

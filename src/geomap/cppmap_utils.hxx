@@ -2,6 +2,7 @@
 #define CPPMAP_UTILS_HXX
 
 #include "cppmap.hxx"
+#include "vigra/polygon.hxx"
 #include <boost/utility.hpp>
 #include <vector>
 #include <list>
@@ -266,6 +267,54 @@ unsigned int removeEdges(
     result += removeIsolatedNodes(map); // FIXME: depend on allowIsolatedNodes
     result += mergeDegree2Nodes(map);
     return result;
+}
+
+template<class DestIterator, class SizeType, class DestAccessor>
+void drawLabelImage(const GeoMap &geomap,
+                    DestIterator dul, SizeType ds, DestAccessor a,
+                    bool negativeEdgeLabels = true)
+{
+    for(GeoMap::ConstFaceIterator
+            it = geomap.finiteFacesBegin(); it.inRange(); ++it)
+    {
+        std::auto_ptr<vigra::Scanlines> scanlines =
+            (*it)->scanLines();
+        fillScannedPoly(*scanlines, (int)(*it)->label(),
+                        dul, ds, a);
+        if(negativeEdgeLabels)
+            vigra::drawScannedPoly(*(*it)->scanLines(), -1,
+                                   dul, ds, a);
+    }
+
+    if(!negativeEdgeLabels)
+    {
+        vigra::Rect2D imageROI(vigra::Size2D(ds[0], ds[1]));
+
+        for(GeoMap::ConstEdgeIterator
+                it = geomap.edgesBegin(); it.inRange(); ++it)
+        {
+            for(vigra::ScanlinesIter sit((*it)->scanLines());
+                sit.inRange(); ++sit)
+            {
+                vigra::Point2D p(*sit);
+                if(!imageROI.contains(p))
+                    continue;
+                
+                // TODO: unconditionally write negative labels above
+                // and only call faceAt for these?
+                a.set(geomap.faceAt(Vector2(p.x, p.y))->label(),
+                      dul, SizeType(p.x, p.y));
+            }
+        }
+    }
+}
+
+template<class DestIterator, class SizeType, class DestAccessor>
+void drawLabelImage(const GeoMap &geomap,
+                    vigra::triple<DestIterator, SizeType, DestAccessor> d,
+                    bool negativeEdgeLabels = true)
+{
+    return drawLabelImage(geomap, d.first, d.second, d.third, negativeEdgeLabels);
 }
 
 #endif // CPPMAP_UTILS_HXX
