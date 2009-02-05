@@ -563,8 +563,8 @@ class GeoMap::Edge
 
     CellLabel leftContourLabel() const
     {
-        vigra_precondition(leftContourLabel_ < map_->contourLabelLUT_.size(),
-                           "contourLabelLUT_ not large enough!");
+        vigra_assert(leftContourLabel_ < map_->contourLabelLUT_.size(),
+                     "contourLabelLUT_ not large enough!");
         return map_->contourLabelLUT_[leftContourLabel_];
     }
 
@@ -576,8 +576,8 @@ class GeoMap::Edge
 
     CellLabel rightContourLabel() const
     {
-        vigra_precondition(rightContourLabel_ < map_->contourLabelLUT_.size(),
-                           "contourLabelLUT_ not large enough!");
+        vigra_assert(rightContourLabel_ < map_->contourLabelLUT_.size(),
+                     "contourLabelLUT_ not large enough!");
         return map_->contourLabelLUT_[rightContourLabel_];
     }
 
@@ -1065,10 +1065,8 @@ class GeoMap::Contour : boost::noncopyable
     CellLabel            faceLabel_;
     Dart                 anchor_;
     mutable unsigned int flags_;
-    mutable double       length_;
     mutable double       area_;
 
-    static const unsigned int LENGTH_VALID = 0x8000000;
     static const unsigned int AREA_VALID   = 0x4000000;
 
     friend class GeoMap;
@@ -1108,12 +1106,7 @@ class GeoMap::Contour : boost::noncopyable
 
     double length() const
     {
-        if(!flag(LENGTH_VALID))
-        {
-            length_ = contourLength(anchor_);
-            flags_ |= LENGTH_VALID;
-        }
-        return length_;
+        return contourLength(anchor_);
     }
 
     double area() const
@@ -1238,11 +1231,9 @@ class GeoMap::Face : boost::noncopyable
     Contours             contours_;
     mutable unsigned int flags_;
     mutable BoundingBox  boundingBox_;
-    mutable double       area_;
     unsigned int         pixelArea_;
 
     static const unsigned int BOUNDING_BOX_VALID = 0x80000000;
-    static const unsigned int AREA_VALID         = 0x40000000;
 
     friend class GeoMap; // give access to pixelArea_ and contours_ (Euler ops...)
 
@@ -1320,16 +1311,10 @@ class GeoMap::Face : boost::noncopyable
 
     double area() const
     {
-        if(!flag(AREA_VALID))
-        {
-            area_ = 0.0;
-            for(unsigned int i = 0; i < contours_.size(); ++i)
-            {
-                area_ += contours_[i]->area();
-            }
-            flags_ |= AREA_VALID;
-        }
-        return area_;
+        double area = 0.0;
+        for(unsigned int i = 0; i < contours_.size(); ++i)
+            area += contours_[i]->area();
+        return area;
     }
 
     unsigned int pixelArea() const

@@ -1836,7 +1836,6 @@ CELL_PTR(GeoMap::Face) GeoMap::removeBridge(GeoMap::Dart &dart)
         else
         {
             oldContour.anchor_ = newAnchor2;
-            oldContour.length_ -= 2*dart.edge()->length();
         }
     }
     else
@@ -1844,7 +1843,6 @@ CELL_PTR(GeoMap::Face) GeoMap::removeBridge(GeoMap::Dart &dart)
         if(newAnchor2.edgeLabel() == dart.edgeLabel())
         {
             oldContour.anchor_ = newAnchor1;
-            oldContour.length_ -= 2*dart.edge()->length();
         }
         else
         {
@@ -2008,8 +2006,6 @@ CELL_PTR(GeoMap::Face) GeoMap::mergeFaces(GeoMap::Dart dart)
         survivorContour.uninitialize();
     }
 
-    if(survivor.flag(GeoMap::Face::AREA_VALID))
-        survivor.area_ += mergedFace.area();
     survivor.pixelArea_ += mergedFace.pixelArea_;
 
     if(survivor.flag(GeoMap::Face::BOUNDING_BOX_VALID))
@@ -2108,10 +2104,5 @@ GeoMap::Contour::Contour(GeoMap *map, const Dart &anchor)
 void GeoMap::Face::embedContour(const Contours::value_type &contour)
 {
     contours_.push_back(contour);
-
-    setFlag(AREA_VALID, 0);
-//     if(flag(AREA_VALID))
-//         area_ += contour->area();
-
     contour->faceLabel_ = label();
 }
