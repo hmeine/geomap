@@ -444,6 +444,8 @@ def addFlowLinesToMap(edges, map, imageSize = None,
         clipBox.addBorder(-minSaddleBorderDist)
         innerBox.addBorder(-minMaxBorderDist)
 
+    import polytools
+
     result = []
     for edgeLabel, edgeTuple in enumerate(edges):
         if not edgeTuple:
@@ -467,7 +469,6 @@ def addFlowLinesToMap(edges, map, imageSize = None,
                 result.append(edgeTuple)
                 continue
 
-            import polytools
             for cp in polytools.clipPoly(points, clipBox):
                 try:
                     newSaddleIndex = list(cp).index(points[saddleIndex])
@@ -617,6 +618,21 @@ def gridMap(gridSize = (10, 10), firstPos = vigra.Vector2(0.5, 0.5),
         prevRow = row
 
     return map
+
+def clipMapEdgesAtBorder(map):
+    """Clip all edges of the given map at its image border.  Return
+    new, uninitialized GeoMap object as created by `mapFromEdges` and
+    modified by `connectBorderNodes`."""
+    import polytools
+    imageBox = hourglass.BoundingBox(map.imageSize() - (1,1))
+
+    edges = sum((polytools.clipPoly(edge, imageBox)
+                 for edge in map.edgeIter()), [])
+
+    result = mapFromEdges(edges, map.imageSize())
+    connectBorderNodes(result, 1e-8)
+    result.initializeMap()
+    return result
 
 def connectBorderNodes(map, epsilon,
                        samePosEpsilon = 1e-6, aroundPixels = False):
