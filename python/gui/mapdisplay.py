@@ -149,8 +149,9 @@ class MapEdges(vigrapyqt.Overlay):
     __base = vigrapyqt.Overlay
     
     def __init__(self, map, color, width = 0,
-                 protectedColor = None, protectedWidth = None):
-        self.__base.__init__(self, color, width)
+                 protectedColor = None, protectedWidth = None,
+                 name = None):
+        self.__base.__init__(self, color, width, name = name)
         self.setMap(map)
         self.colors = None
         self.protectedColor = protectedColor
@@ -982,36 +983,6 @@ class MapDisplay(displaysettings.DisplaySettings):
         Highlight the given darts (can be any iterable returning labels
         or Dart objects)."""
         self._dh.highlight(darts)
-
-    def plotROI(self, roi,
-                lineType = 1, pointType = 0,
-                g = None):
-        import Gnuplot
-        if g == None:
-            g = Gnuplot.Gnuplot()
-
-        pi = []
-        for edge in self.map.edgeIter():
-            # FIXME: This was written with the old Rect2D boundingBox() in mind:
-            if edge.boundingBox().intersects(roi):
-                pi.append(Gnuplot.Data(
-                    edge, with="lines %s" % lineType, using="(0.5+$1):(0.5+$2)",
-                    title = "Edge %d" % (edge.label())))
-
-        nodes = []
-        for node in self.map.nodeIter():
-            if roi.contains(intPos(node.position())):
-                nodes.append(node.position())
-        if not len(nodes):
-            sys.stderr.write("WARNING: No nodes found in ROI %s!\n" % roi)
-        else:
-            pi.append(Gnuplot.Data(
-                nodes, with="points pointtype %s" % pointType, using="(0.5+$1):(0.5+$2)"))
-
-        g.set_range("xrange", (roi.left(), roi.right()))
-        g.set_range("yrange", (roi.bottom(), roi.top()))
-        g.plot(*pi)
-        return g, pi
 
     def savePNG(self, filename, roi):
         image, normalize = self._imageWindow.getDisplay()
