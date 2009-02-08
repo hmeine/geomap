@@ -2037,7 +2037,8 @@ def waterfall(map, edgeCosts, mst = None):
     applyFaceClassification(map, faceLabels)
     print "  total waterfall() time: %ss." % (time.clock() - c, )
 
-def dualMap(map, edgeLabels = None, nodePositions = None, midPoints = None):
+def dualMap(map, edgeLabels = None, nodePositions = None, midPoints = None,
+            onDemandNodeHook = None):
     """Compute (a subset of) the dual of a GeoMap.
     `edgeLabels` determines which edges appear in the result.
     If None (default), the complete dual map is returned.
@@ -2050,7 +2051,12 @@ def dualMap(map, edgeLabels = None, nodePositions = None, midPoints = None):
     connections (i.e. 2 points, midPoints = False) or have an extra
     point in the middle of their dual edges.  Default (midPoints ==
     None): Add midpoints for edges which otherwise do not intersect
-    their duals."""
+    their duals.
+
+    `onDemandNodeHook` can be used to create nodes on demand,
+    i.e. when one face should result in several nodes.  (This is
+    e.g. used for the infinite face when computing Voronoi maps from
+    Delaunay maps.)"""
 
     result = hourglass.GeoMap(map.imageSize())
 
@@ -2070,10 +2076,12 @@ def dualMap(map, edgeLabels = None, nodePositions = None, midPoints = None):
     for edge in sorted(edgeLabels):
         if not hasattr(edge, "label"):
             edge = map.edge(edge)
-        snl = nodes[edge.leftFaceLabel()]
-        enl = nodes[edge.rightFaceLabel()]
-        if snl and enl:
-            poly = [snl.position(), enl.position()]
+        sn = nodes[edge.leftFaceLabel()]
+        en = nodes[edge.rightFaceLabel()]
+        if onDemandNodeHook and (not sn or not en):
+            sn, en = onDemandNodeHook(map, edge, result, sn, en)
+        if sn and en:
+            poly = [sn.position(), en.position()]
             midPoint = midPoints
             if midPoints == None:
                 # auto-detect if midPoint is necessary (no intersection):
@@ -2084,7 +2092,7 @@ def dualMap(map, edgeLabels = None, nodePositions = None, midPoints = None):
                 dp = hourglass.DartPosition(edge.dart())
                 dp.gotoArcLength(edge.length()/2)
                 poly.insert(1, dp())
-            result.addEdge(snl, enl, poly, label = edge.label())
+            result.addEdge(sn, en, poly, label = edge.label())
     
     removeIsolatedNodes(result)
     result.initializeMap(False)
