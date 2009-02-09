@@ -185,5 +185,12 @@ void defMapUtils()
         "Remove all bridges within map and returns the number of\n"
         "successful operations (= bridges removed).");
 
-    def("drawLabelImage", &pyDrawLabelImage);
+    def("drawLabelImage", &pyDrawLabelImage,
+        (arg("map"), arg("negativeEdgeLabels") = true),
+        "drawLabelImage(map, negativeEdgeLabels = True) -> label image\n\n"
+        "Draw a label image of the given GeoMap; if `negativeEdgeLabels`\n"
+        "is True, pixels whose facet is crossed by edges get the label -1\n"
+        "(*not* the number of edges crossing, i.e. different to GeoMap.labelImage()!),\n"
+        "otherwise, each pixel is associated with the face at its pixel\n"
+        "center.");
 }
