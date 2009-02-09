@@ -266,7 +266,7 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
                 {
                     return Saddle;
                 }
-                return Failed;
+                return Failed; // Hessian singular
             }
             else if(det < zero)
             {
@@ -790,7 +790,7 @@ rungeKuttaDoubleStepSecondOrder(SplineImageView<2, T> const & s,
     double dx = x2 - x1;
     double dy = y2 - y1;
     double d = std::max(std::abs(dx), std::abs(dy));
-    double hh = VIGRA_CSTD::pow(epsilon / d, 0.33) * h;
+    double hh = d ? VIGRA_CSTD::pow(epsilon / d, 0.33) * h : 2*h;
 
     if(hh < h / 2.0)
     {
