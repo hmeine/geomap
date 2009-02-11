@@ -2103,7 +2103,9 @@ void defPolygon()
         "calculates curvatures values for each triangle between point triples\n"
         "with indices (i-dx, i, i+dx), ignoring skipPoints points from both ends.\n"
         "returns a list of (arcLength, curvature) pairs,\n"
-        "whose length is len(pointArray) - 2*dx - 2*skipPoints.");
+        "whose length is len(pointArray) - 2*dx - 2*skipPoints.\n"
+        "(It is possible to get a smaller result if some of the triangles have\n"
+        "sides smaller than eps=1e-8 and will be skipped.)");
 
     def("thirdDerivativeOfPolygon", &pyThirdDerivativeOfPolygon,
         (arg("pointArray"), arg("sigma")),
