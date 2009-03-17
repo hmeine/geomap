@@ -963,6 +963,9 @@ class MapDisplay(displaysettings.DisplaySettings):
             self.image, normalize and vigra.NBYTE or vigra.BYTE)
 
     def setImage(self, image, normalize = None, role = None):
+        """Replace displayed background image.  You may pass role as
+        one of ('original', 'colored', 'bi') to replace one of the
+        predefined image slots (keyboard shortcuts 1-5)."""
         if role == None:
             if image.bands() == 3:
                 self.images["original"] = vigra.transformImage(
@@ -983,10 +986,6 @@ class MapDisplay(displaysettings.DisplaySettings):
         Highlight the given darts (can be any iterable returning labels
         or Dart objects)."""
         self._dh.highlight(darts)
-
-    def savePNG(self, filename, roi):
-        image, normalize = self._imageWindow.getDisplay()
-        image.subImage(roi).write(filename, normalize)
 
     def saveFig(self, basepath, roi = None, scale = None,
                 bgFilename = None, faceMeans = False, similarity = None,
