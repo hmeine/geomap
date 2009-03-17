@@ -50,7 +50,8 @@ class LookupFaceAverage
 /********************************************************************/
 
 template<class OriginalImage>
-class FaceColorStatistics : boost::noncopyable
+class FaceColorStatistics 
+: boost::noncopyable
 {
   public:
     typedef vigra::FindAverageAndVariance<typename OriginalImage::value_type>
@@ -200,19 +201,11 @@ class FaceColorStatistics : boost::noncopyable
         return &map_;
     }
 
-    void detachHooks()
-    {
-        for(unsigned int i = 0; i < connections_.size(); ++i)
-            if(connections_[i].connected())
-                connections_[i].disconnect();
-        connections_.clear();
-    }
-
   protected:
     void ensureMinSampleCount(unsigned int minSampleCount);
 
     GeoMap &map_;
-    std::vector<sigc::connection> connections_;
+    
     const OriginalImage originalImage_;
     std::vector<Functor *> functors_;
 
@@ -247,16 +240,6 @@ FaceColorStatistics<OriginalImage>::FaceColorStatistics(
 
     if(minSampleCount)
         ensureMinSampleCount(minSampleCount);
-
-    connections_.push_back(
-        map.preMergeFacesHook.connect(
-            sigc::mem_fun(this, &FaceColorStatistics::preMergeFaces)));
-    connections_.push_back(
-        map.postMergeFacesHook.connect(
-            sigc::mem_fun(this, &FaceColorStatistics::postMergeFaces)));
-    connections_.push_back(
-        map.associatePixelsHook.connect(
-            sigc::mem_fun(this, &FaceColorStatistics::associatePixels)));
 }
 
 template<class OriginalImage>
@@ -297,7 +280,7 @@ void FaceColorStatistics<OriginalImage>::ensureMinSampleCount(
             ++superSampledCount_;
         }
     }
-        
+
     if(superSampledCount_)
         superSampled_ = superSampled;
 }
@@ -328,5 +311,26 @@ void FaceColorStatistics<OriginalImage>::transformRegionImage(
     transformImage(sul, slr, sa, dul, da,
                    detail::LookupFaceAverage<Functor>(functors_));
 }
+
+template<class OriginalImage>
+class FaceColorStatisticsCallback
+: public FaceColorStatistics<OriginalImage>, public vigra::signal::CallbackBase
+{
+  public:
+
+    FaceColorStatisticsCallback(GeoMap &map, const OriginalImage &originalImage,
+                        double maxDiffNorm = 1.0, unsigned int minSampleCount = 1)
+    : FaceColorStatistics<OriginalImage>(map, originalImage, maxDiffNorm, minSampleCount)
+    {
+        map.preMergeFacesHook.connect(this, &FaceColorStatisticsCallback::preMergeFaces);
+        map.postMergeFacesHook.connect(this, &FaceColorStatisticsCallback::postMergeFaces);
+        map.associatePixelsHook.connect(this, &FaceColorStatisticsCallback::associatePixels);
+    }
+
+    void detachHooks()
+    {
+        this->disconnectAll();
+    }
+};
 
 #endif // VIGRA_FACESTATISTICS_HXX

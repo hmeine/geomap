@@ -8,20 +8,16 @@
 #include <vector>
 #include <list>
 #include <vigra/multi_array.hxx>
-#include <sigc++/sigc++.h>
+#include <vigra/callback.hxx>
 #include <boost/utility.hpp> // boost::noncopyable
 
 #include <cfloat>
 
 #ifdef _MSC_VER
 inline int isnan(double t) { return _isnan(t); }
-#else
-#include <math.h>
-// isnan is C99, Linux manpage says:
-// "Compile with -std=c99; link with -lm."
-// this is a workaround according to P.J. Plauger (Dinkumware):
-// # define cppmap_isnan_workaround(x) ((x) != (x))
 #endif
+
+
 
 // The define USE_INSECURE_CELL_PTRS can be used to switch between
 // "safe" cell handling e.g. for Python and a possibly faster C++ way.
@@ -55,7 +51,7 @@ typedef vigra::BBoxPolygon<vigra::Vector2> Polygon;
 
 typedef vigra::PointArray<vigra::Point2D> PixelList;
 
-// "accumulator" for libsigc++, which calls pre-operation
+// "accumulator" for boost::signals, which calls pre-operation
 // callbacks in order but cancels whenever a callback returns false
 struct interruptable_accumulator
 {
@@ -90,7 +86,7 @@ class PlannedSplits;
 /*                                                                  */
 /********************************************************************/
 
-class GeoMap
+class GeoMap : boost::noncopyable
 {
   public:
     class Node;
@@ -109,15 +105,8 @@ class GeoMap
         EdgeIterator;
     typedef vigra::SafeFilterIterator<Faces::iterator, NotNull<Faces::value_type> >
         FaceIterator;
-    typedef vigra::SafeFilterIterator<Nodes::const_iterator, NotNull<Nodes::value_type> >
-        ConstNodeIterator;
-    typedef vigra::SafeFilterIterator<Edges::const_iterator, NotNull<Edges::value_type> >
-        ConstEdgeIterator;
-    typedef vigra::SafeFilterIterator<Faces::const_iterator, NotNull<Faces::value_type> >
-        ConstFaceIterator;
 
     typedef std::vector<int> SigmaMapping;
-    typedef std::vector<double> EdgePreferences;
 
     typedef vigra::ConstImageIterator<int> LabelImageIterator;
     struct LabelImageAccessor {
@@ -180,11 +169,10 @@ class GeoMap
 
     bool edgesSorted_;
     std::auto_ptr<detail::PlannedSplits> splitInfo_;
-    std::auto_ptr<EdgePreferences> edgePreferences_;
 
   public:
     GeoMap(vigra::Size2D imageSize);
-    GeoMap(const GeoMap &other);
+
     ~GeoMap();
 
     NodeIterator nodesBegin()
@@ -192,15 +180,6 @@ class GeoMap
     NodeIterator nodesEnd()
         { return NodeIterator(nodes_.end(), nodes_.end()); }
     CELL_PTR(Node) node(CellLabel label)
-    {
-        vigra_precondition(label < nodes_.size(), "invalid node label!");
-        return nodes_[label];
-    }
-    ConstNodeIterator nodesBegin() const
-        { return ConstNodeIterator(nodes_.begin(), nodes_.end()); }
-    ConstNodeIterator nodesEnd() const
-        { return ConstNodeIterator(nodes_.end(), nodes_.end()); }
-    CELL_PTR(const Node) node(CellLabel label) const
     {
         vigra_precondition(label < nodes_.size(), "invalid node label!");
         return nodes_[label];
@@ -215,30 +194,12 @@ class GeoMap
         vigra_precondition(label < edges_.size(), "invalid edge label!");
         return edges_[label];
     }
-    ConstEdgeIterator edgesBegin() const
-        { return ConstEdgeIterator(edges_.begin(), edges_.end()); }
-    ConstEdgeIterator edgesEnd() const
-        { return ConstEdgeIterator(edges_.end(), edges_.end()); }
-    CELL_PTR(const Edge) edge(CellLabel label) const
-    {
-        vigra_precondition(label < edges_.size(), "invalid edge label!");
-        return edges_[label];
-    }
 
     FaceIterator facesBegin()
         { return FaceIterator(faces_.begin(), faces_.end()); }
     FaceIterator facesEnd()
         { return FaceIterator(faces_.end(), faces_.end()); }
     CELL_PTR(Face) face(CellLabel label)
-    {
-        vigra_precondition(label < faces_.size(), "invalid face label!");
-        return faces_[label];
-    }
-    ConstFaceIterator facesBegin() const
-        { return ConstFaceIterator(faces_.begin(), faces_.end()); }
-    ConstFaceIterator facesEnd() const
-        { return ConstFaceIterator(faces_.end(), faces_.end()); }
-    CELL_PTR(const Face) face(CellLabel label) const
     {
         vigra_precondition(label < faces_.size(), "invalid face label!");
         return faces_[label];
@@ -272,17 +233,7 @@ class GeoMap
     void sortEdgesEventually(double stepDist, double minDist,
                              UnsortableGroups &unsortable,
                              bool splitEdges);
-    void setEdgePreferences(std::auto_ptr<EdgePreferences> edgePreferences)
-    {
-        vigra_precondition(
-            splitInfo_.get(),
-            "setting edge preferences futile - splitting impossible");
-        edgePreferences_ = edgePreferences;
-    }
     void splitParallelEdges();
-        // for debugging / paper writing only:
-    detail::PlannedSplits *internalSplitInfo()
-        { return splitInfo_.get(); }
 
     void setSigmaMapping(SigmaMapping const &sigmaMapping, bool sorted = true);
     const SigmaMapping &sigmaMapping()
@@ -317,10 +268,6 @@ class GeoMap
                             labelAccessor());
     }
 
-        // maxFaceLabel is to be +1 here, too:
-    void changeFaceLabels(const std::vector<CellLabel> &newFaceLabels,
-                          CellLabel maxFaceLabel);
-
   protected:
     void initContours();
     void embedFaces(bool initLabelImage);
@@ -348,26 +295,25 @@ class GeoMap
     CELL_PTR(Face) removeBridge(Dart &dart);
     CELL_PTR(Face) mergeFaces(Dart &dart);
 
-        // callbacks using libsigc++ <http://libsigc.sourceforge.net/>:
-    sigc::signal<bool, Node &>::accumulated<interruptable_accumulator>
+    vigra::signal::SignalBool1<Node &>
         removeNodeHook;
-    sigc::signal<bool, const Dart &>::accumulated<interruptable_accumulator>
+    vigra::signal::SignalBool1<const Dart &>
         preMergeEdgesHook;
-    sigc::signal<void, Edge &>
+    vigra::signal::SignalVoid1<Edge &>
         postMergeEdgesHook;
-    sigc::signal<void, Edge &, unsigned int, vigra::Vector2 const &, bool>
+    vigra::signal::SignalVoid4<Edge &, unsigned int, vigra::Vector2 const &, bool>
         preSplitEdgeHook;
-    sigc::signal<void, Edge &, Edge &>
+    vigra::signal::SignalVoid2<Edge &, Edge &>
         postSplitEdgeHook;
-    sigc::signal<bool, const Dart &>::accumulated<interruptable_accumulator>
+    vigra::signal::SignalBool1<const Dart &>
         preRemoveBridgeHook;
-    sigc::signal<void, Face &>
+    vigra::signal::SignalVoid1<Face &>
         postRemoveBridgeHook;
-    sigc::signal<bool, const Dart &>::accumulated<interruptable_accumulator>
+    vigra::signal::SignalBool1<const Dart &>
         preMergeFacesHook;
-    sigc::signal<void, Face &>
+    vigra::signal::SignalVoid1<Face &>
         postMergeFacesHook;
-    sigc::signal<void, Face &, const PixelList &>
+    vigra::signal::SignalVoid2<Face &, const PixelList &>
         associatePixelsHook;
 };
 
@@ -985,8 +931,8 @@ class GeoMap::Face : boost::noncopyable
     mutable double       area_;
     unsigned int         pixelArea_;
 
-    static const unsigned int BOUNDING_BOX_VALID = 0x80000000;
-    static const unsigned int AREA_VALID         = 0x40000000;
+    static const unsigned int BOUNDING_BOX_VALID = 0x8000000;
+    static const unsigned int AREA_VALID         = 0x4000000;
 
     friend class GeoMap; // give access to pixelArea_ and anchors_ (Euler ops...)
 
@@ -1210,7 +1156,6 @@ inline unsigned int GeoMap::Node::degree() const
         ++result;
     }
     while(d.nextSigma().label() != anchor_);
-
     return result;
 }
 
@@ -1508,7 +1453,7 @@ struct DartPositionAngle
     struct SplitPos : public EdgePosition
     {
         int dartLabel, sigmaPos;
-        unsigned int splitGroup;
+        unsigned int splitGroup, newEdgeLabel;
 
         SplitPos(const EdgePosition &ep, int dl, unsigned int sg)
         : EdgePosition(ep),

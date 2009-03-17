@@ -164,35 +164,13 @@ struct RangeIterAdapter
 
 /********************************************************************/
 
-class SimpleCallback
-{
-  public:
-    virtual ~SimpleCallback()
-    {
-        disconnect();
-    }
-
-    void disconnect()
-    {
-        for(unsigned int i = 0; i < connections_.size(); ++i)
-            if(connections_[i].connected())
-                connections_[i].disconnect();
-        connections_.clear();
-    }
-
-  protected:
-    std::vector<sigc::connection> connections_;
-};
-
-class RemoveNodeCallback : public SimpleCallback
+class RemoveNodeCallback : public vigra::signal::CallbackBase
 {
   public:
     RemoveNodeCallback(GeoMap *geomap, bp::object callback)
     : callback_(callback)
     {
-        connections_.push_back(
-            geomap->removeNodeHook.connect(
-                sigc::mem_fun(this, &RemoveNodeCallback::operator())));
+        geomap->removeNodeHook.connect(this, &RemoveNodeCallback::operator());
     }
 
     bool operator()(GeoMap::Node &node)
@@ -204,7 +182,7 @@ class RemoveNodeCallback : public SimpleCallback
     bp::object callback_;
 };
 
-class MergeEdgesCallbacks : public SimpleCallback
+class MergeEdgesCallbacks : public vigra::signal::CallbackBase
 {
   public:
     MergeEdgesCallbacks(GeoMap *geomap,
@@ -214,13 +192,9 @@ class MergeEdgesCallbacks : public SimpleCallback
       postOpCallback_(postOpCallback)
     {
         if(preOpCallback)
-            connections_.push_back(
-                geomap->preMergeEdgesHook.connect(
-                    sigc::mem_fun(this, &MergeEdgesCallbacks::preMergeEdges)));
+            geomap->preMergeEdgesHook.connect(this, &MergeEdgesCallbacks::preMergeEdges);
         if(postOpCallback)
-            connections_.push_back(
-                geomap->postMergeEdgesHook.connect(
-                    sigc::mem_fun(this, &MergeEdgesCallbacks::postMergeEdges)));
+            geomap->postMergeEdgesHook.connect(this, &MergeEdgesCallbacks::postMergeEdges);
     }
 
     bool preMergeEdges(const GeoMap::Dart &dart)
@@ -238,7 +212,7 @@ class MergeEdgesCallbacks : public SimpleCallback
     bp::object preOpCallback_, postOpCallback_;
 };
 
-class SplitEdgeCallbacks : public SimpleCallback
+class SplitEdgeCallbacks : public vigra::signal::CallbackBase
 {
   public:
     SplitEdgeCallbacks(GeoMap *geomap,
@@ -248,13 +222,9 @@ class SplitEdgeCallbacks : public SimpleCallback
       postOpCallback_(postOpCallback)
     {
         if(preOpCallback)
-            connections_.push_back(
-                geomap->preSplitEdgeHook.connect(
-                    sigc::mem_fun(this, &SplitEdgeCallbacks::preSplitEdge)));
+            geomap->preSplitEdgeHook.connect(this, &SplitEdgeCallbacks::preSplitEdge);
         if(postOpCallback)
-            connections_.push_back(
-                geomap->postSplitEdgeHook.connect(
-                    sigc::mem_fun(this, &SplitEdgeCallbacks::postSplitEdge)));
+            geomap->postSplitEdgeHook.connect(this, &SplitEdgeCallbacks::postSplitEdge);
     }
 
     void preSplitEdge(GeoMap::Edge &edge, unsigned int segmentIndex,
@@ -273,7 +243,7 @@ class SplitEdgeCallbacks : public SimpleCallback
     bp::object preOpCallback_, postOpCallback_;
 };
 
-class RemoveBridgeCallbacks : public SimpleCallback
+class RemoveBridgeCallbacks : public vigra::signal::CallbackBase
 {
   public:
     RemoveBridgeCallbacks(GeoMap *geomap,
@@ -283,14 +253,10 @@ class RemoveBridgeCallbacks : public SimpleCallback
       postOpCallback_(postOpCallback)
     {
         if(preOpCallback)
-            connections_.push_back(
-                geomap->preRemoveBridgeHook.connect(
-                    sigc::mem_fun(this, &RemoveBridgeCallbacks::preRemoveBridge)));
+            geomap->preRemoveBridgeHook.connect(this, &RemoveBridgeCallbacks::preRemoveBridge);
         if(postOpCallback)
-            connections_.push_back(
-                geomap->postRemoveBridgeHook.connect(
-                    sigc::mem_fun(this, &RemoveBridgeCallbacks::postRemoveBridge)));
-    }
+            geomap->postRemoveBridgeHook.connect(this, &RemoveBridgeCallbacks::postRemoveBridge);
+     }
 
     bool preRemoveBridge(const GeoMap::Dart &dart)
     {
@@ -307,7 +273,7 @@ class RemoveBridgeCallbacks : public SimpleCallback
     bp::object preOpCallback_, postOpCallback_;
 };
 
-class MergeFacesCallbacks : public SimpleCallback
+class MergeFacesCallbacks : public vigra::signal::CallbackBase
 {
   public:
     MergeFacesCallbacks(GeoMap *geomap,
@@ -317,13 +283,9 @@ class MergeFacesCallbacks : public SimpleCallback
       postOpCallback_(postOpCallback)
     {
         if(preOpCallback)
-            connections_.push_back(
-                geomap->preMergeFacesHook.connect(
-                    sigc::mem_fun(this, &MergeFacesCallbacks::preMergeFaces)));
+            geomap->preMergeFacesHook.connect(this, &MergeFacesCallbacks::preMergeFaces);
         if(postOpCallback)
-            connections_.push_back(
-                geomap->postMergeFacesHook.connect(
-                    sigc::mem_fun(this, &MergeFacesCallbacks::postMergeFaces)));
+            geomap->postMergeFacesHook.connect(this, &MergeFacesCallbacks::postMergeFaces);
     }
 
     bool preMergeFaces(const GeoMap::Dart &dart)
@@ -341,15 +303,13 @@ class MergeFacesCallbacks : public SimpleCallback
     bp::object preOpCallback_, postOpCallback_;
 };
 
-class AssociatePixelsCallback : public SimpleCallback
+class AssociatePixelsCallback : public vigra::signal::CallbackBase
 {
   public:
     AssociatePixelsCallback(GeoMap *geomap, bp::object callback)
     : callback_(callback)
     {
-        connections_.push_back(
-            geomap->associatePixelsHook.connect(
-                sigc::mem_fun(this, &AssociatePixelsCallback::operator())));
+        geomap->associatePixelsHook.connect(this, &AssociatePixelsCallback::operator());
     }
 
     void operator()(GeoMap::Face &face, const PixelList &pixels)
@@ -361,54 +321,54 @@ class AssociatePixelsCallback : public SimpleCallback
     bp::object callback_;
 };
 
-std::auto_ptr<SimpleCallback>
+std::auto_ptr<vigra::signal::CallbackBase>
 addRemoveNodeCallback(GeoMap *geomap, bp::object callback)
 {
-    return std::auto_ptr<SimpleCallback>(
+    return std::auto_ptr<vigra::signal::CallbackBase>(
         new RemoveNodeCallback(geomap, callback));
 }
 
-std::auto_ptr<SimpleCallback>
+std::auto_ptr<vigra::signal::CallbackBase>
 addMergeEdgesCallbacks(GeoMap *geomap,
                        bp::object preOpCallback,
                        bp::object postOpCallback)
 {
-    return std::auto_ptr<SimpleCallback>(
+    return std::auto_ptr<vigra::signal::CallbackBase>(
         new MergeEdgesCallbacks(geomap, preOpCallback, postOpCallback));
 }
 
-std::auto_ptr<SimpleCallback>
+std::auto_ptr<vigra::signal::CallbackBase>
 addSplitEdgeCallbacks(GeoMap *geomap,
                        bp::object preOpCallback,
                        bp::object postOpCallback)
 {
-    return std::auto_ptr<SimpleCallback>(
+    return std::auto_ptr<vigra::signal::CallbackBase>(
         new SplitEdgeCallbacks(geomap, preOpCallback, postOpCallback));
 }
 
-std::auto_ptr<SimpleCallback>
+std::auto_ptr<vigra::signal::CallbackBase>
 addRemoveBridgeCallbacks(GeoMap *geomap,
                          bp::object preOpCallback,
                          bp::object postOpCallback)
 {
-    return std::auto_ptr<SimpleCallback>(
+    return std::auto_ptr<vigra::signal::CallbackBase>(
         new RemoveBridgeCallbacks(geomap, preOpCallback, postOpCallback));
 }
 
-std::auto_ptr<SimpleCallback>
+std::auto_ptr<vigra::signal::CallbackBase>
 addMergeFacesCallbacks(GeoMap *geomap,
                        bp::object preOpCallback,
                        bp::object postOpCallback)
 {
-    return std::auto_ptr<SimpleCallback>(
+    return std::auto_ptr<vigra::signal::CallbackBase>(
         new MergeFacesCallbacks(geomap, preOpCallback, postOpCallback));
 }
 
-std::auto_ptr<SimpleCallback>
+std::auto_ptr<vigra::signal::CallbackBase>
 addAssociatePixelsCallback(GeoMap *geomap,
                            bp::object callback)
 {
-    return std::auto_ptr<SimpleCallback>(
+    return std::auto_ptr<vigra::signal::CallbackBase>(
         new AssociatePixelsCallback(geomap, callback));
 }
 
@@ -453,33 +413,6 @@ createGeoMap(bp::list nodePositions,
             result->addEdge(*startNode, *endNode, pe(), i);
         }
     }
-
-    return result;
-}
-
-bp::object
-GeoMap__copy__(bp::object map)
-{
-    GeoMap *newMap(new GeoMap(bp::extract<const GeoMap &>(map)));
-    bp::object result(bp::detail::new_reference(bp::managingPyObject(newMap)));
-
-    bp::extract<bp::dict>(result.attr("__dict__"))().update(
-        map.attr("__dict__"));
-
-    return result;
-}
-
-bp::object
-GeoMap__deepcopy__(bp::object map, bp::dict memo)
-{
-    bp::object copyMod = bp::import("copy");
-    bp::object deepcopy = copyMod.attr("deepcopy");
-
-    GeoMap *newMap(new GeoMap(bp::extract<const GeoMap &>(map)));
-    bp::object result(bp::detail::new_reference(bp::managingPyObject(newMap)));
-
-    bp::extract<bp::dict>(result.attr("__dict__"))().update(
-        deepcopy(bp::extract<bp::dict>(map.attr("__dict__"))(), memo));
 
     return result;
 }
@@ -559,16 +492,8 @@ bp::list GeoMap_sigmaMapping(GeoMap &map)
 {
     bp::list result;
     const GeoMap::SigmaMapping &sigmaMapping(map.sigmaMapping());
-    GeoMap::SigmaMapping::const_iterator
-        first = sigmaMapping.begin(),
-        last = sigmaMapping.end();
-    while(*first == 0 && last[-1] == 0 && last >= first + 3)
-    {
-        ++first;
-        --last;
-    }
-    for(GeoMap::SigmaMapping::const_iterator it = first;
-        it != last; ++it)
+    for(GeoMap::SigmaMapping::const_iterator it = sigmaMapping.begin();
+        it != sigmaMapping.end(); ++it)
     {
         if(map.edge(abs(*it)))
             result.append(*it);
@@ -631,12 +556,11 @@ struct GeoMapPickleSuite : bp::pickle_suite
             edgeFlags.append((*it)->flags());
         }
 
-        bp::list faceFlags, faceAnchors, faceLabels;
+        bp::list faceFlags, faceAnchors;
         for(GeoMap::FaceIterator it = map.facesBegin(); it.inRange(); ++it)
         {
-            faceFlags.append((*it)->flags() & ~0xf0000000U);
+            faceFlags.append((*it)->flags() & ~0xf0000000);
             faceAnchors.append((*it)->contour().label());
-            faceLabels.append((*it)->label());
         }
 
         return bp::make_tuple(
@@ -645,7 +569,7 @@ struct GeoMapPickleSuite : bp::pickle_suite
             map.mapInitialized(),
             map.hasLabelImage(),
             edgeFlags,
-            faceFlags, faceAnchors, make_tuple(faceLabels, map.maxFaceLabel()),
+            faceFlags, faceAnchors,
             pyMap.attr("__dict__"));
     }
 
@@ -663,15 +587,7 @@ struct GeoMapPickleSuite : bp::pickle_suite
         bp::list edgeFlags = bp::extract<bp::list>(state[4])();
         bp::list faceFlags = bp::extract<bp::list>(state[5])();
         bp::list faceAnchors = bp::extract<bp::list>(state[6])();
-        bool hasLabels = len(state) > 8; // backward compat.
-        bp::list faceLabels;
-        CellLabel newMaxFaceLabel = 0;
-        if(hasLabels)
-        {
-            faceLabels = bp::extract<bp::list>(state[7][0])();
-            newMaxFaceLabel = bp::extract<CellLabel>(state[7][1])();
-        }
-        bp::object __dict__ = state[-1];
+        bp::object __dict__ = state[7];
 
         GeoMap_setSigmaMapping(map, pySigmaMapping, edgesSorted);
         if(mapInitialized)
@@ -683,55 +599,16 @@ struct GeoMapPickleSuite : bp::pickle_suite
             (*it)->setFlag(bp::extract<unsigned int>(edgeFlags[i])());
         }
 
-        std::vector<CellLabel> newFaceLabels(map.maxFaceLabel());
         for(i = 0; i < map.faceCount(); ++i)
         {
-            GeoMap::Dart anchor =
-                map.dart(bp::extract<unsigned int>(faceAnchors[i])());
-            anchor.leftFace()->setFlag(
-                bp::extract<unsigned int>(faceFlags[i])() & ~0xf0000000U);
-            if(hasLabels)
-                newFaceLabels[anchor.leftFaceLabel()] =
-                    bp::extract<CellLabel>(faceLabels[i])();
+            int anchorLabel = bp::extract<unsigned int>(faceAnchors[i])();
+            map.dart(anchorLabel).leftFace()->setFlag(
+                bp::extract<unsigned int>(faceFlags[i])());
         }
-
-        if(hasLabels)
-            map.changeFaceLabels(newFaceLabels, newMaxFaceLabel);
 
         bp::extract<bp::dict>(pyMap.attr("__dict__"))().update(__dict__);
     }
 };
-
-void GeoMap_setEdgePreferences(GeoMap &geomap,
-                               bp::list edgePreferences)
-{
-    std::auto_ptr<GeoMap::EdgePreferences> cppep(
-        new GeoMap::EdgePreferences(len(edgePreferences)));
-
-    for(unsigned int i = 0; i < cppep->size(); ++i)
-    {
-        double pref = bp::extract<double>(edgePreferences[i])();
-        (*cppep)[i] = pref;
-    }
-
-    geomap.setEdgePreferences(cppep);
-}
-
-bp::object GeoMap_internalSplitInfo(GeoMap &geoMap)
-{
-    const detail::PlannedSplits *splitInfo = geoMap.internalSplitInfo();
-    if(!splitInfo)
-        return bp::object();
-    bp::list result;
-    for(unsigned int i = 0; i < splitInfo->size(); ++i)
-    {
-        const detail::PlannedSplits::value_type &si((*splitInfo)[i]);
-        result.append(bp::make_tuple(
-                          si.segmentIndex, si.arcLength, si.position,
-                          si.dartLabel, si.sigmaPos, si.splitGroup));
-    }
-    return result;
-}
 
 std::string Node__repr__(GeoMap::Node const &node)
 {
@@ -833,10 +710,10 @@ struct DiffNormTraits {};
 
 template<class OriginalImage>
 class FaceColorStatisticsWrapper
-: bp::class_<FaceColorStatistics<OriginalImage>, boost::noncopyable>
+: bp::class_<FaceColorStatisticsCallback<OriginalImage>, boost::noncopyable>
 {
   public:
-    typedef FaceColorStatistics<OriginalImage> Statistics;
+    typedef FaceColorStatisticsCallback<OriginalImage> Statistics;
     typedef typename Statistics::Functor StatsFunctor;
 
     FaceColorStatisticsWrapper(const char *name)
@@ -908,7 +785,7 @@ class FaceColorStatisticsWrapper
     static Statistics *create(
         GeoMap &map, OriginalImage const &originalImage, int minSampleCount)
     {
-        double maxDiffNorm = 255.*std::sqrt(originalImage.bands());
+        double maxDiffNorm = 255.*std::sqrt((double)originalImage.bands());
         return new Statistics(map, originalImage,
                               maxDiffNorm, minSampleCount);
     }
@@ -992,23 +869,21 @@ void defMap()
                      (arg("nodePositions") = list(),
                       arg("edgeTuples") = list(),
                       arg("imageSize") = vigra::Size2D(0, 0))))
-            .def("__copy__", &GeoMap__copy__)
-            .def("__deepcopy__", &GeoMap__deepcopy__)
-            .def("node", (CELL_PTR(GeoMap::Node)(GeoMap::*)(CellLabel))&GeoMap::node, crp,
+            .def("node", &GeoMap::node, crp,
                  "node(label) -> Node\n\n"
                  "Return Node object for the given label.")
-            .def("nodeIter", (GeoMap::NodeIterator(GeoMap::*)())&GeoMap::nodesBegin,
+            .def("nodeIter", &GeoMap::nodesBegin,
                  "Iterates over all existing nodes.\n\n"
                  ">>> for node in amap.nodeIter():\n"
                  "...     print node.label(), node.degree(), node.anchor()")
-            .def("edge", (CELL_PTR(GeoMap::Edge)(GeoMap::*)(CellLabel))&GeoMap::edge, crp,
+            .def("edge", &GeoMap::edge, crp,
                  "edge(label) -> Edge\n\n"
                  "Return Edge object for the given label.")
-            .def("edgeIter", (GeoMap::EdgeIterator(GeoMap::*)())&GeoMap::edgesBegin,
+            .def("edgeIter", &GeoMap::edgesBegin,
                  "Iterates over all existing edges.\n\n"
                  ">>> for edge in amap.edgeIter():\n"
                  "...     print \"Edge %d has %d points\" % len(edge)")
-            .def("face", (CELL_PTR(GeoMap::Face)(GeoMap::*)(CellLabel))&GeoMap::face, crp,
+            .def("face", &GeoMap::face, crp,
                  "face(label) -> Face\n\n"
                  "Return Face object for the given label.")
             .def("faceIter", &faceIter, arg("skipInfinite") = false,
@@ -1138,16 +1013,6 @@ void defMap()
                  "`sortEdgesDirectly`/`sortEdgesEventually`/`setSigmaMapping`\n"
                  "has been used.")
             .def("splitParallelEdges", &GeoMap::splitParallelEdges)
-            .def("setEdgePreferences", &GeoMap_setEdgePreferences,
-                 "setEdgePreferences(list)\n\n"
-                 "Set edge preferences (one float per edge).  This is used for\n"
-                 "deciding upon the survivor when merging parallel darts in\n"
-                 "`splitParallelEdges()`; edges with higher values are more likely\n"
-                 "to be preserved.  (If no preferences are given, the dart with\n"
-                 "the smallest curvature around the split node survives.)")
-            .def("_internalSplitInfo", &GeoMap_internalSplitInfo,
-                 "for debugging / paper writing only\n"
-                 "list of (segmentIndex, arcLength, position, dartLabel, sigmaPos, splitGroup)")
             .def("initializeMap", &GeoMap::initializeMap, (arg("initLabelImage") = true),
                  "initializeMap(initLabelImage = True) -> None\n\n"
                  "This finishes the initialization of a GeoMap.  Call this after\n"
@@ -1452,18 +1317,18 @@ void defMap()
         register_ptr_to_python< CELL_PTR(GeoMap::Face) >();
 #endif
 
-        class_<SimpleCallback>("SimpleCallback",
+        class_<vigra::signal::CallbackBase, boost::noncopyable>("CallbackBase",
             "Internal class to manage Euler operation callbacks.\n"
             "Removes the callbacks from the caller on __del__ or `disconnect()`.",
                                no_init)
-            .def("disconnect", &SimpleCallback::disconnect,
+            .def("disconnect", (void (vigra::signal::CallbackBase::*)())&vigra::signal::CallbackBase::disconnectAll,
                  "Disconnect this callback.  This operation is not\n"
                  "reversible, you have to reconnect in the same way as before to\n"
-                 "aquire a new `SimpleCallback`.")
+                 "aquire a new `vigra::signal::CallbackBase`.")
         ;
 
         def("addRemoveNodeCallback", &addRemoveNodeCallback,
-            "addRemoveNodeCallback(callback) -> SimpleCallback\n\n"
+            "addRemoveNodeCallback(callback) -> vigra::signal::CallbackBase\n\n"
             "Add a callback to be called called before removing an\n"
             "isolated node.  The callback will be called with the node to\n"
             "be removed as parameter.  If any callback does not return True,\n"
@@ -1477,7 +1342,7 @@ void defMap()
             "parameter.  If any preOpCallback does not return True,\n"
             "the operation will be canceled.");
         def("addSplitEdgeCallbacks", &addSplitEdgeCallbacks,
-            "addSplitEdgeCallbacks(preOpCallback, postOpCallback) -> SimpleCallback\n\n"
+            "addSplitEdgeCallbacks(preOpCallback, postOpCallback) -> vigra::signal::CallbackBase\n\n"
             "Add callbacks to be called called before/after splitting an\n"
             "edge.  The preOpCallback is called with the three arguments\n"
             "(edge, segmentIndex, newPoint) given to splitEdge, and the\n"
@@ -1485,7 +1350,7 @@ void defMap()
             "newEdge).  A splitEdge() operation cannot be canceled through\n"
             "preOpCallbacks (their return values are ignored).");
         def("addRemoveBridgeCallbacks", &addRemoveBridgeCallbacks,
-            "addRemoveBridgeCallbacks(preOpCallback, postOpCallback) -> SimpleCallback\n\n"
+            "addRemoveBridgeCallbacks(preOpCallback, postOpCallback) -> vigra::signal::CallbackBase\n\n"
             "Add callbacks to be called called before/after removing a\n"
             "bridge (\"loose\" edge within a face).  The preOpCallback is\n"
             "called with the dart to be removed, the postOpCallback gets\n"
@@ -1493,7 +1358,7 @@ void defMap()
             "If any preOpCallback does not return True, the operation will\n"
             "be canceled.");
         def("addMergeFacesCallbacks", &addMergeFacesCallbacks,
-            "addMergeFacesCallbacks(preOpCallback, postOpCallback) -> SimpleCallback\n\n"
+            "addMergeFacesCallbacks(preOpCallback, postOpCallback) -> vigra::signal::CallbackBase\n\n"
             "Add callbacks to be called called before/after merging two\n"
             "faces via a common edge.  The rightFace() of the dart passed\n"
             "to preOpCallback will be merged into its leftFace(), the\n"
@@ -1501,14 +1366,14 @@ void defMap()
             "preOpCallback does not return True, the operation will be\n"
             "canceled.");
         def("addAssociatePixelsCallback", &addAssociatePixelsCallback,
-            "addAssociatePixelsCallback(callback) -> SimpleCallback\n\n"
+            "addAssociatePixelsCallback(callback) -> vigra::signal::CallbackBase\n\n"
             "Add a callback to be called whenever the removal of edges\n"
             "results in pixels being associated with the surrounding face\n"
             "(i.e. after a mergeFaces or removeBridge operation).  The\n"
             "callback will be called with the face as first, and a list of\n"
             "Point2Ds as second parameter.  All internal GeoMap structures\n"
             "are updated before the callbacks happen.");
-        register_ptr_to_python< std::auto_ptr<SimpleCallback> >();
+        register_ptr_to_python< std::auto_ptr<vigra::signal::CallbackBase> >();
 
         geoMap.attr("BYTES_PER_NODE") = sizeof(GeoMap::Node);
         geoMap.attr("BYTES_PER_EDGE") = sizeof(GeoMap::Edge);
