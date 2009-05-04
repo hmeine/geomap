@@ -1312,10 +1312,12 @@ class SubPixelWatersheds
     double nearestMaximum(double x, double y, double dx, double dy, int & resindex) const;
     int flowLine(double x, double y, bool forward, double epsilon, PointArray & curve);
     pair<int, int> findEdge(double x, double y, double epsilon, PointArray & edge);
-    RungeKuttaResult rungeKuttaStepSecondOrder(double x0, double y0, double h,
-                                               double *x, double *y, double dx, double dy);
-    RungeKuttaResult rungeKuttaDoubleStepSecondOrder(double x0, double y0, double *h,
-                            double *x, double *y, double epsilon, double dx, double dy);
+    RungeKuttaResult rungeKuttaStepSecondOrder(
+        double x0, double y0, double dx, double dy, double h,
+        double *x, double *y);
+    RungeKuttaResult rungeKuttaDoubleStepSecondOrder(
+        double x0, double y0, double dx, double dy,
+        double *h, double *xx, double *yx, double epsilon);
 
     SplineImageView image_;
     PointArray minima_, saddles_, maxima_;
@@ -1616,8 +1618,8 @@ SubPixelWatersheds<SplineImageView>::nearestMaximum(double x, double y, double d
 template <class SplineImageView>
 typename SubPixelWatersheds<SplineImageView>::RungeKuttaResult
 SubPixelWatersheds<SplineImageView>::rungeKuttaStepSecondOrder(
-                  double x0, double y0, double h,
-                  double *xx, double *yy, double dx, double dy)
+                  double x0, double y0, double dx, double dy, double h,
+                  double *xx, double *yy)
 {
     double x1 = x0 + 0.5*h*dx;
     double y1 = y0 + 0.5*h*dy;
@@ -1647,13 +1649,14 @@ SubPixelWatersheds<SplineImageView>::rungeKuttaStepSecondOrder(
 template <class SplineImageView>
 typename SubPixelWatersheds<SplineImageView>::RungeKuttaResult
 SubPixelWatersheds<SplineImageView>::rungeKuttaDoubleStepSecondOrder(
-                  double x0, double y0,
-                  double *h, double *x, double *y,
-                  double epsilon, double dx, double dy)
+                  double x0, double y0, double dx, double dy,
+                  double *h, double *xx, double *yy,
+                  double epsilon)
 {
     double x1, x2, y1, y2;
-    if(rungeKuttaStepSecondOrder(x0, y0, 2.0 * (*h), &x1, &y1, dx, dy) == Outside ||
-       rungeKuttaStepSecondOrder(x0, y0, *h, &x2, &y2, dx, dy) == Outside)
+
+    if(rungeKuttaStepSecondOrder(x0, y0, dx, dy, 2.0 * (*h), &x1, &y1) == Outside ||
+       rungeKuttaStepSecondOrder(x0, y0, dx, dy, (*h), &x2, &y2) == Outside)
     {
         *h /= 4.0;
         return Outside;
@@ -1664,19 +1667,21 @@ SubPixelWatersheds<SplineImageView>::rungeKuttaDoubleStepSecondOrder(
     double norm = hypot(dx, dy);
     if(!norm) // critical point
     {
-        *x = x2;
-        *y = y2;
+        *xx = x2;
+        *yy = y2;
         return Success;
     }
 
     dx /= norm;
     dy /= norm;
-    if(rungeKuttaStepSecondOrder(x2, y2, *h, &x2, &y2, dx, dy) == Outside)
+
+    if(rungeKuttaStepSecondOrder(x2, y2, dx, dy, (*h), &x2, &y2) == Outside)
     {
         *h /= 4.0;
         return Outside;
     }
 
+    // FIXME: is this a hack?
     // check that we don't jump too far (next step shall not go backwards)
     if((x2-x0)*image_.dx(x2, y2) + (y2-y0)*image_.dy(x2, y2) <= 0.0)
     {
@@ -1688,7 +1693,13 @@ SubPixelWatersheds<SplineImageView>::rungeKuttaDoubleStepSecondOrder(
     dx = x2 - x1;
     dy = y2 - y1;
     double d = std::max(std::abs(dx), std::abs(dy));
-    double hh = VIGRA_CSTD::pow(epsilon / d, 0.33) * (*h);
+    double hh = d
+                ? VIGRA_CSTD::pow(epsilon / d, 0.33) * (*h)
+                : 2 * (*h);
+
+    // FIXME: another hack?
+    if(hh > 1)
+        hh = 1;
 
     if(hh < *h / 2.0)
     {
@@ -1696,8 +1707,20 @@ SubPixelWatersheds<SplineImageView>::rungeKuttaDoubleStepSecondOrder(
         return StepTooLarge;
     }
 
-    *x = x2;
-    *y = y2;
+#ifndef EXTRA_SPEED
+    x1 = x2 + dx / 3.0;
+    y1 = y2 + dy / 3.0;
+    if(image_.isValid(x1, y1))
+    {
+        *xx = x1;
+        *yy = y1;
+    }
+    else
+#endif
+    {
+        *xx = x2;
+        *yy = y2;
+    }
     *h = hh;
     return Success;
 }
@@ -1754,7 +1777,7 @@ if(DEBUG) std::cerr << "stop index, x, y " << index << ' ' << curve.back()[0] <<
     {
         double xn, yn;
         RungeKuttaResult rungeKuttaResult(
-            rungeKuttaDoubleStepSecondOrder(x, y, &h, &xn, &yn, epsilon, dx, dy));
+            rungeKuttaDoubleStepSecondOrder(x, y, dx, dy, &h, &xn, &yn, epsilon));
         if(rungeKuttaResult == Success)
         {
             x = xn;
