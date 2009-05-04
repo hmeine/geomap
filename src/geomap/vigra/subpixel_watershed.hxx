@@ -717,21 +717,31 @@ rungeKuttaInitialStepSecondOrder(SplineImageView<2, T> const & s,
 template <class T>
 RungeKuttaResult
 rungeKuttaStepSecondOrder(SplineImageView<2, T> const & s,
-                  double x0, double y0, double h,
-                  double *x, double *y)
+                double x0, double y0, double h,
+                double *xx, double *yy)
 {
     double x1 = x0 + 0.5*h*s.dx(x0, y0);
     double y1 = y0 + 0.5*h*s.dy(x0, y0);
     if(!s.isInside(x1, y1))
         return Outside;
 
-    double x2 = x0 + h*s.dx(x1, y1);
-    double y2 = y0 + h*s.dy(x1, y1);
+    double dx = s.dx(x1, y1);
+    double dy = s.dy(x1, y1);
+    double norm = hypot(dx, dy);
+    if(!norm) // critical point?
+    {
+        *xx = x1;
+        *yy = y1;
+        return Success;
+    }
+
+    double x2 = x0 + h*dx/norm;
+    double y2 = y0 + h*dy/norm;
     if(!s.isInside(x2, y2))
         return Outside;
 
-    *x = x2;
-    *y = y2;
+    *xx = x2;
+    *yy = y2;
     return Success;
 }
 
@@ -1152,7 +1162,7 @@ flowLine(SplineImageView<2, T> const & s,
     {
         double xn, yn;
         detail::RungeKuttaResult r =
-                    detail::rungeKuttaDoubleStepSecondOrder(s, x, y, h, &xn, &yn, epsilon);
+            detail::rungeKuttaDoubleStepSecondOrder(s, x, y, h, &xn, &yn, epsilon);
         if(r == detail::Success)
         {
             c.push_back(PointType(xn, yn));
@@ -1607,7 +1617,7 @@ template <class SplineImageView>
 typename SubPixelWatersheds<SplineImageView>::RungeKuttaResult
 SubPixelWatersheds<SplineImageView>::rungeKuttaStepSecondOrder(
                   double x0, double y0, double h,
-                  double *x, double *y, double dx, double dy)
+                  double *xx, double *yy, double dx, double dy)
 {
     double x1 = x0 + 0.5*h*dx;
     double y1 = y0 + 0.5*h*dy;
@@ -1616,12 +1626,11 @@ SubPixelWatersheds<SplineImageView>::rungeKuttaStepSecondOrder(
 
     dx = image_.dx(x1, y1);
     dy = image_.dy(x1, y1);
-
     double norm = hypot(dx, dy);
     if(!norm) // critical point?
     {
-        *x = x1;
-        *y = y1;
+        *xx = x1;
+        *yy = y1;
         return Success;
     }
 
@@ -1630,8 +1639,8 @@ SubPixelWatersheds<SplineImageView>::rungeKuttaStepSecondOrder(
     if(!image_.isInside(x2, y2))
         return Outside;
 
-    *x = x2;
-    *y = y2;
+    *xx = x2;
+    *yy = y2;
     return Success;
 }
 
