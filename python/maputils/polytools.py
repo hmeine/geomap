@@ -2,6 +2,14 @@ import vigra, hourglass, math
 from vigra import Vector2, dot
 from hourglass import Polygon
 
+# FIXME: computing bsd42044 1.5 SPWS (spline order 2)...
+# ...
+#   File ".../maputils.py", line 473, in addFlowLinesToMap
+#     for cp in polytools.clipPoly(points, clipBox):
+#   File ".../polytools.py", line 209, in clipPoly
+#     assert outside != prevOutside; prevOutside = outside
+# AssertionError
+
 def maxDistIter(polygon, maxDist):
     maxDist2 = vigra.sq(maxDist)
     it = iter(polygon)
