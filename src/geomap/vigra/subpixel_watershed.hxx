@@ -39,8 +39,8 @@ namespace vigra {
 enum CriticalPoint { Minimum = -1, Saddle, Maximum, Failed = 999 };
 
 template <class IMAGE, class VECTOR>
-void findCriticalPoints48Neighborhood(IMAGE const & image,
-                        VECTOR & minima, VECTOR & saddles, VECTOR & maxima,
+void findCriticalPoints48Neighborhood(IMAGE const &image,
+                        VECTOR *minima, VECTOR *saddles, VECTOR *maxima,
                         bool eightneighborhood)
 {
     typedef typename IMAGE::value_type Value;
@@ -87,15 +87,15 @@ void findCriticalPoints48Neighborhood(IMAGE const & image,
 
             if(countSignChanges >= 4)
             {
-                saddles.push_back(Coordinate(x, y));
+                saddles->push_back(Coordinate(x, y));
             }
             else if(countSignChanges == 0 && countZeros == 0 && s < z)
             {
-                minima.push_back(Coordinate(x, y));
+                minima->push_back(Coordinate(x, y));
             }
             else if(countSignChanges == 0 && countZeros == 0 && s > z)
             {
-                maxima.push_back(Coordinate(x, y));
+                maxima->push_back(Coordinate(x, y));
             }
         }
     }
@@ -103,7 +103,7 @@ void findCriticalPoints48Neighborhood(IMAGE const & image,
 
 template <class IMAGE, class VECTOR>
 void findCriticalPointsLinearInterpolation(IMAGE const & image,
-                        VECTOR & minima, VECTOR & saddles, VECTOR & maxima)
+                        VECTOR *minima, VECTOR *saddles, VECTOR *maxima)
 {
     typedef typename IMAGE::value_type Value;
     typedef typename IMAGE::const_traverser Traverser;
@@ -152,15 +152,15 @@ void findCriticalPointsLinearInterpolation(IMAGE const & image,
                 }
                 if(countSignChanges == 4)
                 {
-                    saddles.push_back(Coordinate(x, y));
+                    saddles->push_back(Coordinate(x, y));
                 }
                 else if(countSignChanges == 0 && s < z)
                 {
-                    minima.push_back(Coordinate(x, y));
+                    minima->push_back(Coordinate(x, y));
                 }
                 else if(countSignChanges == 0 && s > z)
                 {
-                    maxima.push_back(Coordinate(x, y));
+                    maxima->push_back(Coordinate(x, y));
                 }
                 break;
               }
@@ -188,7 +188,7 @@ void findCriticalPointsLinearInterpolation(IMAGE const & image,
                 }
                 if(countSignChanges == 4)
                 {
-                    saddles.push_back(Coordinate(x, y));
+                    saddles->push_back(Coordinate(x, y));
                 }
                 break;
               }
@@ -209,7 +209,7 @@ void findCriticalPointsLinearInterpolation(IMAGE const & image,
                (v < v1 && v < v3 && v2 < v1 && v2 < v3))
             {
                 Value sv = v - v1 + v2 - v3;
-                saddles.push_back(Coordinate(x + (v - v1) / sv, y + (v - v3) / sv));
+                saddles->push_back(Coordinate(x + (v - v1) / sv, y + (v - v3) / sv));
             }
         }
     }
@@ -217,32 +217,32 @@ void findCriticalPointsLinearInterpolation(IMAGE const & image,
 
 template <class IMAGEVIEW>
 CriticalPoint
-findCriticalPointNewtonMethod(IMAGEVIEW const & image,
-                  const double x, const double y, double & xx, double & yy,
-                  const double stepEpsilon)
+findCriticalPointNewtonMethod(
+    IMAGEVIEW const & image, const double x, const double y,
+    double *xx, double *yy, const double stepEpsilon)
 {
     typedef typename IMAGEVIEW::value_type Value;
     Value zero = NumericTraits<Value>::zero();
 
-    xx = x;
-    yy = y;
+    *xx = x;
+    *yy = y;
     double sxx, syy, stepEpsilon2 = stepEpsilon * stepEpsilon;
     for(int i=0; i<100; ++i) // do at most 100 iterations
     {
-        Value dx = image.dx(xx, yy);
-        Value dy = image.dy(xx, yy);
-        Value dxx = image.dxx(xx, yy);
-        Value dxy = image.dxy(xx, yy);
-        Value dyy = image.dyy(xx, yy);
+        Value dx = image.dx(*xx, *yy);
+        Value dy = image.dy(*xx, *yy);
+        Value dxx = image.dxx(*xx, *yy);
+        Value dxy = image.dxy(*xx, *yy);
+        Value dyy = image.dyy(*xx, *yy);
         Value det = dxx*dyy - dxy*dxy;
 
         if(det != zero)
         {
             sxx = (dxy*dy - dyy*dx) / det;
             syy = (dxy*dx - dxx*dy) / det;
-            xx += sxx;
-            yy += syy;
-            if(!image.isValid(xx, yy))
+            *xx += sxx;
+            *yy += syy;
+            if(!image.isValid(*xx, *yy))
                 return Failed; // coordinates out of range
         }
         else
@@ -253,10 +253,9 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
         double dist2 = sxx*sxx + syy*syy;
         if(dist2 < stepEpsilon2) // convergence
         {
-            // FIXME: don't reuse stepEpsilon for a third purpose (I
-            // already refactored the other reuses away)
-            if(xx < -stepEpsilon || xx > (double)(image.width())-1.0+stepEpsilon ||
-               yy < -stepEpsilon || yy > (double)(image.height())-1.0+stepEpsilon)
+            // FIXME: really reuse stepEpsilon for this purpose?
+            if(*xx < -stepEpsilon || *xx > (double)(image.width())-1.0+stepEpsilon ||
+               *yy < -stepEpsilon || *yy > (double)(image.height())-1.0+stepEpsilon)
             {
                 return Failed; // coordinates out of range
             }
@@ -287,32 +286,33 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
 
 template <class IMAGEVIEW>
 CriticalPoint
-findCriticalPointNewtonMethod(IMAGEVIEW const & image,
-                  const double x, const double y, double & xx, double & yy,
-                  const double stepEpsilon, const double squaredSearchRadius)
+findCriticalPointNewtonMethod(
+    IMAGEVIEW const & image, const double x, const double y,
+    double *xx, double *yy, const double stepEpsilon,
+     const double squaredSearchRadius)
 {
     typedef typename IMAGEVIEW::value_type Value;
     Value zero = NumericTraits<Value>::zero();
 
-    xx = x;
-    yy = y;
+    *xx = x;
+    *yy = y;
     double sxx, syy, stepEpsilon2 = stepEpsilon * stepEpsilon;
     for(int i=0; i<100; ++i) // do at most 100 iterations
     {
-        Value dx = image.dx(xx, yy);
-        Value dy = image.dy(xx, yy);
-        Value dxx = image.dxx(xx, yy);
-        Value dxy = image.dxy(xx, yy);
-        Value dyy = image.dyy(xx, yy);
+        Value dx = image.dx(*xx, *yy);
+        Value dy = image.dy(*xx, *yy);
+        Value dxx = image.dxx(*xx, *yy);
+        Value dxy = image.dxy(*xx, *yy);
+        Value dyy = image.dyy(*xx, *yy);
         Value det = dxx*dyy - dxy*dxy;
 
         if(det != zero)
         {
             sxx = (dxy*dy - dyy*dx) / det;
             syy = (dxy*dx - dxx*dy) / det;
-            xx += sxx;
-            yy += syy;
-            if(!image.isValid(xx, yy))
+            *xx += sxx;
+            *yy += syy;
+            if(!image.isValid(*xx, *yy))
                 return Failed; // coordinates out of range
         }
         else
@@ -323,10 +323,9 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
         double dist2 = sxx*sxx + syy*syy;
         if(dist2 < stepEpsilon2) // convergence
         {
-            // FIXME: don't reuse stepEpsilon for a third purpose (I
-            // already refactored the other reuses away)
-            if(xx < -stepEpsilon || xx > (double)(image.width())-1.0+stepEpsilon ||
-               yy < -stepEpsilon || yy > (double)(image.height())-1.0+stepEpsilon)
+            // FIXME: really reuse stepEpsilon for this purpose?
+            if(*xx < -stepEpsilon || *xx > (double)(image.width())-1.0+stepEpsilon ||
+               *yy < -stepEpsilon || *yy > (double)(image.height())-1.0+stepEpsilon)
             {
                 return Failed; // coordinates out of range
             }
@@ -336,7 +335,7 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
                 {
                     return Saddle;
                 }
-                return Failed;
+                return Failed; // Hessian singular
             }
             else if(det < zero)
             {
@@ -352,49 +351,10 @@ findCriticalPointNewtonMethod(IMAGEVIEW const & image,
             }
         }
 
-        if(sq(xx-x) + sq(yy-y) > squaredSearchRadius)
+        if(sq(*xx-x) + sq(*yy-y) > squaredSearchRadius)
             return Failed;
     }
     return Failed;
-}
-
-template <class IMAGEVIEW, class VECTOR>
-void findCriticalPointsNewtonMethodOld(IMAGEVIEW const & image,
-                        VECTOR & minima, VECTOR & saddles, VECTOR & maxima,
-                        double stepEpsilon, unsigned int oversampling)
-{
-    int w = image.width();
-    int h = image.height();
-
-    typedef typename IMAGEVIEW::value_type Value;
-    Value zero = NumericTraits<Value>::zero();
-    typedef typename VECTOR::value_type Coordinate;
-
-    double d = 1.0 / oversampling;
-
-    for(double y=1.0; y <= h-2.0; y += d)
-    {
-        for(double x=1.0; x <= w-2.0; x += d)
-        {
-            double xx, yy;
-            CriticalPoint type = findCriticalPointNewtonMethod(image, x, y, xx, yy, stepEpsilon);
-            if(type == Failed)
-                continue;
-            if(VIGRA_CSTD::abs(xx - x) > 0.5*d || VIGRA_CSTD::abs(yy - y) > 0.5*d)
-            {
-                continue; // out of current starting point region
-            }
-
-            Coordinate c(xx, yy);
-
-            if(type == Saddle)
-                saddles.push_back(c);
-            else if(type == Minimum)
-                minima.push_back(c);
-            else
-                maxima.push_back(c);
-        }
-    }
 }
 
 template <class IMAGEVIEW>
@@ -402,7 +362,7 @@ bool
 findDirectedMaximum(IMAGEVIEW const & image,
                     double x, double y,
                     double nx, double ny,
-                    double & xx, double & yy,
+                    double *xx, double *yy,
                     double stepEpsilon, double maxDist)
 {
     typedef typename IMAGEVIEW::value_type Value;
@@ -415,15 +375,15 @@ findDirectedMaximum(IMAGEVIEW const & image,
         ny /= norm;
     }
 
-    xx = x;
-    yy = y;
+    *xx = x;
+    *yy = y;
     double sxx, syy, stepEpsilon2 = stepEpsilon * stepEpsilon, maxDist2 = maxDist * maxDist;
     for(int i=0; i<100; ++i) // do at most 100 iterations
     {
         Value d = image.dx(x, y)*nx + image.dy(x, y)*ny;
-        Value dxx = image.dxx(xx, yy);
-        Value dxy = image.dxy(xx, yy);
-        Value dyy = image.dyy(xx, yy);
+        Value dxx = image.dxx(*xx, *yy);
+        Value dxy = image.dxy(*xx, *yy);
+        Value dyy = image.dyy(*xx, *yy);
         Value d2 = dxx*nx*nx + 2*dxy*ny*nx + dyy*ny*ny;
 
         if(d2 != zero)
@@ -436,10 +396,10 @@ findDirectedMaximum(IMAGEVIEW const & image,
         {
             sxx = syy = 0.0;
         }
-        xx += sxx;
-        yy += syy;
-        if(xx < 1 || xx > (double)(image.width()-2) ||
-           yy < 1 || yy > (double)(image.height()-2))
+        *xx += sxx;
+        *yy += syy;
+        if(*xx < 1 || *xx > (double)(image.width()-2) ||
+           *yy < 1 || *yy > (double)(image.height()-2))
         {
             return false; // coordinates out of range
         }
@@ -447,7 +407,7 @@ findDirectedMaximum(IMAGEVIEW const & image,
         if(sxx*sxx + syy*syy < stepEpsilon2) // convergence
             return (d2 < zero) && (dxx + dyy < zero); // maximum?
 
-        sxx = xx - x; syy = yy - y;
+        sxx = *xx - x; syy = *yy - y;
         if(sxx*sxx + syy*syy > maxDist2) // too far from start
             return false;
     }
@@ -492,7 +452,7 @@ struct CriticalPointsCompare
 template <class IMAGEVIEW, class VECTOR>
 void findCriticalPointsNewtonMethod(
     IMAGEVIEW const & image,
-    VECTOR & minima, VECTOR & saddles, VECTOR & maxima,
+    VECTOR *minima, VECTOR *saddles, VECTOR *maxima,
     double minCPDist, double stepEpsilon, unsigned int oversampling)
 {
     int w = image.width();
@@ -525,7 +485,7 @@ void findCriticalPointsNewtonMethod(
                 {
                     double xx, yy;
                     CriticalPoint type = findCriticalPointNewtonMethod(
-                        image, x + dx, y + dy, xx, yy, stepEpsilon, 4.0);
+                        image, x + dx, y + dy, &xx, &yy, stepEpsilon, 4.0);
                     if(type == Failed)
                         continue;
 
@@ -534,11 +494,11 @@ void findCriticalPointsNewtonMethod(
                         continue;
 
                     if(type == Saddle)
-                        saddles.push_back(c);
+                        saddles->push_back(c);
                     else if(type == Minimum)
-                        minima.push_back(c);
+                        minima->push_back(c);
                     else
-                        maxima.push_back(c);
+                        maxima->push_back(c);
 
                     points.insert(c);
                 }
@@ -551,7 +511,7 @@ void findCriticalPointsNewtonMethod(
 template <class IMAGEVIEW, class VECTOR, class MaskIterator, class MaskAccessor>
 void findCriticalPointsNewtonMethodIf(IMAGEVIEW const & image,
     pair<MaskIterator, MaskAccessor> mask,
-    VECTOR & minima, VECTOR & saddles, VECTOR & maxima,
+    VECTOR *minima, VECTOR *saddles, VECTOR *maxima,
     double minCPDist, double stepEpsilon, unsigned int oversampling)
 {
     int w = image.width();
@@ -588,7 +548,7 @@ void findCriticalPointsNewtonMethodIf(IMAGEVIEW const & image,
                 {
                     double xx, yy;
                     CriticalPoint type = findCriticalPointNewtonMethod(
-                        image, x + dx, y + dy, xx, yy, stepEpsilon, 4.0);
+                        image, x + dx, y + dy, &xx, &yy, stepEpsilon, 4.0);
                     if(type == Failed)
                         continue;
 
@@ -597,11 +557,11 @@ void findCriticalPointsNewtonMethodIf(IMAGEVIEW const & image,
                         continue;
 
                     if(type == Saddle)
-                        saddles.push_back(c);
+                        saddles->push_back(c);
                     else if(type == Minimum)
-                        minima.push_back(c);
+                        minima->push_back(c);
                     else
-                        maxima.push_back(c);
+                        maxima->push_back(c);
 
                     points.insert(c);
                 }
@@ -615,7 +575,7 @@ template <class T, class VECTOR>
 void
 findCriticalPointsInFacet(
     SplineImageView<2, T> const & s, double x0, double y0,
-    VECTOR & minima, VECTOR & saddles, VECTOR & maxima)
+    VECTOR *minima, VECTOR *saddles, VECTOR *maxima)
 {
     typedef typename VECTOR::value_type PointType;
 
@@ -676,16 +636,16 @@ findCriticalPointsInFacet(
                 {
                     if(t1 > 0.0)
                     {
-                        minima.push_back(PointType(xx,yy));
+                        minima->push_back(PointType(xx,yy));
                     }
                     else
                     {
-                        maxima.push_back(PointType(xx,yy));
+                        maxima->push_back(PointType(xx,yy));
                     }
                 }
                 else
                 {
-                    saddles.push_back(PointType(xx,yy));
+                    saddles->push_back(PointType(xx,yy));
                 }
             }
         }
@@ -697,7 +657,7 @@ template <class T, class VECTOR>
 void
 findCriticalPoints(
     SplineImageView<2, T> const & s,
-    VECTOR & minima, VECTOR & saddles, VECTOR & maxima)
+    VECTOR *minima, VECTOR *saddles, VECTOR *maxima)
 {
     for(unsigned int y=1; y<s.height()-1; ++y)
     {
@@ -1183,7 +1143,7 @@ flowLine(SplineImageView<2, T> const & s,
         return;
     c.push_back(PointType(x, y));
     ArrayVector<PointType> mi, sa, ma;
-    findCriticalPointsInFacet(s, x, y, mi, sa, ma);
+    findCriticalPointsInFacet(s, x, y, &mi, &sa, &ma);
 
     for(int k=0; k<1000; ++k)
     {
@@ -1199,7 +1159,7 @@ flowLine(SplineImageView<2, T> const & s,
                 mi.clear();
                 sa.clear();
                 ma.clear();
-                findCriticalPointsInFacet(s, xn, yn, mi, sa, ma);
+                findCriticalPointsInFacet(s, xn, yn, &mi, &sa, &ma);
             }
             unsigned int i = 0;
             for(; i<ma.size(); ++i)
@@ -1512,7 +1472,7 @@ void SubPixelWatersheds<SplineImageView>::findCriticalPoints(
     maxima_.push_back(PointType());
 
     findCriticalPointsNewtonMethodIf(
-        image_, mask, minima_, saddles_, maxima_, minCPDist_, stepEpsilon_, cpOversampling_);
+        image_, mask, &minima_, &saddles_, &maxima_, minCPDist_, stepEpsilon_, cpOversampling_);
     updateMaxImage();
 }
 
@@ -1539,7 +1499,7 @@ SubPixelWatersheds<SplineImageView>::findCriticalPoints()
 //         }
 //     }
     findCriticalPointsNewtonMethod(
-        image_, minima_, saddles_, maxima_, minCPDist_, stepEpsilon_, cpOversampling_);
+        image_, &minima_, &saddles_, &maxima_, minCPDist_, stepEpsilon_, cpOversampling_);
     updateMaxImage();
 //     std::cerr << "Sturm fired: " << sturmcount << " times\n";
 //     std::cerr << "Zero order fired: " << zeroOrder << " times\n";
