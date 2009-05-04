@@ -149,10 +149,12 @@ void GeoMap::Edge::concatenate(Edge &other, bool atEnd, bool reverse)
     if(lengthValid_)
         this->length_ += other.length();
     if(partialAreaValid_)
+    {
         if(reverse)
             this->partialArea_ -= other.partialArea();
         else
             this->partialArea_ += other.partialArea();
+    }
 
     if(boundingBoxValid_)
         this->boundingBox_ |= other.boundingBox();

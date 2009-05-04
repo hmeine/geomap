@@ -586,14 +586,14 @@ class BBoxPolygon : public Polygon<POINT>
     {
         if(boundingBoxValid_)
         {
-            if((x[0] < this->points_[pos][0]) &&
-               (this->points_[pos][0] == boundingBox_.end()[0]) ||
-               (x[0] > this->points_[pos][0]) &&
-               (this->points_[pos][0] == boundingBox_.begin()[0]) ||
-               (x[1] < this->points_[pos][1]) &&
-               (this->points_[pos][1] == boundingBox_.end()[1]) ||
-               (x[1] > this->points_[pos][1]) &&
-               (this->points_[pos][1] == boundingBox_.begin()[1]))
+            if(((x[0] < this->points_[pos][0]) &&
+                (this->points_[pos][0] == boundingBox_.end()[0])) ||
+               ((x[0] > this->points_[pos][0]) &&
+                (this->points_[pos][0] == boundingBox_.begin()[0])) ||
+               ((x[1] < this->points_[pos][1]) &&
+                (this->points_[pos][1] == boundingBox_.end()[1])) ||
+               ((x[1] > this->points_[pos][1]) &&
+                (this->points_[pos][1] == boundingBox_.begin()[1])))
                 boundingBoxValid_ = false;
         }
         Base::setPoint(pos, x);
@@ -698,7 +698,7 @@ void convexHull(
     for(unsigned int i = 1; i < poly.size(); ++i)
     {
         Coordinate yDiff = poly[i][1] - p0[1];
-        if(yDiff > 0 || yDiff == 0 && poly[i][0] < p0[0])
+        if(yDiff > 0 || (yDiff == 0 && poly[i][0] < p0[0]))
         {
             p0 = poly[i];
             i0 = i;
