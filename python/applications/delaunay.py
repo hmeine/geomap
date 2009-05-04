@@ -175,7 +175,7 @@ def delaunayToVoronoi(delaunayMap):
     definition of node positions (triangle circumcenters).
     Additionally, a special border handling is needed."""
     
-    def createInfiniteNode(dm, edge, voronoi, sn, en):
+    def createInfiniteNode(dm, edge, voronoiMap, sn, en):
         if sn is not None:
             existingNode = sn
         else:
@@ -187,13 +187,13 @@ def delaunayToVoronoi(delaunayMap):
         p1 = existingNode.position()
         dir = (p1 - (m1 + m2)/2)
         d = 0 if abs(dir[0]) > abs(dir[1]) else 1
-        if (p1[d] > dm.imageSize()[d] / 2) == (dir[d] > 0):
+        if (p1[d] > voronoiMap.imageSize()[d] / 2) == (dir[d] > 0):
             l = 100
         else:
             l = -100
         p2 = p1 + dir * l
 
-        newNode = dm.addNode(p2)
+        newNode = voronoiMap.addNode(p2)
         if sn is None:
             sn = newNode
         else:
