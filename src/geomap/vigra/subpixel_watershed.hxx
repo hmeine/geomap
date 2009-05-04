@@ -670,13 +670,13 @@ findCriticalPoints(
 
 namespace detail {
 
-enum RungeKuttaResult { Success, Outside, StepToLarge };
+enum RungeKuttaResult { Success, Outside, StepTooLarge };
 
 template <class T>
 RungeKuttaResult
 rungeKuttaInitial(SplineImageView<2, T> const & s,
                   double x0, double y0, double & h, bool forward,
-                  double & x, double & y)
+                  double *x, double *y)
 {
     double dxx = s.dxx(x0, y0);
     double dxy = s.dxy(x0, y0);
@@ -688,28 +688,29 @@ rungeKuttaInitial(SplineImageView<2, T> const & s,
     double dy = forward
                  ? -h*VIGRA_CSTD::sin(a)
                  :  h*VIGRA_CSTD::sin(a);
-    x = x0 + dx;
-    y = y0 + dy;
-    return s.isInside(x, y) ? Success : Outside;
+    *x = x0 + dx;
+    *y = y0 + dy;
+    return s.isInside(*x, *y) ? Success : Outside;
 }
 
 template <class T>
 RungeKuttaResult
 rungeKuttaInitialStepSecondOrder(SplineImageView<2, T> const & s,
                   double x0, double y0, double h,
-                  double & x, double & y, double dx, double dy)
+                  double *x, double *y, double dx, double dy)
 {
-    double x1, x2, y1, y2;
-    x1 = x0 + 0.5*h*dx;
-    y1 = y0 + 0.5*h*dy;
+    double x1 = x0 + 0.5*h*dx;
+    double y1 = y0 + 0.5*h*dy;
     if(!s.isInside(x1, y1))
         return Outside;
-    x2 = x0 + h*s.dx(x1, y1);
-    y2 = y0 + h*s.dy(x1, y1);
+
+    double x2 = x0 + h*s.dx(x1, y1);
+    double y2 = y0 + h*s.dy(x1, y1);
     if(!s.isInside(x2, y2))
         return Outside;
-    x = x2;
-    y = y2;
+
+    *x = x2;
+    *y = y2;
     return Success;
 }
 
@@ -717,19 +718,20 @@ template <class T>
 RungeKuttaResult
 rungeKuttaStepSecondOrder(SplineImageView<2, T> const & s,
                   double x0, double y0, double h,
-                  double & x, double & y)
+                  double *x, double *y)
 {
-    double x1, x2, y1, y2;
-    x1 = x0 + 0.5*h*s.dx(x0, y0);
-    y1 = y0 + 0.5*h*s.dy(x0, y0);
+    double x1 = x0 + 0.5*h*s.dx(x0, y0);
+    double y1 = y0 + 0.5*h*s.dy(x0, y0);
     if(!s.isInside(x1, y1))
         return Outside;
-    x2 = x0 + h*s.dx(x1, y1);
-    y2 = y0 + h*s.dy(x1, y1);
+
+    double x2 = x0 + h*s.dx(x1, y1);
+    double y2 = y0 + h*s.dy(x1, y1);
     if(!s.isInside(x2, y2))
         return Outside;
-    x = x2;
-    y = y2;
+
+    *x = x2;
+    *y = y2;
     return Success;
 }
 
@@ -737,12 +739,12 @@ template <class T>
 RungeKuttaResult
 rungeKuttaDoubleStepSecondOrder(SplineImageView<2, T> const & s,
                   double x0, double y0, double & h,
-                  double & x, double & y, double epsilon)
+                  double *x, double *y, double epsilon)
 {
     double x1, x2, y1, y2;
-    if(rungeKuttaStepSecondOrder(s, x0, y0, 2.0 * h, x1, y1) == Outside ||
-       rungeKuttaStepSecondOrder(s, x0, y0, h, x2, y2) == Outside ||
-       rungeKuttaStepSecondOrder(s, x2, y2, h, x2, y2) == Outside)
+    if(rungeKuttaStepSecondOrder(s, x0, y0, 2.0 * h, &x1, &y1) == Outside ||
+       rungeKuttaStepSecondOrder(s, x0, y0, h, &x2, &y2) == Outside ||
+       rungeKuttaStepSecondOrder(s, x2, y2, h, &x2, &y2) == Outside)
     {
         h /= 4.0;
         return Outside;
@@ -755,19 +757,19 @@ rungeKuttaDoubleStepSecondOrder(SplineImageView<2, T> const & s,
     if(hh < h / 2.0)
     {
         h = hh;
-        return StepToLarge;
+        return StepTooLarge;
     }
     x1 = x2 + dx / 3.0;
     y1 = y2 + dy / 3.0;
     if(s.isInside(x1, y1))
     {
-        x = x1;
-        y = y1;
+        *x = x1;
+        *y = y1;
     }
     else
     {
-        x = x2;
-        y = y2;
+        *x = x2;
+        *y = y2;
     }
     h = hh;
     return Success;
@@ -776,7 +778,7 @@ rungeKuttaDoubleStepSecondOrder(SplineImageView<2, T> const & s,
 
 template <class IMAGEVIEW>
 void rungeKuttaStep1(IMAGEVIEW const & image,
-                    double x, double y, double s, double & xx, double & yy)
+                    double x, double y, double s, double *xx, double *yy)
 {
     xx = x;
     yy = y;
@@ -808,7 +810,7 @@ void rungeKuttaStep1(IMAGEVIEW const & image,
 
 template <class IMAGEVIEW>
 void rungeKuttaStep1b(IMAGEVIEW const & image,
-                      double x, double y, double s, double & xx, double & yy)
+                      double x, double y, double s, double *xx, double *yy)
 {
     xx = x;
     yy = y;
@@ -852,7 +854,7 @@ void rungeKuttaStep1b(IMAGEVIEW const & image,
 
 template <class IMAGEVIEW>
 void rungeKuttaStep2(IMAGEVIEW const & image,
-                    double x, double y, double s, double a, double & xx, double & yy)
+                    double x, double y, double s, double a, double *xx, double *yy)
 {
     xx = x;
     yy = y;
@@ -1136,11 +1138,12 @@ flowLine(SplineImageView<2, T> const & s,
     double x0 = c[0][0];
     double y0 = c[0][1];
     double h = 0.25;
-    double x, y;
 
-    detail::RungeKuttaResult r = detail::rungeKuttaInitial(s, x0, y0, h, forward, x, y);
+    double x, y;
+    detail::RungeKuttaResult r = detail::rungeKuttaInitial(s, x0, y0, h, forward, &x, &y);
     if(r == detail::Outside)
         return;
+
     c.push_back(PointType(x, y));
     ArrayVector<PointType> mi, sa, ma;
     findCriticalPointsInFacet(s, x, y, &mi, &sa, &ma);
@@ -1149,7 +1152,7 @@ flowLine(SplineImageView<2, T> const & s,
     {
         double xn, yn;
         detail::RungeKuttaResult r =
-                    detail::rungeKuttaDoubleStepSecondOrder(s, x, y, h, xn, yn, epsilon);
+                    detail::rungeKuttaDoubleStepSecondOrder(s, x, y, h, &xn, &yn, epsilon);
         if(r == detail::Success)
         {
             c.push_back(PointType(xn, yn));
@@ -1267,7 +1270,7 @@ class SubPixelWatersheds
 
     typedef TinyVector<double, 2> PointType;
     typedef ArrayVector<PointType> PointArray;
-    enum RungeKuttaResult { Success, Outside, StepToLarge };
+    enum RungeKuttaResult { Success, Outside, StepTooLarge };
 
     template <class SrcIterator, class SrcAccessor>
     SubPixelWatersheds(SrcIterator ul, SrcIterator lr, SrcAccessor src)
@@ -1300,9 +1303,9 @@ class SubPixelWatersheds
     int flowLine(double x, double y, bool forward, double epsilon, PointArray & curve);
     pair<int, int> findEdge(double x, double y, double epsilon, PointArray & edge);
     RungeKuttaResult rungeKuttaStepSecondOrder(double x0, double y0, double h,
-                                               double & x, double & y, double dx, double dy);
-    RungeKuttaResult rungeKuttaDoubleStepSecondOrder(double x0, double y0, double & h,
-                            double & x, double & y, double epsilon, double dx, double dy);
+                                               double *x, double *y, double dx, double dy);
+    RungeKuttaResult rungeKuttaDoubleStepSecondOrder(double x0, double y0, double *h,
+                            double *x, double *y, double epsilon, double dx, double dy);
 
     SplineImageView image_;
     PointArray minima_, saddles_, maxima_;
@@ -1604,83 +1607,89 @@ template <class SplineImageView>
 typename SubPixelWatersheds<SplineImageView>::RungeKuttaResult
 SubPixelWatersheds<SplineImageView>::rungeKuttaStepSecondOrder(
                   double x0, double y0, double h,
-                  double & x, double & y, double dx, double dy)
+                  double *x, double *y, double dx, double dy)
 {
-    double x1, x2, y1, y2;
-    x1 = x0 + 0.5*h*dx;
-    y1 = y0 + 0.5*h*dy;
+    double x1 = x0 + 0.5*h*dx;
+    double y1 = y0 + 0.5*h*dy;
     if(!image_.isInside(x1, y1))
         return Outside;
+
     dx = image_.dx(x1, y1);
     dy = image_.dy(x1, y1);
+
     double norm = hypot(dx, dy);
     if(!norm) // critical point?
     {
-        x = x1;
-        y = y1;
+        *x = x1;
+        *y = y1;
         return Success;
     }
-    x2 = x0 + h*dx/norm;
-    y2 = y0 + h*dy/norm;
+
+    double x2 = x0 + h*dx/norm;
+    double y2 = y0 + h*dy/norm;
     if(!image_.isInside(x2, y2))
         return Outside;
-    x = x2;
-    y = y2;
+
+    *x = x2;
+    *y = y2;
     return Success;
 }
 
 template <class SplineImageView>
 typename SubPixelWatersheds<SplineImageView>::RungeKuttaResult
 SubPixelWatersheds<SplineImageView>::rungeKuttaDoubleStepSecondOrder(
-                  double x0, double y0, double & h,
-                  double & x, double & y, double epsilon, double dx, double dy)
+                  double x0, double y0,
+                  double *h, double *x, double *y,
+                  double epsilon, double dx, double dy)
 {
     double x1, x2, y1, y2;
-    if(rungeKuttaStepSecondOrder(x0, y0, 2.0 * h, x1, y1, dx, dy) == Outside ||
-       rungeKuttaStepSecondOrder(x0, y0, h, x2, y2, dx, dy) == Outside)
+    if(rungeKuttaStepSecondOrder(x0, y0, 2.0 * (*h), &x1, &y1, dx, dy) == Outside ||
+       rungeKuttaStepSecondOrder(x0, y0, *h, &x2, &y2, dx, dy) == Outside)
     {
-        h /= 4.0;
+        *h /= 4.0;
         return Outside;
     }
+
     dx = image_.dx(x2, y2);
     dy = image_.dy(x2, y2);
     double norm = hypot(dx, dy);
     if(!norm) // critical point
     {
-        x = x2;
-        y = y2;
+        *x = x2;
+        *y = y2;
         return Success;
     }
+
     dx /= norm;
     dy /= norm;
-    if(rungeKuttaStepSecondOrder(x2, y2, h, x2, y2, dx, dy) == Outside)
+    if(rungeKuttaStepSecondOrder(x2, y2, *h, &x2, &y2, dx, dy) == Outside)
     {
-        h /= 4.0;
+        *h /= 4.0;
         return Outside;
     }
 
     // check that we don't jump too far (next step shall not go backwards)
     if((x2-x0)*image_.dx(x2, y2) + (y2-y0)*image_.dy(x2, y2) <= 0.0)
     {
-        h /= 2.0;
-        return StepToLarge;
+        *h /= 2.0;
+        return StepTooLarge;
     }
 
     // estimate error and desirable step size (hh)
     dx = x2 - x1;
     dy = y2 - y1;
     double d = std::max(std::abs(dx), std::abs(dy));
-    double hh = VIGRA_CSTD::pow(epsilon / d, 0.33) * h;
+    double hh = VIGRA_CSTD::pow(epsilon / d, 0.33) * (*h);
 
-    if(hh < h / 2.0)
+    if(hh < *h / 2.0)
     {
-        h = hh;
-        return StepToLarge;
+        *h = hh;
+        return StepTooLarge;
     }
 
-    x = x2;
-    y = y2;
-    h = hh;
+    *x = x2;
+    *y = y2;
+    *h = hh;
     return Success;
 }
 
@@ -1736,7 +1745,7 @@ if(DEBUG) std::cerr << "stop index, x, y " << index << ' ' << curve.back()[0] <<
     {
         double xn, yn;
         RungeKuttaResult rungeKuttaResult(
-            rungeKuttaDoubleStepSecondOrder(x, y, h, xn, yn, epsilon, dx, dy));
+            rungeKuttaDoubleStepSecondOrder(x, y, &h, &xn, &yn, epsilon, dx, dy));
         if(rungeKuttaResult == Success)
         {
             x = xn;
