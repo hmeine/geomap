@@ -1306,6 +1306,7 @@ bool GeoMap::checkConsistency()
         int dist = sigmaMappingArray_.size()/2;
         for(int label = -dist; label <= dist; ++label)
         {
+#if 0
             // this test could probably be gotten rid of:
             if(abs(sigmaMapping_[label]) >= dist ||
                abs(sigmaInverseMapping_[label]) >= dist)
@@ -1317,6 +1318,7 @@ bool GeoMap::checkConsistency()
                 result = false;
                 continue;
             }
+#endif
             if(sigmaMapping_[label] &&
                (CellLabel)abs(label) < maxEdgeLabel() &&
                edges_[abs(label)].get() &&
@@ -1513,6 +1515,15 @@ bool GeoMap::checkConsistency()
         {
             double area = 0.0;
             int canonicalAnchor(ci->label());
+
+            if(!ci->edge())
+            {
+                std::cerr << "  Face " << face.label() << " contains an invalid contour anchor:\n    dart " << ci->label()
+                          << " belongs to removed edge!\n";
+                result = false;
+                continue;
+            }
+
             Dart anchor(*ci), dart(anchor);
             do
             {
