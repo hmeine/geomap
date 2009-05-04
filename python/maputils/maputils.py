@@ -152,7 +152,7 @@ def subpixelWatershedData(spws, biSIV, filter = None, mask = None,
     perpendicularDistEpsilon = 0.1 and maxStep = 0.1 (use the optional
     parameters with the same names to change the default)."""
     
-    sys.stdout.write("- finding critical points..")
+    sys.stdout.write("- finding critical points..\n")
     c = time.clock()
 
     if mask:
@@ -258,7 +258,8 @@ def subpixelWatershedMapFromData(
     # proper WatershedStatistics):
     flowlines = list(flowlines)
 
-    deleted = addFlowLinesToMap(flowlines, spmap, imageSize)
+    deleted = addFlowLinesToMap(flowlines, spmap, imageSize,
+                                minMaxBorderDist = ssMinDist)
     if deleted:
         print "  skipped %d flowlines (at border / degenerate loops)" \
               % len(deleted)
@@ -410,8 +411,8 @@ def addFlowLinesToMap(edges, map, imageSize = None,
         image border are presumed to be parallel to the border and are
         not added at all.
 
-      * Flowlines that are entirely within `minMaxBorderDist` of the
-        image border are handled the same.
+      * Flowlines that are *entirely* within `minMaxBorderDist` of the
+        image border are handled the same (i.e. also discarded).
         
     * Flowlines that partially run outside the image are clipped (at a
       `minSaddleBorderDist` border within the image range), and only
@@ -1058,7 +1059,8 @@ def showMapStats(map):
         float(pointCount) / map.edgeCount,
         totalLength / (pointCount - map.edgeCount),
         float(pointCount)/map.imageSize().area())
-    
+
+    # (the following attributes are no longer attached to the map)
     if hasattr(map, "deleted") and map.deleted:
         print "%d edges were deleted (e.g. at image border)." % (
             len(map.deleted), )
@@ -1068,6 +1070,9 @@ def showMapStats(map):
     if hasattr(map, "unembeddableContours") and map.unembeddableContours:
         print "%d outer contours could not be embedded into " \
               "their surrounding faces!" % (len(map.unembeddableContours), )
+
+    for key, value in map.__dict__.items():
+        print "  %s: %s" % (key, value)
 
 def degree2Nodes(map):
     return [node for node in map.nodeIter() if node.hasDegree(2)]
