@@ -1626,14 +1626,25 @@ SubPixelWatersheds<SplineImageView>::rungeKuttaStepSecondOrder(
     if(!image_.isInside(x1, y1))
         return Outside;
 
-    dx = image_.dx(x1, y1);
-    dy = image_.dy(x1, y1);
+    double dx2 = image_.dx(x1, y1);
+    double dy2 = image_.dy(x1, y1);
     double norm = hypot(dx, dy);
     if(!norm) // critical point?
     {
         *xx = x1;
         *yy = y1;
         return Success;
+    }
+
+    // HACK: don't jump into the wrong direction (if the step size is
+    // too large, in some ugly cases the step size control will not
+    // notice because both single steps and the double step will all
+    // make the same error and turn around into the wrong direction)
+    if(dx * dx2 + dy * dy2 < 0)
+    {
+        *xx = x1;
+        *yy = y1;
+        return StepTooLarge;
     }
 
     double x2 = x0 + h*dx/norm;
@@ -1778,6 +1789,7 @@ if(DEBUG) std::cerr << "stop index, x, y " << index << ' ' << curve.back()[0] <<
         double xn, yn;
         RungeKuttaResult rungeKuttaResult(
             rungeKuttaDoubleStepSecondOrder(x, y, dx, dy, &h, &xn, &yn, epsilon));
+
         if(rungeKuttaResult == Success)
         {
             x = xn;
@@ -1793,6 +1805,7 @@ if(DEBUG) std::cerr << "stop index, x, y " << index << ' ' << curve.back()[0] <<
             }
             if(DEBUG) std::cerr << "x, y, dx, dy " << x << ' ' << y
                                 << ' ' << dx << ' ' << dy << '\n';
+
             // check if near a maximum
             if(nearestMaximum(x, y, dx, dy, index) < initialStep_)
             {
@@ -1808,7 +1821,7 @@ if(DEBUG) std::cerr << "stop index, x, y " << index << ' ' << curve.back()[0] <<
             if(DEBUG) std::cerr << "outside image\n";
             failReason = -1; // signal "outside image", curve might still be useful?!
         }
-        if(h < 1.0e-6)
+        if(h < epsilon)
         {
             if(DEBUG) std::cerr << "give up\n";
             return failReason; // give up
