@@ -19,16 +19,15 @@ CXXFLAGS += -Wall -Wno-strict-aliasing
 CXXFLAGS += -pipe -DNDEBUG
 CPPFLAGS := $(LOCAL_CPPFLAGS) $(CPPFLAGS)
 LIBCPPFLAGS := $(LOCAL_CPPFLAGS) $(LIBCPPFLAGS)
-TARGET = hourglassmodule.la
+TARGET = geomapmodule.la
 MODULE = $(patsubst %.la,%.so,$(TARGET))
 
 OBJS = \
 	shapecontext.lo \
-	hourglassmodule.lo \
+	geomapmodule.lo \
 	polygon.lo \
 	statistics.lo \
 	features.lo \
-	delaunay.lo \
 	cppmapmodule_utils.lo \
 	cppmapmodule_stats.lo \
 	cppmapmodule.lo \
@@ -49,21 +48,14 @@ install: $(TARGET)
 	$(INSTALL) -d $(dynmoddir)
 	$(LIBINSTALL) $(TARGET) $(dynmoddir)
 
-hourglass: hourglass.o
-	$(CXX) -o $@ $< $(IMPEX_LIB)
-
-delaunay: delaunay.o deltest.o
-	$(CXX) -o $@ delaunay.o deltest.o
-
 $(INT2BUILDDIR)/config/Makefile.include:
 	@echo
 	@echo "*** Check if your vigra/interactive2 build directory is $(INT2BUILDDIR)."
 	@echo "*** Otherwise, change the definition of INT2BUILDDIR in the Makefile."
 
 clean:
-	rm -f $(OBJS) $(TARGET) hourglass delaunay *.o *.ld *.d *.so
+	rm -f $(OBJS) $(TARGET) *.o *.ld *.d *.so
 
 ifneq "$(MAKECMDGOALS)" "clean"
-include hourglass.d
 include $(patsubst %.lo,%.ld,$(OBJS))
 endif
