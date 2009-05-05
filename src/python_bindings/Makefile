@@ -28,7 +28,6 @@ OBJS = \
 	polygon.lo \
 	statistics.lo \
 	features.lo \
-	delaunay.lo \
 	cppmapmodule_utils.lo \
 	cppmapmodule_stats.lo \
 	cppmapmodule.lo \
@@ -49,16 +48,13 @@ install: $(TARGET)
 	$(INSTALL) -d $(dynmoddir)
 	$(LIBINSTALL) $(TARGET) $(dynmoddir)
 
-delaunay: delaunay.o deltest.o
-	$(CXX) -o $@ delaunay.o deltest.o
-
 $(INT2BUILDDIR)/config/Makefile.include:
 	@echo
 	@echo "*** Check if your vigra/interactive2 build directory is $(INT2BUILDDIR)."
 	@echo "*** Otherwise, change the definition of INT2BUILDDIR in the Makefile."
 
 clean:
-	rm -f $(OBJS) $(TARGET) hourglass delaunay *.o *.ld *.d *.so
+	rm -f $(OBJS) $(TARGET) *.o *.ld *.d *.so
 
 ifneq "$(MAKECMDGOALS)" "clean"
 include $(patsubst %.lo,%.ld,$(OBJS))

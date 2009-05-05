@@ -8,7 +8,6 @@
 #include <vigra/linear_algebra.hxx>
 #include <vigra/regression.hxx>
 #include <cmath>
-#include "delaunay.hxx"
 #include "exporthelpers.hxx"
 
 using namespace vigra;
@@ -1786,58 +1785,6 @@ list sigmaOrbit(const QuadEdge *edge)
     return result;
 }
 
-tuple delaunay(const PointArray<Vector2> &points)
-{
-    // Construct a large surrounding triangle containing all points:
-    Vector2 p1(-1e12, -1e8), p2(1e12, -1e8), p3(0.0, 3e16);
-    Subdivision mesh(p1, p2, p3);
-
-    list nodePositions, edges, orbits;
-    nodePositions.append(object()); // node labels start with 1
-    orbits.append(object());
-
-    for(unsigned int i = 0; i < points.size(); ++i)
-    {
-        if(mesh.insertSite(points[i]) > 0)
-            nodePositions.append(points[i]);
-//         else
-//             nodePositions.append(object());
-    }
-
-    for(Subdivision::NodeIterator it = mesh.nodesBegin();
-        it != mesh.nodesEnd(); ++it)
-    {
-        orbits.append(object());
-    }
-
-    for(Subdivision::EdgeIterator it = mesh.edgesBegin();
-        it != mesh.edgesEnd(); ++it)
-    {
-        if(!*it)
-        {
-            edges.append(object());
-            continue;
-        }
-
-        const QuadEdge *edge((*it)->e);
-        const DelaunayNode &o(edge->org()), &d(edge->dest());
-        if(!o.label() || !d.label())
-        {
-            edges.append(object());
-            continue;
-        }
-
-        edges.append(make_tuple(o.label(), d.label()));
-
-        if(!orbits[o.label()])
-            orbits[o.label()] = sigmaOrbit(edge);
-        if(!orbits[d.label()])
-            orbits[d.label()] = sigmaOrbit(edge->opposite());
-    }
-
-    return make_tuple(nodePositions, edges, orbits);
-}
-
 template<class Polygon>
 list intersectLine(
     const Polygon &polygon, Vector2 const &lineStart, Vector2 const &lineEnd)
@@ -2267,7 +2214,6 @@ void defPolygon()
         .def_readonly("count", &ParabolaFit::count,
                       "the number of values included in the fit")
     ;
-    def("delaunay", &delaunay);
 
     def("intPos", &intPos);
     def("intPos", &intPos_Box<BoundingBox>);
