@@ -1762,29 +1762,6 @@ struct ArrayPickleSuite : pickle_suite
     }
 };
 
-list sigmaOrbit(const QuadEdge *edge)
-{
-    const QuadEdge *orig(edge);
-    list result;
-    do
-    {
-        if(edge->dest().label())
-        {
-            int edgeLabel = edge->holderIndex();
-            if(edge->isAnchor())
-                result.append( edgeLabel);
-            else
-                result.append(-edgeLabel);
-        }
-        // this is confusing; I understood nextOrg() was the right
-        // one, but apparently that would've been in a clockwise
-        // manner (contrary to the documentation)..
-        edge = edge->prevOrg();
-    }
-    while(edge != orig);
-    return result;
-}
-
 template<class Polygon>
 list intersectLine(
     const Polygon &polygon, Vector2 const &lineStart, Vector2 const &lineEnd)
