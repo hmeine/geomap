@@ -101,12 +101,14 @@ void CrackEdgeMapGenerator::markEightConnectedRegions(
 
             // crossing regions?
             if(*it == (CONN_ALL4 | CONN_DIAG_UPLEFT | CONN_DIAG_UPRIGHT))
+            {
                 // preserve connectedness of higher label:
                 if(sul[it - cul - vigra::Diff2D(0, 1)] >
                    sul[it - cul - vigra::Diff2D(1, 1)])
                     *it -= CONN_DIAG_UPLEFT;
                 else
                     *it -= CONN_DIAG_UPRIGHT;
+            }
         }
     }
 }
