@@ -28,6 +28,7 @@ OBJS = \
 	polygon.lo \
 	statistics.lo \
 	features.lo \
+	ellipse.lo \
 	cppmapmodule_utils.lo \
 	cppmapmodule_stats.lo \
 	cppmapmodule.lo \
