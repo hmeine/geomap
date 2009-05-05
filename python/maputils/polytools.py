@@ -215,11 +215,9 @@ def clipPoly(polygon, clipRect, closeAtBorder = None):
     prevPoly = None
     prevOutside = None
 
-    #print; print map(len, sides)
     for side, end in zip(sides, corners):
         for _, poly, outside in sorted(side):
-            #print poly, outside, prevPoly, lastPoly
-            assert outside != prevOutside; prevOutside = outside
+#            assert outside != prevOutside; prevOutside = outside
             if outside == isCCW:
                 prevPoly = poly
             else:
