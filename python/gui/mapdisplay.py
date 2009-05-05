@@ -630,7 +630,8 @@ class MapDisplay(displaysettings.DisplaySettings):
             preparedImage = preparedImage.view
         else:
             self.images = {}
-            self.setImage(preparedImage, normalize = False) # auto-detects role
+            # auto-detects role colored/original:
+            self.setImage(preparedImage, normalize = False)
 
         self.image = preparedImage
         self._imageWindow = vigrapyqt.ImageWindow(self.image, vigra.BYTE, self)

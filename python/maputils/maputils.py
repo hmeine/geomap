@@ -168,15 +168,19 @@ def subpixelWatershedData(spws, biSIV, filter = None, mask = None,
         flowline = spws.edge(index)
         if not flowline:
             return flowline
+
         sn, en, poly, saddleIndex = flowline
+
         if perpendicularDistEpsilon:
             simple = hourglass.simplifyPolygon(
                 poly[:saddleIndex+1], perpendicularDistEpsilon, maxStep)
             newSaddleIndex = len(simple)-1
             simple.extend(hourglass.simplifyPolygon(
                 poly[saddleIndex:], perpendicularDistEpsilon, maxStep))
+
             poly = simple
             saddleIndex = newSaddleIndex
+
         return (sn, en, poly, saddleIndex, index)
 
     saddles = filterSaddlePoints(rawSaddles, biSIV, filter, minSaddleDist)
@@ -224,7 +228,7 @@ def _handleUnsortable(map, unsortable):
             else:
                 i += 1
     if loopCount:
-        print "%d unsortable self-loops discarded." % loopCount
+        print "*** BIG FAT WARNING: %d unsortable self-loops found. ***" % loopCount
     try:
         while True:
             unsortable.remove([])
@@ -257,6 +261,8 @@ def subpixelWatershedMapFromData(
     # copy flowline data (may be modified by addFlowLinesToMap for
     # proper WatershedStatistics):
     flowlines = list(flowlines)
+    if flowlines[0] is not None:
+        flowlines.insert(0, None)
 
     deleted = addFlowLinesToMap(flowlines, spmap, imageSize,
                                 minMaxBorderDist = ssMinDist)
@@ -433,6 +439,9 @@ def addFlowLinesToMap(edges, map, imageSize = None,
     if map.maxNodeLabel():
         assert not map.node(0), \
                "addFlowLinesToMap: Node with label zero should not exist!"
+
+    if edges[0]:
+        raise ValueError("Cannot add edge with label 0 to map")
 
     # we don't want to add edges that run along the border to the Map
     # - a border can be added by connectBorderNodes if desired, and
