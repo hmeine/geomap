@@ -117,8 +117,11 @@ def clipPoly(polygon, clipRect, closeAtBorder = None):
                     if npl < pl:
                         pl = npl
                         startBorder = BOTTOM
+
                 if pl <= l:
+                    # we never crossed the clipRect
                     continue
+
                 pip = p + pl * diff
                 part = Polygon([pip, ip])
             else:
@@ -162,81 +165,83 @@ def clipPoly(polygon, clipRect, closeAtBorder = None):
     if not parts:
         return []
 
-    if polygon[0] != polygon[-1]:
-        result = [p[1] for p in parts]
-    else:
-        if parts[0][1][0] == parts[-1][1][-1]:
-            assert parts[0][0] is None and parts[-1][-1] is None
-            if len(parts) == 1: # polygon is entirely within clipRect
-                return [parts[0][1]]
-            parts[-1][1].extend(parts[0][1])
-            parts[0] = (parts[-1][0], parts[-1][1], parts[0][2])
-            del parts[-1]
+    if not polygon.closed():
+        return [p[1] for p in parts]
 
-        if not closeAtBorder:
-            return [p[1] for p in parts]
+    # if polygon[0] (== polygon[-1]) is inside clipRect, we may
+    # need to join the first and last part here:
+    if parts[0][1][0] == parts[-1][1][-1]:
+        assert parts[0][0] is None and parts[-1][-1] is None
+        # polygon is entirely within clipRect:
+        if len(parts) == 1:
+            return [parts[0][1]]
+        parts[-1][1].extend(parts[0][1])
+        parts[0] = (parts[-1][0], parts[-1][1], parts[0][2])
+        del parts[-1]
 
-        isCCW = polygon.partialArea() > 0
-        merged = {}
-        def mergeRoot(poly):
-            while True:
-                result = merged.get(poly, poly)
-                if result is poly:
-                    break
-                poly = result
-            return result
-#             while poly in merged:
-#                 poly = merged[poly]
-#             return poly
-        
-        lastPoly = None
-        prevPoly = None
-        prevOutside = None
+    if not closeAtBorder:
+        return [p[1] for p in parts]
 
-        # compose counterclockwise list of intersection points at clip border:
-        sides = (
-            ([(-p[1][-1][0], p[1], True ) for p in parts if p[2] == TOP] +
-             [(-p[1][ 0][0], p[1], False) for p in parts if p[0] == TOP]),
-            ([( p[1][-1][1], p[1], True ) for p in parts if p[2] == LEFT] +
-             [( p[1][ 0][1], p[1], False) for p in parts if p[0] == LEFT]),
-            ([( p[1][-1][0], p[1], True ) for p in parts if p[2] == BOTTOM] +
-             [( p[1][ 0][0], p[1], False) for p in parts if p[0] == BOTTOM]),
-            ([(-p[1][-1][1], p[1], True ) for p in parts if p[2] == RIGHT] +
-             [(-p[1][ 0][1], p[1], False) for p in parts if p[0] == RIGHT]))
+    # compose counterclockwise list of intersection points at clip border:
+    sides = (
+        ([(-p[1][-1][0], p[1], True ) for p in parts if p[2] == TOP] +
+         [(-p[1][ 0][0], p[1], False) for p in parts if p[0] == TOP]),
+        ([( p[1][-1][1], p[1], True ) for p in parts if p[2] == LEFT] +
+         [( p[1][ 0][1], p[1], False) for p in parts if p[0] == LEFT]),
+        ([( p[1][-1][0], p[1], True ) for p in parts if p[2] == BOTTOM] +
+         [( p[1][ 0][0], p[1], False) for p in parts if p[0] == BOTTOM]),
+        ([(-p[1][-1][1], p[1], True ) for p in parts if p[2] == RIGHT] +
+         [(-p[1][ 0][1], p[1], False) for p in parts if p[0] == RIGHT]))
 
-        # counterclockwise list of corner positions:
-        corners = (clipRect.begin(),
-                   clipRect.begin()+(0, clipRect.size()[1]),
-                   clipRect.end(),
-                   clipRect.begin()+(clipRect.size()[0], 0))
+    # counterclockwise list of corner positions:
+    corners = (clipRect.begin(),
+               clipRect.begin()+(0, clipRect.size()[1]),
+               clipRect.end(),
+               clipRect.begin()+(clipRect.size()[0], 0))
 
-        #print; print map(len, sides)
-        for side, end in zip(sides, corners):
-            for _, poly, outside in sorted(side):
-                #print poly, outside, prevPoly, lastPoly
-                assert outside != prevOutside; prevOutside = outside
-                if outside == isCCW:
-                    prevPoly = poly
+    isCCW = polygon.partialArea() > 0
+
+    # bookkeeping about mergings (always use the most current polygon)
+    merged = {}
+    def mergeRoot(poly):
+        while True:
+            result = merged.get(poly, poly)
+            if result is poly:
+                break
+            poly = result
+        return result
+    
+    lastPoly = None
+    prevPoly = None
+    prevOutside = None
+
+    #print; print map(len, sides)
+    for side, end in zip(sides, corners):
+        for _, poly, outside in sorted(side):
+            #print poly, outside, prevPoly, lastPoly
+            assert outside != prevOutside; prevOutside = outside
+            if outside == isCCW:
+                prevPoly = poly
+            else:
+                if prevPoly == None:
+                    lastPoly = poly
+                    continue
+                prevPoly = mergeRoot(prevPoly)
+                if prevPoly == poly:
+                    poly.append(poly[0])
+                    result.append(poly)
                 else:
-                    if prevPoly == None:
-                        lastPoly = poly
-                        continue
-                    prevPoly = mergeRoot(prevPoly)
-                    if prevPoly == poly:
-                        poly.append(poly[0])
-                        result.append(poly)
-                    else:
-                        prevPoly.extend(poly)
-                        merged[poly] = prevPoly
-                    prevPoly = None
+                    prevPoly.extend(poly)
+                    merged[poly] = prevPoly
+                prevPoly = None
 
-            if prevPoly:
-                mergeRoot(prevPoly).append(end)
+        if prevPoly:
+            mergeRoot(prevPoly).append(end)
 
-        if lastPoly:
-            lastPoly.append(lastPoly[0])
-            if lastPoly.length():
-                result.append(lastPoly)
+    if lastPoly:
+        lastPoly.append(lastPoly[0])
+        if lastPoly.length():
+            result.append(lastPoly)
 
     return result
 
