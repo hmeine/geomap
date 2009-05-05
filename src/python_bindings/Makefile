@@ -49,9 +49,6 @@ install: $(TARGET)
 	$(INSTALL) -d $(dynmoddir)
 	$(LIBINSTALL) $(TARGET) $(dynmoddir)
 
-hourglass: hourglass.o
-	$(CXX) -o $@ $< $(IMPEX_LIB)
-
 delaunay: delaunay.o deltest.o
 	$(CXX) -o $@ delaunay.o deltest.o
 
@@ -64,6 +61,5 @@ clean:
 	rm -f $(OBJS) $(TARGET) hourglass delaunay *.o *.ld *.d *.so
 
 ifneq "$(MAKECMDGOALS)" "clean"
-include hourglass.d
 include $(patsubst %.lo,%.ld,$(OBJS))
 endif
