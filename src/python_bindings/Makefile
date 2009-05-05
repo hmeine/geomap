@@ -19,12 +19,12 @@ CXXFLAGS += -Wall -Wno-strict-aliasing
 CXXFLAGS += -pipe -DNDEBUG
 CPPFLAGS := $(LOCAL_CPPFLAGS) $(CPPFLAGS)
 LIBCPPFLAGS := $(LOCAL_CPPFLAGS) $(LIBCPPFLAGS)
-TARGET = hourglassmodule.la
+TARGET = geomapmodule.la
 MODULE = $(patsubst %.la,%.so,$(TARGET))
 
 OBJS = \
 	shapecontext.lo \
-	hourglassmodule.lo \
+	geomapmodule.lo \
 	polygon.lo \
 	statistics.lo \
 	features.lo \
