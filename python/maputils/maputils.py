@@ -255,25 +255,26 @@ def subpixelWatershedMapFromData(
     removed (default: True).
     """
 
-    print "- initializing GeoMap from flowlines..."
-    spmap = Map(maxima, [], imageSize)
-
     # copy flowline data (may be modified by addFlowLinesToMap for
     # proper WatershedStatistics):
     flowlines = list(flowlines)
     if flowlines[0] is not None:
         flowlines.insert(0, None)
 
+    print "- initializing GeoMap from %d flowlines..." % (len(flowlines) - 1, )
+    spmap = Map(maxima, [], imageSize)
+
     deleted = addFlowLinesToMap(flowlines, spmap, imageSize,
                                 minMaxBorderDist = ssMinDist)
     if deleted:
-        print "  skipped %d flowlines (at border / degenerate loops)" \
-              % len(deleted)
+        print "  skipped %d flowlines (at border / degenerate loops), %d left" \
+              % (len(deleted), spmap.edgeCount)
 
     if performBorderClosing:
-        print "  adding border edges and EdgeProtection..."
+        print "  adding border edges and EdgeProtection...",
         connectBorderNodes(spmap, borderConnectionDist)
         spmap.edgeProtection = EdgeProtection(spmap)
+        print "(now %d edges)" % spmap.edgeCount
 
     if cleanup:
         removeIsolatedNodes(spmap)
@@ -2106,6 +2107,7 @@ def dualMap(map, edgeLabels = None, nodePositions = None, midPoints = None,
     for edge in sorted(edgeLabels):
         if not hasattr(edge, "label"):
             edge = map.edge(edge)
+        assert not edge.isBridge(), "bridges not supported yet (would need to create self-loops around end node in dual map)"
         sn = nodes[edge.leftFaceLabel()]
         en = nodes[edge.rightFaceLabel()]
         if onDemandNodeHook and (not sn or not en):
