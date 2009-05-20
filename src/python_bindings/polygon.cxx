@@ -1850,6 +1850,14 @@ list intersectLine(
     Vector2
         lineDir(lineEnd - lineStart),
         lineNormal(lineDir[1], -lineDir[0]);
+
+    if(!lineNormal.magnitude())
+    {
+        std::cerr << "WARNING: intersectLine with zero-length line!\n";
+        result.append(polygon);
+        return result;
+    }
+
     lineNormal = lineNormal / lineNormal.magnitude();
 
     Polygon currentPart;

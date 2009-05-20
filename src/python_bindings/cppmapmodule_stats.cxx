@@ -75,6 +75,10 @@ class FaceColorStatisticsWrapper
                  (void (StatsFunctor::*)(StatsFunctor const &))
                  &StatsFunctor::operator())
             .def("__call__",
+                 (void (StatsFunctor::*)(typename StatsFunctor::argument_type const &, double))
+                 &StatsFunctor::operator(),
+                 bp::args("sample", "weight"))
+            .def("__call__",
                  (void (StatsFunctor::*)(typename StatsFunctor::argument_type const &))
                  &StatsFunctor::operator(),
                  bp::args("sample"))
