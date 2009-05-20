@@ -399,7 +399,8 @@ def subpixelWatershedMap(
 
 def addFlowLinesToMap(edges, map, imageSize = None,
                       minSaddleBorderDist = 1e-4,
-                      minMaxBorderDist = 1e-2):
+                      minMaxBorderDist = 1e-2,
+                      minLoopArea = 0): # FIXME
     """addFlowLinesToMap(edges, map, imageSize = None)
 
     This function expects `edges` to be a list of
@@ -564,7 +565,8 @@ def addFlowLinesToMap(edges, map, imageSize = None,
         # self-loops with area zero:
         if startNode == endNode and (
             startNodeLabel <= 0 or endNodeLabel <= 0 or
-            len(points) == 2):
+            len(points) == 2 or
+            abs(points.partialArea()) < minLoopArea):
             result.append(edgeTuple)
             continue
         
