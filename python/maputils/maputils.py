@@ -245,8 +245,7 @@ def subpixelWatershedMapFromData(
     performEdgeSplits = True,
     wsStatsSpline = None,
     minima = None,
-    cleanup = True,
-    Map = hourglass.GeoMap):
+    cleanup = True):
     """`performEdgeSplits` may be a callable that is called before
     splitting edges, with the complete locals() dict as parameter
     (useful keys are 'spmap' and all parameters of this function).
@@ -262,7 +261,7 @@ def subpixelWatershedMapFromData(
         flowlines.insert(0, None)
 
     print "- initializing GeoMap from %d flowlines..." % (len(flowlines) - 1, )
-    spmap = Map(maxima, [], imageSize)
+    spmap = hourglass.GeoMap(maxima, [], imageSize)
 
     deleted = addFlowLinesToMap(flowlines, spmap, imageSize,
                                 minMaxBorderDist = ssMinDist)
@@ -325,8 +324,7 @@ def subpixelWatershedMap(
     performBorderClosing = True,
     performEdgeSplits = True,
     initWSStats = True,
-    cleanup = True,
-    Map = hourglass.GeoMap):
+    cleanup = True):
 
     """`boundaryIndicator` should be an image with e.g. a gradient
     magnitude.
@@ -393,8 +391,7 @@ def subpixelWatershedMap(
         performEdgeSplits = performEdgeSplits,
         wsStatsSpline = initWSStats and siv or None,
         minima = initWSStats and spws.minima() or None,
-        cleanup = cleanup,
-        Map = Map)
+        cleanup = cleanup)
 
     return spwsMap
 
@@ -578,7 +575,7 @@ def addFlowLinesToMap(edges, map, imageSize = None,
 #                        map creation helpers
 # --------------------------------------------------------------------
 
-def mapFromEdges(edges, imageSize, GeoMap = hourglass.GeoMap):
+def mapFromEdges(edges, imageSize):
     """Quickly create a GeoMap from a set of edges, i.e. derive nodes
     from edge endpoints.  Returns a GeoMap that is not yet
     initialized, i.e. `GeoMap.edgesSorted()` will return False."""
@@ -589,7 +586,7 @@ def mapFromEdges(edges, imageSize, GeoMap = hourglass.GeoMap):
             node = map.addNode(position)
         return node
     
-    result = GeoMap([], [], imageSize)
+    result = hourglass.GeoMap([], [], imageSize)
     for edge in edges:
         sn = getNode(result, edge[0])
         en = getNode(result, edge[-1])
