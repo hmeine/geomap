@@ -2070,6 +2070,8 @@ def dualMap(map, edgeLabels = None, nodePositions = None, midPoints = None,
     """Compute (a subset of) the dual of a GeoMap.
     `edgeLabels` determines which edges appear in the result.
     If None (default), the complete dual map is returned.
+    The labels of the result's nodes will correspond to the source
+    map's face labels; edge labels are retained, too.
 
     `nodePositions` determines the position of each node; be default
     (nodePositions == None), that the nodes are located at the
