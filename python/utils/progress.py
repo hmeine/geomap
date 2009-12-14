@@ -55,8 +55,6 @@ import sys, time, weakref
 _messages = []
 _level = 1
 
-# TODO: add newMessage() (instead of p.finish(); p = StatusMessage(...))
-
 class StatusMessage(object):
     def __init__(self, message, stream = None):
         if stream is None:
@@ -98,13 +96,13 @@ class StatusMessage(object):
     def totalTime(self):
         return self._totalTime
 
-    def finish(self):
+    def finish(self, done = "done."):
         if self._promille is not None:
             self._totalTime = time.clock() - self._startClock
             timeStr = " (%ss.)" % self._totalTime
             if timeStr == " (0.0s.)":
                 timeStr = "    "
-            self._stream.write("\r%s... done.%s\n" % (self._message, timeStr))
+            self._stream.write("\r%s... %s%s\n" % (self._message, done, timeStr))
             self._promille = None
             _messages.pop()
 
