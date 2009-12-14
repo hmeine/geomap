@@ -2,12 +2,12 @@ PLATFORM = $(shell PATH=/software/Modules/bin:$(PATH) platform)
 curdir = .
 
 # should point to build directory of interactive2 (where configure was called):
-INT2BUILDDIR = ../../interactive2/build-$(PLATFORM)
+INT2BUILDDIR = ../../vigra/interactive2/build-$(PLATFORM)
 include $(INT2BUILDDIR)/config/Makefile.include
 
 CXXFLAGS = -Wall -Wno-deprecated -O2 -DNDEBUG
 CPPFLAGS += `vigra-interactive-config --cppflags` \
-	-I../../current/test/include
+	-I../../vigra/current/test/include
 
 CELLIMAGE_OBJS = \
 	cellimage_module.lo \
