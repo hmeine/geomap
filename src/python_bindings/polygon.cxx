@@ -187,7 +187,7 @@ std::string Polygon__repr__(Polygon const &polygon)
     std::stringstream s;
     s.precision(3);
     s << "<Polygon (" << polygon.size() << " points, length: " << polygon.length()
-      << " px.)>";
+      << (polygon.closed() ? " px., closed)>" : " px.)>");
     return s.str();
 }
 
