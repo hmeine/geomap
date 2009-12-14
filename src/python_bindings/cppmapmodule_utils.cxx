@@ -3,6 +3,7 @@
 #include "labellut.hxx"
 
 #include <vigra/copyimage.hxx>
+#include <vigra/pythonimage.hxx>
 
 #include <boost/python.hpp>
 namespace bp = boost::python;

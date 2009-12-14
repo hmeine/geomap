@@ -32,7 +32,7 @@
 #include "vigra/eigensystem.hxx"
 #include "vigra/splineimageview.hxx"
 #include "vigra/pixelneighborhood.hxx"
-#include "positionedmap.hxx"
+#include "map2d.hxx"
 
 namespace vigra {
 

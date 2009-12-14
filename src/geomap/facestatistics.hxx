@@ -60,7 +60,7 @@ class LookupFaceAverage
     }
 };
 
-inline vigra::Point2D intPos(const vigra::Vector2 &p)
+inline vigra::Point2D intPos(const Vector2 &p)
 {
     return vigra::Point2D((int)floor(p[0]+0.5), (int)floor(p[1]+0.5));
 }
