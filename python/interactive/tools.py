@@ -283,6 +283,8 @@ class ActivePaintbrush(qt.QObject):
         self._path = []
         self._changed = False
         self.mouseMoved(x, y)
+        self.emit(qt.PYSIGNAL("paintbrushStarted"), (
+            self._map.face(self._currentLabel), ))
 
     def mouseMoved(self, x, y):
         if not self._painting:
