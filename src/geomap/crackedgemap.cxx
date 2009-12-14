@@ -145,7 +145,7 @@ void CrackEdgeMapGenerator::followAllEdgesStartingWith(int connMask)
                 startNode = result->node((startNodeInfo >> 4) - 1);
             else
             {
-                startNode = result->addNode(vigra::Vector2(pos.x - 0.5, pos.y - 0.5));
+                startNode = result->addNode(Vector2(pos.x - 0.5, pos.y - 0.5));
                 nodeImage[pos] = startNodeInfo = (startNode->label() + 1) << 4;
             }
 
@@ -162,15 +162,15 @@ void CrackEdgeMapGenerator::followAllEdgesStartingWith(int connMask)
                 {
                     vigra::Point2D endPos(pos);
                     vigra::FourNeighborOffsetCirculator endDir(dir);
-                    
+
                     std::auto_ptr<Vector2Array> points = followEdge(endPos, endDir);
                     int endConn = connections[endDir.direction()];
-                    
+
                     int endNodeInfo = nodeImage[endPos];
                     if(!endNodeInfo)
                     {
                         endNode = result->addNode(
-                            vigra::Vector2(endPos.x - 0.5, endPos.y - 0.5));
+                            Vector2(endPos.x - 0.5, endPos.y - 0.5));
                         endNodeInfo = (endNode->label() + 1) << 4;
                     }
                     else
