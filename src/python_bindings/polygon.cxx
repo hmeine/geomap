@@ -66,21 +66,6 @@ struct BoxPickleSuite : pickle_suite
     }
 };
 
-double angleTheta(double dy, double dx)
-{
-    double denom = std::fabs(dx) + std::fabs(dy);
-    if(!denom)
-        return 0.0;
-    double result = dy / denom;
-    if(dx < 0)
-    {
-        result = 2 - result;
-        if(dy < 0)
-            result = result - 4;
-    }
-    return result;
-}
-
 // index started with zero (commented out) for better python iterations
 // (allowing "for .. in .." or "enumerate(..)")
 // TODO: a better fix would be an extra __iter__:
@@ -1816,6 +1801,8 @@ list intersectLine(
 
     return result;
 }
+
+double angleTheta(double dy, double dx); // implemented in cppmap.cxx
 
 void defPolygon()
 {

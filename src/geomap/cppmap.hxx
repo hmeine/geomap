@@ -1007,6 +1007,7 @@ class ContourPointIter
     }
 };
 
+double angleTheta(double dy, double dx);
 double contourArea(const GeoMap::Dart &dart);
 double contourLength(const GeoMap::Dart &dart);
 double isoperimetricQuotient(const GeoMap::Dart &dart);

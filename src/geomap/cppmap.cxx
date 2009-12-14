@@ -27,6 +27,21 @@ void removeOne(Container &container,
 
 /********************************************************************/
 
+double angleTheta(double dy, double dx)
+{
+    double denom = std::fabs(dx) + std::fabs(dy);
+    if(!denom)
+        return 0.0;
+    double result = dy / denom;
+    if(dx < 0)
+    {
+        result = 2 - result;
+        if(dy < 0)
+            result = result - 4;
+    }
+    return result;
+}
+
 double contourArea(const GeoMap::Dart &dart)
 {
     double result = 0.0;
@@ -266,8 +281,6 @@ GeoMap::~GeoMap()
     for(FaceIterator it = facesBegin(); it.inRange(); ++it)
         (*it)->uninitialize();
 }
-
-double angleTheta(double dy, double dx); // implemented in polygon.cxx
 
 GeoMap::FacePtr GeoMap::faceAt(const Vector2 &position)
 {
