@@ -129,6 +129,9 @@ class FigExporter:
         if self.roi:
             roi.moveBy(-self.roi.begin())
 
+        if "fillColor" in attr and not "fillStyle" in attr:
+            attr["fillStyle"] = fig.fillStyleSolid
+
         result = fig.PolyBox(roi.begin()[0] * self.scale,
                              roi.begin()[1] * self.scale,
                              roi.end()[0] * self.scale,
