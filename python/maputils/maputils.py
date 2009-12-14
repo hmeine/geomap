@@ -250,8 +250,10 @@ def subpixelWatershedMapFromData(
     splitting edges, with the complete locals() dict as parameter
     (useful keys are 'spmap' and all parameters of this function).
 
-    `cleanup` determines whether bridges and degree 2 nodes are
-    removed (default: True).
+    `cleanup` determines whether bridges, isolated nodes, and degree 2
+    nodes are removed (default: True).  If False, the result also gets
+    an additional attribute 'deleted' which contains the flowlines
+    skipped by addFlowLinesToMap.
     """
 
     # copy flowline data (may be modified by addFlowLinesToMap for
@@ -277,6 +279,8 @@ def subpixelWatershedMapFromData(
 
     if cleanup:
         removeIsolatedNodes(spmap)
+    else:
+        spmap.deleted = deleted
 
     unsortable = spmap.sortEdgesEventually(
         ssStepDist, ssMinDist, bool(performEdgeSplits))
