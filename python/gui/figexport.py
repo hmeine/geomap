@@ -2,7 +2,7 @@ import os, sys, qt, fig, math
 
 from vigra import Vector2, readImage, Rect2D, Size2D, meshIter
 import vigrapyqt
-from hourglass import BoundingBox, Polygon, simplifyPolygon, intPos, contourPoly
+from geomap import BoundingBox, Polygon, simplifyPolygon, intPos, contourPoly
 from polytools import clipPoly
 import flag_constants
 

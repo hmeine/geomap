@@ -14,8 +14,8 @@ CUSTOM_PROTECTION  = 8
 # sinology:
 COLUMN_PROTECTION = 16
 
-import hourglass
-ALL_PROTECTION = hourglass.GeoMap.Edge.ALL_PROTECTION
+import geomap
+ALL_PROTECTION = geomap.GeoMap.Edge.ALL_PROTECTION
 assert ALL_PROTECTION & 31 == 31, "must include or'ed values of the ones above"
 
 # delaunay:

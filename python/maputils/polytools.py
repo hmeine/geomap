@@ -1,6 +1,6 @@
-import vigra, hourglass, math
+import vigra, geomap, math
 from vigra import Vector2, dot
-from hourglass import Polygon
+from geomap import Polygon
 
 # FIXME: computing bsd42044 1.5 SPWS (spline order 2)...
 # ...
@@ -385,9 +385,9 @@ def smallestBoundingBox(ch):
 # --------------------------------------------------------------------
 
 if __name__ == "__main__":
-    import fig, hourglass
+    import fig, geomap
     f = fig.File("cliptest.fig")
-    cr = hourglass.BoundingBox((0, 0), (4500, 4500))
+    cr = geomap.BoundingBox((0, 0), (4500, 4500))
     f.layer(1).remove()
     for o in f.findObjects(type = fig.PolylineBase, depth = 42):
         p = Polygon(o.points)

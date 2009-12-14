@@ -1,5 +1,5 @@
 import sys, copy
-import vigra, hourglass, maputils, flag_constants, progress
+import vigra, geomap, maputils, flag_constants, progress
 from vigra import Vector2, Point2D
 
 __all__ = ["levelSetMap", "marchingSquares"]
@@ -16,7 +16,7 @@ __all__ = ["levelSetMap", "marchingSquares"]
 
 def findZeroCrossingsOnGrid(siv, level, minDist = 0.1):
     result = []
-    existing = hourglass.PositionedMap()
+    existing = geomap.PositionedMap()
     minDist2 = minDist*minDist
 
     def addIntersection(p):
@@ -168,7 +168,7 @@ def levelSetMap(image, level = 0, sigma = None):
     siv = hasattr(image, "siv") and image.siv or vigra.SplineImageView3(image)
     
     zc = findZeroCrossingsOnGrid(siv, level)
-    result = hourglass.GeoMap(zc, [], image.size())
+    result = geomap.GeoMap(zc, [], image.size())
 
     msg = progress.StatusMessage("- following level set contours")
     next = progress.ProgressHook(msg).rangeTicker(result.nodeCount)
@@ -181,7 +181,7 @@ def levelSetMap(image, level = 0, sigma = None):
     maputils.mergeDegree2Nodes(result)
     result = maputils.copyMapContents( # compress labels and simplify polygons
         result, edgeTransform = lambda e: \
-        hourglass.simplifyPolygon(e, 0.05, 0.2))[0]
+        geomap.simplifyPolygon(e, 0.05, 0.2))[0]
     #maputils.connectBorderNodes(result, 0.01)
 
     result.sortEdgesEventually(0.4, 0.01)
@@ -225,7 +225,7 @@ def marchingSquares(image, level = 0, variant = True, border = True,
     connections2 = ((1, 0), (0, 2), (1, 2), (3, 1), (3, 0), (0, 1), (3, 2), (3, 2), (2, 3), (1, 3), (2, 0), (0, 3), (1, 3), (2, 1), (2, 0), (0, 1))
     configurations = (0, 0, 1, 2, 3, 4, 5, 7, 8, 9, 11, 12, 13, 14, 15, 16, 16)
 
-    result = hourglass.GeoMap(image.size())
+    result = geomap.GeoMap(image.size())
     
     def addNodeDirectX(x, y, ofs):
         pos = Vector2(x+ofs, y)

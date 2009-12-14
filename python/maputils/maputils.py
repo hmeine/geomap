@@ -1,6 +1,6 @@
 """maputils - general (i.e.topological) GeoMap utilities and segmentation algorithms"""
 
-import vigra, hourglass, sys, math, time, weakref, copy
+import vigra, geomap, sys, math, time, weakref, copy
 
 import flag_constants, progress, sivtools
 
@@ -8,7 +8,7 @@ import flag_constants, progress, sivtools
 #                            edge protection
 # --------------------------------------------------------------------
 
-from hourglass import EdgeProtection
+from geomap import EdgeProtection
 
 def protectFace(face, protect = True, flag = flag_constants.PROTECTED_FACE):
     """Sets the PROTECTED_FACE flag of `face` according to `protect`.
@@ -125,7 +125,7 @@ def filterSaddlePoints(rawSaddles, biSIV, filter, maxDist):
 
     sorted.sort()
 
-    knownSaddles = hourglass.PositionedMap()
+    knownSaddles = geomap.PositionedMap()
     for _, k, saddle in sorted:
         if not knownSaddles(saddle, maxSquaredDist):
             result.append((k, saddle))
@@ -172,10 +172,10 @@ def subpixelWatershedData(spws, biSIV, filter = None, mask = None,
         sn, en, poly, saddleIndex = flowline
 
         if perpendicularDistEpsilon:
-            simple = hourglass.simplifyPolygon(
+            simple = geomap.simplifyPolygon(
                 poly[:saddleIndex+1], perpendicularDistEpsilon, maxStep)
             newSaddleIndex = len(simple)-1
-            simple.extend(hourglass.simplifyPolygon(
+            simple.extend(geomap.simplifyPolygon(
                 poly[saddleIndex:], perpendicularDistEpsilon, maxStep))
 
             poly = simple
@@ -261,7 +261,7 @@ def subpixelWatershedMapFromData(
         flowlines.insert(0, None)
 
     print "- initializing GeoMap from %d flowlines..." % (len(flowlines) - 1, )
-    spmap = hourglass.GeoMap(maxima, [], imageSize)
+    spmap = geomap.GeoMap(maxima, [], imageSize)
 
     deleted = addFlowLinesToMap(flowlines, spmap, imageSize,
                                 minMaxBorderDist = ssMinDist)
@@ -344,7 +344,7 @@ def subpixelWatershedMap(
     initializes the GeoMap and uses the sigma sorting and statistics
     parameters)."""
 
-    SPWS = getattr(hourglass, "SubPixelWatersheds%d" % splineOrder)
+    SPWS = getattr(geomap, "SubPixelWatersheds%d" % splineOrder)
     spws = SPWS(boundaryIndicator)
 
     if hasattr(boundaryIndicator, "siv"):
@@ -445,7 +445,7 @@ def addFlowLinesToMap(edges, map, imageSize = None,
     # - a border can be added by connectBorderNodes if desired, and
     # parallel, double border edges lead to unsortable edges:
     if imageSize:
-        imageBox = hourglass.BoundingBox(imageSize - (1,1))
+        imageBox = geomap.BoundingBox(imageSize - (1,1))
         clipBox  = copy.copy(imageBox)
         innerBox = copy.copy(imageBox)
 
@@ -461,7 +461,8 @@ def addFlowLinesToMap(edges, map, imageSize = None,
 
         startNodeLabel = edgeTuple[0]
         endNodeLabel = edgeTuple[1]
-        points = hourglass.Polygon(edgeTuple[2])
+        points = geomap.Polygon(edgeTuple[2])
+        #saddleIndex = edgeTuple[3]
         #saddleLabel = edgeTuple[4]
 
         if imageSize and not innerBox.contains(points.boundingBox()):
@@ -510,7 +511,7 @@ def addFlowLinesToMap(edges, map, imageSize = None,
             continue # unwanted edge parallel to border
 
         # be careful not to modify the original 'edges' passed:
-        points = hourglass.Polygon(edgeTuple[2])
+        points = geomap.Polygon(edgeTuple[2])
 
         assert len(points) >= 2, "edges need to have at least two (end-)points"
 
@@ -586,7 +587,7 @@ def mapFromEdges(edges, imageSize):
             node = map.addNode(position)
         return node
     
-    result = hourglass.GeoMap([], [], imageSize)
+    result = geomap.GeoMap([], [], imageSize)
     for edge in edges:
         sn = getNode(result, edge[0])
         en = getNode(result, edge[-1])
@@ -604,7 +605,7 @@ def gridMap(gridSize = (10, 10), firstPos = vigra.Vector2(0.5, 0.5),
         imageSize = (int(math.ceil(gridSize[0] * dist[0] + 2*(firstPos[0]+0.5))),
                      int(math.ceil(gridSize[1] * dist[1] + 2*(firstPos[1]+0.5))))
 
-    map = hourglass.GeoMap(imageSize)
+    map = geomap.GeoMap(imageSize)
 
     def addEdge(n1, n2):
         map.addEdge(n1, n2, [n1.position(), n2.position()])
@@ -632,7 +633,7 @@ def clipMapEdgesAtBorder(map):
     new, uninitialized GeoMap object as created by `mapFromEdges` and
     modified by `connectBorderNodes`."""
     import polytools
-    imageBox = hourglass.BoundingBox(map.imageSize() - (1,1))
+    imageBox = geomap.BoundingBox(map.imageSize() - (1,1))
 
     edges = sum((polytools.clipPoly(edge, imageBox)
                  for edge in map.edgeIter()), [])
@@ -969,10 +970,10 @@ def drawLabelImage(aMap, scale = 1, verbose = True):
                 sys.stdout.write("\r[%d%%] Face %d/%d" % (
                     done*100/total, done, total))
                 sys.stdout.flush()
-            poly = hourglass.Polygon(
-                hourglass.contourPoly(hole.contour()) * scale + offset)
-            sl = hourglass.scanPoly(poly, result.height())
-            hourglass.fillScannedPoly(sl, result, hole.label())
+            poly = geomap.Polygon(
+                geomap.contourPoly(hole.contour()) * scale + offset)
+            sl = geomap.scanPoly(poly, result.height())
+            geomap.fillScannedPoly(sl, result, hole.label())
             holes.extend(hole.holeContours())
             done += 1
     return result
@@ -997,7 +998,7 @@ def checkLabelConsistencyThoroughly(aMap):
 def checkCachedPropertyConsistency(aMap):
     """Check whether edge and face bounds and areas are valid."""
     result = True
-    realPolys = mapValidEdges(lambda edge: hourglass.Polygon(list(edge)), aMap)
+    realPolys = mapValidEdges(lambda edge: geomap.Polygon(list(edge)), aMap)
     for edge in aMap.edgeIter():
         poly = realPolys[edge.label()]
         if abs(poly.length() - edge.length()) > 1e-6:
@@ -1013,7 +1014,7 @@ def checkCachedPropertyConsistency(aMap):
                 edge.label(), edge.partialArea(), poly.partialArea()))
             result = False
     for face in aMap.faceIter():
-        bbox = hourglass.BoundingBox()
+        bbox = geomap.BoundingBox()
         area = 0.0
         for dart in face.contour().phiOrbit():
             edge = realPolys[dart.edgeLabel()]
@@ -1159,7 +1160,7 @@ def removeCruft(map, what = 3, doChecks = False):
     print "removeCruft(): %d operations performed." % result.count
     return result.count
 
-from hourglass import \
+from geomap import \
      removeIsolatedNodes, mergeDegree2Nodes, removeBridges, removeEdges
 
 def removeUnProtectedEdges(map):
@@ -1230,7 +1231,7 @@ def removeSmallRegions(
 #                       composed Euler operations
 # --------------------------------------------------------------------
 
-from hourglass import mergeFacesCompletely
+from geomap import mergeFacesCompletely
 
 def findCommonDart(face1, face2):
     """Find a dart with leftFace() == face1 and rightFace() == face2."""
@@ -1462,7 +1463,7 @@ class AutomaticRegionMerger(AutomaticMethodBase):
 
         if q == None:
             # FIXME: (why) is the +1 needed?
-            q = hourglass.DynamicCostQueue(map.maxEdgeLabel()+1)
+            q = geomap.DynamicCostQueue(map.maxEdgeLabel()+1)
             for edge in map.edgeIter():
                 if edge.flag(flag_constants.ALL_PROTECTION):
                     continue
@@ -1594,7 +1595,7 @@ def extractContractionKernel(map):
 #                   geometrical utility functions
 # --------------------------------------------------------------------
 
-from hourglass import centroid, contourPoly
+from geomap import centroid, contourPoly
 
 def pointInFace(face, level = 2):
     """Given a face, return a point for which face.contains(point)
@@ -1613,7 +1614,7 @@ def pointInFace(face, level = 2):
             x = seg.end
             inside += seg.direction
 
-    result = hourglass.centroid(hourglass.contourPoly(face.contour()))
+    result = geomap.centroid(geomap.contourPoly(face.contour()))
     if face.contains(result):
         return result
 
@@ -1875,7 +1876,7 @@ class SeededRegionGrowing(AutomaticMethodBase):
 
         self._neighborSkipFlags = flag_constants.SRG_SEED
         if dynamic:
-            self._queue = hourglass.DynamicCostQueue(map.maxFaceLabel())
+            self._queue = geomap.DynamicCostQueue(map.maxFaceLabel())
         else:
             self._queue = StandardCostQueue()
             if stupidInit:
@@ -1995,7 +1996,7 @@ def minimumSpanningTree(map, edgeCosts):
             heappush(heap, (cost, edgeLabel))
 
     print "- building MST..."
-    faceLabels = hourglass.LabelLUT(map.maxFaceLabel())
+    faceLabels = geomap.LabelLUT(map.maxFaceLabel())
     result = list(edgeCosts)
     while heap:
         _, edgeLabel = heappop(heap)
@@ -2088,11 +2089,11 @@ def dualMap(map, edgeLabels = None, nodePositions = None, midPoints = None,
     e.g. used for the infinite face when computing Voronoi maps from
     Delaunay maps.)"""
 
-    result = hourglass.GeoMap(map.imageSize())
+    result = geomap.GeoMap(map.imageSize())
 
     if nodePositions is None:
-        nodePositions = mapValidFaces(lambda face: hourglass.centroid(
-            hourglass.contourPoly(face.contour())), map)
+        nodePositions = mapValidFaces(lambda face: geomap.centroid(
+            geomap.contourPoly(face.contour())), map)
 
     nodes = [None] * map.maxFaceLabel()
     for face in map.faceIter(skipInfinite = True):
@@ -2116,11 +2117,11 @@ def dualMap(map, edgeLabels = None, nodePositions = None, midPoints = None,
             midPoint = midPoints
             if midPoints == None:
                 # auto-detect if midPoint is necessary (no intersection):
-                clipped = hourglass.intersectLine(edge, poly[0], poly[1])
+                clipped = geomap.intersectLine(edge, poly[0], poly[1])
                 midPoint = not len(clipped) or (
                     len(clipped) == 1 and len(clipped[0]) == len(edge))
             if midPoint:
-                dp = hourglass.DartPosition(edge.dart())
+                dp = geomap.DartPosition(edge.dart())
                 dp.gotoArcLength(edge.length()/2)
                 poly.insert(1, dp())
             result.addEdge(sn, en, poly, label = edge.label())

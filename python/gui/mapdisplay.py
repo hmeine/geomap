@@ -3,7 +3,7 @@ import fig, figexport
 import vigra, vigrapyqt
 import maputils, flag_constants, tools, statistics
 from vigra import Rect2D, Vector2
-from hourglass import simplifyPolygon, intPos, BoundingBox, contourPoly
+from geomap import simplifyPolygon, intPos, BoundingBox, contourPoly
 from maputils import removeCruft
 from weakref import ref
 

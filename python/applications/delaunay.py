@@ -31,9 +31,9 @@ barbs:
 >>> delaunay.pruneBySubtendedLength(r_cat, cdt, minLength = 10)
 """
 
-import math, sys, hourglass, numpy
+import math, sys, geomap, numpy
 #from map import GeoMap, contourPoly
-from hourglass import GeoMap, contourPoly
+from geomap import GeoMap, contourPoly
 from vigra import Vector2, Vector, dot
 from flag_constants import \
      START_NODE_ADDED, END_NODE_ADDED, CONTOUR_SEGMENT, OUTER_FACE, \
@@ -58,7 +58,7 @@ def _delaunayMapFromData(nodePositions, edgeData, imageSize, sigmaOrbits = None)
     return result
 
 def _pointInHole(polygon, level = 2):
-    sl = hourglass.scanPoly(polygon)
+    sl = geomap.scanPoly(polygon)
     for y in range(sl.startIndex(), sl.endIndex()):
         inside = 0
         x = 0
@@ -68,7 +68,7 @@ def _pointInHole(polygon, level = 2):
             x = seg.end
             inside += seg.direction
 
-    result = hourglass.centroid(polygon)
+    result = geomap.centroid(polygon)
     if polygon.contains(result):
         return result
     
@@ -165,7 +165,7 @@ def delaunayMap(points, imageSize = (0, 0)):
         nodePositions, edges = triangle.delaunay(points)
         sigma = None
     else:
-        nodePositions, edges, sigma = hourglass.delaunay(points)
+        nodePositions, edges, sigma = geomap.delaunay(points)
     return _delaunayMapFromData(nodePositions, edges, imageSize,
                                 sigma)
 
@@ -288,7 +288,7 @@ def fakedConstrainedDelaunayMap(polygons, imageSize, extraPoints = [],
         jumpPoints.append(len(points))
     
     print "- performing Delaunay Triangulation (%d points)..." % len(points)
-    nodePositions, edges, sigma = hourglass.delaunay(points)
+    nodePositions, edges, sigma = geomap.delaunay(points)
     
     print "- storing result in a GeoMap..."
     result = _delaunayMapFromData(nodePositions, edges, imageSize, sigma)
@@ -372,9 +372,9 @@ def faceCDTMap(face, imageSize,
 
     polygons = [contourPoly(c) for c in face.contours()]
     if resample:
-        polygons = [hourglass.resamplePolygon(p, resample) for p in polygons]
+        polygons = [geomap.resamplePolygon(p, resample) for p in polygons]
     if simplifyEpsilon != None:
-        polygons = [hourglass.simplifyPolygon(p, simplifyEpsilon) for p in polygons]
+        polygons = [geomap.simplifyPolygon(p, simplifyEpsilon) for p in polygons]
 
     if triangle:
         result = constrainedDelaunayMap(polygons, imageSize)

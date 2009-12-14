@@ -1,7 +1,7 @@
 import math, string, copy, weakref
 from vigra import *
-import hourglass
-from hourglass import \
+import geomap
+from geomap import \
      FaceGrayStatistics, FaceRGBStatistics, \
      resamplePolygon, tangentList, tangentListGaussianReflective
 import sivtools, flag_constants
@@ -68,7 +68,7 @@ def trainingData(dartPath, faceMeans, edgeGradients):
     Functor = type(faceMeans.functor(dartPath[0].leftFaceLabel()))
     left = Functor()
     right = Functor()
-    grad = hourglass.FaceGrayStatistics.Functor()
+    grad = geomap.FaceGrayStatistics.Functor()
     leftVariance = Functor()
     rightVariance = Functor()
     for dart in dartPath:
@@ -607,7 +607,7 @@ class MergedEdges(DynamicEdgeStatistics):
     
     def __init__(self, map):
         DynamicEdgeStatistics.__init__(self, map)
-        self._labelLUT = hourglass.LabelLUT(map.maxEdgeLabel())
+        self._labelLUT = geomap.LabelLUT(map.maxEdgeLabel())
         self._attachHooks()
     
     def preMergeEdges(self, dart):
@@ -1010,10 +1010,10 @@ class EdgeGradientStatistics(BoundaryIndicatorStatistics):
     __slots__ = ["_Functor"]
     
     def __init__(self, map, gradSiv, resample = 0.1, tangents = None,
-                 Functor = hourglass.PolylineStatistics):
+                 Functor = geomap.PolylineStatistics):
         """Init statistics for each edge.  Possible values for Functor
-        are: hourglass.PolylineStatistics (default) and
-        hourglass.QuantileStatistics (needed if you want to use
+        are: geomap.PolylineStatistics (default) and
+        geomap.QuantileStatistics (needed if you want to use
         `quantile` or `dartQuantile`).  The latter needs much more
         memory, that's why it's not the default.
 
@@ -1044,7 +1044,7 @@ class EdgeGradientStatistics(BoundaryIndicatorStatistics):
             else:
                 stats = Functor()
 
-                dp = hourglass.DartPosition(edge.dart())
+                dp = geomap.DartPosition(edge.dart())
                 for al, theta in tangents[edge.label()]:
                     dp.gotoArcLength(al)
 
@@ -1280,7 +1280,7 @@ class EdgeGradAngDispStatistics(BoundaryIndicatorStatistics):
 class EdgeMinimumDistance(DynamicEdgeStatistics):
     def __init__(self, map, minima):
         self.attrName = "minDist"
-        minimaMap = hourglass.PositionedMap()
+        minimaMap = geomap.PositionedMap()
         for min in minima:
             minimaMap.insert(min, min)
         for edge in map.edgeIter():
@@ -1332,7 +1332,7 @@ class EdgeGradScaleSum(BoundaryIndicatorStatistics):
 class EdgeSpatialStability(BoundaryIndicatorStatistics):
     def __init__(self, map, image, radius, propexp, splineOrder):
         BoundaryIndicatorStatistics.__init__(self, map, "spatialStability_%s_%s" % (radius, propexp))
-        ss = hourglass.spatialStabilityImage(image, 4, radius, propexp)
+        ss = geomap.spatialStabilityImage(image, 4, radius, propexp)
         ss.siv = eval("SplineImageView%d(ss)" % (splineOrder, ))
         for edge in map.edgeIter():
             setattr(edge, self.attrName, EdgeStatistics(edge, ss.siv))
@@ -1483,7 +1483,7 @@ class EdgeContAngle(DetachableStatistics):
     def postMergeEdges(self, survivor):
         self.calcContAngle(survivor)
 
-from hourglass import fitLine
+from geomap import fitLine
 
 class EdgeCurvChange(DetachableStatistics):
     def __init__(self, map):
@@ -1500,7 +1500,7 @@ class EdgeCurvChange(DetachableStatistics):
     def postMergeEdges(self, survivor):
         self.calcCurvChange(survivor)
 
-from hourglass import ParabolaFit
+from geomap import ParabolaFit
 
 class EdgeCurvChangeLin(DetachableStatistics):
     def __init__(self, map):
@@ -1559,7 +1559,7 @@ class EdgeRegularity(DetachableStatistics):
 
 def calculateTangentLists(map, dx = 5, skipPoints = 1):
     """Return a list that for each edge contains the result of running
-    `hourglass.tangentList(edge, ...)` with the given parameters.
+    `geomap.tangentList(edge, ...)` with the given parameters.
     Special care is taken to ensure that the list will never be empty
     (by reducing the `dx` or finally set `skipPoints` to zero to get at
     least one tangent)."""
@@ -1632,7 +1632,7 @@ class EdgeTangents(DynamicEdgeStatistics):
         else:
             dart1 = dart.clone().nextAlpha()
             dart2 = dart.clone().nextSigma()
-        self._mergedTangents = hourglass.composeTangentLists([
+        self._mergedTangents = geomap.composeTangentLists([
             self.dartTangents(dart1), self.dartTangents(dart2)])
         self._mergeLabels = (dart1.edgeLabel(), dart2.edgeLabel())
         return True
@@ -1668,9 +1668,9 @@ def gcByArcLength(al):
     def goodContinuation(dart1, dart2):
         assert dart1.startNode() == dart2.startNode()
         # find one-sided tangents:
-        dp1 = hourglass.DartPosition(dart1)
+        dp1 = geomap.DartPosition(dart1)
         dp1.gotoArcLength(al)
-        dp2 = hourglass.DartPosition(dart2)
+        dp2 = geomap.DartPosition(dart2)
         dp2.gotoArcLength(al)
 
         p1 = dart2[0] # node position

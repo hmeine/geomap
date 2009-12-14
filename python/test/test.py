@@ -1,8 +1,8 @@
 from vigra import Vector2, Size2D, labelImage4
-from hourglass import Polygon
+from geomap import Polygon
 import maputils
 
-from hourglass import GeoMap, contourPoly
+from geomap import GeoMap, contourPoly
 #from map import GeoMap
 execfile("testSPWS")
 
@@ -59,7 +59,7 @@ assert maputils.checkLabelConsistency(om), "om.labelImage() inconsistent"
 # --------------------------------------------------------------------
 
 from vigra import readImage, resizeImageSplineInterpolation, transformImage, gaussianGradientAsVector, gaussianGradientMagnitude, SplineImageView5
-from hourglass import SubPixelWatersheds5
+from geomap import SubPixelWatersheds5
 
 img = readImage("test_blox.png")
 img = resizeImageSplineInterpolation(img, Size2D(128, 128))

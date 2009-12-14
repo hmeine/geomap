@@ -1,6 +1,6 @@
 """tools - module with interactive GeoMap tools"""
 
-import sys, qt, maputils, hourglass
+import sys, qt, maputils, geomap
 from maputils import mergeFacesByLabel
 from flag_constants import FOREGROUND_FACE, BACKGROUND_FACE, SRG_SEED
 from vigrapyqt import EdgeOverlay, PointOverlay
@@ -211,7 +211,7 @@ class SeedSelector(qt.QObject):
 
     def seedMap(self):
         if not self._seedMap:
-            self._seedMap = hourglass.PositionedMap()
+            self._seedMap = geomap.PositionedMap()
             for pos in self.seeds:
                 self._seedMap.insert(pos, pos)
         return self._seedMap

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import copy, sys, qt
-import vigra, hourglass
+import vigra, geomap
 import mapdisplay, icons, maputils, statistics, flag_constants, tools
 import progress
 
@@ -442,8 +442,8 @@ class Workspace(mapdisplay.MapDisplay):
             else:
                 biSiv = vigra.SplineImageView5(bi)
             Functor = quantiles \
-                      and hourglass.QuantileStatistics \
-                      or hourglass.PolylineStatistics
+                      and geomap.QuantileStatistics \
+                      or geomap.PolylineStatistics
             map.egs = statistics.EdgeGradientStatistics(
                 map, biSiv, Functor = Functor)
         return map.egs

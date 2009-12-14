@@ -246,8 +246,8 @@ class PyDigitalStraightLine(object):
         self.is8Connected = False
         return self
 
-import hourglass
-from hourglass import LeaningType
+import geomap
+from geomap import LeaningType
 
 def DigitalStraightLine_plotEquation(self, leaningType = LeaningType.CenterLine):
     return ("%s*x + (%s)" % (self.slope(), self.axisIntercept(leaningType))).replace("/", "./")
@@ -265,14 +265,14 @@ def DigitalStraightLine4__repr__(self):
 
 PyDigitalStraightLine.plotEquation = DigitalStraightLine_plotEquation
 PyDigitalStraightLine.plotItems = DigitalStraightLine_plotItems
-hourglass.DigitalStraightLine8.plotEquation = DigitalStraightLine_plotEquation
-hourglass.DigitalStraightLine8.plotItems = DigitalStraightLine_plotItems
-hourglass.DigitalStraightLine8.__repr__ = DigitalStraightLine8__repr__
-hourglass.DigitalStraightLine4.plotEquation = DigitalStraightLine_plotEquation
-hourglass.DigitalStraightLine4.plotItems = DigitalStraightLine_plotItems
-hourglass.DigitalStraightLine4.__repr__ = DigitalStraightLine4__repr__
+geomap.DigitalStraightLine8.plotEquation = DigitalStraightLine_plotEquation
+geomap.DigitalStraightLine8.plotItems = DigitalStraightLine_plotItems
+geomap.DigitalStraightLine8.__repr__ = DigitalStraightLine8__repr__
+geomap.DigitalStraightLine4.plotEquation = DigitalStraightLine_plotEquation
+geomap.DigitalStraightLine4.plotItems = DigitalStraightLine_plotItems
+geomap.DigitalStraightLine4.__repr__ = DigitalStraightLine4__repr__
 
-DigitalStraightLine = hourglass.DigitalStraightLine8
+DigitalStraightLine = geomap.DigitalStraightLine8
 #DigitalStraightLine = PyDigitalStraightLine
 
 def originatingPolyIter(freemanIter, allowed, freeman2Diff):
@@ -346,7 +346,7 @@ def tangentDSL(freemanCodes, pointIndex, closed, allowed = None):
     return result, ffmi.gi_frame.f_locals["i"]-pointIndex # FIXME: hack & wrong if closed
 
 def crackEdgeTangent(freemanCodes, pointIndex, closed):
-    dsl, ofs = hourglass.tangentDSL(freemanCodes, pointIndex, closed)
+    dsl, ofs = geomap.tangentDSL(freemanCodes, pointIndex, closed)
     if not ofs:
         return dsl, ofs
     
@@ -388,7 +388,7 @@ def offset(freemanCodes, pointIndex, closed = True):
     if closed:
         pointIndex = pointIndex % len(freemanCodes)
 
-    dsl, ofs = hourglass.tangentDSL(freemanCodes, pointIndex, closed)
+    dsl, ofs = geomap.tangentDSL(freemanCodes, pointIndex, closed)
     if not ofs:
         return Vector2(0, 0)
 
@@ -425,7 +425,7 @@ def offset2(freemanCodes, pointIndex, closed = True):
     cp = Rational(2*dsl.pos+dsl.width()-1, 2*(sq(dsl.a) + sq(dsl.b)))
     return Vector2(float(dsl.a*cp), float(-dsl.b*cp))
 
-from hourglass import Polygon
+from geomap import Polygon
 
 def euclideanPath(crackPoly, closed = None):
     """Return tangent-driven Euclidean Path for the given `crackPoly`.

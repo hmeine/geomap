@@ -1,5 +1,5 @@
 import sys, time, copy
-from hourglass import GeoMap, crackConnectionImage, crackEdgeGraph
+from geomap import GeoMap, crackConnectionImage, crackEdgeGraph
 import vigra
 from flag_constants import BORDER_PROTECTION
 import maputils
@@ -32,7 +32,7 @@ def crackEdgeMap(labelImage, initLabelImage = True,
 # --------------------------------------------------------------------
 
 from vigra import GrayImage, Vector2, Point2D, Size2D
-from hourglass import Polygon
+from geomap import Polygon
 
 CONN_RIGHT = 1
 CONN_DOWN = 2

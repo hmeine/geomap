@@ -1,6 +1,6 @@
 import math
 from vigra import Vector2
-from hourglass import Polygon
+from geomap import Polygon
 
 __all__ = ("kochCurve", )
 

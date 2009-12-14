@@ -1,4 +1,4 @@
-from hourglass import composeTangentLists, Polygon
+from geomap import composeTangentLists, Polygon
 
 class Path(list):
     """Represents a dart path.  In addition to being a list of darts,
