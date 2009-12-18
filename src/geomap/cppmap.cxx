@@ -1194,11 +1194,16 @@ void GeoMap::changeFaceLabels(
     vigra_precondition(newFaceLabels.size() == faces_.size(),
         "changeFaceLabels(): 1-to-1 mapping expected (wrong newFaceLabels size)");
 
-    GeoMap::Faces newFaces(maxFaceLabel);
+    GeoMap::Faces newFaces(maxFaceLabel, NULL_PTR(Face));
     for(CellLabel l = 0; l < newFaceLabels.size(); ++l)
     {
         if(!faces_[l])
             continue;
+        vigra_precondition(
+            newFaceLabels[l] < maxFaceLabel, "changeFaceLabels: invalid label");
+        vigra_precondition(
+            !newFaces[newFaceLabels[l]],
+            "changeFaceLabels: trying to map multiple faces to the same label");
         newFaces[newFaceLabels[l]] = faces_[l];
         faces_[l]->label_ = newFaceLabels[l];
     }
