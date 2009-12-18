@@ -1124,6 +1124,8 @@ void defMap()
             .def(self != self)
             .def("__repr__", &Edge__repr__)
         ;
+        scope().attr("Edge").attr("BORDER_PROTECTION") =
+            (unsigned int)GeoMap::Edge::BORDER_PROTECTION;
         scope().attr("Edge").attr("ALL_PROTECTION") =
             (unsigned int)GeoMap::Edge::ALL_PROTECTION;
 

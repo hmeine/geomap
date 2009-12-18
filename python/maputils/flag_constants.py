@@ -16,6 +16,7 @@ COLUMN_PROTECTION = 16
 
 import geomap
 ALL_PROTECTION = geomap.GeoMap.Edge.ALL_PROTECTION
+assert geomap.GeoMap.Edge.BORDER_PROTECTION == BORDER_PROTECTION
 assert ALL_PROTECTION & 31 == 31, "must include or'ed values of the ones above"
 
 # delaunay:

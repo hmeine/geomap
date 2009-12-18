@@ -490,6 +490,7 @@ class GeoMap::Edge
     typedef vigra::BBoxPolygon<Vector2> Base;
 
     enum {
+        BORDER_PROTECTION = 1,
         ALL_PROTECTION = 0xff,
         REMOVE_BRIDGE = 0x80000000,
     };
