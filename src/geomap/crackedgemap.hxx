@@ -71,6 +71,8 @@ class CrackEdgeMapGenerator
                vigra::FourNeighborOffsetCirculator &dir);
 
     void followAllEdgesStartingWith(int connMask);
+
+    void initializeMap(bool initLabelImage);
 };
 
 template <class SrcImageIterator, class SrcAccessor>

@@ -1,4 +1,5 @@
 #include "crackedgemap.hxx"
+#include "cppmap_utils.hxx"
 
 void CrackEdgeMapGenerator::makeCCSymmetric()
 {
@@ -198,3 +199,23 @@ void CrackEdgeMapGenerator::followAllEdgesStartingWith(int connMask)
         }
     }
 }
+
+void CrackEdgeMapGenerator::initializeMap(bool initLabelImage)
+{
+    mergeDegree2Nodes(*result);
+    result->sortEdgesDirectly();
+    result->initializeMap(initLabelImage);
+    
+    // mark the border edges
+    vigra_assert(result->face(0)->holeCount() == 1,
+                 "infinite face should have exactly one contour");
+
+    GeoMap::Dart dart(*result->face(0)->holesBegin()), start(dart);
+    do
+    {
+        vigra_assert(!dart.leftFaceLabel(), "infinite face's contour lost");
+        dart.edge()->setFlag(GeoMap::Edge::BORDER_PROTECTION);
+    }
+    while(dart.nextPhi() != start);
+}
+
