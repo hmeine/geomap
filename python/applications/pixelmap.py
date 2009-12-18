@@ -23,7 +23,8 @@ def pixelMap2subPixelMap(pixelMap, scale = 1.0, offset = Vector2(0, 0),
     map (otherwise, each resulting edge segment will have an
     additional mid crack point).  If you set midCracks to True, the
     edge geometry will include the midpoints of each crack instead of
-    the endpoints (skipEverySecond is ignored if midCracks == True)."""
+    the endpoints (skipEverySecond is implied by/ignored if midCracks
+    == True)."""
 
     if imageSize == None:
         imageSize = pixelMap.cellImage.size() * scale
@@ -102,9 +103,8 @@ def pixelMap2subPixelMap(pixelMap, scale = 1.0, offset = Vector2(0, 0),
     # border edges manually:
     assert result.face(0).holeCount() == 1
     for dart in result.face(0).holeContours().next().phiOrbit():
-        edge = dart.edge()
-        if not edge.leftFaceLabel() or not edge.rightFaceLabel():
-            edge.setFlag(BORDER_PROTECTION)
+        assert not dart.leftFaceLabel()
+        dart.edge().setFlag(BORDER_PROTECTION)
 
     return result
 
