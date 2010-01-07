@@ -1,5 +1,6 @@
 #include "facestatistics.hxx"
 #include "exporthelpers.hxx"
+#include "vigra/pythonimage.hxx"
 #include <cmath>
 
 namespace bp = boost::python;
