@@ -33,6 +33,7 @@ OBJS = \
 	cppmapmodule_stats.lo \
 	cppmapmodule.lo \
 	cppmap.lo \
+	cppmap_utils.lo \
 	crackedgemap.lo \
 	dsl.lo \
 
