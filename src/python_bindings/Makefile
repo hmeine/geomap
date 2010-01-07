@@ -54,6 +54,7 @@ $(INT2BUILDDIR)/config/Makefile.include:
 	@echo
 	@echo "*** Check if your vigra/interactive2 build directory is $(INT2BUILDDIR)."
 	@echo "*** Otherwise, change the definition of INT2BUILDDIR in the Makefile."
+	@exit 1
 
 clean:
 	rm -f $(OBJS) $(TARGET) *.o *.ld *.d *.so
