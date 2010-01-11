@@ -122,7 +122,7 @@ class MapFaces(vigrapyqt.Overlay):
             except IndexError, e:
                 print e #"IndexError: %d > %d (maxEdgeLabel: %d)!" % (
                     #i, len(self.colors), map.maxEdgeLabel())
-        elif self.color:
+        elif self.color or self.fillColor:
             for face in map.faceIter():
                 if face.flag(self.flags) and \
                    (not face.label() or \
@@ -130,9 +130,10 @@ class MapFaces(vigrapyqt.Overlay):
                     qpa, sizes = self._getZoomedFace(face)
                     if face.holeCount():
                         index = 0
-                        for size in sizes:
-                            p.drawPolyline(qpa, index, size)
-                            index += size
+                        if self.color:
+                            for size in sizes:
+                                p.drawPolyline(qpa, index, size)
+                                index += size
                         if self.fillColor:
                             p.save()
                             p.setPen(qt.Qt.NoPen)
@@ -875,8 +876,9 @@ class MapDisplay(displaysettings.DisplaySettings):
         self.viewer.update()
 
     def setTool(self, tool = None):
-        """Deactivates old tool, activates new one if tool != None.
-        `tool` can be either a tool object or
+        """Deactivates and destroys old tool, activates/sets new one
+        if tool != None.  `tool` can be either a tool object or
+
         1 for the MapSearcher tool
         2 for the ActivatePaintbrush
         3 for the IntelligentScissors
