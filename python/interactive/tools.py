@@ -61,9 +61,17 @@ class _OldManualClassifier(qt.QObject):
                         self.mousePressed)
 
 class ManualClassifier(qt.QObject):
+    """Allows interactive classification of GeoMap faces.  Also
+    manages a list of FaceOverlays to display the current
+    classification.
+
+    Faces can be clicked to toggle their class, or strokes can be used
+    to transfer the class of a face to its neighbors."""
+    
     __slots__ = ("manual",
                  "_map", "_classes", "_classMask", "_overlays",
-                 "_pressed", "_toggling", "_paintClassIndex", "_currentLabel")
+                 "_enabled", "_pressed",
+                 "_toggling", "_paintClassIndex", "_currentLabel")
 
     def __init__(self, map, edgeOverlay,
                  classes = (FOREGROUND_FACE,
@@ -100,6 +108,7 @@ class ManualClassifier(qt.QObject):
 
         self.filter = filter
 
+        self._enabled = True
         self._pressed = False
         self._toggling = False
 
@@ -112,6 +121,9 @@ class ManualClassifier(qt.QObject):
                      self.mouseReleased)
         for o in self._overlays:
             viewer.addOverlay(o)
+
+    def setEnabled(self, onoff):
+        self._enabled = onoff
 
     def setClassIndex(self, face, newClassIndex):
         face.setFlag(self._classMask, False)
@@ -130,6 +142,8 @@ class ManualClassifier(qt.QObject):
         viewer.update()
 
     def mousePressed(self, x, y, button):
+        if not self._enabled:
+            return
         if button not in (qt.Qt.LeftButton, qt.Qt.MidButton):
             return
         face = self._map.faceAt((x, y))
