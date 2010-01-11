@@ -1164,7 +1164,8 @@ import copy
 
 class ROISelector(qt.QObject):
     def __init__(self, parent = None, name = None, imageSize = None,
-                 roi = None, viewer = None, color = qt.Qt.yellow, width = 0):
+                 roi = None, viewer = None, color = qt.Qt.yellow, width = 0,
+                 alwaysVisible = True):
         qt.QObject.__init__(self, parent, name)
         self._painting = False
         self._alwaysVisible = False
@@ -1190,7 +1191,7 @@ class ROISelector(qt.QObject):
                      self.mouseReleased)
         self._viewer.installEventFilter(self)
 
-        self.setVisible(True) # roi != None)
+        self.setVisible(alwaysVisible)
 
     def eventFilter(self, watched, e):
         if e.type() in (qt.QEvent.KeyPress, qt.QEvent.KeyRelease,
