@@ -572,11 +572,12 @@ def addMapOverlay(fe, overlay, skipBorder = False, **attr):
                 for edge in it:
                     if edge.flag(flag_constants.ALL_PROTECTION):
                         fe.addClippedPoly(edge, container = result, **attr)
-        else:
+        else: # isinstance(overlay, MapFaces)
             attr = dict(attr)
-            if overlay.width:
-                attr["lineWidth"] = overlay.width
-            attr["penColor"] = qtColor2figColor(overlay.color, fe.f)
+            if overlay.color:
+                if overlay.width:
+                    attr["lineWidth"] = overlay.width
+                attr["penColor"] = qtColor2figColor(overlay.color, fe.f)
             if overlay.fillColor:
                 attr["fillColor"] = qtColor2figColor(overlay.fillColor, fe.f)
                 attr["fillStyle"] = fig.fillStyleSolid
@@ -584,10 +585,20 @@ def addMapOverlay(fe, overlay, skipBorder = False, **attr):
             for face in map.faceIter():
                 if face.flag(overlay.flags):
                     if face.holeCount:
-                        assert not overlay.fillColor, "FIXME: cannot currently export filled polygons with holes"
-                    for dart in face.contours():
-                        fe.addClippedPoly(contourPoly(dart),
+                        assert not overlay.fillColor or not overlay.color, "FIXME: cannot currently export filled+stroked polygons with holes"
+                    if not overlay.color:
+                        wholePoly = list(contourPoly(face.contour()))
+                        back = wholePoly[0]
+                        assert wholePoly[-1] == back
+                        for dart in face.holeContours():
+                            wholePoly.extend(contourPoly(dart))
+                            wholePoly.append(back)
+                        fe.addClippedPoly(wholePoly,
                                           container = result, **attr)
+                    else:
+                        for dart in face.contours():
+                            fe.addClippedPoly(contourPoly(dart),
+                                              container = result, **attr)
 
         fe.scale, fe.offset, fe.roi = oldScale, oldOffset, oldROI
         return result
