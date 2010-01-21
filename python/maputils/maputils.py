@@ -1647,6 +1647,24 @@ def pointInFace(face, level = 2):
 
     return subsampledPoint(face)
 
+def facePixels(face): # TODO: add ROI parameter to restrict range?
+    """Generator function that iterates over the pixels within a face
+    (those assigned the face label by fillScannedPoly)."""
+    scanLines = face.scanLines()
+    for y in range(scanLines.startIndex(), scanLines.endIndex()):
+        inside = 0
+        x = 0
+        scanLine = scanLines[y]
+        for segment in scanLine:
+            begin = segment.begin
+            end = segment.end
+            if inside > 0:
+                while x < begin:
+                    yield vigra.Point2D(x, y)
+                    x += 1
+            x = end
+            inside += segment.direction
+
 # --------------------------------------------------------------------
 #                   topological utility functions
 # --------------------------------------------------------------------
