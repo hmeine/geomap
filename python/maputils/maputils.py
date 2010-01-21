@@ -1083,8 +1083,9 @@ def showMapStats(map):
         print "%d outer contours could not be embedded into " \
               "their surrounding faces!" % (len(map.unembeddableContours), )
 
+    thisMap = "for GeoMap @0x%8x>" % id(map)
     for key, value in map.__dict__.items():
-        print "  %s: %s" % (key, value)
+        print "  %s: %s" % (key, str(value).replace(thisMap, "for this GeoMap>"))
 
 def degree2Nodes(map):
     return [node for node in map.nodeIter() if node.hasDegree(2)]

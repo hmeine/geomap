@@ -38,7 +38,7 @@ class DetachableStatistics(object):
         self._attachHooks()
 
     def __repr__(self):
-        map = ", no map"
+        map = ", map destroyed"
 
         if not hasattr(self, "_attachedHooks"):
             hooks = "not attached"
@@ -50,7 +50,7 @@ class DetachableStatistics(object):
             hooks = "%d %s hooks" % (len(self._attachedHooks), active)
 
         if self._map():
-            addr = id(self._map()) + 0x100000000L
+            addr = id(self._map()) # + 0x100000000L
             map = " for GeoMap @0x%8x" % addr
 
         return "<%s, %s%s>" % (self.__class__.__name__, hooks, map)
