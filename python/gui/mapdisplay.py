@@ -658,6 +658,12 @@ class MapDisplay(displaysettings.DisplaySettings):
         #if dn is self.dn:
         self.dn = None
 
+    def _labelImage(self):
+        result = self.map.labelImage()
+        if not result:
+            result = maputils.drawLabelImage(self.map)
+        return result
+
     def setMap(self, map):
         attached = self.detachHooks()
 
@@ -669,14 +675,14 @@ class MapDisplay(displaysettings.DisplaySettings):
 
         updatedDisplayImage = None
         if self._backgroundMode == 3:
-            updatedDisplayImage = self.map.labelImage()
+            updatedDisplayImage = self._labelImage()
 
         self._faceMeans = None
         if hasattr(map, "faceMeans"):
             self.setFaceMeans(map.faceMeans)
             if self._backgroundMode == 4:
                 updatedDisplayImage = \
-                    self._faceMeans.regionImage(self.map.labelImage())
+                    self._faceMeans.regionImage(self._labelImage())
         self._enableImageActions()
 
         if updatedDisplayImage:
@@ -721,9 +727,9 @@ class MapDisplay(displaysettings.DisplaySettings):
         elif mode == 2:
             displayImage = self.images["bi"]
         elif mode == 3:
-            displayImage = self.map.labelImage()
+            displayImage = self._labelImage()
         elif mode == 4:
-            displayImage = self._faceMeans.regionImage(self.map.labelImage())
+            displayImage = self._faceMeans.regionImage(self._labelImage())
         else:
             sys.stderr.write("Unknown background mode %d!\n" % mode)
             return
@@ -777,7 +783,7 @@ class MapDisplay(displaysettings.DisplaySettings):
 
     def _redisplayROIImage(self, roi):
         roi &= Rect2D(self.map.imageSize())
-        roiImage = self.map.labelImage().subImage(roi)
+        roiImage = self._labelImage().subImage(roi)
         if self._backgroundMode > 3:
             roiImage = self._faceMeans.regionImage(roiImage)
         # FIXME: use global normalization here
@@ -1123,8 +1129,9 @@ class ROISelector(qt.QObject):
     def mouseReleased(self, x, y, button):
         if self._painting and button == qt.Qt.LeftButton:
             self._stopPainting()
-            self.setROI(self.roi & self._validRect)
-            self.emit(qt.PYSIGNAL("roiSelected"), (self.roi, ))
+            if self.roi is not None:
+                self.setROI(self.roi & self._validRect)
+                self.emit(qt.PYSIGNAL("roiSelected"), (self.roi, ))
 
     def disconnectViewer(self):
         self.disconnect(self._viewer, qt.PYSIGNAL("mousePressed"),
