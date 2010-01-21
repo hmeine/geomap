@@ -13,7 +13,7 @@
 
 #include <cfloat>
 
-#ifdef _MSC_VER
+#ifdef _WIN32 // at least _MSC_VER and __MINGW32__ don't have isnan:
 inline int isnan(double t) { return _isnan(t); }
 #else
 #include <math.h>
