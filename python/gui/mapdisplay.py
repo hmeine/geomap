@@ -1,3 +1,5 @@
+from darthighlighter import DartHighlighter
+from dartnavigator import DartNavigator
 import sys, math, time, qt
 import fig, figexport
 import vigra, vigrapyqt
@@ -446,71 +448,6 @@ class MapNodes(vigrapyqt.Overlay):
                     p.drawEllipse(qt.QRect(point, self._elSize))
 
 # --------------------------------------------------------------------
-#                          DartHighlighter
-# --------------------------------------------------------------------
-
-class DartHighlighter(object):
-    """The DartHighlighter class is attached to a viewer and a Map and
-    is able to highlight any set of darts at a time."""
-    
-    def __init__(self, map, viewer):
-        self._map = ref(map)
-        self._viewer = viewer
-        self.eo = None
-        self.no = None
-
-    def setMap(self, map):
-        self._map = ref(map)
-
-    def highlight(self, darts, color = qt.Qt.yellow):
-        """highlight(darts)
-        Highlight the given darts (can be any iterable returning labels
-        or Dart objects)."""
-
-        if darts:
-            # hasattr(darts, "__iter__"): would be better, but is True for Edges
-            if not isinstance(darts, (list, tuple)):
-                darts = [darts]
-            dartObjects = []
-            for dart in darts:
-                if type(dart) == int:
-                    dart = self._map().dart(dart)
-                    if not dart.edge():
-                        sys.stderr.write("WARNING: Cannot highlight nonexisting Dart %d!\n" % dart.label())
-                        continue
-                elif hasattr(dart, "anchor"): # Nodes
-                    dart = dart.anchor()
-                elif hasattr(dart, "dart"): # Edges
-                    dart = dart.dart()
-                dartObjects.append(dart)
-            darts = dartObjects
-
-        if self.eo != None:
-            self._viewer.removeOverlay(self)
-            self.eo = None
-            self.no = None
-
-        if darts == None or not len(darts):
-            return
-
-        self.eo = vigrapyqt.EdgeOverlay([dart.edge() for dart in darts], color)
-        self.eo.width = 2
-        self.no = vigrapyqt.PointOverlay(
-            [dart.startNode().position() for dart in darts], color, 3)
-        self.color = color # used in the viewer's RMB menu
-        self._viewer.addOverlay(self)
-
-    def setZoom(self, zoom):
-        self.eo.viewer = self.viewer
-        self.eo.setZoom(zoom)
-        self.no.viewer = self.viewer
-        self.no.setZoom(zoom)
-
-    def draw(self, p):
-        self.eo.draw(p)
-        self.no.draw(p)
-
-# --------------------------------------------------------------------
 #                             MapDisplay
 # --------------------------------------------------------------------
 
@@ -942,6 +879,11 @@ class MapDisplay(displaysettings.DisplaySettings):
     def cleanupMap(self):
         removeCruft(self.map, 7)
 
+    def createDartNavigator(self, dart, costMeasure, parent, name = None):
+        """Factory for DartNavigator, allows to use more specialized
+        dart navigators in subclasses."""
+        self.dn = DartNavigator(dart, costMeasure, self, name)
+
     def navigate(self, dart, center = True, costMeasure = None, new = False):
         if type(dart) == int:
             dart = self.map.dart(dart)
@@ -950,7 +892,7 @@ class MapDisplay(displaysettings.DisplaySettings):
         elif hasattr(dart, "contours"):
             dart = list(dart.contours())
         if new or not self.dn:
-            self.dn = DartNavigator(dart, costMeasure, self)
+            self.createDartNavigator(dart, costMeasure, self)
             self.connect(self.dn, qt.SIGNAL("destroyed(QObject*)"),
                          self._dartNavigatorDestroyed)
         else:
@@ -1070,106 +1012,6 @@ class MapDisplay(displaysettings.DisplaySettings):
 
         fe = self.saveFig(basepath, *args, **kwargs)
         return fe.f.fig2dev(lang = "pdf")
-
-# --------------------------------------------------------------------
-#                         dart navigation dialog
-# --------------------------------------------------------------------
-
-class DartNavigator(dartnavigator.DartNavigatorBase):
-    __base = dartnavigator.DartNavigatorBase
-    
-    def __init__(self, dart, costMeasure, parent, name = None):
-        self.__base.__init__(self, parent, name)
-        self.dart = dart
-        self.costMeasure = costMeasure
-        self.connect(self.nextPhiButton, qt.SIGNAL("clicked()"),
-                     self.nextPhi)
-        self.connect(self.prevPhiButton, qt.SIGNAL("clicked()"),
-                     self.prevPhi)
-        self.connect(self.nextAlphaButton, qt.SIGNAL("clicked()"),
-                     self.nextAlpha)
-        self.connect(self.nextSigmaButton, qt.SIGNAL("clicked()"),
-                     self.nextSigma)
-        self.connect(self.prevSigmaButton, qt.SIGNAL("clicked()"),
-                     self.prevSigma)
-
-        self.connect(self.continuousCheckBox, qt.SIGNAL("toggled(bool)"),
-                     self.toggleContinuous)
-
-        self.timer = qt.QTimer(self)
-        self.connect(self.timer, qt.SIGNAL("timeout()"),
-                     self.highlightNext)
-
-        self.dh = DartHighlighter(self.parent().map, self.parent().viewer)
-        self.updateLabel()
-
-    def closeEvent(self, e):
-        self.dh.highlight(None)
-        self.__base.closeEvent(self, e)
-        if e.isAccepted():
-            self.deleteLater() # like qt.Qt.WDestructiveClose ;-)
-
-    def highlightNext(self):
-        self.activePerm()
-        self.updateLabel()
-
-    def setDart(self, dart):
-        self.dart = dart
-        self.updateLabel()
-
-    def toggleContinuous(self, onoff):
-        if onoff:
-            self.timer.start(1200)
-        else:
-            self.timer.stop()
-        self.nextPhiButton.setToggleButton(onoff)
-        self.prevPhiButton.setToggleButton(onoff)
-        self.nextAlphaButton.setToggleButton(onoff)
-        self.nextSigmaButton.setToggleButton(onoff)
-        self.prevSigmaButton.setToggleButton(onoff)
-
-    def moveDart(self, perm):
-        perm()
-        self.updateLabel()
-        self.activePerm = perm
-
-    def nextPhi(self):
-        self.moveDart(self.dart.nextPhi)
-
-    def prevPhi(self):
-        self.moveDart(self.dart.prevPhi)
-
-    def nextAlpha(self):
-        self.moveDart(self.dart.nextAlpha)
-
-    def nextSigma(self):
-        self.moveDart(self.dart.nextSigma)
-
-    def prevSigma(self):
-        self.moveDart(self.dart.prevSigma)
-
-    def updateLabel(self):
-        self.dh.highlight(self.dart.label())
-        dartDesc = "Dart %d, length %.1f, partial area %.1f, %d points" % (
-            self.dart.label(), self.dart.edge().length(),
-            self.dart.partialArea(), len(self.dart))
-        if self.costMeasure:
-            dartDesc += "\nassociated cost: %s" % self.costMeasure(self.dart)
-        self.dartLabel.setText(dartDesc)
-        for node, nodeLabel in ((self.dart.startNode(), self.startNodeLabel),
-                                (self.dart.endNode(), self.endNodeLabel)):
-            nodeLabel.setText(
-                "Node %d (deg. %d)\nat %s" % (
-                node.label(), node.degree(), node.position()))
-        if self.dart.map().mapInitialized():
-            leftFace = self.dart.leftFace()
-            rightFace = self.dart.rightFace()
-            self.faceLabel.setText(
-                """Left: %s\nRight: %s""" % (str(leftFace)[8:-1], str(rightFace)[8:-1]))
-        self.setCaption("DartNavigator(%d)" % (self.dart.label(), ))
-        self.emit(qt.PYSIGNAL('updateDart'),(self.dart,))
-
-# --------------------------------------------------------------------
 
 import copy
 

@@ -1,7 +1,7 @@
 %.py: %.ui
 	pyuic $< -o $@
 
-UI_GENERATED = dartnavigator.py displaysettings.py
+UI_GENERATED = dartnavigatorbase.py displaysettings.py
 
 all: $(UI_GENERATED)
 
