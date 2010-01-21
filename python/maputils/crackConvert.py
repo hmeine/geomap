@@ -14,7 +14,6 @@ __all__ = ["crackEdgeMap", "crackEdgeGraph"]
 def crackEdgeMap(labelImage, initLabelImage = True,
                  eightConnectedRegions = True):
     result = crackEdgeGraph(labelImage, eightConnectedRegions = eightConnectedRegions)
-    maputils.mergeDegree2Nodes(result)
     result.sortEdgesDirectly()
     result.initializeMap(initLabelImage)
     
