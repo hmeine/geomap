@@ -1,4 +1,4 @@
-import vigra, geomap
+import vigra, geomap, crackConvert
 vigra.addPathFromHere('../cellimage')
 import cellimage
 from vigra import transformImage, Vector2, Size2D, Point2D, Rect2D
@@ -206,7 +206,6 @@ def pixelWatershedMap(biImage, crackEdges = 4, midCracks = False):
     0: 8-connected edges on 4-connected background       (SRG alg.)
     4: crack edges between 4-connected watershed regions (UF alg.)
     8: crack edges between 8-connected watershed regions (UF alg.)
-       (8-connected regions will be separated in the result ATM)
 
     If midCracks is True, the resulting edges consist of the
     connected midpoints of the cracks, not of the crack segments
@@ -215,6 +214,9 @@ def pixelWatershedMap(biImage, crackEdges = 4, midCracks = False):
     if crackEdges:
         print "- Union-Find watershed segmentation..."
         lab, count = getattr(vigra, 'watershedUnionFind' + str(crackEdges))(biImage)
+        if not midCracks:
+            return crackConvert.crackEdgeMap(
+                lab, eightConnectedRegions = (crackEdges == 8))
         return crackEdgeMap(lab, midCracks)
 
     print "- watershed segmentation..."
