@@ -65,7 +65,8 @@ class ManualClassifier(qt.QObject):
     manages a list of FaceOverlays to display the current
     classification.
 
-    Faces can be clicked to toggle their class, or strokes can be used
+    Faces can be clicked to toggle their class (LMB/MMB for
+    forward/backward cycling through classes), or strokes can be used
     to transfer the class of a face to its neighbors."""
     
     __slots__ = ("manual",
@@ -81,6 +82,27 @@ class ManualClassifier(qt.QObject):
                  colors = (qt.Qt.yellow, qt.Qt.cyan),
                  filter = None,
                  parent = None):
+        """Initialize and start the ManualClassifier tool.
+
+        The edgeOverlay is needed for the internal MapFaces overlays
+        (for efficient implementation), often one simply passes the
+        .edgeOverlay attribute of the MapDisplay.
+
+        The `classes` can be user-defined flags and default to
+        FOREGROUND_FACE/BACKGROUND_FACE/no flag (see flag_constants
+        module).  The `colors` array must have the same size and is
+        used to initialize corresponding MapFaces overlays for
+        displaying the classes.
+
+        If a `filter` is given, it is called for every face to
+        determine whether its classification may be changed at all.
+        For instance, this can be used to make sure that only objects
+        are classified, and the background region is never assigned to
+        some object class.
+
+        For display and interaction reasons, the given parent (usually
+        a MapDisplay) *must* have a 'viewer' attribute."""
+
         qt.QObject.__init__(self, parent)
 
         self.manual = {}
