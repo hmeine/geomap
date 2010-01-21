@@ -1980,11 +1980,12 @@ def minimumSpanningTree(map, edgeCosts):
     """minimumSpanningTree(map, edgeCosts)
 
     Given a cost associated with each edge of the map, this function
-    finds the minimum spanning tree of the map's boundary graph (None
-    in edgeCosts is allowed and is handled as if the corresponding
-    edge was missing).  The result is a modified copy of the edgeCosts
-    list, with all non-MST-edges set to None.  This can be used for
-    the waterfall algorithm by Meyer and Beucher, see waterfall().
+    finds the minimum spanning tree of the map's region adjacency
+    graph (None in edgeCosts is allowed and is handled as if the
+    corresponding edge was missing).  The result is a modified copy of
+    the edgeCosts list, with all non-MST-edges set to None.  This can
+    be used for the waterfall algorithm by Meyer and Beucher, see
+    waterfall().
 
     The complexity is O(edgeCount*faceCount), but the performance
     could be improved a little."""
