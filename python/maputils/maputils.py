@@ -899,7 +899,12 @@ def copyMap(sourceMap, edgeTransform = None):
 
 def detachMapStats(map, verbose = False):
     """Calls 'detachHooks' on all properties of the given map.
-    (Use this to prevent leaking statistics when discarding maps.)"""
+    (Use this to prevent leaking statistics when discarding maps.)
+    For convenience, this function acts as a no-op when called with
+    map = None."""
+
+    if map is None:
+        return
     
     for a in map.__dict__:
         o = getattr(map, a)
