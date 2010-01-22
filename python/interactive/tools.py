@@ -90,9 +90,10 @@ class ManualClassifier(qt.QObject):
 
         The `classes` can be user-defined flags and default to
         FOREGROUND_FACE/BACKGROUND_FACE/no flag (see flag_constants
-        module).  The `colors` array must have the same size and is
-        used to initialize corresponding MapFaces overlays for
-        displaying the classes.
+        module).  The `colors` array should have the same size
+        (otherwise it is cropped or padded with None) and is used to
+        initialize corresponding MapFaces overlays for displaying the
+        classes (a class with a color of None will not be displayed).
 
         If a `filter` is given, it is called for every face to
         determine whether its classification may be changed at all.
@@ -147,6 +148,13 @@ class ManualClassifier(qt.QObject):
     def setEnabled(self, onoff):
         self._enabled = onoff
 
+    def findSeeds(self):
+        classFaces = maputils.extractFaceClasses(self._map, self._classes)
+        result = {}
+        for flag, faces in classFaces.items():
+            result[flag] = [maputils.pointInFace(face) for face in faces]
+        return result
+
     def setClassIndex(self, face, newClassIndex):
         face.setFlag(self._classMask, False)
         face.setFlag(self._classes[newClassIndex])
@@ -194,7 +202,9 @@ class ManualClassifier(qt.QObject):
             return
 
         # apply painting classification to that face, too:
-        self.setClassIndex(face, self._paintClassIndex)
+        if self._classes.index(
+            face.flag(self._classMask)) != self._paintClassIndex:
+            self.setClassIndex(face, self._paintClassIndex)
 
     def mouseReleased(self, x, y):
         if self._toggling:
