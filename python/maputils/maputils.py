@@ -1550,6 +1550,46 @@ def thresholdMergeCost(map, mergeCostMeasure, maxCost, costs = None, q = None):
 
 # --------------------------------------------------------------------
 
+def extractFaceClasses(map, classes = None, skipInfinite = True):
+    """Return dictionary mapping each of the specified `classes` to
+    the corresponding list of faces within `map`.
+
+    `classes` may be a sequence of face flags that specifies the exact
+    classes to be searched for.  The resulting dict will have these
+    classes as keys.
+
+    `classes` may also be an integer, which is interpreted as a flags
+    *mask*, i.e. the set of classes will be the set of disjoint values
+    after applying this mask to the map's faces' flags.
+
+    If `classes` is None, all occuring non-internal flags are
+    collected (i.e. it is the same as the mask FACE_NONINTERNAL =
+    0x0fffffff).
+
+    If `skipInfinite` is not set to false, the infinite face will not
+    be considered."""
+
+    if classes is None:
+        classes = flag_constants.FACE_NONINTERNAL
+    if isinstance(classes, int):
+        classes = set(face.flag(classes)
+                      for face in map.faceIter(skipInfinite))
+
+    classes = list(classes)
+    classes.sort(reverse = True)
+
+    result = dict((flag, []) for flag in classes)
+
+    for face in map.faceIter(skipInfinite):
+        for flag in classes:
+            if flag and face.flag(flag) == flag:
+                result[flag].append(face)
+                break
+
+    return result
+
+# --------------------------------------------------------------------
+
 def classifyFacesFromLabelImage(map, labelImage):
     """Given a labelImage, returns the label of each Face within that
     image.  This assumes that each region contains only pixels of the
