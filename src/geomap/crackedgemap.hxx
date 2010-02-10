@@ -74,6 +74,8 @@ class CrackEdgeMapGenerator
 
     void initializeMap(bool initLabelImage);
 
+    void crackEdgesToMidcracks();
+
     template <class SrcImageIterator, class SrcAccessor>
     void getSourceLabels(vigra::pair<SrcImageIterator, SrcAccessor> src,
                          std::vector<CellLabel> *sourceLabels);

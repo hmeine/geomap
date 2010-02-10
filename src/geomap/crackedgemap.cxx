@@ -205,7 +205,7 @@ void CrackEdgeMapGenerator::initializeMap(bool initLabelImage)
     mergeDegree2Nodes(*result);
     result->sortEdgesDirectly();
     result->initializeMap(initLabelImage);
-    
+
     // mark the border edges
     vigra_assert(result->face(0)->holeCount() == 1,
                  "infinite face should have exactly one contour");
@@ -217,5 +217,38 @@ void CrackEdgeMapGenerator::initializeMap(bool initLabelImage)
         dart.edge()->setFlag(GeoMap::Edge::BORDER_PROTECTION);
     }
     while(dart.nextPhi() != start);
+}
+
+void CrackEdgeMapGenerator::crackEdgesToMidcracks()
+{
+    for(GeoMap::EdgeIterator it = result->edgesBegin(); it.inRange(); ++it)
+    {
+        GeoMap::Edge &edge(**it);
+
+        // TODO: for non-loops, move degree-2 endnodes nevertheless
+        bool moveNode = (edge.isLoop() && edge.startNode()->hasDegree(2));
+
+        Vector2Array midCrackPoints(edge.size() + !moveNode);
+
+        for(unsigned int i = 1; i < edge.size(); ++i)
+        {
+            midCrackPoints[i] = (edge[i-1] + edge[i]) * 0.5;
+        }
+
+        if(moveNode)
+        {
+            midCrackPoints.front() = midCrackPoints.back();
+            edge.startNode()->setPosition(
+                midCrackPoints.front());
+        }
+        else
+        {
+            midCrackPoints.front() = edge.front();
+            midCrackPoints.back()  = edge.back();
+        }
+
+        // FIXME: introduce Edge::setGeometry and invalidate face properties!
+        edge.swap(midCrackPoints);
+    }
 }
 

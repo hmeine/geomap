@@ -100,6 +100,26 @@ class PointArray
         return points_.rend();
     }
 
+    const_reference front() const
+    {
+        return points_.front();
+    }
+
+    reference front()
+    {
+        return points_.front();
+    }
+
+    const_reference back() const
+    {
+        return points_.back();
+    }
+
+    reference back()
+    {
+        return points_.back();
+    }
+
     void push_back(const_reference v)
     {
         points_.push_back(v);
@@ -302,6 +322,8 @@ class Polygon : public PointArray<POINT>
         Base::push_back(v);
     }
 
+        // TODO: turn into general insert()?
+        // should preserve closedness then, too!
     void extend(const Polygon &other)
     {
         if(!other.size())
@@ -434,11 +456,11 @@ class Polygon : public PointArray<POINT>
         std::swap(partialAreaValid_, rhs.partialAreaValid_);
     }
 
-//     void swap(PointArray &rhs)
-//     {
-//         Base::swap(rhs);
-//         invalidateProperties();
-//     }
+    void swap(Base &rhs)
+    {
+        Base::swap(rhs);
+        invalidateProperties();
+    }
 
     void reverse()
     {
@@ -635,9 +657,15 @@ class BBoxPolygon : public Polygon<POINT>
 
     void swap(BBoxPolygon &rhs)
     {
-        Base::swap(rhs);
+        Base::swap(static_cast<Base &>(rhs));
         std::swap(boundingBox_, rhs.boundingBox_);
         std::swap(boundingBoxValid_, rhs.boundingBoxValid_);
+    }
+
+    void swap(typename Base::Base &rhs)
+    {
+        Base::swap(rhs);
+        boundingBoxValid_ = false;
     }
 
   protected:
