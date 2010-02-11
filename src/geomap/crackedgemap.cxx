@@ -219,9 +219,9 @@ void CrackEdgeMapGenerator::initializeMap(bool initLabelImage)
     while(dart.nextPhi() != start);
 }
 
-void CrackEdgeMapGenerator::crackEdgesToMidcracks()
+void crackEdgesToMidcracks(GeoMap &geomap)
 {
-    for(GeoMap::EdgeIterator it = result->edgesBegin(); it.inRange(); ++it)
+    for(GeoMap::EdgeIterator it = geomap.edgesBegin(); it.inRange(); ++it)
     {
         GeoMap::Edge &edge(**it);
 
@@ -249,6 +249,15 @@ void CrackEdgeMapGenerator::crackEdgesToMidcracks()
 
         // FIXME: introduce Edge::setGeometry and invalidate face properties!
         edge.swap(midCrackPoints);
+    }
+
+    if(geomap.mapInitialized())
+    {
+        for(GeoMap::FaceIterator it = geomap.facesBegin(); it.inRange(); ++it)
+        {
+            // FIXME: see above...
+            (*it)->setFlag(0xC0000000U, false);
+        }
     }
 }
 
