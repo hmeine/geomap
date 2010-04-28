@@ -2,12 +2,12 @@
 #define VIGRA_POSITIONEDMAP_HXX
 
 #include <boost/python.hpp>
-#include <vigra/pythonimage.hxx> // for Vector2 typedef
+#include <vigra/tinyvector.hxx>
 #include "map2d.hxx"
 
 class PositionedMap
 {
-    typedef vigra::Vector2 Vector2;
+    typedef vigra::TinyVector<double, 2> Vector2;
     typedef vigra::PositionedObject<Vector2, boost::python::object> ElementType;
     typedef vigra::Map2D<ElementType> MapType;
 
