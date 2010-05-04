@@ -1,10 +1,12 @@
 #include "cellimage_module.hxx"
-#include <vigra/pythonimage.hxx>
+#include <vigra/numpy_array.hxx>
 #include <boost/python/make_constructor.hpp>
 #include <sstream>
 
 using vigra::cellimage::CellImage;
 using vigra::cellimage::CellPixel;
+using vigra::Size2D;
+using vigra::NumpyFImage;
 
 CellPixel getPixelXY(CellImage const & image, int x, int y)
 {
@@ -40,20 +42,20 @@ void setPixel(CellImage & image, vigra::Diff2D const & i, CellPixel const & valu
 
 vigra::cellimage::CellImage *
 convertCellImage(
-    vigra::PythonImage &image)
+    NumpyFImage &image)
 {
-    vigra::cellimage::CellImage *result = new CellImage(image.size());
-    vigra::PythonSingleBandImage simage(image.subImage(0));
-    transformImage(srcImageRange(simage), destImage(*result),
+    vigra::cellimage::CellImage *result = new CellImage(Size2D(image.shape(0), image.shape(1)));
+    transformImage(srcImageRange(image), destImage(*result),
                    vigra::cellimage::CellPixelSerializer());
     return result;
 }
 
-vigra::PythonGrayImage
+NumpyFImage
 serializeCellImage(
     const vigra::cellimage::CellImage &cellImage)
 {
-    vigra::PythonGrayImage result(cellImage.size());
+    typedef NumpyFImage::view_type::difference_type NumpyFImageShape;
+    NumpyFImage result = NumpyFImage(NumpyFImageShape(cellImage.size().x,cellImage.size().y));
     transformImage(srcImageRange(cellImage), destImage(result),
                    vigra::cellimage::CellPixelSerializer());
     return result;
@@ -62,13 +64,12 @@ serializeCellImage(
 
 vigra::cellimage::GeoMap *
 createGeoMap(
-    vigra::PythonImage &image,
+    NumpyFImage &image,
     float boundaryValue,
 	vigra::cellimage::CellType cornerType)
 {
-    vigra::PythonSingleBandImage simage(image.subImage(0));
     return new vigra::cellimage::GeoMap(
-		srcImageRange(simage), boundaryValue, cornerType);
+		srcImageRange(image), boundaryValue, cornerType);
 }
 
 void validateDart(const vigra::cellimage::GeoMap::DartTraverser &dart)
