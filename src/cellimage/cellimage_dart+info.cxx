@@ -1,4 +1,5 @@
 #include "foureightsegmentation.hxx"
+#include <boost/python.hpp>
 
 using namespace vigra;
 using namespace boost::python;
