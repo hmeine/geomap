@@ -1104,12 +1104,11 @@ void GeoMap::embedFaces(bool initLabelImage)
 
             if(!parent)
             {
-                ContourPointIter cpi(anchor);
-                while(cpi.inRange())
+                for(ContourPointIter cpi(anchor); cpi.inRange(); ++cpi)
                 {
                     for(FaceIterator it = facesBegin(); it.inRange(); ++it)
                     {
-                        if((*it)->contains(*cpi++))
+                        if((*it)->contains(*cpi))
                         {
                             parent = *it;
                             goto parent_found; // double break
