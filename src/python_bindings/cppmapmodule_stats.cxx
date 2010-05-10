@@ -1,9 +1,12 @@
 #include "facestatistics.hxx"
 #include "exporthelpers.hxx"
-#include "vigra/pythonimage.hxx"
+#include <vigra/numpy_array.hxx>
 #include <cmath>
 
 namespace bp = boost::python;
+using vigra::NumpyFImage;
+using vigra::NumpyFRGBImage;
+using vigra::Size2D;
 
 template<class TargetType>
 struct CastingAccessor
@@ -173,14 +176,15 @@ class FaceColorStatisticsWrapper
     static Statistics *create(
         GeoMap &map, OriginalImage const &originalImage, int minSampleCount)
     {
-        double maxDiffNorm = 255.*std::sqrt((double)originalImage.bands());
+        double maxDiffNorm = 255.*std::sqrt((double) OriginalImage::actual_dimension);
         return new Statistics(map, originalImage,
                               maxDiffNorm, minSampleCount);
     }
 
     static OriginalImage regionImage(const Statistics &stats)
     {
-        OriginalImage result(stats.map()->imageSize());
+        vigra::TinyVector<long int,2> sizeVector(stats.map()->imageSize());
+        OriginalImage result(sizeVector);
 
         stats.copyRegionImage(destImage(result));
 
@@ -188,9 +192,12 @@ class FaceColorStatisticsWrapper
     }
 
     static OriginalImage convertToRegionMeans(
-        const Statistics &stats, vigra::PythonSingleBandImage labels)
+        const Statistics &stats, NumpyFImage labels)
     {
-        OriginalImage result(labels.size());
+
+        vigra::TinyVector<long int,2> sizeVector(Size2D(static_cast<int>(labels.shape(0)),
+            static_cast<int>(labels.shape(1))));
+        OriginalImage result(sizeVector);
 
         stats.transformRegionImage(
             srcImageRange(labels, CastingAccessor<int>()), destImage(result));
@@ -201,11 +208,11 @@ class FaceColorStatisticsWrapper
 
 void defMapStats()
 {
-    FaceColorStatisticsWrapper<vigra::PythonGrayImage>("FaceGrayStatistics")
+    FaceColorStatisticsWrapper<NumpyFImage>("FaceGrayStatistics")
         .def("__copy__", &generic__copy__<LabelLUT>)
         .def("__deepcopy__", &generic__deepcopy__<LabelLUT>)
     ;
-    FaceColorStatisticsWrapper<vigra::PythonVector3Image>("FaceRGBStatistics")
+    FaceColorStatisticsWrapper<NumpyFRGBImage>("FaceRGBStatistics")
         .def("__copy__", &generic__copy__<LabelLUT>)
         .def("__deepcopy__", &generic__deepcopy__<LabelLUT>)
     ;
