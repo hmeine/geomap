@@ -38,8 +38,6 @@ OBJS = \
 	crackedgemap.lo \
 	dsl.lo \
 
-IMPEX_LIB = `vigra-config --impex_lib`
-
 $(TARGET): $(OBJS)
 	$(LINKCXXMODULE) -o $(TARGET) $(OBJS) $(BOOST_PYTHON_LIB) `pkg-config --libs sigc++-2.0` `vigra-interactive-config --pythonimage-lib`
 	test -s $(MODULE) || ln -s .libs/$(MODULE) .
