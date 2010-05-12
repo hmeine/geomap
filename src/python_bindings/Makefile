@@ -29,6 +29,7 @@ OBJS = \
 	statistics.lo \
 	features.lo \
 	ellipse.lo \
+	channelrepresentation.lo \
 	cppmapmodule_utils.lo \
 	cppmapmodule_stats.lo \
 	cppmapmodule.lo \
