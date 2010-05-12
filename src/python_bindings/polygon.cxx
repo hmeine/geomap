@@ -8,7 +8,7 @@
 #include <vigra/regression.hxx>
 #include <cmath>
 #include "exporthelpers.hxx"
-#include "vigra/vector_types.hxx"
+#include "python_types.hxx"
 #include <vigra/numpy_array.hxx>
 
 

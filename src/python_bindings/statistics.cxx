@@ -5,7 +5,7 @@
 
 
 #include "vigra/polygon.hxx"
-#include "vigra/vector_types.hxx"
+#include "python_types.hxx"
 
 #include <vector>
 #include <algorithm>
