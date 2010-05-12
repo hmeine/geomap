@@ -1,6 +1,6 @@
+#include <vigra/numpy_array.hxx>
 #include "cppmap.hxx"
 #include "exporthelpers.hxx"
-#include <vigra/numpy_array.hxx>
 #include <vigra/copyimage.hxx>
 #include <iostream>
 
