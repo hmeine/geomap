@@ -202,7 +202,9 @@ void CrackEdgeMapGenerator::followAllEdgesStartingWith(int connMask)
 
 void CrackEdgeMapGenerator::initializeMap(bool initLabelImage)
 {
-    mergeDegree2Nodes(*result);
+    // no longer necessary, since generation process should not create
+    // degree 2 nodes anymore:
+    //mergeDegree2Nodes(*result);
     result->sortEdgesDirectly();
     result->initializeMap(initLabelImage);
 
