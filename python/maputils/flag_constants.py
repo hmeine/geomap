@@ -14,8 +14,9 @@ CUSTOM_PROTECTION  = 8
 # sinology:
 COLUMN_PROTECTION = 16
 
-import hourglass
-ALL_PROTECTION = hourglass.GeoMap.Edge.ALL_PROTECTION
+import geomap
+ALL_PROTECTION = geomap.GeoMap.Edge.ALL_PROTECTION
+assert geomap.GeoMap.Edge.BORDER_PROTECTION == BORDER_PROTECTION
 assert ALL_PROTECTION & 31 == 31, "must include or'ed values of the ones above"
 
 # delaunay:
@@ -38,8 +39,11 @@ EDGE_USER = 0x100000
 # --------------------------------------------------------------------
 
 # note that the highest bits are reserved for the C++ code:
-#     static const unsigned int BOUNDING_BOX_VALID = 0x8000000;
-#     static const unsigned int AREA_VALID         = 0x4000000;
+#     enum {
+#         BOUNDING_BOX_VALID = 0x80000000U,
+#         AREA_VALID         = 0x40000000U,
+#         INTERNAL_FLAGS     = 0xf0000000U,
+#     };
 
 # delaunay:
 OUTER_FACE = 1
@@ -60,6 +64,8 @@ BACKGROUND_FACE = 1 # cf. OUTER_FACE
 FOREGROUND_FACE = 32
 
 FACE_USER = 0x100000
+
+FACE_NONINTERNAL = 0x0fffffff
 
 if __name__ == "__main__":
     for name in dir():

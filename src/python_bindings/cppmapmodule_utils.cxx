@@ -3,9 +3,14 @@
 #include "labellut.hxx"
 
 #include <vigra/copyimage.hxx>
+#include <vigra/numpy_array.hxx>
 
 #include <boost/python.hpp>
 namespace bp = boost::python;
+
+using vigra::NumpyFImage;
+using vigra::TinyVector;
+using vigra::Diff2D;
 
 struct EdgeProtectionPickleSuite : bp::pickle_suite
 {
@@ -43,33 +48,35 @@ std::string EdgeProtection__repr__(EdgeProtection const &cb)
 /********************************************************************/
 
 #include <vigra/crackconnections.hxx>
+typedef NumpyFImage::difference_type Shape;
 
-vigra::PythonGrayImage
-pyCrackConnectionImage(vigra::PythonSingleBandImage const &labels)
+NumpyFImage
+pyCrackConnectionImage(NumpyFImage const &labels)
 {
-    vigra::PythonGrayImage result(labels.size() + vigra::Diff2D(1, 1));
+    NumpyFImage result(labels.shape() + TinyVector<int, 2>(Diff2D(1, 1)));
+
     crackConnectionImage(srcImageRange(labels), destImage(result));
 
-    vigra::PythonGrayImage::traverser
-        end = result.lowerRight() - vigra::Diff2D(1, 1),
-        row = result.upperLeft();
-    for(; row.y < end.y; ++row.y)
+    NumpyFImage::traverser
+        end = result.traverser_end() - TinyVector<int, 2>(Diff2D(1, 1)),
+        row = result.traverser_begin();
+    for(; row.iteratorForDimension(1) < end.iteratorForDimension(1); row.operator++(1))
     {
-        vigra::PythonGrayImage::traverser it = row;
-        for(; it.x < end.x; ++it.x)
+      NumpyFImage::traverser it = row;
+        for(; it.iteratorForDimension(0) < end.iteratorForDimension(0); it.operator++(0))
         {
             if((int)*it & 1)
-                it[vigra::Diff2D(1, 0)] = (int)it[vigra::Diff2D(1, 0)] | 4;
+                it[TinyVector<int,2>(Diff2D(1, 0))] = (int)it[TinyVector<int,2>(Diff2D(1, 0))] | 4;
             if((int)*it & 2)
-                it[vigra::Diff2D(0, 1)] = (int)it[vigra::Diff2D(0, 1)] | 8;
+                it[TinyVector<int,2>(Diff2D(0, 1))] = (int)it[TinyVector<int,2>(Diff2D(0, 1))] | 8;
         }
         if((int)*it & 2)
-            it[vigra::Diff2D(0, 1)] = (int)it[vigra::Diff2D(0, 1)] | 8;
+            it[TinyVector<int,2>(Diff2D(0, 1))] = (int)it[TinyVector<int,2>(Diff2D(0, 1))] | 8;
     }
 
-    for(; row.x < end.x; ++row.x)
+    for(; row.iteratorForDimension(0) < end.iteratorForDimension(0); row.operator++(0))
         if((int)*row & 1)
-            row[vigra::Diff2D(1, 0)] = (int)row[vigra::Diff2D(1, 0)] | 4;
+            row[TinyVector<int,2>(Diff2D(1, 0))] = (int)row[TinyVector<int,2>(Diff2D(1, 0))] | 4;
 
     return result;
 }
@@ -77,7 +84,7 @@ pyCrackConnectionImage(vigra::PythonSingleBandImage const &labels)
 #include "crackedgemap.hxx"
 
 std::auto_ptr<GeoMap>
-pyCrackEdgeGraph(vigra::PythonSingleBandImage const &labels,
+pyCrackEdgeGraph(NumpyFImage const &labels,
                  bool eightConnectedRegions)
 {
     CrackEdgeMapGenerator cemg(
@@ -97,10 +104,10 @@ unsigned int pyRemoveEdges(GeoMap &map, bp::list edgeLabels)
     return removeEdges(map, cppel.begin(), cppel.end());
 }
 
-vigra::PythonGrayImage
+NumpyFImage
 pyDrawLabelImage(const GeoMap &map, bool negativeEdgeLabels)
 {
-    vigra::PythonGrayImage result(map.imageSize());
+    NumpyFImage result(Shape(map.imageSize().x, map.imageSize().y));
     // FIXME: why doesn't this work?!?
 //     drawLabelImage(map, result.traverser_begin(), result.shape(), result.accessor(), negativeEdgeLabels);
     // workaround: temporary copy

@@ -32,35 +32,35 @@
 #include "vigra/eigensystem.hxx"
 #include "vigra/splineimageview.hxx"
 #include "vigra/pixelneighborhood.hxx"
-#include "positionedmap.hxx"
+#include "map2d.hxx"
 
 namespace vigra {
 
 enum CriticalPoint { Minimum = -1, Saddle, Maximum, Failed = 999 };
 
-template <class IMAGE, class VECTOR>
-void findCriticalPoints48Neighborhood(IMAGE const &image,
-                        VECTOR *minima, VECTOR *saddles, VECTOR *maxima,
-                        bool eightneighborhood)
+template <class ITERATOR, class ACCESSOR, class VECTOR>
+void findCriticalPoints48Neighborhood(
+    ITERATOR const &ul, ITERATOR const &lr, ACCESSOR const &a,
+    VECTOR *minima, VECTOR *saddles, VECTOR *maxima,
+    bool eightneighborhood)
 {
-    typedef typename IMAGE::value_type Value;
-    typedef typename IMAGE::const_traverser Traverser;
+    typedef typename ITERATOR::value_type Value;
     typedef typename VECTOR::value_type Coordinate;
 
-    int w = image.width();
-    int h = image.height();
+    int w = (lr-ul).x;
+    int h = (lr-ul).y;
     int d = eightneighborhood ? 1 : 2;
     int steps = eightneighborhood ? 8 : 4;
 
-    Traverser iy = image.upperLeft() + Diff2D(1,1);
+    ITERATOR iy = ul + Diff2D(1,1);
 
     for(int y=1; y < h-1; ++y, ++iy.y)
     {
-        Traverser ix = iy;
+        ITERATOR ix = iy;
         for(int x=1; x < w-1; ++x, ++ix.x)
         {
-            NeighborhoodCirculator<Traverser, EightNeighborCode> c(ix);
-            Value v = *ix, z = NumericTraits<Value>::zero(), s;
+            NeighborhoodCirculator<ITERATOR, EightNeighborCode> c(ix);
+            Value v = a(ix), z = NumericTraits<Value>::zero(), s;
             int i = 0;
             do
             {
@@ -101,18 +101,28 @@ void findCriticalPoints48Neighborhood(IMAGE const &image,
     }
 }
 
-template <class IMAGE, class VECTOR>
-void findCriticalPointsLinearInterpolation(IMAGE const & image,
-                        VECTOR *minima, VECTOR *saddles, VECTOR *maxima)
+template <class ITERATOR, class ACCESSOR, class VECTOR>
+void findCriticalPoints48Neighborhood(
+    triple<ITERATOR, ITERATOR, ACCESSOR> const &src,
+    VECTOR *minima, VECTOR *saddles, VECTOR *maxima,
+    bool eightneighborhood)
 {
-    typedef typename IMAGE::value_type Value;
-    typedef typename IMAGE::const_traverser Traverser;
+    return findCriticalPoints48Neighborhood(src.first, src.second, src.third,
+                                            minima, saddles, maxima, eightneighborhood);
+}
+
+template <class ITERATOR, class ACCESSOR, class VECTOR>
+void findCriticalPointsLinearInterpolation(
+    ITERATOR const &ul, ITERATOR const &lr, ACCESSOR const &a,
+    VECTOR *minima, VECTOR *saddles, VECTOR *maxima)
+{
+    typedef typename ITERATOR::value_type Value;
     typedef typename VECTOR::value_type Coordinate;
 
-    int w = image.width();
-    int h = image.height();
+    int w = (lr-ul).x;
+    int h = (lr-ul).y;
 
-    Traverser iy = image.upperLeft() + Diff2D(1,1);
+    ITERATOR iy = ul + Diff2D(1,1);
 
     // The linear interpolation case is tricky because there are many possibiliries to
     // create a saddle in the interpolated function:
@@ -124,11 +134,11 @@ void findCriticalPointsLinearInterpolation(IMAGE const & image,
     // because the facet function a*x*y + b*x + c*y + d cannot have extrema.
     for(int y=1; y < h-1; ++y, ++iy.y)
     {
-        Traverser ix = iy;
+        ITERATOR ix = iy;
         for(int x=1; x < w-1; ++x, ++ix.x)
         {
-            NeighborhoodCirculator<Traverser, EightNeighborCode> c(ix);
-            Value v = *ix, z = NumericTraits<Value>::zero(), s;
+            NeighborhoodCirculator<ITERATOR, EightNeighborCode> c(ix);
+            Value v = a(ix), z = NumericTraits<Value>::zero(), s;
             int i, countSame = 0;
             for(i = 0; i < 4; ++i, c += 2)
             {
@@ -213,6 +223,15 @@ void findCriticalPointsLinearInterpolation(IMAGE const & image,
             }
         }
     }
+}
+
+template <class ITERATOR, class ACCESSOR, class VECTOR>
+void findCriticalPointsLinearInterpolation(
+    triple<ITERATOR, ITERATOR, ACCESSOR> const &src,
+    VECTOR *minima, VECTOR *saddles, VECTOR *maxima)
+{
+    return findCriticalPointsLinearInterpolation(src.first, src.second, src.third,
+                                                 minima, saddles, maxima);
 }
 
 template <class IMAGEVIEW>

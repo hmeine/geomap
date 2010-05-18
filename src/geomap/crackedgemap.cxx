@@ -1,4 +1,5 @@
 #include "crackedgemap.hxx"
+#include "cppmap_utils.hxx"
 
 void CrackEdgeMapGenerator::makeCCSymmetric()
 {
@@ -145,7 +146,7 @@ void CrackEdgeMapGenerator::followAllEdgesStartingWith(int connMask)
                 startNode = result->node((startNodeInfo >> 4) - 1);
             else
             {
-                startNode = result->addNode(vigra::Vector2(pos.x - 0.5, pos.y - 0.5));
+                startNode = result->addNode(Vector2(pos.x - 0.5, pos.y - 0.5));
                 nodeImage[pos] = startNodeInfo = (startNode->label() + 1) << 4;
             }
 
@@ -162,15 +163,15 @@ void CrackEdgeMapGenerator::followAllEdgesStartingWith(int connMask)
                 {
                     vigra::Point2D endPos(pos);
                     vigra::FourNeighborOffsetCirculator endDir(dir);
-                    
+
                     std::auto_ptr<Vector2Array> points = followEdge(endPos, endDir);
                     int endConn = connections[endDir.direction()];
-                    
+
                     int endNodeInfo = nodeImage[endPos];
                     if(!endNodeInfo)
                     {
                         endNode = result->addNode(
-                            vigra::Vector2(endPos.x - 0.5, endPos.y - 0.5));
+                            Vector2(endPos.x - 0.5, endPos.y - 0.5));
                         endNodeInfo = (endNode->label() + 1) << 4;
                     }
                     else
@@ -198,3 +199,67 @@ void CrackEdgeMapGenerator::followAllEdgesStartingWith(int connMask)
         }
     }
 }
+
+void CrackEdgeMapGenerator::initializeMap(bool initLabelImage)
+{
+    // no longer necessary, since generation process should not create
+    // degree 2 nodes anymore:
+    //mergeDegree2Nodes(*result);
+    result->sortEdgesDirectly();
+    result->initializeMap(initLabelImage);
+
+    // mark the border edges
+    vigra_assert(result->face(0)->holeCount() == 1,
+                 "infinite face should have exactly one contour");
+
+    GeoMap::Dart dart(*result->face(0)->holesBegin()), start(dart);
+    do
+    {
+        vigra_assert(!dart.leftFaceLabel(), "infinite face's contour lost");
+        dart.edge()->setFlag(GeoMap::Edge::BORDER_PROTECTION);
+    }
+    while(dart.nextPhi() != start);
+}
+
+void crackEdgesToMidcracks(GeoMap &geomap)
+{
+    for(GeoMap::EdgeIterator it = geomap.edgesBegin(); it.inRange(); ++it)
+    {
+        GeoMap::Edge &edge(**it);
+
+        // TODO: for non-loops, move degree-2 endnodes nevertheless
+        bool moveNode = (edge.isLoop() && edge.startNode()->hasDegree(2));
+
+        Vector2Array midCrackPoints(edge.size() + !moveNode);
+
+        for(unsigned int i = 1; i < edge.size(); ++i)
+        {
+            midCrackPoints[i] = (edge[i-1] + edge[i]) * 0.5;
+        }
+
+        if(moveNode)
+        {
+            midCrackPoints.front() = midCrackPoints.back();
+            edge.startNode()->setPosition(
+                midCrackPoints.front());
+        }
+        else
+        {
+            midCrackPoints.front() = edge.front();
+            midCrackPoints.back()  = edge.back();
+        }
+
+        // FIXME: introduce Edge::setGeometry and invalidate face properties!
+        edge.swap(midCrackPoints);
+    }
+
+    if(geomap.mapInitialized())
+    {
+        for(GeoMap::FaceIterator it = geomap.facesBegin(); it.inRange(); ++it)
+        {
+            // FIXME: see above...
+            (*it)->setFlag(0xC0000000U, false);
+        }
+    }
+}
+

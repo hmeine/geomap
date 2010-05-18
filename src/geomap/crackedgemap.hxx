@@ -71,6 +71,12 @@ class CrackEdgeMapGenerator
                vigra::FourNeighborOffsetCirculator &dir);
 
     void followAllEdgesStartingWith(int connMask);
+
+    void initializeMap(bool initLabelImage);
+
+    template <class SrcImageIterator, class SrcAccessor>
+    void getSourceLabels(vigra::pair<SrcImageIterator, SrcAccessor> src,
+                         std::vector<CellLabel> *sourceLabels);
 };
 
 template <class SrcImageIterator, class SrcAccessor>
@@ -82,7 +88,6 @@ void CrackEdgeMapGenerator::markEightConnectedRegions(
         row = crackConnections.upperLeft() + vigra::Diff2D(1, 1),
         end = crackConnections.lowerRight() - vigra::Diff2D(1, 1);
 
-    // FIXME: use sa
     for(; row.y < end.y; ++row.y)
     {
         vigra::IImage::traverser it = row;
@@ -92,23 +97,75 @@ void CrackEdgeMapGenerator::markEightConnectedRegions(
             if(conn != CONN_ALL4)
                 continue;
 
-            if(sul[it - cul] ==
-               sul[it - cul - vigra::Diff2D(1, 1)])
+            if(sa(sul, it - cul) ==
+               sa(sul, it - cul - vigra::Diff2D(1, 1)))
                 *it |= CONN_DIAG_UPLEFT;
-            if(sul[it - cul - vigra::Diff2D(1, 0)] ==
-               sul[it - cul - vigra::Diff2D(0, 1)])
+            if(sa(sul, it - cul - vigra::Diff2D(1, 0)) ==
+               sa(sul, it - cul - vigra::Diff2D(0, 1)))
                 *it |= CONN_DIAG_UPRIGHT;
 
             // crossing regions?
             if(*it == (CONN_ALL4 | CONN_DIAG_UPLEFT | CONN_DIAG_UPRIGHT))
+            {
                 // preserve connectedness of higher label:
-                if(sul[it - cul - vigra::Diff2D(0, 1)] >
-                   sul[it - cul - vigra::Diff2D(1, 1)])
+                if(sa(sul, it - cul - vigra::Diff2D(0, 1)) >
+                   sa(sul, it - cul - vigra::Diff2D(1, 1)))
                     *it -= CONN_DIAG_UPLEFT;
                 else
                     *it -= CONN_DIAG_UPRIGHT;
+            }
         }
     }
 }
+
+template <class SrcImageIterator, class SrcAccessor>
+void CrackEdgeMapGenerator::getSourceLabels(vigra::pair<SrcImageIterator, SrcAccessor> src,
+                                            std::vector<CellLabel> *sourceLabels)
+{
+    vigra_precondition(result->mapInitialized(),
+                       "getSourceLabels: map not yet initialized -> no faces to label");
+    vigra_precondition(sourceLabels->size() >= result->maxFaceLabel(),
+                       "getSourceLabels: target array not large enough");
+
+    for(GeoMap::FaceIterator it = result->finiteFacesBegin(); it.inRange(); ++it)
+    {
+        GeoMap::Dart dart((*it)->contour());
+
+        Vector2 p1(dart[0]), p2(dart[1]);
+
+        // candidate pos of integer/pixel position to the left of the
+        // current crack (will be adjusted depending on actual crack
+        // direction below), cheaply rounded to the lower right:
+        vigra::Diff2D leftPos((int)(p1[0] + 1), (int)(p1[1] + 1));
+
+        if(p1[0] == p2[0])
+        {
+            if(p1[1] < p2[1]) // downward crack
+            {
+                // above offset already correct
+            }
+            else              // upward crack, adjust offset
+            {
+                --leftPos.x;
+                --leftPos.y;
+            }
+        }
+        else
+        {
+            if(p1[0] < p2[0]) // eastward crack, adjust offset
+            {
+                --leftPos.y;
+            }
+            else              // westward crack, adjust offset
+            {
+                --leftPos.x;
+            }
+        }
+
+        (*sourceLabels)[(*it)->label()] = src.second(src.first, leftPos);
+    }
+}
+
+void crackEdgesToMidcracks(GeoMap &geomap);
 
 #endif // CRACKEDGEMAP_HXX

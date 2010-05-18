@@ -1,4 +1,4 @@
-import vigra, hourglass
+import vigra, geomap, crackConvert
 vigra.addPathFromHere('../cellimage')
 import cellimage
 from vigra import transformImage, Vector2, Size2D, Point2D, Rect2D
@@ -7,7 +7,7 @@ from flag_constants import BORDER_PROTECTION
 __all__ = ["pixelMap2subPixelMap", "crackEdgeMap",
            "crackEdges2MidCracks", "cannyEdgeMap", "pixelWatershedMap"]
 
-def pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0),
+def pixelMap2subPixelMap(pixelMap, scale = 1.0, offset = Vector2(0, 0),
                          imageSize = None,
                          skipEverySecond = False, midCracks = False):
 
@@ -16,24 +16,25 @@ def pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0),
     initialized with it.  For nodes, this function simply uses the
     center of their bounding box.  All positions are shifted by the
     optional offset and then scaled with the given factor.  The
-    imageSize defaults to the (scaled) pixel-based geomap's
+    imageSize defaults to the (scaled) pixel-based pixelMap's
     cellImage.size().
 
-    Set skipEverySecond to True if the geomap contains a crack edge
+    Set skipEverySecond to True if the pixelMap contains a crack edge
     map (otherwise, each resulting edge segment will have an
     additional mid crack point).  If you set midCracks to True, the
     edge geometry will include the midpoints of each crack instead of
-    the endpoints (skipEverySecond is ignored if midCracks == True)."""
+    the endpoints (skipEverySecond is implied by/ignored if midCracks
+    == True)."""
 
     if imageSize == None:
-        imageSize = geomap.cellImage.size() * scale
-    result = hourglass.GeoMap(imageSize = imageSize)
+        imageSize = pixelMap.cellImage.size() * scale
+    result = geomap.GeoMap(imageSize = imageSize)
 
     if midCracks:
         skipEverySecond = False
 
-    nodes = [None] * (geomap.maxNodeLabel() + 1)
-    for node in geomap.nodes:
+    nodes = [None] * (pixelMap.maxNodeLabel() + 1)
+    for node in pixelMap.nodes:
         ul = node.bounds.upperLeft()
         center = Vector2(ul[0], ul[1]) + \
                  Vector2(node.bounds.width() - 1,
@@ -45,8 +46,8 @@ def pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0),
 
     undesirable = []
 
-    edges = [None] * (geomap.maxEdgeLabel() + 1)
-    for edge in geomap.edges:
+    edges = [None] * (pixelMap.maxEdgeLabel() + 1)
+    for edge in pixelMap.edges:
         it = iter(edge.start)
         startPos = it.nodePosition()
         points = list(it)
@@ -102,9 +103,8 @@ def pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0),
     # border edges manually:
     assert result.face(0).holeCount() == 1
     for dart in result.face(0).holeContours().next().phiOrbit():
-        edge = dart.edge()
-        if not edge.leftFaceLabel() or not edge.rightFaceLabel():
-            edge.setFlag(BORDER_PROTECTION)
+        assert not dart.leftFaceLabel()
+        dart.edge().setFlag(BORDER_PROTECTION)
 
     return result
 
@@ -119,7 +119,7 @@ def crackEdges2MidCracks(subpixelMap):
     fail checkConsistency()."""
     
     for edge in subpixelMap.edgeIter():
-        p = hourglass.Polygon()
+        p = geomap.Polygon()
         p.append(edge[0])
         for i in range(0, len(edge)-1):
             p.append((edge[i]+edge[i+1])/2)
@@ -167,9 +167,9 @@ def cannyEdgeMap(image, scale, thresh):
     
     edgeImage = vigra.cannyEdgeImage(image, scale, thresh)
     edgeImage = cannyEdgeImageThinning(edgeImage)
-    geomap = cellimage.GeoMap(edgeImage, 0, cellimage.CellType.Line)
+    pixelMap = cellimage.GeoMap(edgeImage, 0, cellimage.CellType.Line)
     spmap = pixelMap2subPixelMap(
-        geomap, offset = Vector2(1,1), imageSize = image.size())
+        pixelMap, offset = Vector2(1,1), imageSize = image.size())
     return spmap
 
 def crackEdgeMap(labelImage, midCracks = False):
@@ -183,11 +183,11 @@ def crackEdgeMap(labelImage, midCracks = False):
     print "- creating pixel-based GeoMap..."
     ce = vigra.regionImageToCrackEdgeImage(
         transformImage(labelImage, "\l x:x+1"), 0)
-    geomap = cellimage.GeoMap(ce, 0, cellimage.CellType.Line)
+    pixelMap = cellimage.GeoMap(ce, 0, cellimage.CellType.Line)
 
     print "- converting pixel-based GeoMap..."
     result = pixelMap2subPixelMap(
-        geomap, 0.5, imageSize = (geomap.cellImage.size()-Size2D(3,3))/2,
+        pixelMap, 0.5, imageSize = (pixelMap.cellImage.size()-Size2D(3,3))/2,
         skipEverySecond = True, midCracks = midCracks)
     return result
 
@@ -206,7 +206,6 @@ def pixelWatershedMap(biImage, crackEdges = 4, midCracks = False):
     0: 8-connected edges on 4-connected background       (SRG alg.)
     4: crack edges between 4-connected watershed regions (UF alg.)
     8: crack edges between 8-connected watershed regions (UF alg.)
-       (8-connected regions will be separated in the result ATM)
 
     If midCracks is True, the resulting edges consist of the
     connected midpoints of the cracks, not of the crack segments
@@ -215,17 +214,20 @@ def pixelWatershedMap(biImage, crackEdges = 4, midCracks = False):
     if crackEdges:
         print "- Union-Find watershed segmentation..."
         lab, count = getattr(vigra, 'watershedUnionFind' + str(crackEdges))(biImage)
+        if not midCracks:
+            return crackConvert.crackEdgeMap(
+                lab, eightConnectedRegions = (crackEdges == 8))
         return crackEdgeMap(lab, midCracks)
 
     print "- watershed segmentation..."
     lab, count = vigra.watershedSegmentation(biImage, vigra.KeepContours)
 
     print "- creating pixel-based GeoMap..."
-    geomap = cellimage.GeoMap(lab, 0, cellimage.CellType.Vertex)
+    pixelMap = cellimage.GeoMap(lab, 0, cellimage.CellType.Vertex)
 
     print "- converting pixel-based GeoMap..."
     return pixelMap2subPixelMap(
-        geomap, imageSize = (geomap.cellImage.size()-Size2D(4,4)))
+        pixelMap, imageSize = (pixelMap.cellImage.size()-Size2D(4,4)))
 
 def cellImage2display(cellImage, background = None,
                       nodeColor = vigra.Pixel(0, 0, 255),

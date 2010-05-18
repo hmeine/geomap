@@ -1,6 +1,6 @@
 """maputils - general (i.e.topological) GeoMap utilities and segmentation algorithms"""
 
-import vigra, hourglass, sys, math, time, weakref, copy
+import vigra, geomap, sys, math, time, weakref, copy
 
 import flag_constants, progress, sivtools
 
@@ -8,7 +8,7 @@ import flag_constants, progress, sivtools
 #                            edge protection
 # --------------------------------------------------------------------
 
-from hourglass import EdgeProtection
+from geomap import EdgeProtection
 
 def protectFace(face, protect = True, flag = flag_constants.PROTECTED_FACE):
     """Sets the PROTECTED_FACE flag of `face` according to `protect`.
@@ -125,7 +125,7 @@ def filterSaddlePoints(rawSaddles, biSIV, filter, maxDist):
 
     sorted.sort()
 
-    knownSaddles = hourglass.PositionedMap()
+    knownSaddles = geomap.PositionedMap()
     for _, k, saddle in sorted:
         if not knownSaddles(saddle, maxSquaredDist):
             result.append((k, saddle))
@@ -172,10 +172,10 @@ def subpixelWatershedData(spws, biSIV, filter = None, mask = None,
         sn, en, poly, saddleIndex = flowline
 
         if perpendicularDistEpsilon:
-            simple = hourglass.simplifyPolygon(
+            simple = geomap.simplifyPolygon(
                 poly[:saddleIndex+1], perpendicularDistEpsilon, maxStep)
             newSaddleIndex = len(simple)-1
-            simple.extend(hourglass.simplifyPolygon(
+            simple.extend(geomap.simplifyPolygon(
                 poly[saddleIndex:], perpendicularDistEpsilon, maxStep))
 
             poly = simple
@@ -245,18 +245,16 @@ def subpixelWatershedMapFromData(
     performEdgeSplits = True,
     wsStatsSpline = None,
     minima = None,
-    cleanup = True,
-    Map = hourglass.GeoMap):
+    cleanup = True):
     """`performEdgeSplits` may be a callable that is called before
     splitting edges, with the complete locals() dict as parameter
     (useful keys are 'spmap' and all parameters of this function).
 
-    `cleanup` determines whether bridges and degree 2 nodes are
-    removed (default: True).
+    `cleanup` determines whether bridges, isolated nodes, and degree 2
+    nodes are removed (default: True).  If False, the result also gets
+    an additional attribute 'deleted' which contains the flowlines
+    skipped by addFlowLinesToMap.
     """
-
-    print "- initializing GeoMap from flowlines..."
-    spmap = Map(maxima, [], imageSize)
 
     # copy flowline data (may be modified by addFlowLinesToMap for
     # proper WatershedStatistics):
@@ -264,19 +262,25 @@ def subpixelWatershedMapFromData(
     if flowlines[0] is not None:
         flowlines.insert(0, None)
 
+    print "- initializing GeoMap from %d flowlines..." % (len(flowlines) - 1, )
+    spmap = geomap.GeoMap(maxima, [], imageSize)
+
     deleted = addFlowLinesToMap(flowlines, spmap, imageSize,
                                 minMaxBorderDist = ssMinDist)
     if deleted:
-        print "  skipped %d flowlines (at border / degenerate loops)" \
-              % len(deleted)
+        print "  skipped %d flowlines (at border / degenerate loops), %d left" \
+              % (len(deleted), spmap.edgeCount)
 
     if performBorderClosing:
-        print "  adding border edges and EdgeProtection..."
+        print "  adding border edges and EdgeProtection...",
         connectBorderNodes(spmap, borderConnectionDist)
         spmap.edgeProtection = EdgeProtection(spmap)
+        print "(now %d edges)" % spmap.edgeCount
 
     if cleanup:
         removeIsolatedNodes(spmap)
+    else:
+        spmap.deleted = deleted
 
     unsortable = spmap.sortEdgesEventually(
         ssStepDist, ssMinDist, bool(performEdgeSplits))
@@ -324,8 +328,7 @@ def subpixelWatershedMap(
     performBorderClosing = True,
     performEdgeSplits = True,
     initWSStats = True,
-    cleanup = True,
-    Map = hourglass.GeoMap):
+    cleanup = True):
 
     """`boundaryIndicator` should be an image with e.g. a gradient
     magnitude.
@@ -345,7 +348,7 @@ def subpixelWatershedMap(
     initializes the GeoMap and uses the sigma sorting and statistics
     parameters)."""
 
-    SPWS = getattr(hourglass, "SubPixelWatersheds%d" % splineOrder)
+    SPWS = getattr(geomap, "SubPixelWatersheds%d" % splineOrder)
     spws = SPWS(boundaryIndicator)
 
     if hasattr(boundaryIndicator, "siv"):
@@ -392,8 +395,7 @@ def subpixelWatershedMap(
         performEdgeSplits = performEdgeSplits,
         wsStatsSpline = initWSStats and siv or None,
         minima = initWSStats and spws.minima() or None,
-        cleanup = cleanup,
-        Map = Map)
+        cleanup = cleanup)
 
     return spwsMap
 
@@ -448,7 +450,7 @@ def addFlowLinesToMap(edges, map, imageSize = None,
     # - a border can be added by connectBorderNodes if desired, and
     # parallel, double border edges lead to unsortable edges:
     if imageSize:
-        imageBox = hourglass.BoundingBox(imageSize - (1,1))
+        imageBox = geomap.BoundingBox(imageSize - (1,1))
         clipBox  = copy.copy(imageBox)
         innerBox = copy.copy(imageBox)
 
@@ -464,7 +466,8 @@ def addFlowLinesToMap(edges, map, imageSize = None,
 
         startNodeLabel = edgeTuple[0]
         endNodeLabel = edgeTuple[1]
-        points = hourglass.Polygon(edgeTuple[2])
+        points = geomap.Polygon(edgeTuple[2])
+        #saddleIndex = edgeTuple[3]
         #saddleLabel = edgeTuple[4]
 
         if imageSize and not innerBox.contains(points.boundingBox()):
@@ -513,7 +516,7 @@ def addFlowLinesToMap(edges, map, imageSize = None,
             continue # unwanted edge parallel to border
 
         # be careful not to modify the original 'edges' passed:
-        points = hourglass.Polygon(edgeTuple[2])
+        points = geomap.Polygon(edgeTuple[2])
 
         assert len(points) >= 2, "edges need to have at least two (end-)points"
 
@@ -579,7 +582,7 @@ def addFlowLinesToMap(edges, map, imageSize = None,
 #                        map creation helpers
 # --------------------------------------------------------------------
 
-def mapFromEdges(edges, imageSize, GeoMap = hourglass.GeoMap):
+def mapFromEdges(edges, imageSize):
     """Quickly create a GeoMap from a set of edges, i.e. derive nodes
     from edge endpoints.  Returns a GeoMap that is not yet
     initialized, i.e. `GeoMap.edgesSorted()` will return False."""
@@ -590,7 +593,7 @@ def mapFromEdges(edges, imageSize, GeoMap = hourglass.GeoMap):
             node = map.addNode(position)
         return node
     
-    result = GeoMap([], [], imageSize)
+    result = geomap.GeoMap([], [], imageSize)
     for edge in edges:
         sn = getNode(result, edge[0])
         en = getNode(result, edge[-1])
@@ -608,7 +611,7 @@ def gridMap(gridSize = (10, 10), firstPos = vigra.Vector2(0.5, 0.5),
         imageSize = (int(math.ceil(gridSize[0] * dist[0] + 2*(firstPos[0]+0.5))),
                      int(math.ceil(gridSize[1] * dist[1] + 2*(firstPos[1]+0.5))))
 
-    map = hourglass.GeoMap(imageSize)
+    map = geomap.GeoMap(imageSize)
 
     def addEdge(n1, n2):
         map.addEdge(n1, n2, [n1.position(), n2.position()])
@@ -636,7 +639,7 @@ def clipMapEdgesAtBorder(map):
     new, uninitialized GeoMap object as created by `mapFromEdges` and
     modified by `connectBorderNodes`."""
     import polytools
-    imageBox = hourglass.BoundingBox(map.imageSize() - (1,1))
+    imageBox = geomap.BoundingBox(map.imageSize() - (1,1))
 
     edges = sum((polytools.clipPoly(edge, imageBox)
                  for edge in map.edgeIter()), [])
@@ -898,7 +901,12 @@ def copyMap(sourceMap, edgeTransform = None):
 
 def detachMapStats(map, verbose = False):
     """Calls 'detachHooks' on all properties of the given map.
-    (Use this to prevent leaking statistics when discarding maps.)"""
+    (Use this to prevent leaking statistics when discarding maps.)
+    For convenience, this function acts as a no-op when called with
+    map = None."""
+
+    if map is None:
+        return
     
     for a in map.__dict__:
         o = getattr(map, a)
@@ -973,10 +981,10 @@ def drawLabelImage(aMap, scale = 1, verbose = True):
                 sys.stdout.write("\r[%d%%] Face %d/%d" % (
                     done*100/total, done, total))
                 sys.stdout.flush()
-            poly = hourglass.Polygon(
-                hourglass.contourPoly(hole.contour()) * scale + offset)
-            sl = hourglass.scanPoly(poly, result.height())
-            hourglass.fillScannedPoly(sl, result, hole.label())
+            poly = geomap.Polygon(
+                geomap.contourPoly(hole.contour()) * scale + offset)
+            sl = geomap.scanPoly(poly, result.height())
+            geomap.fillScannedPoly(sl, result, hole.label())
             holes.extend(hole.holeContours())
             done += 1
     return result
@@ -1001,7 +1009,7 @@ def checkLabelConsistencyThoroughly(aMap):
 def checkCachedPropertyConsistency(aMap):
     """Check whether edge and face bounds and areas are valid."""
     result = True
-    realPolys = mapValidEdges(lambda edge: hourglass.Polygon(list(edge)), aMap)
+    realPolys = mapValidEdges(lambda edge: geomap.Polygon(list(edge)), aMap)
     for edge in aMap.edgeIter():
         poly = realPolys[edge.label()]
         if abs(poly.length() - edge.length()) > 1e-6:
@@ -1017,7 +1025,7 @@ def checkCachedPropertyConsistency(aMap):
                 edge.label(), edge.partialArea(), poly.partialArea()))
             result = False
     for face in aMap.faceIter():
-        bbox = hourglass.BoundingBox()
+        bbox = geomap.BoundingBox()
         area = 0.0
         for dart in face.contour().phiOrbit():
             edge = realPolys[dart.edgeLabel()]
@@ -1082,8 +1090,9 @@ def showMapStats(map):
         print "%d outer contours could not be embedded into " \
               "their surrounding faces!" % (len(map.unembeddableContours), )
 
+    thisMap = "for GeoMap @0x%8x>" % id(map)
     for key, value in map.__dict__.items():
-        print "  %s: %s" % (key, value)
+        print "  %s: %s" % (key, str(value).replace(thisMap, "for this GeoMap>"))
 
 def degree2Nodes(map):
     return [node for node in map.nodeIter() if node.hasDegree(2)]
@@ -1163,7 +1172,7 @@ def removeCruft(map, what = 3, doChecks = False):
     print "removeCruft(): %d operations performed." % result.count
     return result.count
 
-from hourglass import \
+from geomap import \
      removeIsolatedNodes, mergeDegree2Nodes, removeBridges, removeEdges
 
 def removeUnProtectedEdges(map):
@@ -1234,7 +1243,7 @@ def removeSmallRegions(
 #                       composed Euler operations
 # --------------------------------------------------------------------
 
-from hourglass import mergeFacesCompletely
+from geomap import mergeFacesCompletely
 
 def findCommonDart(face1, face2):
     """Find a dart with leftFace() == face1 and rightFace() == face2."""
@@ -1466,7 +1475,7 @@ class AutomaticRegionMerger(AutomaticMethodBase):
 
         if q == None:
             # FIXME: (why) is the +1 needed?
-            q = hourglass.DynamicCostQueue(map.maxEdgeLabel()+1)
+            q = geomap.DynamicCostQueue(map.maxEdgeLabel()+1)
             for edge in map.edgeIter():
                 if edge.flag(flag_constants.ALL_PROTECTION):
                     continue
@@ -1543,6 +1552,46 @@ def thresholdMergeCost(map, mergeCostMeasure, maxCost, costs = None, q = None):
 
 # --------------------------------------------------------------------
 
+def extractFaceClasses(map, classes = None, skipInfinite = True):
+    """Return dictionary mapping each of the specified `classes` to
+    the corresponding list of faces within `map`.
+
+    `classes` may be a sequence of face flags that specifies the exact
+    classes to be searched for.  The resulting dict will have these
+    classes as keys.
+
+    `classes` may also be an integer, which is interpreted as a flags
+    *mask*, i.e. the set of classes will be the set of disjoint values
+    after applying this mask to the map's faces' flags.
+
+    If `classes` is None, all occuring non-internal flags are
+    collected (i.e. it is the same as the mask FACE_NONINTERNAL =
+    0x0fffffff).
+
+    If `skipInfinite` is not set to false, the infinite face will not
+    be considered."""
+
+    if classes is None:
+        classes = flag_constants.FACE_NONINTERNAL
+    if isinstance(classes, int):
+        classes = set(face.flag(classes)
+                      for face in map.faceIter(skipInfinite))
+
+    classes = list(classes)
+    classes.sort(reverse = True)
+
+    result = dict((flag, []) for flag in classes)
+
+    for face in map.faceIter(skipInfinite):
+        for flag in classes:
+            if flag and face.flag(flag) == flag:
+                result[flag].append(face)
+                break
+
+    return result
+
+# --------------------------------------------------------------------
+
 def classifyFacesFromLabelImage(map, labelImage):
     """Given a labelImage, returns the label of each Face within that
     image.  This assumes that each region contains only pixels of the
@@ -1598,7 +1647,7 @@ def extractContractionKernel(map):
 #                   geometrical utility functions
 # --------------------------------------------------------------------
 
-from hourglass import centroid, contourPoly
+from geomap import centroid, contourPoly
 
 def pointInFace(face, level = 2):
     """Given a face, return a point for which face.contains(point)
@@ -1617,7 +1666,7 @@ def pointInFace(face, level = 2):
             x = seg.end
             inside += seg.direction
 
-    result = hourglass.centroid(hourglass.contourPoly(face.contour()))
+    result = geomap.centroid(geomap.contourPoly(face.contour()))
     if face.contains(result):
         return result
 
@@ -1639,6 +1688,24 @@ def pointInFace(face, level = 2):
         return result[0][1]
 
     return subsampledPoint(face)
+
+def facePixels(face): # TODO: add ROI parameter to restrict range?
+    """Generator function that iterates over the pixels within a face
+    (those assigned the face label by fillScannedPoly)."""
+    scanLines = face.scanLines()
+    for y in range(scanLines.startIndex(), scanLines.endIndex()):
+        inside = 0
+        x = 0
+        scanLine = scanLines[y]
+        for segment in scanLine:
+            begin = segment.begin
+            end = segment.end
+            if inside > 0:
+                while x < begin:
+                    yield vigra.Point2D(x, y)
+                    x += 1
+            x = end
+            inside += segment.direction
 
 # --------------------------------------------------------------------
 #                   topological utility functions
@@ -1879,7 +1946,7 @@ class SeededRegionGrowing(AutomaticMethodBase):
 
         self._neighborSkipFlags = flag_constants.SRG_SEED
         if dynamic:
-            self._queue = hourglass.DynamicCostQueue(map.maxFaceLabel())
+            self._queue = geomap.DynamicCostQueue(map.maxFaceLabel())
         else:
             self._queue = StandardCostQueue()
             if stupidInit:
@@ -1978,11 +2045,12 @@ def minimumSpanningTree(map, edgeCosts):
     """minimumSpanningTree(map, edgeCosts)
 
     Given a cost associated with each edge of the map, this function
-    finds the minimum spanning tree of the map's boundary graph (None
-    in edgeCosts is allowed and is handled as if the corresponding
-    edge was missing).  The result is a modified copy of the edgeCosts
-    list, with all non-MST-edges set to None.  This can be used for
-    the waterfall algorithm by Meyer and Beucher, see waterfall().
+    finds the minimum spanning tree of the map's region adjacency
+    graph (None in edgeCosts is allowed and is handled as if the
+    corresponding edge was missing).  The result is a modified copy of
+    the edgeCosts list, with all non-MST-edges set to None.  This can
+    be used for the waterfall algorithm by Meyer and Beucher, see
+    waterfall().
 
     The complexity is O(edgeCount*faceCount), but the performance
     could be improved a little."""
@@ -1999,7 +2067,7 @@ def minimumSpanningTree(map, edgeCosts):
             heappush(heap, (cost, edgeLabel))
 
     print "- building MST..."
-    faceLabels = hourglass.LabelLUT(map.maxFaceLabel())
+    faceLabels = geomap.LabelLUT(map.maxFaceLabel())
     result = list(edgeCosts)
     while heap:
         _, edgeLabel = heappop(heap)
@@ -2074,6 +2142,8 @@ def dualMap(map, edgeLabels = None, nodePositions = None, midPoints = None,
     """Compute (a subset of) the dual of a GeoMap.
     `edgeLabels` determines which edges appear in the result.
     If None (default), the complete dual map is returned.
+    The labels of the result's nodes will correspond to the source
+    map's face labels; edge labels are retained, too.
 
     `nodePositions` determines the position of each node; be default
     (nodePositions == None), that the nodes are located at the
@@ -2090,11 +2160,11 @@ def dualMap(map, edgeLabels = None, nodePositions = None, midPoints = None,
     e.g. used for the infinite face when computing Voronoi maps from
     Delaunay maps.)"""
 
-    result = hourglass.GeoMap(map.imageSize())
+    result = geomap.GeoMap(map.imageSize())
 
     if nodePositions is None:
-        nodePositions = mapValidFaces(lambda face: hourglass.centroid(
-            hourglass.contourPoly(face.contour())), map)
+        nodePositions = mapValidFaces(lambda face: geomap.centroid(
+            geomap.contourPoly(face.contour())), map)
 
     nodes = [None] * map.maxFaceLabel()
     for face in map.faceIter(skipInfinite = True):
@@ -2108,6 +2178,7 @@ def dualMap(map, edgeLabels = None, nodePositions = None, midPoints = None,
     for edge in sorted(edgeLabels):
         if not hasattr(edge, "label"):
             edge = map.edge(edge)
+        assert not edge.isBridge(), "bridges not supported yet (would need to create self-loops around end node in dual map)"
         sn = nodes[edge.leftFaceLabel()]
         en = nodes[edge.rightFaceLabel()]
         if onDemandNodeHook and (not sn or not en):
@@ -2117,11 +2188,11 @@ def dualMap(map, edgeLabels = None, nodePositions = None, midPoints = None,
             midPoint = midPoints
             if midPoints == None:
                 # auto-detect if midPoint is necessary (no intersection):
-                clipped = hourglass.intersectLine(edge, poly[0], poly[1])
+                clipped = geomap.intersectLine(edge, poly[0], poly[1])
                 midPoint = not len(clipped) or (
                     len(clipped) == 1 and len(clipped[0]) == len(edge))
             if midPoint:
-                dp = hourglass.DartPosition(edge.dart())
+                dp = geomap.DartPosition(edge.dart())
                 dp.gotoArcLength(edge.length()/2)
                 poly.insert(1, dp())
             result.addEdge(sn, en, poly, label = edge.label())

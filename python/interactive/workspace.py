@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import copy, sys, qt
-import vigra, hourglass
+import vigra, geomap
 import mapdisplay, icons, maputils, statistics, flag_constants, tools
 import progress
 
@@ -442,8 +442,8 @@ class Workspace(mapdisplay.MapDisplay):
             else:
                 biSiv = vigra.SplineImageView5(bi)
             Functor = quantiles \
-                      and hourglass.QuantileStatistics \
-                      or hourglass.PolylineStatistics
+                      and geomap.QuantileStatistics \
+                      or geomap.PolylineStatistics
             map.egs = statistics.EdgeGradientStatistics(
                 map, biSiv, Functor = Functor)
         return map.egs
@@ -545,11 +545,12 @@ class Workspace(mapdisplay.MapDisplay):
         else:
             raise RuntimeError("Wrong cost measure (%s)" % self.activeCostMeasure)
 
-    def _levelSliderChanged(self, levelIndex):
+    def _levelSliderChanged(self, sliderValue):
         if self._sliderMode == 0:
-            self.displayLevel(levelIndex = levelIndex)
+            self.displayLevel(levelIndex = sliderValue)
             return
-        p = float(levelIndex) / self._levelSlider.maxValue()
+
+        p = float(sliderValue) / self._levelSlider.maxValue()
         if self._sliderCosts:
             self.displayLevel(cost = self._sliderCosts[-1] * p)
         else:

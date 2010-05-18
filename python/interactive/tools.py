@@ -1,6 +1,6 @@
 """tools - module with interactive GeoMap tools"""
 
-import sys, qt, maputils, hourglass
+import sys, qt, maputils, geomap
 from maputils import mergeFacesByLabel
 from flag_constants import FOREGROUND_FACE, BACKGROUND_FACE, SRG_SEED
 from vigrapyqt import EdgeOverlay, PointOverlay
@@ -61,9 +61,18 @@ class _OldManualClassifier(qt.QObject):
                         self.mousePressed)
 
 class ManualClassifier(qt.QObject):
+    """Allows interactive classification of GeoMap faces.  Also
+    manages a list of FaceOverlays to display the current
+    classification.
+
+    Faces can be clicked to toggle their class (LMB/MMB for
+    forward/backward cycling through classes), or strokes can be used
+    to transfer the class of a face to its neighbors."""
+    
     __slots__ = ("manual",
                  "_map", "_classes", "_classMask", "_overlays",
-                 "_pressed", "_toggling", "_paintClassIndex", "_currentLabel")
+                 "_enabled", "_pressed",
+                 "_toggling", "_paintClassIndex", "_currentLabel")
 
     def __init__(self, map, edgeOverlay,
                  classes = (FOREGROUND_FACE,
@@ -73,6 +82,28 @@ class ManualClassifier(qt.QObject):
                  colors = (qt.Qt.yellow, qt.Qt.cyan),
                  filter = None,
                  parent = None):
+        """Initialize and start the ManualClassifier tool.
+
+        The edgeOverlay is needed for the internal MapFaces overlays
+        (for efficient implementation), often one simply passes the
+        .edgeOverlay attribute of the MapDisplay.
+
+        The `classes` can be user-defined flags and default to
+        FOREGROUND_FACE/BACKGROUND_FACE/no flag (see flag_constants
+        module).  The `colors` array should have the same size
+        (otherwise it is cropped or padded with None) and is used to
+        initialize corresponding MapFaces overlays for displaying the
+        classes (a class with a color of None will not be displayed).
+
+        If a `filter` is given, it is called for every face to
+        determine whether its classification may be changed at all.
+        For instance, this can be used to make sure that only objects
+        are classified, and the background region is never assigned to
+        some object class.
+
+        For display and interaction reasons, the given parent (usually
+        a MapDisplay) *must* have a 'viewer' attribute."""
+
         qt.QObject.__init__(self, parent)
 
         self.manual = {}
@@ -100,6 +131,7 @@ class ManualClassifier(qt.QObject):
 
         self.filter = filter
 
+        self._enabled = True
         self._pressed = False
         self._toggling = False
 
@@ -112,6 +144,16 @@ class ManualClassifier(qt.QObject):
                      self.mouseReleased)
         for o in self._overlays:
             viewer.addOverlay(o)
+
+    def setEnabled(self, onoff):
+        self._enabled = onoff
+
+    def findSeeds(self):
+        classFaces = maputils.extractFaceClasses(self._map, self._classes)
+        result = {}
+        for flag, faces in classFaces.items():
+            result[flag] = [maputils.pointInFace(face) for face in faces]
+        return result
 
     def setClassIndex(self, face, newClassIndex):
         face.setFlag(self._classMask, False)
@@ -130,6 +172,8 @@ class ManualClassifier(qt.QObject):
         viewer.update()
 
     def mousePressed(self, x, y, button):
+        if not self._enabled:
+            return
         if button not in (qt.Qt.LeftButton, qt.Qt.MidButton):
             return
         face = self._map.faceAt((x, y))
@@ -158,7 +202,9 @@ class ManualClassifier(qt.QObject):
             return
 
         # apply painting classification to that face, too:
-        self.setClassIndex(face, self._paintClassIndex)
+        if self._classes.index(
+            face.flag(self._classMask)) != self._paintClassIndex:
+            self.setClassIndex(face, self._paintClassIndex)
 
     def mouseReleased(self, x, y):
         if self._toggling:
@@ -211,7 +257,7 @@ class SeedSelector(qt.QObject):
 
     def seedMap(self):
         if not self._seedMap:
-            self._seedMap = hourglass.PositionedMap()
+            self._seedMap = geomap.PositionedMap()
             for pos in self.seeds:
                 self._seedMap.insert(pos, pos)
         return self._seedMap
@@ -283,6 +329,8 @@ class ActivePaintbrush(qt.QObject):
         self._path = []
         self._changed = False
         self.mouseMoved(x, y)
+        self.emit(qt.PYSIGNAL("paintbrushStarted"), (
+            self._map.face(self._currentLabel), ))
 
     def mouseMoved(self, x, y):
         if not self._painting:

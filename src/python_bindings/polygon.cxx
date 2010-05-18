@@ -4,13 +4,14 @@
 #include <boost/python/detail/api_placeholder.hpp>
 #include <boost/python/make_constructor.hpp>
 #include <vigra/gaussians.hxx>
-#include <vigra/pythonimage.hxx>
 #include <vigra/linear_algebra.hxx>
 #include <vigra/regression.hxx>
 #include <cmath>
 #include <iostream>
-#include "delaunay.hxx"
 #include "exporthelpers.hxx"
+#include "python_types.hxx"
+#include <vigra/numpy_array.hxx>
+
 
 using namespace vigra;
 using namespace boost::python;
@@ -67,21 +68,6 @@ struct BoxPickleSuite : pickle_suite
         return make_tuple(b.begin(), b.end());
     }
 };
-
-double angleTheta(double dy, double dx)
-{
-    double denom = std::fabs(dx) + std::fabs(dy);
-    if(!denom)
-        return 0.0;
-    double result = dy / denom;
-    if(dx < 0)
-    {
-        result = 2 - result;
-        if(dy < 0)
-            result = result - 4;
-    }
-    return result;
-}
 
 // index started with zero (commented out) for better python iterations
 // (allowing "for .. in .." or "enumerate(..)")
@@ -189,7 +175,7 @@ std::string Polygon__repr__(Polygon const &polygon)
     std::stringstream s;
     s.precision(3);
     s << "<Polygon (" << polygon.size() << " points, length: " << polygon.length()
-      << " px.)>";
+      << (polygon.closed() ? " px., closed)>" : " px.)>");
     return s.str();
 }
 
@@ -292,26 +278,24 @@ ScanlinesIter createScanlinesIter(const Scanlines &sl)
 
 unsigned int pyFillScannedPoly(
     const Scanlines &scanlines,
-    PythonImage &targetV,
+    NumpyFImage &target,
     GrayValue value)
     //const Pixel &value)
 {
-    PythonSingleBandImage target(targetV.subImage(0));
     return fillScannedPoly(scanlines, value,
                            target.traverser_begin(),
-                           target.size(),
+                           Size2D(target.shape(0),target.shape(1)),
                            StandardValueAccessor<GrayValue>());
 }
 
 unsigned int pyDrawScannedPoly(
     const Scanlines &scanlines,
-    PythonImage &targetV,
+    NumpyFImage &target,
     float value)
 {
-    PythonSingleBandImage target(targetV.subImage(0));
     return drawScannedPoly(scanlines, value,
                            target.traverser_begin(),
-                           target.size(),
+                           Size2D(target.shape(0),target.shape(1)),
                            StandardValueAccessor<GrayValue>());
 }
 
@@ -1678,13 +1662,11 @@ struct ParabolaFit
 
 void markEdgeInLabelImage(
     const Scanlines &scanlines,
-    PythonImage &labelVImage)
+    NumpyFImage &labelImage)
 {
-    PythonSingleBandImage labelImage(labelVImage.subImage(0));
-
     // clip to image range vertically:
     int y = std::max(0, scanlines.startIndex()),
-     endY = std::min(labelImage.height(), scanlines.endIndex());
+     endY = std::min(static_cast<int>(labelImage.shape(1)), scanlines.endIndex());
 
     for(; y < endY; ++y)
     {
@@ -1696,12 +1678,12 @@ void markEdgeInLabelImage(
                   end = scanline[j].end;
             if(begin < 0)
                 begin = 0;
-            if(end > labelImage.width())
-                end = labelImage.width();
+            if(end > labelImage.shape(0))
+                end = labelImage.shape(0);
 
             for(int x = begin; x < end; ++x)
             {
-                PythonSingleBandImage::reference old(labelImage(x, y));
+                GrayValue & old(labelImage(x, y));
                 if(old < 0)
                     old -= 1;
                 else
@@ -1713,15 +1695,13 @@ void markEdgeInLabelImage(
 
 list removeEdgeFromLabelImage(
     const Scanlines &scanlines,
-    PythonImage &labelVImage,
+    NumpyFImage &labelImage,
     GrayValue substituteLabel)
 {
-    PythonSingleBandImage labelImage(labelVImage.subImage(0));
-
     list result;
     // clip to image range vertically:
     int y = std::max(0, scanlines.startIndex()),
-     endY = std::min(labelImage.height(), scanlines.endIndex());
+     endY = std::min(static_cast<int>(labelImage.shape(1)), scanlines.endIndex());
 
     for(; y < endY; ++y)
     {
@@ -1733,12 +1713,12 @@ list removeEdgeFromLabelImage(
                   end = scanline[j].end;
             if(begin < 0)
                 begin = 0;
-            if(end > labelImage.width())
-                end = labelImage.width();
+            if(end > labelImage.shape(0))
+                end = labelImage.shape(0);
 
             for(int x = begin; x < end; ++x)
             {
-                PythonSingleBandImage::reference old(labelImage(x, y));
+                GrayValue & old(labelImage(x, y));
                 if(old != -1)
                 {
                     old += 1;
@@ -1763,81 +1743,6 @@ struct ArrayPickleSuite : pickle_suite
         return make_tuple(l);
     }
 };
-
-list sigmaOrbit(const QuadEdge *edge)
-{
-    const QuadEdge *orig(edge);
-    list result;
-    do
-    {
-        if(edge->dest().label())
-        {
-            int edgeLabel = edge->holderIndex();
-            if(edge->isAnchor())
-                result.append( edgeLabel);
-            else
-                result.append(-edgeLabel);
-        }
-        // this is confusing; I understood nextOrg() was the right
-        // one, but apparently that would've been in a clockwise
-        // manner (contrary to the documentation)..
-        edge = edge->prevOrg();
-    }
-    while(edge != orig);
-    return result;
-}
-
-tuple delaunay(const PointArray<Vector2> &points)
-{
-    // Construct a large surrounding triangle containing all points:
-    Vector2 p1(-1e12, -1e8), p2(1e12, -1e8), p3(0.0, 3e16);
-    Subdivision mesh(p1, p2, p3);
-
-    list nodePositions, edges, orbits;
-    nodePositions.append(object()); // node labels start with 1
-    orbits.append(object());
-
-    for(unsigned int i = 0; i < points.size(); ++i)
-    {
-        if(mesh.insertSite(points[i]) > 0)
-            nodePositions.append(points[i]);
-//         else
-//             nodePositions.append(object());
-    }
-
-    for(Subdivision::NodeIterator it = mesh.nodesBegin();
-        it != mesh.nodesEnd(); ++it)
-    {
-        orbits.append(object());
-    }
-
-    for(Subdivision::EdgeIterator it = mesh.edgesBegin();
-        it != mesh.edgesEnd(); ++it)
-    {
-        if(!*it)
-        {
-            edges.append(object());
-            continue;
-        }
-
-        const QuadEdge *edge((*it)->e);
-        const DelaunayNode &o(edge->org()), &d(edge->dest());
-        if(!o.label() || !d.label())
-        {
-            edges.append(object());
-            continue;
-        }
-
-        edges.append(make_tuple(o.label(), d.label()));
-
-        if(!orbits[o.label()])
-            orbits[o.label()] = sigmaOrbit(edge);
-        if(!orbits[d.label()])
-            orbits[d.label()] = sigmaOrbit(edge->opposite());
-    }
-
-    return make_tuple(nodePositions, edges, orbits);
-}
 
 template<class Polygon>
 list intersectLine(
@@ -1901,6 +1806,8 @@ list intersectLine(
 
     return result;
 }
+
+double angleTheta(double dy, double dx); // implemented in cppmap.cxx
 
 void defPolygon()
 {
@@ -1980,7 +1887,8 @@ void defPolygon()
         .def("partialArea", &PythonPolygon::partialArea)
         .def("boundingBox", &PythonPolygon::boundingBox)
         .def("contains", &PythonPolygon::contains)
-        .def("swap", &PythonPolygon::swap)
+        .def("swap", (void (PythonPolygon::*)(PythonPolygon &))&PythonPolygon::swap)
+        .def("swap", (void (PythonPolygon::*)(Vector2Array &))&PythonPolygon::swap)
         .def("reverse", &PythonPolygon::reverse)
         .def("nearestPoint", &PythonPolygon::nearestPoint)
         .def("invalidateProperties", &PythonPolygon::invalidateProperties)
@@ -2278,7 +2186,6 @@ void defPolygon()
         .def_readonly("count", &ParabolaFit::count,
                       "the number of values included in the fit")
     ;
-    def("delaunay", &delaunay);
 
     def("intPos", &intPos);
     def("intPos", &intPos_Box<BoundingBox>);

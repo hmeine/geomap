@@ -1,14 +1,18 @@
-import sys, math, time, qt
+import sys, math, qt
 import fig, figexport
 import vigra, vigrapyqt
 import maputils, flag_constants, tools, statistics
 from vigra import Rect2D, Vector2
-from hourglass import simplifyPolygon, intPos, BoundingBox, contourPoly
+from geomap import simplifyPolygon, intPos, BoundingBox, contourPoly
 from maputils import removeCruft
 from weakref import ref
 
-# ui-generated base classes:
-import displaysettings, dartnavigator
+from darthighlighter import DartHighlighter
+from dartnavigator import DartNavigator
+from roiselector import ROISelector
+
+# ui-generated base class:
+import displaysettings
 
 assert bool(vigra.NBYTE) and not bool(vigra.BYTE), \
        "this code relies on the fact that `normalize` can be either a bool or a PixelType"
@@ -122,7 +126,7 @@ class MapFaces(vigrapyqt.Overlay):
             except IndexError, e:
                 print e #"IndexError: %d > %d (maxEdgeLabel: %d)!" % (
                     #i, len(self.colors), map.maxEdgeLabel())
-        elif self.color:
+        elif self.color or self.fillColor:
             for face in map.faceIter():
                 if face.flag(self.flags) and \
                    (not face.label() or \
@@ -130,9 +134,10 @@ class MapFaces(vigrapyqt.Overlay):
                     qpa, sizes = self._getZoomedFace(face)
                     if face.holeCount():
                         index = 0
-                        for size in sizes:
-                            p.drawPolyline(qpa, index, size)
-                            index += size
+                        if self.color:
+                            for size in sizes:
+                                p.drawPolyline(qpa, index, size)
+                                index += size
                         if self.fillColor:
                             p.save()
                             p.setPen(qt.Qt.NoPen)
@@ -377,7 +382,6 @@ class MapNodes(vigrapyqt.Overlay):
         if not self._map():
             self._qpointlist = []
             return
-        c = time.clock()
         if self.relativeRadius:
             self.radius = int(self._zoom * self.origRadius + 0.5)
         d0 = Vector2(0.5 * (self._zoom-1) - self.radius,
@@ -388,8 +392,6 @@ class MapNodes(vigrapyqt.Overlay):
         for node in self._map().nodeIter():
             ip = intPos(node.position() * self._zoom + d0)
             self._qpointlist[node.label()] = qt.QPoint(ip[0], ip[1])
-#         sys.stdout.write("MapNodes._calculatePoints(zoom = %s) took %ss.\n" % (
-#             self._zoom, time.clock() - c))
 
     def removeNode(self, node):
         if self._qpointlist:
@@ -443,71 +445,6 @@ class MapNodes(vigrapyqt.Overlay):
             for point in self._qpointlist:
                 if point: # TODO: boundingRect
                     p.drawEllipse(qt.QRect(point, self._elSize))
-
-# --------------------------------------------------------------------
-#                          DartHighlighter
-# --------------------------------------------------------------------
-
-class DartHighlighter(object):
-    """The DartHighlighter class is attached to a viewer and a Map and
-    is able to highlight any set of darts at a time."""
-    
-    def __init__(self, map, viewer):
-        self._map = ref(map)
-        self._viewer = viewer
-        self.eo = None
-        self.no = None
-
-    def setMap(self, map):
-        self._map = ref(map)
-
-    def highlight(self, darts, color = qt.Qt.yellow):
-        """highlight(darts)
-        Highlight the given darts (can be any iterable returning labels
-        or Dart objects)."""
-
-        if darts:
-            # hasattr(darts, "__iter__"): would be better, but is True for Edges
-            if not isinstance(darts, (list, tuple)):
-                darts = [darts]
-            dartObjects = []
-            for dart in darts:
-                if type(dart) == int:
-                    dart = self._map().dart(dart)
-                    if not dart.edge():
-                        sys.stderr.write("WARNING: Cannot highlight nonexisting Dart %d!\n" % dart.label())
-                        continue
-                elif hasattr(dart, "anchor"): # Nodes
-                    dart = dart.anchor()
-                elif hasattr(dart, "dart"): # Edges
-                    dart = dart.dart()
-                dartObjects.append(dart)
-            darts = dartObjects
-
-        if self.eo != None:
-            self._viewer.removeOverlay(self)
-            self.eo = None
-            self.no = None
-
-        if darts == None or not len(darts):
-            return
-
-        self.eo = vigrapyqt.EdgeOverlay([dart.edge() for dart in darts], color)
-        self.eo.width = 2
-        self.no = vigrapyqt.PointOverlay(
-            [dart.startNode().position() for dart in darts], color, 3)
-        self.color = color # used in the viewer's RMB menu
-        self._viewer.addOverlay(self)
-
-    def setZoom(self, zoom):
-        self.eo.viewer = self.viewer
-        self.eo.setZoom(zoom)
-        self.no.viewer = self.viewer
-        self.no.setZoom(zoom)
-
-    def draw(self, p):
-        self.eo.draw(p)
-        self.no.draw(p)
 
 # --------------------------------------------------------------------
 #                             MapDisplay
@@ -571,11 +508,12 @@ def addMapOverlay(fe, overlay, skipBorder = False, **attr):
                 for edge in it:
                     if edge.flag(flag_constants.ALL_PROTECTION):
                         fe.addClippedPoly(edge, container = result, **attr)
-        else:
+        else: # isinstance(overlay, MapFaces)
             attr = dict(attr)
-            if overlay.width:
-                attr["lineWidth"] = overlay.width
-            attr["penColor"] = qtColor2figColor(overlay.color, fe.f)
+            if overlay.color:
+                if overlay.width:
+                    attr["lineWidth"] = overlay.width
+                attr["penColor"] = qtColor2figColor(overlay.color, fe.f)
             if overlay.fillColor:
                 attr["fillColor"] = qtColor2figColor(overlay.fillColor, fe.f)
                 attr["fillStyle"] = fig.fillStyleSolid
@@ -583,10 +521,20 @@ def addMapOverlay(fe, overlay, skipBorder = False, **attr):
             for face in map.faceIter():
                 if face.flag(overlay.flags):
                     if face.holeCount:
-                        assert not overlay.fillColor, "FIXME: cannot currently export filled polygons with holes"
-                    for dart in face.contours():
-                        fe.addClippedPoly(contourPoly(dart),
+                        assert not overlay.fillColor or not overlay.color, "FIXME: cannot currently export filled+stroked polygons with holes"
+                    if not overlay.color:
+                        wholePoly = list(contourPoly(face.contour()))
+                        back = wholePoly[0]
+                        assert wholePoly[-1] == back
+                        for dart in face.holeContours():
+                            wholePoly.extend(contourPoly(dart))
+                            wholePoly.append(back)
+                        fe.addClippedPoly(wholePoly,
                                           container = result, **attr)
+                    else:
+                        for dart in face.contours():
+                            fe.addClippedPoly(contourPoly(dart),
+                                              container = result, **attr)
 
         fe.scale, fe.offset, fe.roi = oldScale, oldOffset, oldROI
         return result
@@ -709,6 +657,12 @@ class MapDisplay(displaysettings.DisplaySettings):
         #if dn is self.dn:
         self.dn = None
 
+    def _labelImage(self):
+        result = self.map.labelImage()
+        if not result:
+            result = maputils.drawLabelImage(self.map)
+        return result
+
     def setMap(self, map):
         attached = self.detachHooks()
 
@@ -720,14 +674,14 @@ class MapDisplay(displaysettings.DisplaySettings):
 
         updatedDisplayImage = None
         if self._backgroundMode == 3:
-            updatedDisplayImage = self.map.labelImage()
+            updatedDisplayImage = self._labelImage()
 
         self._faceMeans = None
         if hasattr(map, "faceMeans"):
             self.setFaceMeans(map.faceMeans)
             if self._backgroundMode == 4:
                 updatedDisplayImage = \
-                    self._faceMeans.regionImage(self.map.labelImage())
+                    self._faceMeans.regionImage(self._labelImage())
         self._enableImageActions()
 
         if updatedDisplayImage:
@@ -772,9 +726,9 @@ class MapDisplay(displaysettings.DisplaySettings):
         elif mode == 2:
             displayImage = self.images["bi"]
         elif mode == 3:
-            displayImage = self.map.labelImage()
+            displayImage = self._labelImage()
         elif mode == 4:
-            displayImage = self._faceMeans.regionImage(self.map.labelImage())
+            displayImage = self._faceMeans.regionImage(self._labelImage())
         else:
             sys.stderr.write("Unknown background mode %d!\n" % mode)
             return
@@ -828,7 +782,7 @@ class MapDisplay(displaysettings.DisplaySettings):
 
     def _redisplayROIImage(self, roi):
         roi &= Rect2D(self.map.imageSize())
-        roiImage = self.map.labelImage().subImage(roi)
+        roiImage = self._labelImage().subImage(roi)
         if self._backgroundMode > 3:
             roiImage = self._faceMeans.regionImage(roiImage)
         # FIXME: use global normalization here
@@ -875,8 +829,9 @@ class MapDisplay(displaysettings.DisplaySettings):
         self.viewer.update()
 
     def setTool(self, tool = None):
-        """Deactivates old tool, activates new one if tool != None.
-        `tool` can be either a tool object or
+        """Deactivates and destroys old tool, activates/sets new one
+        if tool != None.  `tool` can be either a tool object or
+
         1 for the MapSearcher tool
         2 for the ActivatePaintbrush
         3 for the IntelligentScissors
@@ -929,6 +884,11 @@ class MapDisplay(displaysettings.DisplaySettings):
     def cleanupMap(self):
         removeCruft(self.map, 7)
 
+    def createDartNavigator(self, dart, costMeasure, parent, name = None):
+        """Factory for DartNavigator, allows to use more specialized
+        dart navigators in subclasses."""
+        self.dn = DartNavigator(dart, costMeasure, self, name)
+
     def navigate(self, dart, center = True, costMeasure = None, new = False):
         if type(dart) == int:
             dart = self.map.dart(dart)
@@ -937,7 +897,7 @@ class MapDisplay(displaysettings.DisplaySettings):
         elif hasattr(dart, "contours"):
             dart = list(dart.contours())
         if new or not self.dn:
-            self.dn = DartNavigator(dart, costMeasure, self)
+            self.createDartNavigator(dart, costMeasure, self)
             self.connect(self.dn, qt.SIGNAL("destroyed(QObject*)"),
                          self._dartNavigatorDestroyed)
         else:
@@ -1057,250 +1017,3 @@ class MapDisplay(displaysettings.DisplaySettings):
 
         fe = self.saveFig(basepath, *args, **kwargs)
         return fe.f.fig2dev(lang = "pdf")
-
-# --------------------------------------------------------------------
-#                         dart navigation dialog
-# --------------------------------------------------------------------
-
-class DartNavigator(dartnavigator.DartNavigatorBase):
-    __base = dartnavigator.DartNavigatorBase
-    
-    def __init__(self, dart, costMeasure, parent, name = None):
-        self.__base.__init__(self, parent, name)
-        self.dart = dart
-        self.costMeasure = costMeasure
-        self.connect(self.nextPhiButton, qt.SIGNAL("clicked()"),
-                     self.nextPhi)
-        self.connect(self.prevPhiButton, qt.SIGNAL("clicked()"),
-                     self.prevPhi)
-        self.connect(self.nextAlphaButton, qt.SIGNAL("clicked()"),
-                     self.nextAlpha)
-        self.connect(self.nextSigmaButton, qt.SIGNAL("clicked()"),
-                     self.nextSigma)
-        self.connect(self.prevSigmaButton, qt.SIGNAL("clicked()"),
-                     self.prevSigma)
-
-        self.connect(self.continuousCheckBox, qt.SIGNAL("toggled(bool)"),
-                     self.toggleContinuous)
-
-        self.timer = qt.QTimer(self)
-        self.connect(self.timer, qt.SIGNAL("timeout()"),
-                     self.highlightNext)
-
-        self.dh = DartHighlighter(self.parent().map, self.parent().viewer)
-        self.updateLabel()
-
-    def closeEvent(self, e):
-        self.dh.highlight(None)
-        self.__base.closeEvent(self, e)
-        if e.isAccepted():
-            self.deleteLater() # like qt.Qt.WDestructiveClose ;-)
-
-    def highlightNext(self):
-        self.activePerm()
-        self.updateLabel()
-
-    def setDart(self, dart):
-        self.dart = dart
-        self.updateLabel()
-
-    def toggleContinuous(self, onoff):
-        if onoff:
-            self.timer.start(1200)
-        else:
-            self.timer.stop()
-        self.nextPhiButton.setToggleButton(onoff)
-        self.prevPhiButton.setToggleButton(onoff)
-        self.nextAlphaButton.setToggleButton(onoff)
-        self.nextSigmaButton.setToggleButton(onoff)
-        self.prevSigmaButton.setToggleButton(onoff)
-
-    def moveDart(self, perm):
-        perm()
-        self.updateLabel()
-        self.activePerm = perm
-
-    def nextPhi(self):
-        self.moveDart(self.dart.nextPhi)
-
-    def prevPhi(self):
-        self.moveDart(self.dart.prevPhi)
-
-    def nextAlpha(self):
-        self.moveDart(self.dart.nextAlpha)
-
-    def nextSigma(self):
-        self.moveDart(self.dart.nextSigma)
-
-    def prevSigma(self):
-        self.moveDart(self.dart.prevSigma)
-
-    def updateLabel(self):
-        self.dh.highlight(self.dart.label())
-        dartDesc = "Dart %d, length %.1f, partial area %.1f, %d points" % (
-            self.dart.label(), self.dart.edge().length(),
-            self.dart.partialArea(), len(self.dart))
-        if self.costMeasure:
-            dartDesc += "\nassociated cost: %s" % self.costMeasure(self.dart)
-        self.dartLabel.setText(dartDesc)
-        for node, nodeLabel in ((self.dart.startNode(), self.startNodeLabel),
-                                (self.dart.endNode(), self.endNodeLabel)):
-            nodeLabel.setText(
-                "Node %d (deg. %d)\nat %s" % (
-                node.label(), node.degree(), node.position()))
-        if self.dart.map().mapInitialized():
-            leftFace = self.dart.leftFace()
-            rightFace = self.dart.rightFace()
-            self.faceLabel.setText(
-                """Left: %s\nRight: %s""" % (str(leftFace)[8:-1], str(rightFace)[8:-1]))
-        self.setCaption("DartNavigator(%d)" % (self.dart.label(), ))
-        self.emit(qt.PYSIGNAL('updateDart'),(self.dart,))
-
-# --------------------------------------------------------------------
-
-import copy
-
-class ROISelector(qt.QObject):
-    def __init__(self, parent = None, name = None, imageSize = None,
-                 roi = None, viewer = None, color = qt.Qt.yellow, width = 0):
-        qt.QObject.__init__(self, parent, name)
-        self._painting = False
-        self._alwaysVisible = False
-        self.roi = roi
-
-        self.color = color
-        self.width = width
-
-        if viewer:
-            self._viewer = viewer
-        else:
-            self._viewer = parent.viewer
-            if imageSize == None and hasattr(parent, 'image'):
-                imageSize = parent.image.size()
-
-        self._validRect = imageSize and Rect2D(imageSize)
-
-        self.connect(self._viewer, qt.PYSIGNAL("mousePressed"),
-                     self.mousePressed)
-        self.connect(self._viewer, qt.PYSIGNAL("mousePosition"),
-                     self.mouseMoved)
-        self.connect(self._viewer, qt.PYSIGNAL("mouseReleased"),
-                     self.mouseReleased)
-        self._viewer.installEventFilter(self)
-
-        self.setVisible(True) # roi != None)
-
-    def eventFilter(self, watched, e):
-        if e.type() in (qt.QEvent.KeyPress, qt.QEvent.KeyRelease,
-                        qt.QEvent.MouseButtonPress, qt.QEvent.MouseButtonRelease,
-                        qt.QEvent.MouseButtonDblClick, qt.QEvent.MouseMove):
-            self._keyState = e.stateAfter()
-        return False
-
-    def setVisible(self, onoff):
-        """Sets flag whether the ROI should be always visible, or only
-        during painting."""
-        if self._alwaysVisible != onoff:
-            self._alwaysVisible = onoff
-            if onoff:
-                self._viewer.addOverlay(self)
-            else:
-                self._viewer.removeOverlay(self)
-
-    def setROI(self, roi):
-        if roi != self.roi:
-            updateRect = self.windowRect()
-            self.roi = roi
-            if not self.visible:
-                return
-            updateRect |= self.windowRect()
-            self._viewer.update(updateRect)
-            self.emit(qt.PYSIGNAL("roiChanged"), (roi, ))
-
-    def _startPainting(self):
-        self._painting = True
-        self._oldROI = copy.copy(self.roi)
-        if not self._alwaysVisible:
-            self._viewer.addOverlay(self)
-
-    def _stopPainting(self):
-        self._painting = False
-        if not self._alwaysVisible:
-            self._viewer.removeOverlay(self)
-
-    def mousePressed(self, x, y, button):
-        if self._painting and button == qt.Qt.RightButton:
-            self._stopPainting()
-            self.setROI(self._oldROI)
-            return
-        if button != qt.Qt.LeftButton:
-            return
-        if self.roi:
-            mousePos = self._viewer.toWindowCoordinates(x, y)
-            wr = self.windowRect()
-            if (mousePos - wr.topLeft()).manhattanLength() < 9:
-                self.startPos = self.roi.lowerRight() - (1,1)
-            elif (mousePos - wr.bottomRight()).manhattanLength() < 9:
-                self.startPos = self.roi.upperLeft()
-            else:
-                self.startPos = intPos((x, y))
-        else:
-            self.startPos = intPos((x, y))
-        self.mouseMoved(x, y)
-        self._startPainting()
-
-    def mouseMoved(self, x, y):
-        if not self._painting: return
-        # TODO: update overlay
-        x1, y1 = self.startPos
-        x, y = intPos((x, y))
-        self.setROI(
-            Rect2D(min(x1, x), min(y1, y), max(x1, x)+1, max(y1, y)+1))
-
-    def windowRect(self):
-        if not self.roi:
-            return qt.QRect()
-        return qt.QRect(
-            self._viewer.toWindowCoordinates(self.roi.left()-0.5, self.roi.top()-0.5),
-            self._viewer.toWindowCoordinates(self.roi.right()-0.5, self.roi.bottom()-0.5))
-
-    def mouseReleased(self, x, y, button):
-        if self._painting and button == qt.Qt.LeftButton:
-            self._stopPainting()
-            self.setROI(self.roi & self._validRect)
-            self.emit(qt.PYSIGNAL("roiSelected"), (self.roi, ))
-
-    def disconnectViewer(self):
-        self.disconnect(self._viewer, qt.PYSIGNAL("mousePressed"),
-                        self.mousePressed)
-        self.disconnect(self._viewer, qt.PYSIGNAL("mousePosition"),
-                        self.mouseMoved)
-        self.disconnect(self._viewer, qt.PYSIGNAL("mouseReleased"),
-                        self.mouseReleased)
-        if self._alwaysVisible:
-            self._viewer.removeOverlay(self)
-        self._viewer.removeEventFilter(self)
-
-    def setZoom(self, zoom):
-        self.zoom = zoom
-
-    def draw(self, p):
-        if not self.roi:
-            return
-        p.setPen(qt.QPen(self.color, self.width))
-        p.setBrush(qt.Qt.NoBrush)
-        drawRect = self.windowRect()
-        # painter is already set up with a shift:
-        drawRect.moveBy(-self._viewer.upperLeft().x(),
-                        -self._viewer.upperLeft().y())
-        p.drawRect(drawRect)
-
-# def queryROI(imageWindow):
-#     pd = qt.QProgressDialog(imageWindow)
-#     pd.setLabelText("Please mark a ROI with drag & drop")
-#     rs = ROISelector(imageWindow)
-#     qt.QObject.connect(rs, qt.PYSIGNAL("roiSelected"),
-#                        pd.accept)
-#     if pd.exec_loop() == qt.QDialog.Accepted:
-#         return rs.roi
-#     return

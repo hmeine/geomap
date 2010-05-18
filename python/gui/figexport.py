@@ -2,7 +2,7 @@ import os, sys, qt, fig, math
 
 from vigra import Vector2, readImage, Rect2D, Size2D, meshIter
 import vigrapyqt
-from hourglass import BoundingBox, Polygon, simplifyPolygon, intPos, contourPoly
+from geomap import BoundingBox, Polygon, simplifyPolygon, intPos, contourPoly
 from polytools import clipPoly
 import flag_constants
 
@@ -128,6 +128,9 @@ class FigExporter:
         roi.moveBy(self.offset)
         if self.roi:
             roi.moveBy(-self.roi.begin())
+
+        if "fillColor" in attr and not "fillStyle" in attr:
+            attr["fillStyle"] = fig.fillStyleSolid
 
         result = fig.PolyBox(roi.begin()[0] * self.scale,
                              roi.begin()[1] * self.scale,

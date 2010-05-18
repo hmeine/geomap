@@ -3,7 +3,7 @@
 
 #include "filteriterator.hxx"
 #include "labellut.hxx"
-#include "vigra/positionedmap.hxx"
+#include "vigra/map2d.hxx"
 #include "vigra/polygon.hxx"
 #include <vector>
 #include <list>
@@ -13,7 +13,7 @@
 
 #include <cfloat>
 
-#ifdef _MSC_VER
+#ifdef _WIN32 // at least _MSC_VER and __MINGW32__ don't have isnan:
 inline int isnan(double t) { return _isnan(t); }
 #else
 #include <math.h>
@@ -52,7 +52,7 @@ struct NotNull
 
 typedef vigra::TinyVector<double, 2>       Vector2;
 typedef vigra::PointArray<Vector2>         Vector2Array;
-typedef vigra::BBoxPolygon<vigra::Vector2> Polygon;
+typedef vigra::BBoxPolygon<Vector2>        Polygon;
 
 typedef vigra::PointArray<vigra::Point2D> PixelList;
 
@@ -176,7 +176,7 @@ class GeoMap
     unsigned int edgeCount_;
     unsigned int faceCount_;
 
-    typedef vigra::PositionedObject<vigra::Vector2, CellLabel> PositionedNodeLabel;
+    typedef vigra::PositionedObject<Vector2, CellLabel> PositionedNodeLabel;
     typedef vigra::Map2D<PositionedNodeLabel> NodeMap;
     NodeMap nodeMap_;
 
@@ -257,8 +257,8 @@ class GeoMap
     }
 
     inline Dart dart(int label);
-    FacePtr faceAt(const vigra::Vector2 &position);
-    ConstFacePtr faceAt(const vigra::Vector2 &position) const;
+    FacePtr faceAt(const Vector2 &position);
+    ConstFacePtr faceAt(const Vector2 &position) const;
 
     CellLabel nodeCount() const { return nodeCount_; }
     CellLabel maxNodeLabel() const { return nodes_.size(); }
@@ -272,8 +272,8 @@ class GeoMap
         return imageSize_;
     }
 
-    NodePtr addNode(const vigra::Vector2 &position);
-    NodePtr addNode(const vigra::Vector2 &position, CellLabel label);
+    NodePtr addNode(const Vector2 &position);
+    NodePtr addNode(const Vector2 &position, CellLabel label);
     EdgePtr addEdge(const SigmaAnchor &startNeighbor,
                            const SigmaAnchor &endNeighbor,
                            const Vector2Array &points, CellLabel label = 0);
@@ -346,7 +346,7 @@ class GeoMap
 
   public:
     NodePtr nearestNode(
-        const vigra::Vector2 &position,
+        const Vector2 &position,
         double maxSquaredDist = vigra::NumericTraits<double>::max());
 
     bool checkConsistency();
@@ -359,7 +359,7 @@ class GeoMap
     EdgePtr mergeEdges(const Dart &dart);
     EdgePtr splitEdge(Edge &edge, unsigned int segmentIndex);
     EdgePtr splitEdge(Edge &edge, unsigned int segmentIndex,
-                             const vigra::Vector2 &newPoint,
+                             const Vector2 &newPoint,
                              bool insertPoint = true);
     FacePtr removeBridge(const Dart &dart);
     FacePtr mergeFaces(const Dart &dart);
@@ -371,7 +371,7 @@ class GeoMap
         preMergeEdgesHook;
     sigc::signal<void, Edge &>
         postMergeEdgesHook;
-    sigc::signal<void, Edge &, unsigned int, vigra::Vector2 const &, bool>
+    sigc::signal<void, Edge &, unsigned int, Vector2 const &, bool>
         preSplitEdgeHook;
     sigc::signal<void, Edge &, Edge &>
         postSplitEdgeHook;
@@ -398,7 +398,7 @@ class GeoMap::Node : boost::noncopyable
   protected:
     GeoMap        *map_;
     CellLabel      label_;
-    vigra::Vector2 position_;
+    Vector2 position_;
     int            anchor_;
 
     friend class GeoMap; // give access to anchor_ (add edge, sort edges, Euler..)
@@ -406,7 +406,7 @@ class GeoMap::Node : boost::noncopyable
 
     inline void uninitialize();
 
-    Node(GeoMap *map, const vigra::Vector2 &position)
+    Node(GeoMap *map, const Vector2 &position)
     : map_(map),
       label_(map->nodes_.size()),
       position_(position),
@@ -438,12 +438,12 @@ class GeoMap::Node : boost::noncopyable
         return label_;
     }
 
-    const vigra::Vector2 &position() const
+    const Vector2 &position() const
     {
         return position_;
     }
 
-    void setPosition(const vigra::Vector2 &p);
+    void setPosition(const Vector2 &p);
 
     inline Dart anchor() const;
 
@@ -487,9 +487,10 @@ class GeoMap::Edge
 : public Polygon, boost::noncopyable
 {
   public:
-    typedef vigra::BBoxPolygon<vigra::Vector2> Base;
+    typedef vigra::BBoxPolygon<Vector2> Base;
 
     enum {
+        BORDER_PROTECTION = 1,
         ALL_PROTECTION = 0xff,
         REMOVE_BRIDGE = 0x80000000,
     };
@@ -1007,6 +1008,7 @@ class ContourPointIter
     }
 };
 
+double angleTheta(double dy, double dx);
 double contourArea(const GeoMap::Dart &dart);
 double contourLength(const GeoMap::Dart &dart);
 double isoperimetricQuotient(const GeoMap::Dart &dart);
@@ -1446,7 +1448,7 @@ class DartPosition
         return pointIter_.atEnd();
     }
 
-    const vigra::Vector2 &operator()() const
+    const Vector2 &operator()() const
     {
         return position_;
     }
@@ -1471,12 +1473,12 @@ class DartPosition
         return arcLength_ + partialArcLength_;
     }
 
-    const vigra::Vector2 &segmentStart() const
+    const Vector2 &segmentStart() const
     {
         return p1_;
     }
 
-    const vigra::Vector2 &segmentEnd() const
+    const Vector2 &segmentEnd() const
     {
         return p2_;
     }
@@ -1531,7 +1533,7 @@ class DartPosition
         return result;
     }
 
-    bool leaveCircle(const vigra::Vector2 &center, double radius2)
+    bool leaveCircle(const Vector2 &center, double radius2)
     {
         while((p2_ - center).squaredMagnitude() < radius2)
             if(!nextSegmentInternal())
@@ -1542,7 +1544,7 @@ class DartPosition
         return !atEnd();
     }
 
-    bool intersectCircle(const vigra::Vector2 &center, double radius2)
+    bool intersectCircle(const Vector2 &center, double radius2)
     {
         // unfortunately, this prevents larger steps:
 //         if((p1_ - center).squaredMagnitude() >= radius2)
@@ -1560,7 +1562,7 @@ class DartPosition
             }
         }
 
-        vigra::Vector2 diff(p2_ - p1_);
+        Vector2 diff(p2_ - p1_);
         double dist2 = diff.squaredMagnitude();
         double lambda = (
             (std::sqrt(radius2 * dist2
@@ -1614,7 +1616,7 @@ class DartPosition
     DartPointIter pointIter_;
     unsigned int segmentIndex_;
     double arcLength_, partialArcLength_;
-    vigra::Vector2 p1_, p2_, position_;
+    Vector2 p1_, p2_, position_;
 };
 
 /********************************************************************/
@@ -1627,7 +1629,7 @@ struct DartPositionAngle
     {
         unsigned int segmentIndex;
         double arcLength;
-        vigra::Vector2 position;
+        Vector2 position;
     };
 
     struct CommonPos : public EdgePosition
@@ -1636,7 +1638,7 @@ struct DartPositionAngle
         : isSet(false)
         {}
 
-        const vigra::Vector2 &set(const DartPosition &dp)
+        const Vector2 &set(const DartPosition &dp)
         {
             position = dp();
             segmentIndex = dp.segmentIndex();

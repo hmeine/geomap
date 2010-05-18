@@ -1,5 +1,5 @@
-import fig, delaunay, sys, math, vigra, hourglass
-from hourglass import Polygon
+import fig, delaunay, sys, math, vigra, geomap
+from geomap import Polygon
 from flag_constants import BORDER_PROTECTION, ALL_PROTECTION, ALPHA_MARK
 from maputils import nodeAtBorder
 
@@ -162,7 +162,7 @@ def removeUnmarkedEdges(map, removeInterior = False):
              edge.leftFace().flag(ALPHA_MARK) and \
              edge.rightFace().flag(ALPHA_MARK):
             ck.append(edge.label())
-    return hourglass.removeEdges(map, ck)
+    return geomap.removeEdges(map, ck)
 
 def alphaBetaMap(points, imageSize, alpha,
                  beta = 0.0, removeInteriorEdges = False):

@@ -27,6 +27,21 @@ void removeOne(Container &container,
 
 /********************************************************************/
 
+double angleTheta(double dy, double dx)
+{
+    double denom = std::fabs(dx) + std::fabs(dy);
+    if(!denom)
+        return 0.0;
+    double result = dy / denom;
+    if(dx < 0)
+    {
+        result = 2 - result;
+        if(dy < 0)
+            result = result - 4;
+    }
+    return result;
+}
+
 double contourArea(const GeoMap::Dart &dart)
 {
     double result = 0.0;
@@ -267,9 +282,7 @@ GeoMap::~GeoMap()
         (*it)->uninitialize();
 }
 
-double angleTheta(double dy, double dx); // implemented in polygon.cxx
-
-GeoMap::FacePtr GeoMap::faceAt(const vigra::Vector2 &position)
+GeoMap::FacePtr GeoMap::faceAt(const Vector2 &position)
 {
     vigra_precondition(mapInitialized(),
         "faceAt() called on graph (mapInitialized() == false)!");
@@ -292,7 +305,7 @@ GeoMap::FacePtr GeoMap::faceAt(const vigra::Vector2 &position)
     return face(0);
 }
 
-GeoMap::ConstFacePtr GeoMap::faceAt(const vigra::Vector2 &position) const
+GeoMap::ConstFacePtr GeoMap::faceAt(const Vector2 &position) const
 {
     vigra_precondition(mapInitialized(),
         "faceAt() called on graph (mapInitialized() == false)!");
@@ -316,14 +329,14 @@ GeoMap::ConstFacePtr GeoMap::faceAt(const vigra::Vector2 &position) const
 }
 
 GeoMap::NodePtr GeoMap::addNode(
-    const vigra::Vector2 &position)
+    const Vector2 &position)
 {
     GeoMap::Node *result = new GeoMap::Node(this, position);
     return node(result->label());
 }
 
 GeoMap::NodePtr GeoMap::addNode(
-    const vigra::Vector2 &position, CellLabel label)
+    const Vector2 &position, CellLabel label)
 {
     if(label > nodes_.size())
         nodes_.resize(label, NULL_PTR(GeoMap::Node));
@@ -458,7 +471,7 @@ inline double normAngle(double diff)
     return diff;
 }
 
-void sortEdgesInternal(const vigra::Vector2 &currentPos,
+void sortEdgesInternal(const Vector2 &currentPos,
                        double referenceAngle,
                        DPAI dpBegin, DPAI dpEnd,
                        double stepDist2, double minAngle,
@@ -547,7 +560,7 @@ void sortEdgesInternal(const vigra::Vector2 &currentPos,
             if(groupLast != groupStart)
             {
                 // determine mean position of dart positions in subgroup:
-                vigra::Vector2 meanPos(0, 0);
+                Vector2 meanPos(0, 0);
                 for(DPAI dpi = groupStart; dpi != groupEnd; ++dpi)
                     meanPos += dpi->commonPos.set(dpi->dp);
                 meanPos /= (groupEnd - groupStart);
@@ -727,7 +740,7 @@ void GeoMap::splitParallelEdges()
         else
         {
             GeoMap::Dart d(dart(newEdgeLabel));
-            vigra::Vector2 nodePos(d.startNode()->position());
+            Vector2 nodePos(d.startNode()->position());
 
             // intersect checkSurvivorDist-circle with dart
             DartPosition dp1(d);
@@ -737,7 +750,7 @@ void GeoMap::splitParallelEdges()
             dp2.leaveCircle(nodePos, checkSurvivorDist2);
 
             // determine vectors between split node pos. & intersections..
-            vigra::Vector2
+            Vector2
                 v1(dp1() - nodePos),
                 v2(nodePos - dp2());
 
@@ -1091,12 +1104,11 @@ void GeoMap::embedFaces(bool initLabelImage)
 
             if(!parent)
             {
-                ContourPointIter cpi(anchor);
-                while(cpi.inRange())
+                for(ContourPointIter cpi(anchor); cpi.inRange(); ++cpi)
                 {
                     for(FaceIterator it = facesBegin(); it.inRange(); ++it)
                     {
-                        if((*it)->contains(*cpi++))
+                        if((*it)->contains(*cpi))
                         {
                             parent = *it;
                             goto parent_found; // double break
@@ -1181,11 +1193,16 @@ void GeoMap::changeFaceLabels(
     vigra_precondition(newFaceLabels.size() == faces_.size(),
         "changeFaceLabels(): 1-to-1 mapping expected (wrong newFaceLabels size)");
 
-    GeoMap::Faces newFaces(maxFaceLabel);
+    GeoMap::Faces newFaces(maxFaceLabel, NULL_PTR(Face));
     for(CellLabel l = 0; l < newFaceLabels.size(); ++l)
     {
         if(!faces_[l])
             continue;
+        vigra_precondition(
+            newFaceLabels[l] < maxFaceLabel, "changeFaceLabels: invalid label");
+        vigra_precondition(
+            !newFaces[newFaceLabels[l]],
+            "changeFaceLabels: trying to map multiple faces to the same label");
         newFaces[newFaceLabels[l]] = faces_[l];
         faces_[l]->label_ = newFaceLabels[l];
     }
@@ -1263,7 +1280,7 @@ void GeoMap::detachDart(int dartLabel)
 }
 
 GeoMap::NodePtr GeoMap::nearestNode(
-    const vigra::Vector2 &position,
+    const Vector2 &position,
     double maxSquaredDist)
 {
     NodeMap::iterator n(
@@ -1832,7 +1849,7 @@ GeoMap::EdgePtr GeoMap::splitEdge(
 
 GeoMap::EdgePtr GeoMap::splitEdge(
     GeoMap::Edge &edge, unsigned int segmentIndex,
-    const vigra::Vector2 &newPoint, bool insertPoint)
+    const Vector2 &newPoint, bool insertPoint)
 {
     vigra_precondition(segmentIndex < edge.size() - 1,
                        "splitEdge: invalid segmentIndex");
@@ -2117,7 +2134,7 @@ GeoMap::FacePtr GeoMap::mergeFaces(const GeoMap::Dart &dart)
 
 /********************************************************************/
 
-void GeoMap::Node::setPosition(const vigra::Vector2 &p)
+void GeoMap::Node::setPosition(const Vector2 &p)
 {
     vigra_precondition(initialized(), "setPosition() of uninitialized node!");
     map_->nodeMap_.erase(
