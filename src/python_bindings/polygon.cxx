@@ -8,6 +8,7 @@
 #include <vigra/linear_algebra.hxx>
 #include <vigra/regression.hxx>
 #include <cmath>
+#include <iostream>
 #include "delaunay.hxx"
 #include "exporthelpers.hxx"
 
