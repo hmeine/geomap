@@ -1,9 +1,7 @@
 PLATFORM = $(shell PATH=/software/Modules/bin:$(PATH) platform)
 curdir = .
 
-# should point to build directory of interactive2 (where configure was called):
-INT2BUILDDIR = ../../vigra/interactive2/build-$(PLATFORM)
-include $(INT2BUILDDIR)/config/Makefile.include
+include ../Makefile.include
 
 # at KOGS, try: module add pkgconfig libsigc++
 LOCAL_CPPFLAGS = -I. -I../cellimage `pkg-config --cflags sigc++-2.0` \
@@ -23,6 +21,8 @@ LIBCPPFLAGS := $(LOCAL_CPPFLAGS) $(LIBCPPFLAGS)
 TARGET = geomapmodule.la
 MODULE = $(patsubst %.la,%.so,$(TARGET))
 
+#	channelrepresentation.lo \
+
 OBJS = \
 	vectorconv.lo \
 	pythondiff2d.lo \
@@ -32,7 +32,6 @@ OBJS = \
 	statistics.lo \
 	features.lo \
 	ellipse.lo \
-	channelrepresentation.lo \
 	cppmapmodule_utils.lo \
 	cppmapmodule_stats.lo \
 	cppmapmodule.lo \
