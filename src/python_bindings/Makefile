@@ -24,6 +24,7 @@ MODULE = $(patsubst %.la,%.so,$(TARGET))
 
 OBJS = \
 	vectorconv.lo \
+	pythondiff2d.lo \
 	shapecontext.lo \
 	geomapmodule.lo \
 	polygon.lo \
