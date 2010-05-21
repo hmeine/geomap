@@ -23,6 +23,7 @@ TARGET = geomapmodule.la
 MODULE = $(patsubst %.la,%.so,$(TARGET))
 
 OBJS = \
+	vectorconv.lo \
 	shapecontext.lo \
 	geomapmodule.lo \
 	polygon.lo \
