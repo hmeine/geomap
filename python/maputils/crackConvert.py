@@ -30,8 +30,8 @@ def crackEdgeMap(labelImage, initLabelImage = True,
 #                          helper functions
 # --------------------------------------------------------------------
 
-from vigra import GrayImage, Vector2, Point2D, Size2D
-from geomap import Polygon
+from vigra import ScalarImage
+from geomap import Polygon, Vector2, Point2D, Size2D
 
 CONN_RIGHT = 1
 CONN_DOWN = 2

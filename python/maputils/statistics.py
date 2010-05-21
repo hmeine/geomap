@@ -1,8 +1,7 @@
-import math, string, copy, weakref
-from vigra import *
-import geomap
+import math, sys, string, copy, weakref
+import numpy, geomap
 from geomap import \
-     FaceGrayStatistics, FaceRGBStatistics, \
+     Vector2, FaceGrayStatistics, FaceRGBStatistics, \
      resamplePolygon, tangentList, tangentListGaussianReflective
 import sivtools, flag_constants
 
@@ -94,9 +93,9 @@ def trainedMeasure(dartPath, faceMeans, edgeGradients, weights = (1, 1, 1)):
     w1, w2, w3 = weights
     weightNorm = 1.0/sum(weights)
     return lambda dart: weightNorm * (
-        w1*math.exp(-vigra.sq(faceMeans[dart.leftFaceLabel()]-leftAvg)/leftSigma2) + \
-        w2*math.exp(-vigra.sq(faceMeans[dart.rightFaceLabel()]-rightAvg)/rightSigma2) + \
-        w3*math.exp(-vigra.sq(edgeGradients.dartAverage(dart))/gradSigma2))
+        w1*math.exp(-numpy.square(faceMeans[dart.leftFaceLabel()]-leftAvg)/leftSigma2) + \
+        w2*math.exp(-numpy.square(faceMeans[dart.rightFaceLabel()]-rightAvg)/rightSigma2) + \
+        w3*math.exp(-numpy.square(edgeGradients.dartAverage(dart))/gradSigma2))
 
 # --------------------------------------------------------------------
 #              Region-based Statistics & Cost Measures
@@ -406,25 +405,25 @@ def mergedContourLength(dart):
 
 def mergedIsoperimetricQuotient(dart):
     left, common, right = _ipqLengths(dart)
-    return vigra.sq(left+right) \
+    return numpy.square(left+right) \
            / (4*math.pi*(dart.leftFace().area() + dart.rightFace().area()))
 
 def mergedIsoperimetricQuotient2(dart):
     left, common, right = _ipqLengths(dart)
-    after = vigra.sq(left+right) \
+    after = numpy.square(left+right) \
             / ((dart.leftFace().area() + dart.rightFace().area()))
-    beforeLeft = vigra.sq(left+common) / dart.leftFace().area()
-    beforeRight = vigra.sq(right+common) / dart.rightFace().area()
+    beforeLeft = numpy.square(left+common) / dart.leftFace().area()
+    beforeRight = numpy.square(right+common) / dart.rightFace().area()
     return after / (beforeLeft + beforeRight)
 
 def seedIsoperimetricQuotient(dart):
     left, common, right = _ipqLengths(dart)
-    after = vigra.sq(left+right) \
+    after = numpy.square(left+right) \
             / ((dart.leftFace().area() + dart.rightFace().area()))
     if dart.leftFace().flag(flag_constants.SRG_SEED):
-        beforeLeft = vigra.sq(left+common) / dart.leftFace().area()
+        beforeLeft = numpy.square(left+common) / dart.leftFace().area()
         return after / beforeLeft
-    beforeRight = vigra.sq(right+common) / dart.rightFace().area()
+    beforeRight = numpy.square(right+common) / dart.rightFace().area()
     return after / beforeRight
 
 # --------------------------------------------------------------------

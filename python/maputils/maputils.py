@@ -601,12 +601,12 @@ def mapFromEdges(edges, imageSize):
     
     return result
 
-def gridMap(gridSize = (10, 10), firstPos = vigra.Vector2(0.5, 0.5),
-            dist = vigra.Vector2(1, 1), imageSize = None):
+def gridMap(gridSize = (10, 10), firstPos = geomap.Vector2(0.5, 0.5),
+            dist = geomap.Vector2(1, 1), imageSize = None):
     """Create a GeoMap representing a rectangular grid."""
     
-    xDist = vigra.Vector2(dist[0], 0)
-    yDist = vigra.Vector2(0, dist[1])
+    xDist = geomap.Vector2(dist[0], 0)
+    yDist = geomap.Vector2(0, dist[1])
     if not imageSize:
         imageSize = (int(math.ceil(gridSize[0] * dist[0] + 2*(firstPos[0]+0.5))),
                      int(math.ceil(gridSize[1] * dist[1] + 2*(firstPos[1]+0.5))))
@@ -700,11 +700,11 @@ def connectBorderNodes(map, epsilon,
     borderEdges = []
     lastNode = None
 
-    lastPoints = [vigra.Vector2(x1, y1)]
+    lastPoints = [geomap.Vector2(x1, y1)]
     for node in top:
         thisPoints = []
         if node.position()[1] > y1 + samePosEpsilon:
-            thisPoints.append(vigra.Vector2(node.position()[0], y1))
+            thisPoints.append(geomap.Vector2(node.position()[0], y1))
         thisPoints.append(node.position())
         lastPoints.extend(thisPoints)
         borderEdges.append((lastPoints, node))
@@ -712,11 +712,11 @@ def connectBorderNodes(map, epsilon,
         lastPoints = thisPoints
         lastNode = node
 
-    lastPoints.append(vigra.Vector2(x2, y1))
+    lastPoints.append(geomap.Vector2(x2, y1))
     for node in right:
         thisPoints = []
         if node.position()[0] < x2 - samePosEpsilon:
-            thisPoints.append(vigra.Vector2(x2, node.position()[1]))
+            thisPoints.append(geomap.Vector2(x2, node.position()[1]))
         thisPoints.append(node.position())
         lastPoints.extend(thisPoints)
         borderEdges.append((lastPoints, node))
@@ -724,11 +724,11 @@ def connectBorderNodes(map, epsilon,
         lastPoints = thisPoints
         lastNode = node
 
-    lastPoints.append(vigra.Vector2(x2, y2))
+    lastPoints.append(geomap.Vector2(x2, y2))
     for node in bottom:
         thisPoints = []
         if node.position()[1] < y2 - samePosEpsilon:
-            thisPoints.append(vigra.Vector2(node.position()[0], y2))
+            thisPoints.append(geomap.Vector2(node.position()[0], y2))
         thisPoints.append(node.position())
         lastPoints.extend(thisPoints)
         borderEdges.append((lastPoints, node))
@@ -736,11 +736,11 @@ def connectBorderNodes(map, epsilon,
         lastPoints = thisPoints
         lastNode = node
 
-    lastPoints.append(vigra.Vector2(x1, y2))
+    lastPoints.append(geomap.Vector2(x1, y2))
     for node in left:
         thisPoints = []
         if node.position()[0] > x1 + samePosEpsilon:
-            thisPoints.append(vigra.Vector2(x1, node.position()[1]))
+            thisPoints.append(geomap.Vector2(x1, node.position()[1]))
         thisPoints.append(node.position())
         lastPoints.extend(thisPoints)
         borderEdges.append((lastPoints, node))
@@ -974,7 +974,7 @@ def drawLabelImage(aMap, scale = 1, verbose = True):
     holes = list(aMap.face(0).holeContours())
     # shift sampling points from middle of pixel (0.5, 0.5)
     # to middle of new, scaled pixel (scale/2, scale/2):
-    offset = vigra.Vector2(scale / 2.0 - 0.5, scale / 2.0 - 0.5)
+    offset = geomap.Vector2(scale / 2.0 - 0.5, scale / 2.0 - 0.5)
     for contour in holes:
         for hole in holeComponent(contour):
             if verbose and done % 23 == 0:
@@ -1662,7 +1662,7 @@ def pointInFace(face, level = 2):
         x = 0
         for seg in sl[y]:
             if inside and x < seg.begin:
-                return vigra.Vector2(x, y)
+                return geomap.Vector2(x, y)
             x = seg.end
             inside += seg.direction
 
@@ -1679,7 +1679,7 @@ def pointInFace(face, level = 2):
         xRange = numpy.arange(bbox.begin()[0], bbox.end()[0], 1.0/level)
         for y in numpy.arange(bbox.begin()[1], bbox.end()[1], 1.0/level):
             for x in xRange:
-                p = vigra.Vector2(x, y)
+                p = geomap.Vector2(x, y)
                 if face.contains(p):
                     result.append(((p-midPoint).squaredMagnitude(), p))
         if not result:

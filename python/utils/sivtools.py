@@ -12,7 +12,7 @@ class GradientSIVProxy(object):
         self.gysiv = SIV(grad[1])
 
     def __getitem__(self, i):
-        return vigra.Vector2(self.gxsiv[i], self.gysiv[i])
+        return geomap.Vector2(self.gxsiv[i], self.gysiv[i])
 
 class ThreeBandSIVProxy(object):
     def __init__(self, image, SIV = 5):
