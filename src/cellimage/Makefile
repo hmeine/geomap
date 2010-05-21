@@ -6,8 +6,9 @@ INT2BUILDDIR = ../../vigra/interactive2/build-$(PLATFORM)
 include $(INT2BUILDDIR)/config/Makefile.include
 
 CXXFLAGS = -Wall -Wno-deprecated -O2 -DNDEBUG
-CPPFLAGS += `vigra-interactive-config --cppflags` \
-	-I../../vigra/current/test/include
+CPPFLAGS += -I../../vigra/current/test/include
+
+LIBCPPFLAGS += -I"`python -c 'import numpy; print numpy.get_include()'`"
 
 CELLIMAGE_OBJS = \
 	cellimage_module.lo \
@@ -29,7 +30,7 @@ install: $(CELLIMAGE_TARGET)
 	$(LIBINSTALL) $(CELLIMAGE_TARGET) $(dynmoddir)
 
 $(CELLIMAGE_TARGET): $(CELLIMAGE_OBJS)
-	$(LINKCXXMODULE) -o $(CELLIMAGE_TARGET) $(CELLIMAGE_OBJS) $(BOOST_PYTHON_LIB)  `vigra-interactive-config --pythonimage-lib`
+	$(LINKCXXMODULE) -o $(CELLIMAGE_TARGET) $(CELLIMAGE_OBJS) $(BOOST_PYTHON_LIB) vigranumpycore.so
 
 testfoureight: testfoureight.o foureightsegmentation.o
 	$(CXX) -o testfoureight testfoureight.o foureightsegmentation.o `vigra-config --impex-lib`
