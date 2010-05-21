@@ -6,7 +6,8 @@ INT2BUILDDIR = ../../vigra/interactive2/build-$(PLATFORM)
 include $(INT2BUILDDIR)/config/Makefile.include
 
 # at KOGS, try: module add pkgconfig libsigc++
-LOCAL_CPPFLAGS = -I. -I../cellimage `pkg-config --cflags sigc++-2.0`
+LOCAL_CPPFLAGS = -I. -I../cellimage `pkg-config --cflags sigc++-2.0` \
+	-I"`python -c 'import numpy; print numpy.get_include()'`"
 
 # define this if you have installed John Maddock's math_toolkit from
 # the boost vault (which is needed for proper t-test support), see
@@ -41,7 +42,7 @@ OBJS = \
 	dsl.lo \
 
 $(TARGET): $(OBJS)
-	$(LINKCXXMODULE) -o $(TARGET) $(OBJS) $(BOOST_PYTHON_LIB) `pkg-config --libs sigc++-2.0` `vigra-interactive-config --pythonimage-lib`
+	$(LINKCXXMODULE) -o $(TARGET) $(OBJS) $(BOOST_PYTHON_LIB) `pkg-config --libs sigc++-2.0` vigranumpycore.so
 	test -s $(MODULE) || ln -s .libs/$(MODULE) .
 
 test: $(TARGET)
