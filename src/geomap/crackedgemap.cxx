@@ -257,7 +257,7 @@ void crackEdgesToMidcracks(GeoMap &geomap)
     {
         for(GeoMap::FaceIterator it = geomap.facesBegin(); it.inRange(); ++it)
         {
-            // FIXME: see above...
+            // FIXME: see note about setGeometry above...
             (*it)->setFlag(0xC0000000U, false);
         }
     }
