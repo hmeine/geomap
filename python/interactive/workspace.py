@@ -663,8 +663,17 @@ class Workspace(mapdisplay.MapDisplay):
         maputils.detachMapStats(map)
         self._pyramidCK = map.pyramidCK
 
+def main(filename, biScale = 1.6, saddleThreshold = 0.2):
+    import bi_utils
+    img = vigra.readImage(filename)
+    gm, grad = bi_utils.gaussianGradient(img, biScale)
+    wsm = maputils.subpixelWatershedMap(
+        gm, saddleThreshold = saddleThreshold)
+
+    return Workspace(wsm, img, bi = gm)
+
 if __name__ == "__main__":
-    import sys, bi_utils
+    import sys
     #filename = "../../../Testimages/lenna_original_color.png"
     filename = "../../../Testimages/blox.png"
     biScale = 1.6
@@ -674,12 +683,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 2:
         biScale = float(sys.argv[2])
 
-    img = vigra.readImage(filename)
-    gm, grad = bi_utils.gaussianGradient(img, biScale)
-    wsm = maputils.subpixelWatershedMap(
-        gm, saddleThreshold = saddleThreshold)
-
     app = qt.QApplication(sys.argv)
-    w = Workspace(wsm, img, bi = gm)
+    w = main(filename, biScale)
     app.connect(app, qt.SIGNAL("lastWindowClosed()"), app, qt.SLOT("quit()"))
     app.exec_loop()
