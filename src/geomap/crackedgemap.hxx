@@ -168,4 +168,69 @@ void CrackEdgeMapGenerator::getSourceLabels(vigra::pair<SrcImageIterator, SrcAcc
 
 void crackEdgesToMidcracks(GeoMap &geomap);
 
+/**
+ * Change edge geometry (in-place) from midcracks to marching
+ * squares-like level contours.  Use linear interpolation of the `src`
+ * image to determine the threshold position.  Leave alone edges with
+ * BORDER_PROTECTION set.  Assumes that the `src` image is (at least)
+ * the same size as geomap.imageSize().
+ */
+template<class ITERATOR, class ACCESSOR>
+void midcracksToThreshold(GeoMap &geomap,
+                          vigra::pair<ITERATOR, ACCESSOR> src,
+                          double threshold)
+{
+    vigra::Size2D size(geomap.imageSize());
+
+    for(GeoMap::EdgeIterator it = geomap.edgesBegin(); it.inRange(); ++it)
+    {
+        GeoMap::Edge &edge(**it);
+        if(edge.flag(GeoMap::Edge::BORDER_PROTECTION))
+            continue;
+
+        for(unsigned int i = 0; i < edge.size(); ++i)
+        {
+            double x = edge[i][0], y = edge[i][1];
+            int ix = (int)floor(x), iy = (int)floor(y);
+            if(ix < 0 || iy < 0)
+                continue;
+
+            // every mid-crack point has exactly one crack coordinate
+            // and one pixel grid coordinate; we only want to change
+            // the crack coordinate:
+            if(x == ix)
+            {
+                if(ix >= size.x || (iy + 1) >= size.y)
+                    continue;
+
+                // move vertically
+                typename ITERATOR::value_type
+                    v1 = src.second(src.first, vigra::Diff2D(ix, iy)),
+                    v2 = src.second(src.first, vigra::Diff2D(ix, iy + 1));
+                edge[i][1] = iy + (threshold - v1) / (v2 - v1);
+            }
+            else
+            {
+                if((ix + 1) >= size.x || iy >= size.y)
+                    continue;
+
+                // move horizontally
+                typename ITERATOR::value_type
+                    v1 = src.second(src.first, vigra::Diff2D(ix, iy)),
+                    v2 = src.second(src.first, vigra::Diff2D(ix + 1, iy));
+                edge[i][0] = ix + (threshold - v1) / (v2 - v1);
+            }
+        }
+    }
+
+    if(geomap.mapInitialized())
+    {
+        for(GeoMap::FaceIterator it = geomap.facesBegin(); it.inRange(); ++it)
+        {
+            // FIXME: see note about setGeometry above...
+            (*it)->setFlag(0xC0000000U, false);
+        }
+    }
+}
+
 #endif // CRACKEDGEMAP_HXX
