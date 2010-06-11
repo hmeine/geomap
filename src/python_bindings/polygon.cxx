@@ -5,7 +5,7 @@
 #include <boost/python/make_constructor.hpp>
 #include <vigra/gaussians.hxx>
 #include <vigra/linear_algebra.hxx>
-#include <vigra/regression.hxx>
+#include <vigra/geometric_fitting.hxx>
 #include <cmath>
 #include <iostream>
 #include "exporthelpers.hxx"
