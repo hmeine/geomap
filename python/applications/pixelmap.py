@@ -1,7 +1,6 @@
 import vigra, geomap, crackConvert
-vigra.addPathFromHere('../cellimage')
 import cellimage
-from vigra import transformImage, Vector2, Size2D, Point2D, Rect2D
+from geomap import Vector2, Size2D, Point2D, Rect2D
 from flag_constants import BORDER_PROTECTION
 
 __all__ = ["pixelMap2subPixelMap", "crackEdgeMap",
@@ -230,8 +229,9 @@ def pixelWatershedMap(biImage, crackEdges = 4, midCracks = False):
         pixelMap, imageSize = (pixelMap.cellImage.size()-Size2D(4,4)))
 
 def cellImage2display(cellImage, background = None,
-                      nodeColor = vigra.Pixel(0, 0, 255),
-                      edgeColor = vigra.Pixel(255, 0, 0)):
+                      nodeColor = (0, 0, 255),
+                      edgeColor = (255, 0, 0)):
+    assert False, "cellImage2display needs to be ported to vigranumpy"
     if hasattr(cellImage, "cellImage"):
         cellImage = cellImage.cellImage
     if hasattr(cellImage, "serialize"):

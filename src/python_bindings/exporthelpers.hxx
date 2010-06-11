@@ -4,7 +4,7 @@
 #include <boost/python.hpp>
 #include <boost/python/slice.hpp>
 #include <memory>
-#include <vigra/pythonutil.hxx>
+#include "vigra/pythonutil.hxx"
 
 /*
   I find these very convenient, and would like to add them to

@@ -1,7 +1,6 @@
+#include <vigra/numpy_array.hxx>
 #include "cppmap.hxx"
 #include "exporthelpers.hxx"
-#include <vigra/pythonimage.hxx>
-#include <vigra/pythonutil.hxx>
 #include <vigra/copyimage.hxx>
 #include <iostream>
 
@@ -13,13 +12,17 @@
 
 #include <boost/python.hpp>
 #include <boost/python/detail/api_placeholder.hpp>
+
+using vigra::NumpyFImage;
 namespace bp = boost::python;
+
+typedef vigra::TinyVector<double, 2> Vector2;
 
 GeoMap::EdgePtr pySplitEdge(
     GeoMap &geomap, GeoMap::Edge &edge, unsigned int segmentIndex,
     bp::object newPoint)
 {
-    bp::extract<vigra::Vector2> insertPoint(newPoint);
+    bp::extract<Vector2> insertPoint(newPoint);
     if(insertPoint.check())
         return geomap.splitEdge(edge, segmentIndex, insertPoint());
     return geomap.splitEdge(edge, segmentIndex);
@@ -262,7 +265,7 @@ class SplitEdgeCallbacks : public SimpleCallback
     }
 
     void preSplitEdge(GeoMap::Edge &edge, unsigned int segmentIndex,
-                      vigra::Vector2 const &newPoint, bool insertPoint)
+                      Vector2 const &newPoint, bool insertPoint)
     {
         preOpCallback_(boost::ref(edge), segmentIndex,
                        insertPoint ? bp::object(newPoint) : bp::object());
@@ -504,7 +507,10 @@ labelImage(const GeoMap &map)
 {
     if(!map.hasLabelImage())
         return bp::object();
-    vigra::PythonGrayImage result(map.imageSize());
+    vigra::Size2D imageSize = map.imageSize();
+
+    typedef NumpyFImage::view_type::difference_type NumpyFImageShape;
+    NumpyFImage result = NumpyFImage(NumpyFImageShape(imageSize.x,imageSize.y));
     copyImage(map.srcLabelRange(), destImage(result));
     return bp::object(result);
 }
@@ -726,10 +732,16 @@ std::string Edge__repr__(GeoMap::Edge const &edge)
     std::stringstream s;
     s.unsetf(std::ios::scientific);
     s.precision(1);
-    s << "<GeoMap.Edge " << edge.label()
+    s << "<GeoMap.Edge " << edge.label();
       //<< ", node " << edge.startNodeLabel() << " -> " << edge.endNodeLabel()
-      << ", faces " << edge.leftFaceLabel() << "(l), " << edge.rightFaceLabel()
-      << ", partial area " << edge.partialArea() << ", length " << edge.length()
+    if(edge.isLoop())
+        s << "(self-loop)";
+    if(edge.isBridge())
+        s << ", bridge in face " << edge.leftFaceLabel();
+    else
+        s << ", faces " << edge.leftFaceLabel() << "(l), "
+          << edge.rightFaceLabel() << "(r)";
+    s << ", partial area " << edge.partialArea() << ", length " << edge.length()
       << ", " << edge.size() << " points>";
     return s.str();
 }
@@ -869,7 +881,7 @@ void defMap()
                  "negative dart labels correspond to the opposite half-edge\n"
                  "(meaning that Darts with negative labels start at the end of\n"
                  "the corresponding edge).")
-            .def("faceAt", (GeoMap::FacePtr (GeoMap::*)(const vigra::Vector2 &))&GeoMap::faceAt, crp)
+            .def("faceAt", (GeoMap::FacePtr (GeoMap::*)(const Vector2 &))&GeoMap::faceAt, crp)
             .add_property("nodeCount", &GeoMap::nodeCount,
                           "Return the number of nodes in this graph/map.")
             .add_property("edgeCount", &GeoMap::edgeCount,
@@ -890,11 +902,11 @@ void defMap()
                  "imageSize() -> Size2D\n\n"
                  "Return the image size (as passed to __init__).\n"
                  "If the map has a labelImage, this is its size.")
-            .def("addNode", (GeoMap::NodePtr (GeoMap::*)(const vigra::Vector2 &))&GeoMap::addNode, crp, args("position"),
+            .def("addNode", (GeoMap::NodePtr (GeoMap::*)(const Vector2 &))&GeoMap::addNode, crp, args("position"),
                  "addNode(position) -> Node\n\n"
                  "Add node at the given position and return the new Node\n"
                  "object.")
-            .def("addNode", (GeoMap::NodePtr (GeoMap::*)(const vigra::Vector2 &, CellLabel))&GeoMap::addNode, crp, args("position", "label"))
+            .def("addNode", (GeoMap::NodePtr (GeoMap::*)(const Vector2 &, CellLabel))&GeoMap::addNode, crp, args("position", "label"))
             .def("addEdge", &addEdgeBackwardCompatibility, crp,
                  (arg("startNodeLabel"), arg("endNodeLabel"),
                   arg("points"), arg("label") = 0),
