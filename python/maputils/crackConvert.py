@@ -309,7 +309,6 @@ if __name__ == "__main__":
                 vigra.readImage("crackConvert-test1.png")[0], 0)[0]
             cc = crackConnectionImage(labels)
             cc_ref = vigra.readImage("crackConvert-test1cc.png")
-            self.assertEqual(
-                vigra.inspectImage(cc - cc_ref, vigra.MinMax()).max(), 0)
+            self.assertEqual(numpy.abs(cc - cc_ref).max(), 0)
 
     sys.exit(unittest.main())
