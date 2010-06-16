@@ -514,7 +514,7 @@ labelImage(const GeoMap &map)
     typedef NumpyFImage::view_type::difference_type NumpyFImageShape;
     NumpyFImage result = NumpyFImage(NumpyFImageShape(imageSize.x,imageSize.y));
     copyImage(map.srcLabelRange(), destImage(result));
-    return bp::object(result);
+    return bp::object(bp::handle<>(bp::borrowed(result.pyObject())));
 }
 
 bp::list GeoMap_sortEdgesEventually(
