@@ -1,4 +1,4 @@
-import vigra, geomap, math
+import vigra, geomap, numpy, math
 from geomap import Polygon, Vector2
 
 # FIXME: computing bsd42044 1.5 SPWS (spline order 2)...
@@ -9,13 +9,16 @@ from geomap import Polygon, Vector2
 #     assert outside != prevOutside; prevOutside = outside
 # AssertionError
 
+def squaredNorm(v):
+    return numpy.dot(v, v)
+
 def maxDistIter(polygon, maxDist):
     maxDist2 = numpy.square(maxDist)
     it = iter(polygon)
     prev = it.next()
     yield prev
     for p in it:
-        dist2 = (p-prev).squaredMagnitude()
+        dist2 = squaredNorm(p-prev)
         if dist2 > maxDist2:
             dist = math.sqrt(dist2)
             segmentCount = int(math.ceil(dist / maxDist))
@@ -384,7 +387,7 @@ def smallestBoundingBox(ch):
 # --------------------------------------------------------------------
 
 if __name__ == "__main__":
-    import fig, geomap
+    import fig
     f = fig.File("cliptest.fig")
     cr = geomap.BoundingBox((0, 0), (4500, 4500))
     f.layer(1).remove()
