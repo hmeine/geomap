@@ -5,6 +5,9 @@ from geomap import \
      resamplePolygon, tangentList, tangentListGaussianReflective
 import sivtools, flag_constants
 
+def squaredNorm(v):
+    return numpy.dot(v, v)
+
 class DetachableStatistics(object):
     """Base class for all dynamic statistics.
 
@@ -78,9 +81,9 @@ def trainingData(dartPath, faceMeans, edgeGradients):
         rightVariance(faceMeans.variance(dart.rightFaceLabel(), True), weight)
         grad(edgeGradients.dartAverage(dart), weight)
 
-    leftSigma2 = norm(left.variance(True) + leftVariance.average())
+    leftSigma2 = numpy.linalg.norm(left.variance(True) + leftVariance.average())
     leftAvg = left.average()
-    rightSigma2 = norm(right.variance(True) + rightVariance.average())
+    rightSigma2 = numpy.linalg.norm(right.variance(True) + rightVariance.average())
     rightAvg = right.average()
     gradSigma2 = grad.variance(True)
     gradAvg = grad.average()
@@ -316,7 +319,7 @@ class _FaceColorStatistics(DynamicFaceStatistics):
         f = self._functors
         m1 = f[dart.leftFaceLabel()].average()
         m2 = f[dart.rightFaceLabel()].average()
-        return (m1 - m2).norm() / self._diffNorm
+        return numpy.linalg.norm(m1 - m2) / self._diffNorm
 
     def facePoissonLikelyhoodRatio(self, dart):
         f1 = self.faceMeanFunctor(dart.leftFaceLabel())
@@ -1052,7 +1055,7 @@ class EdgeGradientStatistics(BoundaryIndicatorStatistics):
 
                     segment = Vector2(-math.sin(theta), math.cos(theta))
 
-                    stats(dot(gradDir, segment), 1.0)
+                    stats(numpy.dot(gradDir, segment), 1.0)
 
                 self._functors[edge.label()] = stats
 
@@ -1287,7 +1290,7 @@ class EdgeMinimumDistance(DynamicEdgeStatistics):
             for p in edge:
                 near = minimaMap(p, mindist2)
                 if near:
-                    mindist2 = (near-p).squaredMagnitude()
+                    mindist2 = squaredNorm(near-p)
             setattr(edge, self.attrName, math.sqrt(mindist2))
         self._attachHooks()
 
@@ -1427,14 +1430,14 @@ def contAngle(d1,d2,length):
     l=0
     p1=pl1[1]
     for i in range(2,len(pl1)):
-        l+=(pl1[i]-pl1[i-1]).norm()
+        l+=numpy.linalg.norm(pl1[i]-pl1[i-1])
         p1=pl1[i]
         if l>length:
             break
     l=0
     p2=pl2[1]
     for i in range(2,len(pl2)):
-        l+=(pl2[i]-pl2[i-1]).norm()
+        l+=numpy.linalg.norm(pl2[i]-pl2[i-1])
         p2=pl2[i]
         if l>length:
             break
@@ -1529,7 +1532,7 @@ class EdgeRegularity(DetachableStatistics):
             None, self.postMergeEdges), )
 
     def calcRegularity(self,edge):
-        segLengths=[(edge[i]-edge[i-1]).magnitude() for i in range(1,len(edge))]
+        segLengths=[numpy.linalg.norm(edge[i]-edge[i-1]) for i in range(1,len(edge))]
         regList=[]
         for i in range(len(segLengths)):
             totalLength=0.0
@@ -1541,11 +1544,11 @@ class EdgeRegularity(DetachableStatistics):
                     break
             if endPoint<0:
                 break;
-            regList.append(((edge[i]-edge[endPoint]).magnitude()/totalLength,totalLength))
+            regList.append((numpy.linalg.norm(edge[i]-edge[endPoint])/totalLength,totalLength))
         stats = EdgeStatistics()
         if len(regList)==0:
             l=sum(segLengths)
-            stats((edge[0]-edge[-1]).magnitude()/l,l)
+            stats(numpy.linalg.norm(edge[0]-edge[-1])/l,l)
         else:
             for r in regList:
                 stats(r[0],r[1])
@@ -1676,6 +1679,6 @@ def gcByArcLength(al):
         t1 = p1 - dp1() # tangents
         t2 = dp2() - p1
         # tangent direction agreement:
-        return dot(t1, t2) / (t1.magnitude() * t2.magnitude())
+        return numpy.dot(t1, t2) / (t1.magnitude() * t2.magnitude())
 
     return goodContinuation
