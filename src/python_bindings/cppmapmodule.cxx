@@ -1,3 +1,5 @@
+#define PY_ARRAY_UNIQUE_SYMBOL geomap_PyArray_API
+#define NO_IMPORT_ARRAY
 #include <vigra/numpy_array.hxx>
 #include "cppmap.hxx"
 #include "exporthelpers.hxx"

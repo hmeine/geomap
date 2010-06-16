@@ -1,9 +1,11 @@
+#define PY_ARRAY_UNIQUE_SYMBOL geomap_PyArray_API
+#define NO_IMPORT_ARRAY
+#include <vigra/numpy_array.hxx>
 #include "cppmap_utils.hxx"
 #include "exporthelpers.hxx"
 #include "labellut.hxx"
 
 #include <vigra/copyimage.hxx>
-#include <vigra/numpy_array.hxx>
 
 #include <boost/python.hpp>
 namespace bp = boost::python;

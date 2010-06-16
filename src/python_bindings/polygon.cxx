@@ -1,3 +1,6 @@
+#define PY_ARRAY_UNIQUE_SYMBOL geomap_PyArray_API
+#define NO_IMPORT_ARRAY
+#include <vigra/numpy_array.hxx>
 #include "vigra/polygon.hxx"
 
 #include <boost/python.hpp>
@@ -10,7 +13,6 @@
 #include <iostream>
 #include "exporthelpers.hxx"
 #include "python_types.hxx"
-#include <vigra/numpy_array.hxx>
 
 
 using namespace vigra;
