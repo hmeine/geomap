@@ -1311,7 +1311,7 @@ def calcGradScaleSum(image, steps):
             for j in range(1,image.bands()):
                 ti += vectorToTensor(gaussianGradientAsVector(image.subImage(j),scale))
         gm = numpy.sqrt(tensorTrace(ti))
-        gm = linearRangeMapping(gm,oldRange=(0,gm.max()),newRange=(0,1.0))
+        gm = (gm / gm.max()).clip(0, 1)
         gss += gm
         scale *= 1.41421
     return gss
