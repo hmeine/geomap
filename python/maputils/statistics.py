@@ -1,5 +1,5 @@
 import math, sys, string, copy, weakref
-import numpy, geomap
+import numpy, vigra.sampling, geomap
 from geomap import \
      Vector2, FaceGrayStatistics, FaceRGBStatistics, \
      resamplePolygon, tangentList, tangentListGaussianReflective
@@ -196,7 +196,7 @@ def superSample(face, level = 2):
 # new API: does not touch the Face objects themselves
 class _FaceColorStatistics(DynamicFaceStatistics):
     def __init__(self, map, originalImage, minSampleCount = 1,
-                 defaultValue = None, SIV = SplineImageView5):
+                 defaultValue = None, SIV = vigra.sampling.SplineImageView5):
         DynamicFaceStatistics.__init__(self, map)
         self.originalImage = originalImage
 
