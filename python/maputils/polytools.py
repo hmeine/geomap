@@ -1,6 +1,5 @@
 import vigra, geomap, math
-from vigra import Vector2, dot
-from geomap import Polygon
+from geomap import Polygon, Vector2
 
 # FIXME: computing bsd42044 1.5 SPWS (spline order 2)...
 # ...
@@ -11,7 +10,7 @@ from geomap import Polygon
 # AssertionError
 
 def maxDistIter(polygon, maxDist):
-    maxDist2 = vigra.sq(maxDist)
+    maxDist2 = numpy.square(maxDist)
     it = iter(polygon)
     prev = it.next()
     yield prev
@@ -251,7 +250,7 @@ class Line(object):
         self.dist = dist
 
     def isParallel(self, other):
-        return abs(dot(self.norm, other.norm)) == 1.0
+        return abs(numpy.dot(self.norm, other.norm)) == 1.0
     
     def intersect(self, other):
         assert not self.isParallel(other)
@@ -271,7 +270,7 @@ class Line(object):
 
     def orthogonalDistance(self, point):
         """Return distance between given point and this line"""
-        return dot(point, self.norm) - self.dist
+        return numpy.dot(point, self.norm) - self.dist
 
     def point(self, l = 0):
         """Return point on line.  For l == 0 (default), this will be
@@ -294,7 +293,7 @@ class LineSegment(object):
     
     def dist(self):
         """distance to origin"""
-        return dot(self.p1, self.norm())
+        return numpy.dot(self.p1, self.norm())
     
     def line(self):
         return Line(self.norm(), self.dist())
@@ -331,7 +330,7 @@ def rotatePoly(poly, angle):
     unitY = Vector2(math.sin(angle),  math.cos(angle))
     result = Polygon()
     for point in poly:
-        result.append(Vector2(dot(point, unitX), dot(point, unitY)))
+        result.append(Vector2(numpy.dot(point, unitX), numpy.dot(point, unitY)))
     return result
 
 def subsetDigitization(poly, shift = None, size = None):
@@ -366,8 +365,8 @@ def smallestBoundingBox(ch):
         dists = []
         positions = []
         for p in ch:
-            dists.append(dot(norm, p))
-            positions.append(dot(dir, p))
+            dists.append(numpy.dot(norm, p))
+            positions.append(numpy.dot(dir, p))
         l1 = min(positions)
         l2 = max(positions)
         l3 = min(dists)

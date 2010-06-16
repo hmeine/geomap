@@ -1,6 +1,6 @@
 """maputils - general (i.e.topological) GeoMap utilities and segmentation algorithms"""
 
-import vigra, geomap, sys, math, time, weakref, copy
+import numpy, vigra, geomap, sys, math, time, weakref, copy
 
 import flag_constants, progress, sivtools
 
@@ -55,12 +55,12 @@ class SaddleTensorFeature(object):
 
         # component of structure tensor in normal direction:
         s11, s12, s22 = self._stSIV[position]
-        og2 = max(0, s11*vigra.sq(s) - 2*s12*c*s + s22*vigra.sq(c))
+        og2 = max(0, s11*numpy.square(s) - 2*s12*c*s + s22*numpy.square(c))
 
         if onlyDir:
             # large eigenvalue of structure tensor:
-            ev = 0.5 * (s11 + s22 + math.sqrt(vigra.sq(s11 - s22)
-                                              + 4.0*vigra.sq(s12)))
+            ev = 0.5 * (s11 + s22 + math.sqrt(numpy.square(s11 - s22)
+                                              + 4.0*numpy.square(s12)))
             return og2 / ev
 
         return og2
@@ -534,7 +534,7 @@ def addFlowLinesToMap(edges, map, imageSize = None,
             if nearestNode:
                 diff = nearestNode.position() - pos
                 startNode = nearestNode
-                if vigra.dot(diff, pos - points[1]) >= 0: # don't jump back
+                if numpy.dot(diff, pos - points[1]) >= 0: # don't jump back
                     if diff.squaredMagnitude():
                         # include node position if not present
                         points.insert(0, nearestNode.position())
@@ -553,7 +553,7 @@ def addFlowLinesToMap(edges, map, imageSize = None,
             if nearestNode:
                 diff = nearestNode.position() - pos
                 endNode = nearestNode
-                if vigra.dot(diff, pos - points[-2]) >= 0:
+                if numpy.dot(diff, pos - points[-2]) >= 0:
                     if diff.squaredMagnitude():
                         points.append(nearestNode.position())
                 else:
