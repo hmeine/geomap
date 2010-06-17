@@ -37,7 +37,7 @@ crackConnectionImage(SrcImageIterator srcUpperLeft,
         // middle part of first row
         SrcImageIterator left(src);
         ++src.x, ++dest.x;
-        for(; src.x < srcLowerRight.x; ++src.x, ++dest.x, ++left.x)
+        for(; src.x != srcLowerRight.x; ++src.x, ++dest.x, ++left.x)
         {
             int conn = CONN_RIGHT;
             if(sa(left) != sa(src))
@@ -51,7 +51,7 @@ crackConnectionImage(SrcImageIterator srcUpperLeft,
 
     // middle rows
     ++srcUpperLeft.y, ++destUpperLeft.y;
-    for(; srcUpperLeft.y < srcLowerRight.y; ++srcUpperLeft.y, ++destUpperLeft.y)
+    for(; srcUpperLeft.y != srcLowerRight.y; ++srcUpperLeft.y, ++destUpperLeft.y)
     {
         SrcImageIterator src(srcUpperLeft);
         DestImageIterator dest(destUpperLeft);
@@ -68,7 +68,7 @@ crackConnectionImage(SrcImageIterator srcUpperLeft,
         // middle part
         SrcImageIterator left(src);
         ++src.x, ++dest.x, ++up.x;
-        for(; src.x < srcLowerRight.x; ++src.x, ++dest.x, ++left.x, ++up.x)
+        for(; src.x != srcLowerRight.x; ++src.x, ++dest.x, ++left.x, ++up.x)
         {
             int conn = 0;
             if(sa(up) != sa(src))
@@ -85,7 +85,7 @@ crackConnectionImage(SrcImageIterator srcUpperLeft,
     // last row
     DestImageIterator dest(destUpperLeft);
     SrcImageIterator src(srcUpperLeft);
-    for(; src.x < srcLowerRight.x; ++src.x, ++dest.x)
+    for(; src.x != srcLowerRight.x; ++src.x, ++dest.x)
         da.set((int)CONN_RIGHT, dest);
 }
 
