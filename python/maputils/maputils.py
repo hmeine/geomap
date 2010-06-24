@@ -112,7 +112,7 @@ def filterSaddlePoints(rawSaddles, biSIV, filter, maxDist):
     Return a list of the remaining points together with their indices
     in the original array (in enumerate() fashion)."""
 
-    maxSquaredDist = math.sq(maxDist)
+    maxSquaredDist = numpy.square(maxDist)
     result = []
     sorted = []
     for k, saddle in enumerate(rawSaddles):
