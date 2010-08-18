@@ -388,7 +388,7 @@ def subpixelWatershedMap(
         perpendicularDistEpsilon = perpendicularDistEpsilon, maxStep = maxStep)
     
     spwsMap = subpixelWatershedMapFromData(
-        maxima, flowlines, boundaryIndicator.size(),
+        maxima, flowlines, boundaryIndicator.shape,
         borderConnectionDist = borderConnectionDist,
         ssStepDist = ssStepDist, ssMinDist = ssMinDist,
         performBorderClosing = performBorderClosing,
@@ -450,7 +450,7 @@ def addFlowLinesToMap(edges, map, imageSize = None,
     # - a border can be added by connectBorderNodes if desired, and
     # parallel, double border edges lead to unsortable edges:
     if imageSize:
-        imageBox = geomap.BoundingBox(imageSize - (1,1))
+        imageBox = geomap.BoundingBox(geomap.Vector2(imageSize[0],imageSize[1]) - geomap.Vector2(1,1))
         clipBox  = copy.copy(imageBox)
         innerBox = copy.copy(imageBox)
 
