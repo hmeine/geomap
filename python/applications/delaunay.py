@@ -495,6 +495,36 @@ def middlePoint(twoPointEdge):
 def baryCenter(*points):
     return sum(points) / len(points)
 
+TT_OBTUSE = -1
+TT_RIGHT  = 0
+TT_ACUTE  = 1
+
+def triangleType(p1, p2, p3):
+    """Return -1 for obtuse triangles, 0 for right triangles, 1 for
+    acute ones."""
+    a2 = (p2-p1).squaredMagnitude()
+    b2 = (p3-p2).squaredMagnitude()
+    c2 = (p1-p3).squaredMagnitude()
+
+    # see http://mathworld.wolfram.com/AcuteTriangle.html
+
+    if (a2 + b2) < c2:
+        return TT_OBTUSE
+    if (a2 + b2) == c2:
+        return TT_RIGHT
+
+    if (b2 + c2) < a2:
+        return TT_OBTUSE
+    if (b2 + c2) == a2:
+        return TT_RIGHT
+
+    if (c2 + a2) < b2:
+        return TT_OBTUSE
+    if (c2 + a2) == b2:
+        return TT_RIGHT
+
+    return TT_ACUTE
+
 def oldJunctionNodePosition(p1, p2, p3,
                             joinMiddleThreshold = 1.61):
     "Old, deprecated junction node position defition (ignore this)"
