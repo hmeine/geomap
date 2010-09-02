@@ -1,14 +1,19 @@
+#define PY_ARRAY_UNIQUE_SYMBOL geomap_PyArray_API
+#define NO_IMPORT_ARRAY
+#include <vigra/numpy_array.hxx>
 #include "vigra/polygon.hxx"
 
 #include <boost/python.hpp>
 #include <boost/python/detail/api_placeholder.hpp>
 #include <boost/python/make_constructor.hpp>
 #include <vigra/gaussians.hxx>
-#include <vigra/pythonimage.hxx>
 #include <vigra/linear_algebra.hxx>
-#include <vigra/regression.hxx>
+#include <vigra/geometric_fitting.hxx>
 #include <cmath>
+#include <iostream>
 #include "exporthelpers.hxx"
+#include "python_types.hxx"
+
 
 using namespace vigra;
 using namespace boost::python;
@@ -275,26 +280,24 @@ ScanlinesIter createScanlinesIter(const Scanlines &sl)
 
 unsigned int pyFillScannedPoly(
     const Scanlines &scanlines,
-    PythonImage &targetV,
+    NumpyFImage &target,
     GrayValue value)
     //const Pixel &value)
 {
-    PythonSingleBandImage target(targetV.subImage(0));
     return fillScannedPoly(scanlines, value,
                            target.traverser_begin(),
-                           target.size(),
+                           Size2D(target.shape(0),target.shape(1)),
                            StandardValueAccessor<GrayValue>());
 }
 
 unsigned int pyDrawScannedPoly(
     const Scanlines &scanlines,
-    PythonImage &targetV,
+    NumpyFImage &target,
     float value)
 {
-    PythonSingleBandImage target(targetV.subImage(0));
     return drawScannedPoly(scanlines, value,
                            target.traverser_begin(),
-                           target.size(),
+                           Size2D(target.shape(0),target.shape(1)),
                            StandardValueAccessor<GrayValue>());
 }
 
@@ -1661,13 +1664,11 @@ struct ParabolaFit
 
 void markEdgeInLabelImage(
     const Scanlines &scanlines,
-    PythonImage &labelVImage)
+    NumpyFImage &labelImage)
 {
-    PythonSingleBandImage labelImage(labelVImage.subImage(0));
-
     // clip to image range vertically:
     int y = std::max(0, scanlines.startIndex()),
-     endY = std::min(labelImage.height(), scanlines.endIndex());
+     endY = std::min(static_cast<int>(labelImage.shape(1)), scanlines.endIndex());
 
     for(; y < endY; ++y)
     {
@@ -1679,12 +1680,12 @@ void markEdgeInLabelImage(
                   end = scanline[j].end;
             if(begin < 0)
                 begin = 0;
-            if(end > labelImage.width())
-                end = labelImage.width();
+            if(end > labelImage.shape(0))
+                end = labelImage.shape(0);
 
             for(int x = begin; x < end; ++x)
             {
-                PythonSingleBandImage::reference old(labelImage(x, y));
+                GrayValue & old(labelImage(x, y));
                 if(old < 0)
                     old -= 1;
                 else
@@ -1696,15 +1697,13 @@ void markEdgeInLabelImage(
 
 list removeEdgeFromLabelImage(
     const Scanlines &scanlines,
-    PythonImage &labelVImage,
+    NumpyFImage &labelImage,
     GrayValue substituteLabel)
 {
-    PythonSingleBandImage labelImage(labelVImage.subImage(0));
-
     list result;
     // clip to image range vertically:
     int y = std::max(0, scanlines.startIndex()),
-     endY = std::min(labelImage.height(), scanlines.endIndex());
+     endY = std::min(static_cast<int>(labelImage.shape(1)), scanlines.endIndex());
 
     for(; y < endY; ++y)
     {
@@ -1716,12 +1715,12 @@ list removeEdgeFromLabelImage(
                   end = scanline[j].end;
             if(begin < 0)
                 begin = 0;
-            if(end > labelImage.width())
-                end = labelImage.width();
+            if(end > labelImage.shape(0))
+                end = labelImage.shape(0);
 
             for(int x = begin; x < end; ++x)
             {
-                PythonSingleBandImage::reference old(labelImage(x, y));
+                GrayValue & old(labelImage(x, y));
                 if(old != -1)
                 {
                     old += 1;
@@ -1759,6 +1758,14 @@ list intersectLine(
     Vector2
         lineDir(lineEnd - lineStart),
         lineNormal(lineDir[1], -lineDir[0]);
+
+    if(!lineNormal.magnitude())
+    {
+        std::cerr << "WARNING: intersectLine with zero-length line!\n";
+        result.append(polygon);
+        return result;
+    }
+
     lineNormal = lineNormal / lineNormal.magnitude();
 
     Polygon currentPart;

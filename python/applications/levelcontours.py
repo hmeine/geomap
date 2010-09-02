@@ -1,6 +1,6 @@
 import sys, copy
-import vigra, geomap, maputils, flag_constants, progress
-from vigra import Vector2, Point2D
+import numpy, vigra, geomap, maputils, flag_constants, progress
+from geomap import Vector2, Point2D
 
 __all__ = ["levelSetMap", "marchingSquares"]
 
@@ -53,7 +53,7 @@ def findZeroCrossingsOnGrid(siv, level, minDist = 0.1):
 
 def tangentDir(siv, pos):
     result = Vector2(-siv.dy(pos[0], pos[1]), siv.dx(pos[0], pos[1]))
-    return result / result.magnitude()
+    return result / numpy.linalg.norm(result)
 
 def predictorStep(siv, pos, h):
     """predictorStep(siv, pos, h) -> Vector2
@@ -71,14 +71,14 @@ def correctorStep(siv, level, pos, epsilon = 1e-8):
     
     x, y = pos
     n = Vector2(siv.dx(x, y), siv.dy(x, y))
-    n /= n.magnitude()
+    n /= numpy.linalg.norm(n)
 
     for k in range(100):
         value = siv(x, y) - level
         if abs(value) < epsilon:
             break
         
-        g = vigra.dot(Vector2(siv.dx(x, y), siv.dy(x, y)), n)
+        g = numpy.dot(Vector2(siv.dx(x, y), siv.dy(x, y)), n)
         if not g:
             sys.stderr.write("WARNING: correctorStep: zero gradient!\n")
             break # FIXME: return None instead?
@@ -86,7 +86,7 @@ def correctorStep(siv, level, pos, epsilon = 1e-8):
 
         # prevent too large steps (i.e. if norm(g) is small):
         if correction.squaredMagnitude() > 0.25:
-            correction /= 20*correction.magnitude()
+            correction /= 20*numpy.linalg.norm(correction)
 
         x += correction[0]
         y += correction[1]
@@ -104,7 +104,7 @@ def predictorCorrectorStep(siv, level, pos, h, epsilon):
             return p1, None
 
         p2 = correctorStep(siv, level, p1, epsilon)
-        if not p2 or (p2 - p1).squaredMagnitude() > h:
+        if not p2 or squaredNorm(p2 - p1) > h:
             h /= 2.0
             continue
 

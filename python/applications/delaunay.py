@@ -45,6 +45,9 @@ except ImportError:
     sys.stderr.write("WARNING: 'triangle' module not found. CDT will be (not very well) faked.\n")
     triangle = None
 
+def squaredNorm(v):
+    return numpy.dot(v, v)
+
 def _delaunayMapFromData(nodePositions, edgeData, imageSize, sigmaOrbits = None):
     if sigmaOrbits:
         sys.stderr.write(
@@ -80,7 +83,7 @@ def _pointInHole(polygon, level = 2):
         for x in xRange:
             p = Vector2(x, y)
             if polygon.contains(p):
-                result.append(((p-midPoint).squaredMagnitude(), p))
+                result.append((squaredNorm(p-midPoint), p))
     if not result:
         return _pointInHole(polygon, level+1)
     result.sort()
@@ -395,7 +398,7 @@ def _oppositeAngle(p1, p2, p3):
     a = p1 - p3
     b = p2 - p3
     c = dot(a, b) / \
-        math.sqrt(a.squaredMagnitude()*b.squaredMagnitude())
+        math.sqrt(squaredNorm(a)*squaredNorm(b))
     if abs(c) < 1:
         return math.acos(c)
     elif abs(c) > 0:
@@ -532,12 +535,12 @@ def triangleType(p1, p2, p3):
 def oldJunctionNodePosition(p1, p2, p3,
                             joinMiddleThreshold = 1.61):
     "Old, deprecated junction node position defition (ignore this)"
-    a = (p2-p1).magnitude()
-    b = (p3-p2).magnitude()
-    c = (p1-p3).magnitude()
-    sv = Vector(a, b, c)
-    sv /= sv.magnitude()
-    if dot(sv, Vector(1, 1, 1)) < joinMiddleThreshold:
+    a = numpy.linalg.norm(p2-p1)
+    b = numpy.linalg.norm(p3-p2)
+    c = numpy.linalg.norm(p1-p3)
+    sv = numpy.array((a, b, c))
+    sv /= numpy.linalg.norm(sv)
+    if sv.sum() < joinMiddleThreshold:
         s = [a,b,c]
         s.sort()
         if s[2] == a:
@@ -548,9 +551,9 @@ def oldJunctionNodePosition(p1, p2, p3,
             nodePos = (p1+p3)/2
 
 def _middleOfLongestSide(p1, p2, p3):
-    s = [((p2-p1).squaredMagnitude(), (p2+p1)),
-         ((p3-p2).squaredMagnitude(), (p3+p2)),
-         ((p1-p3).squaredMagnitude(), (p1+p3))]
+    s = [(squaredNorm(p2-p1), (p2+p1)),
+         (squaredNorm(p3-p2), (p3+p2)),
+         (squaredNorm(p1-p3), (p1+p3))]
     s.sort()
     return s[2][1] / 2
 
@@ -788,7 +791,7 @@ def _leaveCircle(points, dir, center, radius):
     r2 = radius * radius
     i = dir
     try:
-        while (points[i] - center).squaredMagnitude() < r2:
+        while squaredNorm(points[i] - center) < r2:
             i += dir
     except IndexError:
         i -= dir
@@ -809,14 +812,14 @@ def pruneBarbsByDist(skel, maxDist):
 
         dart = node.anchor()
         while True:
-            if (dart[0] - p).magnitude() < maxDist:
+            if numpy.linalg.norm(dart[0] - p) < maxDist:
                 dart.edge().setFlag(IS_BARB, True)
-                if (dart[-1] - p).magnitude() > maxCutLength:
+                if numpy.linalg.norm(dart[-1] - p) > maxCutLength:
                     dart.edge().setFlag(IS_BARB, False)
                     barbNodeLabels[dart.edgeLabel()] = (dart.startNodeLabel(), p)
-            elif (dart[-1] - p).magnitude() < maxDist:
+            elif numpy.linalg.norm(dart[-1] - p) < maxDist:
                 dart.edge().setFlag(IS_BARB, True)
-                if (dart[0] - p).magnitude() > maxCutLength:
+                if numpy.linalg.norm(dart[0] - p) > maxCutLength:
                     dart.edge().setFlag(IS_BARB, False)
                     barbNodeLabels[dart.edgeLabel()] = (dart.endNodeLabel(), p)
             if dart.nextPhi() == node.anchor():
@@ -864,10 +867,10 @@ def pruneByMorphologicalSignificance(skel, ratio = 0.1):
             edge.setFlag(IS_BARB, True)
 
             endSide = edge.endSide[0]-edge.endSide[1]
-            minDist = ratio * endSide.magnitude()
+            minDist = ratio * numpy.linalg.norm(endSide)
 
             endNormal = Vector2(endSide[1], -endSide[0])
-            endNormal /= endNormal.magnitude()
+            endNormal /= numpy.linalg.norm(endNormal)
 
             for p in edge:
                 if abs(dot(p - edge[-1], endNormal)) > minDist:
@@ -881,10 +884,10 @@ def pruneByMorphologicalSignificance(skel, ratio = 0.1):
             edge.setFlag(IS_BARB, True)
 
             startSide = edge.startSide[0]-edge.startSide[1]
-            minDist = ratio * max(1.0, startSide.magnitude())
+            minDist = ratio * max(1.0, numpy.linalg.norm(startSide))
 
             startNormal = Vector2(startSide[1], -startSide[0])
-            startNormal /= startNormal.magnitude()
+            startNormal /= numpy.linalg.norm(startNormal)
 
             for p in edge:
                 if abs(dot(p - edge[0], startNormal)) > minDist:
@@ -1037,13 +1040,13 @@ def circumCircle(p1, p2, p3):
     Returns the center and radius of the circumcircle of the given
     three points."""
     
-    p1sm = p1.squaredMagnitude()
+    p1sm = squaredNorm(p1)
     x1 = p1[0]
     y1 = p1[1]
-    p2sm = p2.squaredMagnitude()
+    p2sm = squaredNorm(p2)
     x2 = p2[0]
     y2 = p2[1]
-    p3sm = p3.squaredMagnitude()
+    p3sm = squaredNorm(p3)
     x3 = p3[0]
     y3 = p3[1]
     a = numpy.linalg.det(

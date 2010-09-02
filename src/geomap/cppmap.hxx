@@ -14,13 +14,10 @@
 #include <cfloat>
 
 #ifdef _WIN32 // at least _MSC_VER and __MINGW32__ don't have isnan:
-inline int isnan(double t) { return _isnan(t); }
+  inline int isnan(double t) { return _isnan(t); }
 #else
-#include <math.h>
-// isnan is C99, Linux manpage says:
-// "Compile with -std=c99; link with -lm."
-// this is a workaround according to P.J. Plauger (Dinkumware):
-// # define cppmap_isnan_workaround(x) ((x) != (x))
+# include <cmath>
+  using std::isnan;
 #endif
 
 // The define USE_INSECURE_CELL_PTRS can be used to switch between

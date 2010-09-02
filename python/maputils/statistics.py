@@ -1,10 +1,12 @@
-import math, string, copy, weakref
-from vigra import *
-import geomap
+import math, sys, string, copy, weakref
+import numpy, vigra.sampling, geomap
 from geomap import \
-     FaceGrayStatistics, FaceRGBStatistics, \
+     Vector2, FaceGrayStatistics, FaceRGBStatistics, \
      resamplePolygon, tangentList, tangentListGaussianReflective
 import sivtools, flag_constants
+
+def squaredNorm(v):
+    return numpy.dot(v, v)
 
 class DetachableStatistics(object):
     """Base class for all dynamic statistics.
@@ -79,9 +81,9 @@ def trainingData(dartPath, faceMeans, edgeGradients):
         rightVariance(faceMeans.variance(dart.rightFaceLabel(), True), weight)
         grad(edgeGradients.dartAverage(dart), weight)
 
-    leftSigma2 = norm(left.variance(True) + leftVariance.average())
+    leftSigma2 = numpy.linalg.norm(left.variance(True) + leftVariance.average())
     leftAvg = left.average()
-    rightSigma2 = norm(right.variance(True) + rightVariance.average())
+    rightSigma2 = numpy.linalg.norm(right.variance(True) + rightVariance.average())
     rightAvg = right.average()
     gradSigma2 = grad.variance(True)
     gradAvg = grad.average()
@@ -94,9 +96,9 @@ def trainedMeasure(dartPath, faceMeans, edgeGradients, weights = (1, 1, 1)):
     w1, w2, w3 = weights
     weightNorm = 1.0/sum(weights)
     return lambda dart: weightNorm * (
-        w1*math.exp(-vigra.sq(faceMeans[dart.leftFaceLabel()]-leftAvg)/leftSigma2) + \
-        w2*math.exp(-vigra.sq(faceMeans[dart.rightFaceLabel()]-rightAvg)/rightSigma2) + \
-        w3*math.exp(-vigra.sq(edgeGradients.dartAverage(dart))/gradSigma2))
+        w1*math.exp(-numpy.square(faceMeans[dart.leftFaceLabel()]-leftAvg)/leftSigma2) + \
+        w2*math.exp(-numpy.square(faceMeans[dart.rightFaceLabel()]-rightAvg)/rightSigma2) + \
+        w3*math.exp(-numpy.square(edgeGradients.dartAverage(dart))/gradSigma2))
 
 # --------------------------------------------------------------------
 #              Region-based Statistics & Cost Measures
@@ -197,7 +199,7 @@ def superSample(face, level = 2):
 # new API: does not touch the Face objects themselves
 class _FaceColorStatistics(DynamicFaceStatistics):
     def __init__(self, map, originalImage, minSampleCount = 1,
-                 defaultValue = None, SIV = SplineImageView5):
+                 defaultValue = None, SIV = vigra.sampling.SplineImageView5):
         DynamicFaceStatistics.__init__(self, map)
         self.originalImage = originalImage
 
@@ -317,7 +319,7 @@ class _FaceColorStatistics(DynamicFaceStatistics):
         f = self._functors
         m1 = f[dart.leftFaceLabel()].average()
         m2 = f[dart.rightFaceLabel()].average()
-        return (m1 - m2).norm() / self._diffNorm
+        return numpy.linalg.norm(m1 - m2) / self._diffNorm
 
     def facePoissonLikelyhoodRatio(self, dart):
         f1 = self.faceMeanFunctor(dart.leftFaceLabel())
@@ -406,25 +408,25 @@ def mergedContourLength(dart):
 
 def mergedIsoperimetricQuotient(dart):
     left, common, right = _ipqLengths(dart)
-    return vigra.sq(left+right) \
+    return numpy.square(left+right) \
            / (4*math.pi*(dart.leftFace().area() + dart.rightFace().area()))
 
 def mergedIsoperimetricQuotient2(dart):
     left, common, right = _ipqLengths(dart)
-    after = vigra.sq(left+right) \
+    after = numpy.square(left+right) \
             / ((dart.leftFace().area() + dart.rightFace().area()))
-    beforeLeft = vigra.sq(left+common) / dart.leftFace().area()
-    beforeRight = vigra.sq(right+common) / dart.rightFace().area()
+    beforeLeft = numpy.square(left+common) / dart.leftFace().area()
+    beforeRight = numpy.square(right+common) / dart.rightFace().area()
     return after / (beforeLeft + beforeRight)
 
 def seedIsoperimetricQuotient(dart):
     left, common, right = _ipqLengths(dart)
-    after = vigra.sq(left+right) \
+    after = numpy.square(left+right) \
             / ((dart.leftFace().area() + dart.rightFace().area()))
     if dart.leftFace().flag(flag_constants.SRG_SEED):
-        beforeLeft = vigra.sq(left+common) / dart.leftFace().area()
+        beforeLeft = numpy.square(left+common) / dart.leftFace().area()
         return after / beforeLeft
-    beforeRight = vigra.sq(right+common) / dart.rightFace().area()
+    beforeRight = numpy.square(right+common) / dart.rightFace().area()
     return after / beforeRight
 
 # --------------------------------------------------------------------
@@ -1053,7 +1055,7 @@ class EdgeGradientStatistics(BoundaryIndicatorStatistics):
 
                     segment = Vector2(-math.sin(theta), math.cos(theta))
 
-                    stats(dot(gradDir, segment), 1.0)
+                    stats(numpy.dot(gradDir, segment), 1.0)
 
                 self._functors[edge.label()] = stats
 
@@ -1288,7 +1290,7 @@ class EdgeMinimumDistance(DynamicEdgeStatistics):
             for p in edge:
                 near = minimaMap(p, mindist2)
                 if near:
-                    mindist2 = (near-p).squaredMagnitude()
+                    mindist2 = squaredNorm(near-p)
             setattr(edge, self.attrName, math.sqrt(mindist2))
         self._attachHooks()
 
@@ -1308,10 +1310,8 @@ def calcGradScaleSum(image, steps):
         if (image.bands()>1):
             for j in range(1,image.bands()):
                 ti += vectorToTensor(gaussianGradientAsVector(image.subImage(j),scale))
-        gm = transformImage(tensorTrace(ti),'\l x:sqrt(x)')
-        mm = MinMax()
-        inspectImage(gm,mm)
-        gm = linearRangeMapping(gm,oldRange=(0,mm.max()),newRange=(0,1.0))
+        gm = numpy.sqrt(tensorTrace(ti))
+        gm = (gm / gm.max()).clip(0, 1)
         gss += gm
         scale *= 1.41421
     return gss
@@ -1428,14 +1428,14 @@ def contAngle(d1,d2,length):
     l=0
     p1=pl1[1]
     for i in range(2,len(pl1)):
-        l+=(pl1[i]-pl1[i-1]).norm()
+        l+=numpy.linalg.norm(pl1[i]-pl1[i-1])
         p1=pl1[i]
         if l>length:
             break
     l=0
     p2=pl2[1]
     for i in range(2,len(pl2)):
-        l+=(pl2[i]-pl2[i-1]).norm()
+        l+=numpy.linalg.norm(pl2[i]-pl2[i-1])
         p2=pl2[i]
         if l>length:
             break
@@ -1530,7 +1530,7 @@ class EdgeRegularity(DetachableStatistics):
             None, self.postMergeEdges), )
 
     def calcRegularity(self,edge):
-        segLengths=[(edge[i]-edge[i-1]).magnitude() for i in range(1,len(edge))]
+        segLengths=[numpy.linalg.norm(edge[i]-edge[i-1]) for i in range(1,len(edge))]
         regList=[]
         for i in range(len(segLengths)):
             totalLength=0.0
@@ -1542,11 +1542,11 @@ class EdgeRegularity(DetachableStatistics):
                     break
             if endPoint<0:
                 break;
-            regList.append(((edge[i]-edge[endPoint]).magnitude()/totalLength,totalLength))
+            regList.append((numpy.linalg.norm(edge[i]-edge[endPoint])/totalLength,totalLength))
         stats = EdgeStatistics()
         if len(regList)==0:
             l=sum(segLengths)
-            stats((edge[0]-edge[-1]).magnitude()/l,l)
+            stats(numpy.linalg.norm(edge[0]-edge[-1])/l,l)
         else:
             for r in regList:
                 stats(r[0],r[1])
@@ -1677,6 +1677,6 @@ def gcByArcLength(al):
         t1 = p1 - dp1() # tangents
         t2 = dp2() - p1
         # tangent direction agreement:
-        return dot(t1, t2) / (t1.magnitude() * t2.magnitude())
+        return numpy.dot(t1, t2) / (t1.magnitude() * t2.magnitude())
 
     return goodContinuation

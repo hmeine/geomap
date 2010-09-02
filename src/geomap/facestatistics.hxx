@@ -252,7 +252,7 @@ class FaceColorStatistics : boost::noncopyable
 #ifndef NDEBUG
             if(originalImage_.isInside(*it))
 #endif
-                f(originalImage_[*it]);
+                f(originalImage_((*it).x,(*it).y));
         }
 
 #ifndef NDEBUG
@@ -414,7 +414,7 @@ class FaceColorStatistics : boost::noncopyable
     void rescanFace(const GeoMap::Face &face, Functor &f)
     {
         vigra::Rect2D faceROI(detail::intPos(face.boundingBox()));
-        faceROI &= vigra::Rect2D(originalImage_.size());
+        faceROI &= vigra::Rect2D(vigra::Size2D(originalImage_.shape(0),originalImage_.shape(1)));
 
         GeoMap::LabelImageIterator
             labUL = map_.labelsUpperLeft(),
@@ -427,7 +427,7 @@ class FaceColorStatistics : boost::noncopyable
             GeoMap::LabelImageIterator lab(ul);
             for(; lab.x < lr.x; ++lab.x)
                 if(lac(lab) == (int)face.label())
-                    f(originalImage_[lab-labUL]);
+                    f(originalImage_((lab-labUL).x, (lab-labUL).y));
         }
     }
 
