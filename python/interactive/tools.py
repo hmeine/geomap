@@ -180,10 +180,14 @@ class ManualClassifier(qt.QObject):
         if self.filter and not self.filter(face):
             return
 
+        try:
+            self._paintClassIndex = self._classes.index(
+                face.flag(self._classMask))
+        except IndexError:
+            return
+
         self._pressed = button
         self._toggling = True
-        self._paintClassIndex = self._classes.index(
-            face.flag(self._classMask))
         self._currentLabel = face.label()
 
     def mouseMoved(self, x, y):
