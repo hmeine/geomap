@@ -160,6 +160,10 @@ def constrainedDelaunayMap(polygons, imageSize, extraPoints = [],
 def delaunayMap(points, imageSize = (0, 0)):
     """Return a GeoMap containing a Delaunay Triangulation of the given
     points."""
+
+    if len(points) < 3:
+        raise ValueError, \
+              "cannot compute Delaunay Triangulation of less than three points"
     
     if triangle:
         nodePositions, edges = triangle.delaunay(points)
