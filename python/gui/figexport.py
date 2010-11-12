@@ -597,6 +597,9 @@ class FigExporter:
     def save(self, filename, fig2dev = None):
         """Save the resulting XFig file to 'filename' (cf. fig.File.save)."""
 
+        if fig2dev is not None and filename.endswith("." + fig2dev):
+            filename = filename[:-len(fig2dev)-1]
+
         return self.f.save(filename, fig2dev)
 
     def saveEPS(self, basename):

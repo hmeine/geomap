@@ -163,6 +163,10 @@ def constrainedDelaunayMap(polygons, imageSize, extraPoints = [],
 def delaunayMap(points, imageSize = (0, 0)):
     """Return a GeoMap containing a Delaunay Triangulation of the given
     points."""
+
+    if len(points) < 3:
+        raise ValueError, \
+              "cannot compute Delaunay Triangulation of less than three points"
     
     if triangle:
         nodePositions, edges = triangle.delaunay(points)
@@ -497,6 +501,42 @@ def middlePoint(twoPointEdge):
 
 def baryCenter(*points):
     return sum(points) / len(points)
+
+TT_OBTUSE = -1
+TT_RIGHT  = 0
+TT_ACUTE  = 1
+
+def triangleType(p1, p2, p3):
+    """Given triangle between points (p1, p2, p3), return -1 for
+    obtuse triangles, 0 for right triangles, 1 for acute ones."""
+    a2 = (p2-p1).squaredMagnitude()
+    b2 = (p3-p2).squaredMagnitude()
+    c2 = (p1-p3).squaredMagnitude()
+
+    return triangleTypeFromSides(a2, b2, c2)
+
+def triangleTypeFromSides(a2, b2, c2):
+    """Given squared triangle side lengths (a2, b2, c2), return -1 for
+    obtuse triangles, 0 for right triangles, 1 for acute ones."""
+
+    # see http://mathworld.wolfram.com/AcuteTriangle.html
+
+    if (a2 + b2) < c2:
+        return TT_OBTUSE
+    if (a2 + b2) == c2:
+        return TT_RIGHT
+
+    if (b2 + c2) < a2:
+        return TT_OBTUSE
+    if (b2 + c2) == a2:
+        return TT_RIGHT
+
+    if (c2 + a2) < b2:
+        return TT_OBTUSE
+    if (c2 + a2) == b2:
+        return TT_RIGHT
+
+    return TT_ACUTE
 
 def oldJunctionNodePosition(p1, p2, p3,
                             joinMiddleThreshold = 1.61):
@@ -1032,16 +1072,22 @@ def circumCircle(p1, p2, p3):
                       [p2sm, x2, y2],
                       [p3sm, x3, y3]]))
     circumCenter = Vector2(-d/(2*a), -e/(2*a))
-    try: # FIXME: HACK (DAGM deadline approaching)!!!
-        circumRadius = math.sqrt((math.sq(d)+math.sq(e))/(4*math.sq(a))-f/a)
-    except ValueError:
-        sys.stderr.write("WARNING: Could not calculate triangle circumcircle!\n")
-        lengths = [dart.edge().length()
-                   for dart in contours[0].phiOrbit()] # FIXME: which `contours`?
+
+    denom = 4*math.sq(a) - f/a
+
+    circumRadius2 = (math.sq(d) + math.sq(e)) / (4*math.sq(a)) - f/a
+
+    if circumRadius2 > 0:
+        circumRadius = math.sqrt(circumRadius2)
+    else:
+        lengths = [(p2-p1).magnitude(),
+                   (p3-p2).magnitude(),
+                   (p1-p3).magnitude()]
         lengths.sort()
         circumRadius = (lengths[1] + lengths[2]) / 4.0
-        sys.stderr.write("  Side lengths are %s -> improvised radius = %s\n"
+        sys.stderr.write("circumcircle: side lengths^2 are %s -> improvised radius = %s\n"
                          % (lengths, circumRadius))
+
     return circumCenter, circumRadius
 
 def calculateTriangleCircumcircles(delaunayMap):
