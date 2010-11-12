@@ -1,9 +1,7 @@
-import fig, delaunay, sys, math, vigra, geomap
-from geomap import Polygon
+import fig, delaunay, math, numpy, vigra, geomap, crackConvert
+from geomap import Polygon, Vector2
 from flag_constants import BORDER_PROTECTION, ALL_PROTECTION, ALPHA_MARK
 from maputils import nodeAtBorder
-
-from math import *
 
 __all__ = ["extractMapPoints", "midCrackPoints", "samplingPoints",
            "maxSegmentLength",
@@ -19,6 +17,9 @@ __all__ = ["extractMapPoints", "midCrackPoints", "samplingPoints",
 
 # --------------------------------------------------------------------
 
+def squaredNorm(v):
+    return numpy.dot(v, v)
+
 def extractMapPoints(map, includeNodes = True):
     if not includeNodes:
         result = []
@@ -30,7 +31,7 @@ def extractMapPoints(map, includeNodes = True):
     return result
 
 def midCrackPoints(img):
-    spmap = pixelmap.crackEdgeMap(img)
+    spmap = crackConvert.crackEdgeMap(img)
     return extractMapPoints(spmap, False)
 
 def samplingPoints(img, threshold = 128):
@@ -42,7 +43,7 @@ def maxSegmentLength(map):
     for edge in map.edgeIter():
         if not edge.flag(BORDER_PROTECTION):
             result = max(result, max(
-                [(edge[i+1]-edge[i]).magnitude() for i in range(len(edge)-1)]))
+                [(numpy.linalg.norm(edge[i+1]-edge[i])) for i in range(len(edge)-1)]))
     return result
 
 # --------------------------------------------------------------------
@@ -81,7 +82,8 @@ def markAlphaShapes(delaunayMap, alpha, beta = 0.0):
             p2 = edge[1]
             midPoint = (p1 + p2)/2
 
-            if (edge.dart().nextSigma()[1]-midPoint).squaredMagnitude() >= radius2 and (edge.dart().nextAlpha().nextSigma()[1]-midPoint).squaredMagnitude() >= radius2:
+            if (squaredNorm(edge.dart().nextSigma()[1]-midPoint) >= radius2 and
+                squaredNorm(edge.dart().nextAlpha().nextSigma()[1]-midPoint) >= radius2):
                 edge.setFlag(ALPHA_MARK)
     
     print "  %d/%d edges and %d/%d faces marked." % (
@@ -183,7 +185,7 @@ def findCandidatesForPointCorrection(abm):
             d.nextSigma()
             p1 = d.endNode().position()
             dx, dy = p1 - p0
-            orientation = atan2(dy, dx)
+            orientation = math.atan2(dy, dx)
             mayMove.append(vigra.Edgel(p[0], p[1], 1, orientation))
     return mayMove, dontMove
 
@@ -325,7 +327,7 @@ def findMinAlpha(dm, goodAlpha, badAlpha, beta = 0.0):
     def countComponents(alpha, dm = dm, beta = beta):
         return markAlphaShapes(dm, alpha, beta)
 
-    return findChangeByBisection(countComponents, goodAlpha, alpha)
+    return findChangeByBisection(countComponents, goodAlpha, badAlpha)
 
 def findMaxBeta(dm, alpha, badBeta):
     def countComponents(beta, dm = dm, alpha = alpha):
@@ -335,7 +337,7 @@ def findMaxBeta(dm, alpha, badBeta):
 
 # --------------------------------------------------------------------
 
-from heapq import * # requires Python 2.3+
+from heapq import heappush, heappop
 
 def alphaShapeThinning(dm):
     """Region-growing based thinning.  The ALPHA_MARK flag is removed

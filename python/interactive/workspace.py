@@ -673,7 +673,6 @@ def main(filename, biScale = 1.6, saddleThreshold = 0.2):
     return Workspace(wsm, img, bi = gm)
 
 if __name__ == "__main__":
-    import sys
     #filename = "../../../Testimages/lenna_original_color.png"
     filename = "../../../Testimages/blox.png"
     biScale = 1.6
