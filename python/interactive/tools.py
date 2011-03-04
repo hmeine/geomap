@@ -1,9 +1,11 @@
 """tools - module with interactive GeoMap tools"""
 
-import sys, qt, maputils, geomap
+import sys
+from PyQt4 import QtCore, QtGui
+import geomap, maputils
 from maputils import mergeFacesByLabel
 from flag_constants import FOREGROUND_FACE, BACKGROUND_FACE, SRG_SEED
-from vigrapyqt import EdgeOverlay, PointOverlay
+from vigrapyqt4 import EdgeOverlay, PointOverlay
 
 __all__ = ["MapSearcher", "ManualClassifier", "ActivePaintbrush", "SeedSelector",
            "IntelligentScissors", "LiveWire"]
@@ -12,16 +14,16 @@ __all__ = ["MapSearcher", "ManualClassifier", "ActivePaintbrush", "SeedSelector"
 #                     interaction with image viewer
 # --------------------------------------------------------------------
 
-class MapSearcher(qt.QObject):
-    def __init__(self, map, display, name = None):
-        qt.QObject.__init__(self, display, name)
+class MapSearcher(QtCore.QObject):
+    def __init__(self, map, display):
+        QtCore.QObject.__init__(self, display)
         self._map = map
         self.display = display
-        self.connect(display.viewer, qt.PYSIGNAL("mousePressed"),
+        self.connect(display.viewer, QtCore.SIGNAL("mousePressed"),
                      self.search)
 
     def search(self, x, y, button):
-        if button != qt.Qt.LeftButton:
+        if button != QtCore.Qt.LeftButton:
             return
         nearestNode = self._map.nearestNode((x, y))
         #sys.stdout.write("Node %d is %.2f from %d/%d\n" % (nearestNode.label(), minDist, x, y))
@@ -29,23 +31,23 @@ class MapSearcher(qt.QObject):
             self.display.navigate(nearestNode.anchor(), center = False)
 
     def disconnectViewer(self):
-        self.disconnect(self.display.viewer, qt.PYSIGNAL("mousePressed"),
+        self.disconnect(self.display.viewer, QtCore.SIGNAL("mousePressed"),
                         self.search)
 
-class _OldManualClassifier(qt.QObject):
+class _OldManualClassifier(QtCore.QObject):
     classes = [None, False, True]
 
-    def __init__(self, map, foreground, parent = None, name = None):
-        qt.QObject.__init__(self, parent, name)
+    def __init__(self, map, foreground, parent = None):
+        QtCore.QObject.__init__(self, parent)
         self._map = map
         viewer = parent.viewer
-        self.connect(viewer, qt.PYSIGNAL("mousePressed"),
+        self.connect(viewer, QtCore.SIGNAL("mousePressed"),
                      self.mousePressed)
         self.foreground = foreground
         self.manual = {}
 
     def mousePressed(self, x, y, button):
-        if button != qt.Qt.LeftButton:
+        if button != QtCore.Qt.LeftButton:
             return
         face = self._map.faceAt((x, y))
         oldClass = self.foreground[face.label()]
@@ -53,14 +55,14 @@ class _OldManualClassifier(qt.QObject):
         self.foreground[face.label()] = newClass
         self.manual[face.label()] = newClass
         print "manually changed face %d to %s" % (face.label(), newClass)
-        self.emit(qt.PYSIGNAL("classChanged"), (face, ))
+        self.emit(QtCore.SIGNAL("classChanged"), (face, ))
 
     def disconnectViewer(self):
         viewer = self.parent().viewer
-        self.disconnect(viewer, qt.PYSIGNAL("mousePressed"),
+        self.disconnect(viewer, QtCore.SIGNAL("mousePressed"),
                         self.mousePressed)
 
-class ManualClassifier(qt.QObject):
+class ManualClassifier(QtCore.QObject):
     """Allows interactive classification of GeoMap faces.  Also
     manages a list of FaceOverlays to display the current
     classification.
@@ -79,7 +81,7 @@ class ManualClassifier(qt.QObject):
                             BACKGROUND_FACE,
                             0),
                  classNames = None,
-                 colors = (qt.Qt.yellow, qt.Qt.cyan),
+                 colors = (QtCore.Qt.yellow, QtCore.Qt.cyan),
                  filter = None,
                  parent = None):
         """Initialize and start the ManualClassifier tool.
@@ -104,7 +106,7 @@ class ManualClassifier(qt.QObject):
         For display and interaction reasons, the given parent (usually
         a MapDisplay) *must* have a 'viewer' attribute."""
 
-        qt.QObject.__init__(self, parent)
+        QtCore.QObject.__init__(self, parent)
 
         self.manual = {}
 
@@ -136,11 +138,11 @@ class ManualClassifier(qt.QObject):
         self._toggling = False
 
         viewer = parent.viewer
-        self.connect(viewer, qt.PYSIGNAL("mousePressed"),
+        self.connect(viewer, QtCore.SIGNAL("mousePressed"),
                      self.mousePressed)
-        self.connect(viewer, qt.PYSIGNAL("mousePosition"),
+        self.connect(viewer, QtCore.SIGNAL("mousePosition"),
                      self.mouseMoved)
-        self.connect(viewer, qt.PYSIGNAL("mouseReleased"),
+        self.connect(viewer, QtCore.SIGNAL("mouseReleased"),
                      self.mouseReleased)
         for o in self._overlays:
             viewer.addOverlay(o)
@@ -161,7 +163,7 @@ class ManualClassifier(qt.QObject):
         self.manual[face.label()] = newClassIndex
         #print "manually changed face %d to %s" % (face.label(), newClassIndex)
         self._overlays[0].updateFaceROI(face)
-        self.emit(qt.PYSIGNAL("classChanged"), (face, ))
+        self.emit(QtCore.SIGNAL("classChanged"), (face, ))
 
     def toggleOverlays(self, onoff = None):
         if onoff is None:
@@ -174,7 +176,7 @@ class ManualClassifier(qt.QObject):
     def mousePressed(self, x, y, button):
         if not self._enabled:
             return
-        if button not in (qt.Qt.LeftButton, qt.Qt.MidButton):
+        if button not in (QtCore.Qt.LeftButton, QtCore.Qt.MidButton):
             return
         face = self._map.faceAt((x, y))
         if self.filter and not self.filter(face):
@@ -214,7 +216,7 @@ class ManualClassifier(qt.QObject):
         if self._toggling:
             face = self._map.face(self._currentLabel)
             classes = self._classes
-            offset = self._pressed == qt.Qt.LeftButton \
+            offset = self._pressed == QtCore.Qt.LeftButton \
                      and 1 or (len(classes) - 1)
             self.setClassIndex(
                 face, (self._paintClassIndex + offset) % len(classes))
@@ -224,33 +226,33 @@ class ManualClassifier(qt.QObject):
 
     def disconnectViewer(self):
         viewer = self.parent().viewer
-        self.disconnect(viewer, qt.PYSIGNAL("mousePressed"),
+        self.disconnect(viewer, QtCore.SIGNAL("mousePressed"),
                         self.mousePressed)
         for o in self._overlays:
             viewer.removeOverlay(o)
 
-class SeedSelector(qt.QObject):
+class SeedSelector(QtCore.QObject):
     def __init__(self, map = None, markFlags = SRG_SEED,
-                 parent = None, name = None):
-        qt.QObject.__init__(self, parent, name)
+                 parent = None):
+        QtCore.QObject.__init__(self, parent)
         self.seeds = []
         self._seedMap = None
 
         viewer = parent.viewer
-        self.connect(viewer, qt.PYSIGNAL("mousePressed"),
+        self.connect(viewer, QtCore.SIGNAL("mousePressed"),
                      self.mousePressed)
         viewer.installEventFilter(self)
 
-        self.overlay = PointOverlay(self.seeds, qt.Qt.cyan, 2)
+        self.overlay = PointOverlay(self.seeds, QtCore.Qt.cyan, 2)
         viewer.addOverlay(self.overlay)
 
         self.map = map
         self.markFlags = markFlags
 
     def eventFilter(self, watched, e):
-        if e.type() in (qt.QEvent.KeyPress, qt.QEvent.KeyRelease,
-                        qt.QEvent.MouseButtonPress, qt.QEvent.MouseButtonRelease,
-                        qt.QEvent.MouseButtonDblClick, qt.QEvent.MouseMove):
+        if e.type() in (QtCore.QEvent.KeyPress, QtCore.QEvent.KeyRelease,
+                        QtCore.QEvent.MouseButtonPress, QtCore.QEvent.MouseButtonRelease,
+                        QtCore.QEvent.MouseButtonDblClick, QtCore.QEvent.MouseMove):
             self._keyState = e.stateAfter()
         return False
 
@@ -267,15 +269,15 @@ class SeedSelector(qt.QObject):
         return self._seedMap
 
     def mousePressed(self, x, y, button):
-        if button != qt.Qt.LeftButton:
+        if button != QtCore.Qt.LeftButton:
             return
 
         viewer = self.parent().viewer
 
-        if not self._keyState & qt.Qt.ControlButton:
+        if not self._keyState & QtCore.Qt.ControlButton:
             seed = (x, y)
             self.seeds.append(seed)
-            self.emit(qt.PYSIGNAL("seedAdded"), (seed, ))
+            self.emit(QtCore.SIGNAL("seedAdded"), (seed, ))
             if self.map and self.markFlags:
                 self.map.faceAt(seed).setFlag(self.markFlags)
         else:
@@ -284,7 +286,7 @@ class SeedSelector(qt.QObject):
                 return
             self.seeds.remove(seed)
             self._seedMap.remove(seed)
-            self.emit(qt.PYSIGNAL("seedRemoved"), (seed, ))
+            self.emit(QtCore.SIGNAL("seedRemoved"), (seed, ))
             if self.map and self.markFlags:
                 self.map.faceAt((x, y)).setFlag(self.markFlags, False)
         
@@ -293,7 +295,7 @@ class SeedSelector(qt.QObject):
         
     def disconnectViewer(self):
         viewer = self.parent().viewer
-        self.disconnect(viewer, qt.PYSIGNAL("mousePressed"),
+        self.disconnect(viewer, QtCore.SIGNAL("mousePressed"),
                         self.mousePressed)
         viewer.removeOverlay(self.overlay)
         viewer.removeEventFilter(self)
@@ -302,9 +304,9 @@ class SeedSelector(qt.QObject):
 
 from flag_constants import PROTECTED_FACE
 
-class ActivePaintbrush(qt.QObject):
-    def __init__(self, map, parent = None, name = None):
-        qt.QObject.__init__(self, parent, name)
+class ActivePaintbrush(QtCore.QObject):
+    def __init__(self, map, parent = None):
+        QtCore.QObject.__init__(self, parent)
         self._map = map
         self._painting = False
         self._currentLabel = None
@@ -313,17 +315,17 @@ class ActivePaintbrush(qt.QObject):
         self._mapArea = s.width * s.height
 
         viewer = parent.viewer
-        self.connect(viewer, qt.PYSIGNAL("mousePressed"),
+        self.connect(viewer, QtCore.SIGNAL("mousePressed"),
                      self.mousePressed)
-        self.connect(viewer, qt.PYSIGNAL("mousePosition"),
+        self.connect(viewer, QtCore.SIGNAL("mousePosition"),
                      self.mouseMoved)
-        self.connect(viewer, qt.PYSIGNAL("mouseReleased"),
+        self.connect(viewer, QtCore.SIGNAL("mouseReleased"),
                      self.mouseReleased)
-        self.connect(viewer, qt.PYSIGNAL("mouseDoubleClicked"),
+        self.connect(viewer, QtCore.SIGNAL("mouseDoubleClicked"),
                      self.mouseDoubleClicked)
 
     def mousePressed(self, x, y, button):
-        if button != qt.Qt.LeftButton:
+        if button != QtCore.Qt.LeftButton:
             return
         if not self._map.mapInitialized():
             sys.stderr.write("Paintbrush: Map not initialized. Unable to determine faces.\n")
@@ -333,7 +335,7 @@ class ActivePaintbrush(qt.QObject):
         self._path = []
         self._changed = False
         self.mouseMoved(x, y)
-        self.emit(qt.PYSIGNAL("paintbrushStarted"), (
+        self.emit(QtCore.SIGNAL("paintbrushStarted"), (
             self._map.face(self._currentLabel), ))
 
     def mouseMoved(self, x, y):
@@ -367,23 +369,23 @@ class ActivePaintbrush(qt.QObject):
     def mouseReleased(self, x, y):
         self._painting = False
         if self._currentLabel is not None:
-            self.emit(qt.PYSIGNAL("paintbrushFinished"), (
+            self.emit(QtCore.SIGNAL("paintbrushFinished"), (
                 self._map.face(self._currentLabel), ))
 
     def mouseDoubleClicked(self, x, y):
         face = self._map.faceAt((x, y))
         maputils.protectFace(face, not face.flag(PROTECTED_FACE))
-        self.emit(qt.PYSIGNAL("faceProtectionChanged"), (face, ))
+        self.emit(QtCore.SIGNAL("faceProtectionChanged"), (face, ))
 
     def disconnectViewer(self):
         viewer = self.parent().viewer
-        self.disconnect(viewer, qt.PYSIGNAL("mousePressed"),
+        self.disconnect(viewer, QtCore.SIGNAL("mousePressed"),
                         self.mousePressed)
-        self.disconnect(viewer, qt.PYSIGNAL("mousePosition"),
+        self.disconnect(viewer, QtCore.SIGNAL("mousePosition"),
                         self.mouseMoved)
-        self.disconnect(viewer, qt.PYSIGNAL("mouseReleased"),
+        self.disconnect(viewer, QtCore.SIGNAL("mouseReleased"),
                         self.mouseReleased)
-        self.disconnect(viewer, qt.PYSIGNAL("mouseDoubleClicked"),
+        self.disconnect(viewer, QtCore.SIGNAL("mouseDoubleClicked"),
                         self.mouseDoubleClicked)
 
 # --------------------------------------------------------------------
@@ -542,9 +544,9 @@ class LiveWire(object):
             endNodeLabel = self._endNodeLabel
         return self._nodePaths[endNodeLabel][0]
 
-class IntelligentScissors(qt.QObject):
-    def __init__(self, map, mapEdges, parent = None, name = None):
-        qt.QObject.__init__(self, parent, name)
+class IntelligentScissors(QtCore.QObject):
+    def __init__(self, map, mapEdges, parent = None):
+        QtCore.QObject.__init__(self, parent)
         self._map = map
 
         self._liveWire = None
@@ -554,40 +556,40 @@ class IntelligentScissors(qt.QObject):
         self._contour = [] # darts within current (multi-segment) contour
         self._prevContour = None # last finished _contour
         self._seeds = [] # all seeds of all contours (for debugging ATM)
-        self._expandTimer = qt.QTimer(self, "expandTimer")
+        self._expandTimer = QtCore.QTimer(self, "expandTimer")
         self._mapEdges = mapEdges
-        self.connect(self._expandTimer, qt.SIGNAL("timeout()"),
+        self.connect(self._expandTimer, QtCore.SIGNAL("timeout()"),
                      self._expandBorder)
         self.protect = True
 
         # connect viewer
         self.viewer = parent.viewer
-        self.connect(self.viewer, qt.PYSIGNAL("mousePressed"),
+        self.connect(self.viewer, QtCore.SIGNAL("mousePressed"),
                      self.mousePressed)
-        self.connect(self.viewer, qt.PYSIGNAL("mousePosition"),
+        self.connect(self.viewer, QtCore.SIGNAL("mousePosition"),
                      self.mouseMoved)
-        self.connect(self.viewer, qt.PYSIGNAL("mouseDoubleClicked"),
+        self.connect(self.viewer, QtCore.SIGNAL("mouseDoubleClicked"),
                      self.mouseDoubleClicked)
         self.viewer.installEventFilter(self)
         self.overlayIndex = self.viewer.addOverlay(
-            PointOverlay([], qt.Qt.green, 1))
+            PointOverlay([], QtCore.Qt.green, 1))
 
     def disconnectViewer(self):
-        self.disconnect(self.viewer, qt.PYSIGNAL("mousePressed"),
+        self.disconnect(self.viewer, QtCore.SIGNAL("mousePressed"),
                         self.mousePressed)
-        self.disconnect(self.viewer, qt.PYSIGNAL("mousePosition"),
+        self.disconnect(self.viewer, QtCore.SIGNAL("mousePosition"),
                         self.mouseMoved)
-        self.disconnect(self.viewer, qt.PYSIGNAL("mouseDoubleClicked"),
+        self.disconnect(self.viewer, QtCore.SIGNAL("mouseDoubleClicked"),
                         self.mouseDoubleClicked)
         self.viewer.removeOverlay(self.overlayIndex)
         self.viewer.removeEventFilter(self)
 
     def eventFilter(self, watched, e):
-        if e.type() in (qt.QEvent.KeyPress, qt.QEvent.KeyRelease,
-                        qt.QEvent.MouseButtonPress, qt.QEvent.MouseButtonRelease,
-                        qt.QEvent.MouseButtonDblClick, qt.QEvent.MouseMove):
+        if e.type() in (QtCore.QEvent.KeyPress, QtCore.QEvent.KeyRelease,
+                        QtCore.QEvent.MouseButtonPress, QtCore.QEvent.MouseButtonRelease,
+                        QtCore.QEvent.MouseButtonDblClick, QtCore.QEvent.MouseMove):
             self._keyState = e.stateAfter()
-            self.protect = not self._keyState & qt.Qt.ControlButton
+            self.protect = not self._keyState & QtCore.Qt.ControlButton
         return False
 
     def startContour(self):
@@ -625,7 +627,7 @@ class IntelligentScissors(qt.QObject):
         if self._contour:
             for dart in self._contour:
                 dart.edge().setFlag(CURRENT_CONTOUR, False)
-            self.emit(qt.PYSIGNAL("contourFinished"), (self._contour, ))
+            self.emit(QtCore.SIGNAL("contourFinished"), (self._contour, ))
             self._prevContour = self._contour
             self._contour = []
 
@@ -638,12 +640,12 @@ class IntelligentScissors(qt.QObject):
         """With left mouse button, the live wire is started, with the
         middle mouse button it can be cancelled."""
 
-        if button == qt.Qt.MidButton:
+        if button == QtCore.Qt.MidButton:
             if self._liveWire:
                 return self.stopCurrentContour()
             return
 
-        if button == qt.Qt.LeftButton:
+        if button == QtCore.Qt.LeftButton:
             if not self._liveWire:
                 self.startContour()
             else:
@@ -652,7 +654,7 @@ class IntelligentScissors(qt.QObject):
                 self._startNodeLabel = self._liveWire.endNodeLabel()
         
         self.viewer.replaceOverlay(
-            EdgeOverlay([], qt.Qt.yellow, 2), self.overlayIndex)
+            EdgeOverlay([], QtCore.Qt.yellow, 2), self.overlayIndex)
 
         self.startLiveWire()
 
@@ -666,7 +668,7 @@ class IntelligentScissors(qt.QObject):
             if node.label() != self._startNodeLabel:
                 self._startNodeLabel = node.label()
                 self.viewer.replaceOverlay(
-                    PointOverlay([node.position()], qt.Qt.green, 1),
+                    PointOverlay([node.position()], QtCore.Qt.green, 1),
                     self.overlayIndex)
         else:
             if node.label() != self._liveWire.endNodeLabel():
@@ -677,7 +679,7 @@ class IntelligentScissors(qt.QObject):
                     if self._loop:
                         pathEdges.extend([dart.edge() for dart in self._loop])
                     self.viewer.replaceOverlay(
-                        EdgeOverlay(pathEdges, qt.Qt.yellow, 2),
+                        EdgeOverlay(pathEdges, QtCore.Qt.yellow, 2),
                         self.overlayIndex)
 
     def _protectPath(self, darts):
@@ -695,7 +697,7 @@ class IntelligentScissors(qt.QObject):
         (i.e. a path back to the starting node), this becomes
         protected in addition to the last segment."""
 
-        if button == qt.Qt.LeftButton:
+        if button == QtCore.Qt.LeftButton:
             if self._loop:
                 self._protectPath(self._loop)
                 self._loop = None

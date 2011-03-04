@@ -1,5 +1,6 @@
 #!/usr/bin/env python
-import copy, sys, qt
+import copy, sys
+from PyQt4 import QtCore, QtGui
 import vigra, geomap
 import mapdisplay, icons, maputils, statistics, flag_constants, tools
 import progress
@@ -208,72 +209,72 @@ class Workspace(mapdisplay.MapDisplay):
         if not hasattr(self.map, "mergedEdges"):
             self.map.mergedEdges = statistics.MergedEdges(self.map)
 
-        reinitIcon = qt.QPixmap()
+        reinitIcon = QtGui.QPixmap()
         reinitIcon.loadFromData(icons.reinitIconPNGData, "PNG")
-        ra = qt.QAction(self, "mapRestartAction")
-        ra.setIconSet(qt.QIconSet(reinitIcon))
+        ra = QtGui.QAction(self, "mapRestartAction")
+        ra.setIconSet(QtGui.QIconSet(reinitIcon))
         ra.setText("Re-start from level 0")
         ra.setMenuText("&Re-start from level 0")
         ra.setToolTip("Re-start with level 0 map")
         ra.addTo(self.Tools)
-        self.connect(ra, qt.SIGNAL("activated()"), self.restart)
+        self.connect(ra, QtCore.SIGNAL("activated()"), self.restart)
         self._mapRestartAction = ra
 
-        self.connect(self.undoAction, qt.SIGNAL("activated()"), self.undo)
+        self.connect(self.undoAction, QtCore.SIGNAL("activated()"), self.undo)
 
         # set up HBox with cost measure options:
-        automaticOptions = qt.QWidget(self._imageWindow, "automaticOptions")
-        l = qt.QHBoxLayout(automaticOptions, 2, 6)
+        automaticOptions = QtGui.QWidget(self._imageWindow, "automaticOptions")
+        l = QtGui.QHBoxLayout(automaticOptions, 2, 6)
 
-        cml = qt.QLabel("Merge &cost measure:", automaticOptions)
+        cml = QtGui.QLabel("Merge &cost measure:", automaticOptions)
         l.addWidget(cml)
-        cmChooser = qt.QComboBox(automaticOptions, "cmChooser")
+        cmChooser = QtGui.QComboBox(automaticOptions, "cmChooser")
         for name in self.costMeasureNames:
             cmChooser.insertItem(name)
         cmChooser.setCurrentItem(self.activeCostMeasure)
-        self.connect(cmChooser, qt.SIGNAL("activated(int)"), self.setCostMeasure)
+        self.connect(cmChooser, QtCore.SIGNAL("activated(int)"), self.setCostMeasure)
         l.addWidget(cmChooser)
         cml.setBuddy(cmChooser)
         self._cmChooser = cmChooser
         
-        csl = qt.QLabel("C&olor space:", automaticOptions)
+        csl = QtGui.QLabel("C&olor space:", automaticOptions)
         l.addWidget(csl)
-        csChooser = qt.QComboBox(automaticOptions, "csChooser")
+        csChooser = QtGui.QComboBox(automaticOptions, "csChooser")
         for name in self.colorSpaceNames:
             csChooser.insertItem(name)
-        self.connect(csChooser, qt.SIGNAL("activated(int)"), self.setColorSpace)
+        self.connect(csChooser, QtCore.SIGNAL("activated(int)"), self.setColorSpace)
         l.addWidget(csChooser)
         csl.setBuddy(csChooser)
         self._csChooser = csChooser
 
-        self.dynamicCheckBox = qt.QCheckBox("&Dynamic costs", automaticOptions)
+        self.dynamicCheckBox = QtGui.QCheckBox("&Dynamic costs", automaticOptions)
         l.addWidget(self.dynamicCheckBox)
         self.dynamicCheckBox.setChecked(self.dynamicCosts)
-        self.connect(self.dynamicCheckBox, qt.SIGNAL("toggled(bool)"),
+        self.connect(self.dynamicCheckBox, QtCore.SIGNAL("toggled(bool)"),
                      self.setDynamicCosts)
         
-        l.addItem(qt.QSpacerItem(
-            10, 1, qt.QSizePolicy.Expanding, qt.QSizePolicy.Minimum))
+        l.addItem(QtGui.QSpacerItem(
+            10, 1, QtCore.QSizePolicy.Expanding, QtCore.QSizePolicy.Minimum))
         self._imageWindow._layout.insertWidget(0, automaticOptions)
 
         # set up HBox with level slider:
-        sliderBox = qt.QWidget(self._imageWindow, "sliderBox")
-        l = qt.QHBoxLayout(sliderBox, 2, 6)
+        sliderBox = QtGui.QWidget(self._imageWindow, "sliderBox")
+        l = QtGui.QHBoxLayout(sliderBox, 2, 6)
 
-        self.sliderModeChooser = qt.QComboBox(sliderBox, "sliderModeChooser")
+        self.sliderModeChooser = QtGui.QComboBox(sliderBox, "sliderModeChooser")
         self.sliderModeChooser.insertItem("Steps:")
         self.sliderModeChooser.insertItem("Steps*:")
         self.sliderModeChooser.insertItem("Cost:")
-        self.connect(self.sliderModeChooser, qt.SIGNAL("activated(int)"),
+        self.connect(self.sliderModeChooser, QtCore.SIGNAL("activated(int)"),
                      self.setSliderMode)
         l.addWidget(self.sliderModeChooser)
 
-        self._levelSlider = qt.QSlider(sliderBox, "_levelSlider")
-        self._levelSlider.setOrientation(qt.QSlider.Horizontal)
+        self._levelSlider = QtGui.QSlider(sliderBox, "_levelSlider")
+        self._levelSlider.setOrientation(QtGui.QSlider.Horizontal)
         #self._levelSlider.setSteps(-1, -10)
         self._levelSlider.setRange(
             0, level0.faceCount - self._estimatedApexFaceCount)
-        self.connect(self._levelSlider, qt.SIGNAL("valueChanged(int)"),
+        self.connect(self._levelSlider, QtCore.SIGNAL("valueChanged(int)"),
                      self._levelSliderChanged)
         l.addWidget(self._levelSlider)
 
@@ -295,19 +296,19 @@ class Workspace(mapdisplay.MapDisplay):
         if isinstance(self.tool, tools.IntelligentScissors):
             tools.activeCostMeasure = \
                 statistics.HyperbolicInverse(self.costMeasure(self.map))
-        self.connect(self.tool, qt.PYSIGNAL("paintbrushFinished"),
+        self.connect(self.tool, QtCore.SIGNAL("paintbrushFinished"),
                      self.paintbrushFinished)
-        self.connect(self.tool, qt.PYSIGNAL("faceProtectionChanged"),
+        self.connect(self.tool, QtCore.SIGNAL("faceProtectionChanged"),
                      self.faceProtectionChanged)
-        self.connect(self.tool, qt.PYSIGNAL("contourFinished"),
+        self.connect(self.tool, QtCore.SIGNAL("contourFinished"),
                      self.scissorsFinished)
 
         if hasattr(self.tool, "setSeeds"): # SeedSelector?
             if self._seeds is not None:
                 self.tool.setSeeds(list(self._seeds))
-            self.connect(self.tool, qt.PYSIGNAL("seedAdded"),
+            self.connect(self.tool, QtCore.SIGNAL("seedAdded"),
                          self.seedAdded)
-            self.connect(self.tool, qt.PYSIGNAL("seedRemoved"),
+            self.connect(self.tool, QtCore.SIGNAL("seedRemoved"),
                          self.seedRemoved)
 
     def _perform(self, action):
@@ -334,7 +335,7 @@ class Workspace(mapdisplay.MapDisplay):
         self._perform(FaceProtection(self, face.label()))
 
         bbox = face.boundingBox()
-        updateRect = qt.QRect(
+        updateRect = QtCore.QRect(
             self.viewer.toWindowCoordinates(*bbox.begin()),
             self.viewer.toWindowCoordinates(*bbox.end()))
         lw = self.edgeOverlay.width + 1
@@ -683,7 +684,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 2:
         biScale = float(sys.argv[2])
 
-    app = qt.QApplication(sys.argv)
+    app = QtGui.QApplication(sys.argv)
     w = main(filename, biScale)
-    app.connect(app, qt.SIGNAL("lastWindowClosed()"), app, qt.SLOT("quit()"))
+    app.connect(app, QtCore.SIGNAL("lastWindowClosed()"), app, QtCore.SLOT("quit()"))
     app.exec_loop()

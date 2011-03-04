@@ -1,12 +1,13 @@
-import qt, copy
+import copy
+from PyQt4 import QtCore, QtGui
 from vigra import Rect2D
 from geomap import intPos
 
-class ROISelector(qt.QObject):
-    def __init__(self, parent = None, name = None, imageSize = None,
-                 roi = None, viewer = None, color = qt.Qt.yellow, width = 0,
+class ROISelector(QtCore.QObject):
+    def __init__(self, parent = None, imageSize = None,
+                 roi = None, viewer = None, color = QtCore.Qt.yellow, width = 0,
                  alwaysVisible = True):
-        qt.QObject.__init__(self, parent, name)
+        QtCore.QObject.__init__(self, parent)
         self._painting = False
         self._alwaysVisible = False
         self.roi = roi
@@ -23,20 +24,20 @@ class ROISelector(qt.QObject):
 
         self._validRect = imageSize and Rect2D(imageSize)
 
-        self.connect(self._viewer, qt.PYSIGNAL("mousePressed"),
+        self.connect(self._viewer, QtCore.SIGNAL("mousePressed"),
                      self.mousePressed)
-        self.connect(self._viewer, qt.PYSIGNAL("mousePosition"),
+        self.connect(self._viewer, QtCore.SIGNAL("mousePosition"),
                      self.mouseMoved)
-        self.connect(self._viewer, qt.PYSIGNAL("mouseReleased"),
+        self.connect(self._viewer, QtCore.SIGNAL("mouseReleased"),
                      self.mouseReleased)
         self._viewer.installEventFilter(self)
 
         self.setVisible(alwaysVisible)
 
     def eventFilter(self, watched, e):
-        if e.type() in (qt.QEvent.KeyPress, qt.QEvent.KeyRelease,
-                        qt.QEvent.MouseButtonPress, qt.QEvent.MouseButtonRelease,
-                        qt.QEvent.MouseButtonDblClick, qt.QEvent.MouseMove):
+        if e.type() in (QtCore.QEvent.KeyPress, QtCore.QEvent.KeyRelease,
+                        QtCore.QEvent.MouseButtonPress, QtCore.QEvent.MouseButtonRelease,
+                        QtCore.QEvent.MouseButtonDblClick, QtCore.QEvent.MouseMove):
             self._keyState = e.stateAfter()
         return False
 
@@ -58,7 +59,7 @@ class ROISelector(qt.QObject):
                 return
             updateRect |= self.windowRect()
             self._viewer.update(updateRect)
-            self.emit(qt.PYSIGNAL("roiChanged"), (roi, ))
+            self.emit(QtCore.SIGNAL("roiChanged"), (roi, ))
 
     def _startPainting(self):
         self._painting = True
@@ -72,11 +73,11 @@ class ROISelector(qt.QObject):
             self._viewer.removeOverlay(self)
 
     def mousePressed(self, x, y, button):
-        if self._painting and button == qt.Qt.RightButton:
+        if self._painting and button == QtCore.Qt.RightButton:
             self._stopPainting()
             self.setROI(self._oldROI)
             return
-        if button != qt.Qt.LeftButton:
+        if button != QtCore.Qt.LeftButton:
             return
         if self.roi:
             mousePos = self._viewer.toWindowCoordinates(x, y)
@@ -102,24 +103,24 @@ class ROISelector(qt.QObject):
 
     def windowRect(self):
         if not self.roi:
-            return qt.QRect()
-        return qt.QRect(
+            return QtCore.QRect()
+        return QtCore.QRect(
             self._viewer.toWindowCoordinates(self.roi.left()-0.5, self.roi.top()-0.5),
             self._viewer.toWindowCoordinates(self.roi.right()-0.5, self.roi.bottom()-0.5))
 
     def mouseReleased(self, x, y, button):
-        if self._painting and button == qt.Qt.LeftButton:
+        if self._painting and button == QtCore.Qt.LeftButton:
             self._stopPainting()
             if self.roi is not None:
                 self.setROI(self.roi & self._validRect)
-                self.emit(qt.PYSIGNAL("roiSelected"), (self.roi, ))
+                self.emit(QtCore.SIGNAL("roiSelected"), (self.roi, ))
 
     def disconnectViewer(self):
-        self.disconnect(self._viewer, qt.PYSIGNAL("mousePressed"),
+        self.disconnect(self._viewer, QtCore.SIGNAL("mousePressed"),
                         self.mousePressed)
-        self.disconnect(self._viewer, qt.PYSIGNAL("mousePosition"),
+        self.disconnect(self._viewer, QtCore.SIGNAL("mousePosition"),
                         self.mouseMoved)
-        self.disconnect(self._viewer, qt.PYSIGNAL("mouseReleased"),
+        self.disconnect(self._viewer, QtCore.SIGNAL("mouseReleased"),
                         self.mouseReleased)
         if self._alwaysVisible:
             self._viewer.removeOverlay(self)
@@ -131,20 +132,20 @@ class ROISelector(qt.QObject):
     def draw(self, p):
         if not self.roi:
             return
-        p.setPen(qt.QPen(self.color, self.width))
-        p.setBrush(qt.Qt.NoBrush)
+        p.setPen(QtGui.QPen(self.color, self.width))
+        p.setBrush(QtCore.Qt.NoBrush)
         drawRect = self.windowRect()
         # painter is already set up with a shift:
-        drawRect.moveBy(-self._viewer.upperLeft().x(),
-                        -self._viewer.upperLeft().y())
+        drawRect.translate(-self._viewer.upperLeft().x(),
+                           -self._viewer.upperLeft().y())
         p.drawRect(drawRect)
 
 # def queryROI(imageWindow):
-#     pd = qt.QProgressDialog(imageWindow)
+#     pd = QtGui.QProgressDialog(imageWindow)
 #     pd.setLabelText("Please mark a ROI with drag & drop")
 #     rs = ROISelector(imageWindow)
-#     qt.QObject.connect(rs, qt.PYSIGNAL("roiSelected"),
+#     QtCore.QObject.connect(rs, QtCore.SIGNAL("roiSelected"),
 #                        pd.accept)
-#     if pd.exec_loop() == qt.QDialog.Accepted:
+#     if pd.exec_loop() == QtGui.QDialog.Accepted:
 #         return rs.roi
 #     return

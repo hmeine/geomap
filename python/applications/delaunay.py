@@ -484,14 +484,14 @@ def removeWeakChords(delaunayMap):
             result += 1
     return result
 
-import qt
 def chordColors(delaunayMap):
-    result = [qt.Qt.red] * delaunayMap.maxEdgeLabel()
+    from PyQt4 import QtCore
+    result = [QtCore.Qt.red] * delaunayMap.maxEdgeLabel()
     for edge in delaunayMap.edgeIter():
         if edge.flag(CONTOUR_SEGMENT):
-            result[edge.label()] = qt.Qt.cyan
+            result[edge.label()] = QtCore.Qt.cyan
         elif edge.flag(WEAK_CHORD):
-            result[edge.label()] = qt.Qt.blue
+            result[edge.label()] = QtCore.Qt.blue
     return result
 
 # --------------------------------------------------------------------

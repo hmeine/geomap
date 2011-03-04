@@ -1320,7 +1320,7 @@ class History(list):
 
 #             counter -= 1
 #             if not counter:
-#                 qt.qApp.processEvents()
+#                 QtCore.qApp.processEvents()
 #                 counter = 20
 
         if careful:
