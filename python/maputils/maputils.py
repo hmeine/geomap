@@ -644,7 +644,7 @@ def clipMapEdgesAtBorder(map):
 
     result = mapFromEdges(edges, map.imageSize())
     connectBorderNodes(result, 1e-8)
-    result.initializeMap()
+    #result.initializeMap()
     return result
 
 def connectBorderNodes(map, epsilon,
@@ -2136,7 +2136,7 @@ def waterfall(map, edgeCosts, mst = None):
     print "  total waterfall() time: %ss." % (time.clock() - c, )
 
 def dualMap(map, edgeLabels = None, nodePositions = None, midPoints = None,
-            onDemandNodeHook = None):
+            onDemandNodeHook = None, initializeMap = True):
     """Compute (a subset of) the dual of a GeoMap.
     `edgeLabels` determines which edges appear in the result.
     If None (default), the complete dual map is returned.
@@ -2196,7 +2196,8 @@ def dualMap(map, edgeLabels = None, nodePositions = None, midPoints = None,
             result.addEdge(sn, en, poly, label = edge.label())
     
     removeIsolatedNodes(result)
-    result.initializeMap(False)
+    if initializeMap:
+        result.initializeMap(False)
     return result
 
 def mst2map(mst, map):
