@@ -335,9 +335,7 @@ class Workspace(mapdisplay.MapDisplay):
         self._perform(FaceProtection(self, face.label()))
 
         bbox = face.boundingBox()
-        updateRect = QtCore.QRect(
-            self.viewer.toWindowCoordinates(*bbox.begin()),
-            self.viewer.toWindowCoordinates(*bbox.end()))
+        updateRect = self.viewer.windowCoordinates(bbox)
         lw = self.edgeOverlay.width + 1
         updateRect.addCoords(-lw, -lw, lw, lw)
         self.viewer.update(updateRect)

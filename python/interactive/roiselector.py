@@ -70,7 +70,7 @@ class ROISelector(QImageViewerTool):
             return False
 
         if self.roi:
-            mousePos = self._viewer.toWindowCoordinates(x, y)
+            mousePos = self._viewer.windowCoordinate(x, y)
             wr = self.windowRect()
             if (mousePos - wr.topLeft()).manhattanLength() < 9:
                 self.startPos = self.roi.lowerRight() - (1,1)
@@ -97,8 +97,8 @@ class ROISelector(QImageViewerTool):
         if not self.roi:
             return QtCore.QRect()
         return QtCore.QRect(
-            self._viewer.toWindowCoordinates(self.roi.left()-0.5, self.roi.top()-0.5),
-            self._viewer.toWindowCoordinates(self.roi.right()-0.5, self.roi.bottom()-0.5))
+            self._viewer.windowCoordinate(self.roi.left()-0.5, self.roi.top()-0.5),
+            self._viewer.windowCoordinate(self.roi.right()-0.5, self.roi.bottom()-0.5))
 
     def mouseReleased(self, x, y, button):
         if self._painting and button == QtCore.Qt.LeftButton:
