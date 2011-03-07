@@ -2,12 +2,13 @@ import copy
 from PyQt4 import QtCore, QtGui
 from vigra import Rect2D
 from geomap import intPos
+from qimageviewertool import QImageViewerTool
 
-class ROISelector(QtCore.QObject):
+class ROISelector(QImageViewerTool):
     def __init__(self, parent = None, imageSize = None,
                  roi = None, viewer = None, color = QtCore.Qt.yellow, width = 0,
                  alwaysVisible = True):
-        QtCore.QObject.__init__(self, parent)
+        QImageViewerTool.__init__(self, parent)
         self._painting = False
         self._alwaysVisible = False
         self.roi = roi
@@ -24,22 +25,9 @@ class ROISelector(QtCore.QObject):
 
         self._validRect = imageSize and Rect2D(imageSize)
 
-        self.connect(self._viewer, QtCore.SIGNAL("mousePressed"),
-                     self.mousePressed)
-        self.connect(self._viewer, QtCore.SIGNAL("mousePosition"),
-                     self.mouseMoved)
-        self.connect(self._viewer, QtCore.SIGNAL("mouseReleased"),
-                     self.mouseReleased)
-        self._viewer.installEventFilter(self)
-
         self.setVisible(alwaysVisible)
 
-    def eventFilter(self, watched, e):
-        if e.type() in (QtCore.QEvent.KeyPress, QtCore.QEvent.KeyRelease,
-                        QtCore.QEvent.MouseButtonPress, QtCore.QEvent.MouseButtonRelease,
-                        QtCore.QEvent.MouseButtonDblClick, QtCore.QEvent.MouseMove):
-            self._keyState = e.stateAfter()
-        return False
+        self.connectViewer(self._viewer)
 
     def setVisible(self, onoff):
         """Sets flag whether the ROI should be always visible, or only
@@ -76,9 +64,11 @@ class ROISelector(QtCore.QObject):
         if self._painting and button == QtCore.Qt.RightButton:
             self._stopPainting()
             self.setROI(self._oldROI)
-            return
+            return True
+
         if button != QtCore.Qt.LeftButton:
-            return
+            return False
+
         if self.roi:
             mousePos = self._viewer.toWindowCoordinates(x, y)
             wr = self.windowRect()
@@ -90,8 +80,10 @@ class ROISelector(QtCore.QObject):
                 self.startPos = intPos((x, y))
         else:
             self.startPos = intPos((x, y))
+
         self.mouseMoved(x, y)
         self._startPainting()
+        return True
 
     def mouseMoved(self, x, y):
         if not self._painting: return
@@ -114,17 +106,13 @@ class ROISelector(QtCore.QObject):
             if self.roi is not None:
                 self.setROI(self.roi & self._validRect)
                 self.emit(QtCore.SIGNAL("roiSelected"), (self.roi, ))
+            return True
+        return False
 
     def disconnectViewer(self):
-        self.disconnect(self._viewer, QtCore.SIGNAL("mousePressed"),
-                        self.mousePressed)
-        self.disconnect(self._viewer, QtCore.SIGNAL("mousePosition"),
-                        self.mouseMoved)
-        self.disconnect(self._viewer, QtCore.SIGNAL("mouseReleased"),
-                        self.mouseReleased)
         if self._alwaysVisible:
             self._viewer.removeOverlay(self)
-        self._viewer.removeEventFilter(self)
+        QImageViewerTool.disconnectViewer(self)
 
     def setZoom(self, zoom):
         self.zoom = zoom
