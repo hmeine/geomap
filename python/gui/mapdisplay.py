@@ -1043,9 +1043,9 @@ def simpleTest():
     mw = MapDisplay(cm, img)
     mw.show()
 
-    if not hasattr(a, '_in_event_loop') or not a._in_event_loop:
-        return a.exec_()
+    return mw, a
 
 if __name__ == "__main__":
-    sys.exit(simpleTest())
-
+    d, a = simpleTest()
+    if not hasattr(a, '_in_event_loop') or not a._in_event_loop:
+        sys.exit(a.exec_())
