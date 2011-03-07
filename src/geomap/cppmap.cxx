@@ -4,10 +4,6 @@
 #include <algorithm>
 #include <cmath>
 
-#ifdef _MSC_VER
-inline int isnan(double t) { return _isnan(t); }
-#endif
-
 template<class Container>
 void removeAll(Container &container,
                const typename Container::value_type &element)
