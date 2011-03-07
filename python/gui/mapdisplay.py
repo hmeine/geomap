@@ -238,13 +238,9 @@ class MapEdges(vigrapyqt4.Overlay):
             + offset).roundToInteger()
 
         qpa = self._zoomedEdges[edgeLabel]
-        if qpa == None:
+        if qpa == None or qpa.size() != len(origEdgePoints):
             qpa = QtGui.QPolygon(len(origEdgePoints))
             self._zoomedEdges[edgeLabel] = qpa
-        elif qpa.size() != len(origEdgePoints):
-            # extra parameter in c++ would be QGArray.SpeedOptim (1), but
-            # is not available here:
-            qpa.resize(len(origEdgePoints))
 
         for i, pos in enumerate(origEdgePoints):
             qpa.setPoint(i, pos[0], pos[1])

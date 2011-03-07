@@ -528,7 +528,7 @@ class IntelligentScissors(QImageViewerTool):
         self._contour = [] # darts within current (multi-segment) contour
         self._prevContour = None # last finished _contour
         self._seeds = [] # all seeds of all contours (for debugging ATM)
-        self._expandTimer = QtCore.QTimer(self, "expandTimer")
+        self._expandTimer = QtCore.QTimer(self)
         self._mapEdges = mapEdges
         self.connect(self._expandTimer, QtCore.SIGNAL("timeout()"),
                      self._expandBorder)

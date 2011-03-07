@@ -136,6 +136,6 @@ class ROISelector(QImageViewerTool):
 #     rs = ROISelector(imageWindow)
 #     QtCore.QObject.connect(rs, QtCore.SIGNAL("roiSelected"),
 #                        pd.accept)
-#     if pd.exec_loop() == QtGui.QDialog.Accepted:
+#     if pd.exec_() == QtGui.QDialog.Accepted:
 #         return rs.roi
 #     return

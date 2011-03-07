@@ -211,27 +211,28 @@ class Workspace(mapdisplay.MapDisplay):
 
         reinitIcon = QtGui.QPixmap()
         reinitIcon.loadFromData(icons.reinitIconPNGData, "PNG")
-        ra = QtGui.QAction(self, "mapRestartAction")
-        ra.setIconSet(QtGui.QIconSet(reinitIcon))
-        ra.setText("Re-start from level 0")
-        ra.setMenuText("&Re-start from level 0")
-        ra.setToolTip("Re-start with level 0 map")
-        ra.addTo(self.Tools)
+        ra = QtGui.QAction(self)
+        ra.setIcon(QtGui.QIcon(reinitIcon))
+        ra.setText("&Re-start from level 0")
+        ra.setToolTip("Re-start with original level 0 map")
+        self.ui.Tools.addAction(ra)
         self.connect(ra, QtCore.SIGNAL("activated()"), self.restart)
         self._mapRestartAction = ra
 
-        self.connect(self.undoAction, QtCore.SIGNAL("activated()"), self.undo)
+        self.connect(self.ui.undoAction, QtCore.SIGNAL("activated()"), self.undo)
 
         # set up HBox with cost measure options:
-        automaticOptions = QtGui.QWidget(self._imageWindow, "automaticOptions")
-        l = QtGui.QHBoxLayout(automaticOptions, 2, 6)
+        automaticOptions = QtGui.QWidget(self._imageWindow)
+        l = QtGui.QHBoxLayout(automaticOptions)
+        l.setMargin(2)
+        l.setSpacing(6)
 
         cml = QtGui.QLabel("Merge &cost measure:", automaticOptions)
         l.addWidget(cml)
-        cmChooser = QtGui.QComboBox(automaticOptions, "cmChooser")
-        for name in self.costMeasureNames:
-            cmChooser.insertItem(name)
-        cmChooser.setCurrentItem(self.activeCostMeasure)
+        cmChooser = QtGui.QComboBox(automaticOptions)
+        for i, name in enumerate(self.costMeasureNames):
+            cmChooser.insertItem(i, name)
+        cmChooser.setCurrentIndex(self.activeCostMeasure)
         self.connect(cmChooser, QtCore.SIGNAL("activated(int)"), self.setCostMeasure)
         l.addWidget(cmChooser)
         cml.setBuddy(cmChooser)
@@ -239,9 +240,9 @@ class Workspace(mapdisplay.MapDisplay):
         
         csl = QtGui.QLabel("C&olor space:", automaticOptions)
         l.addWidget(csl)
-        csChooser = QtGui.QComboBox(automaticOptions, "csChooser")
-        for name in self.colorSpaceNames:
-            csChooser.insertItem(name)
+        csChooser = QtGui.QComboBox(automaticOptions)
+        for i, name in enumerate(self.colorSpaceNames):
+            csChooser.insertItem(i, name)
         self.connect(csChooser, QtCore.SIGNAL("activated(int)"), self.setColorSpace)
         l.addWidget(csChooser)
         csl.setBuddy(csChooser)
@@ -254,23 +255,25 @@ class Workspace(mapdisplay.MapDisplay):
                      self.setDynamicCosts)
         
         l.addItem(QtGui.QSpacerItem(
-            10, 1, QtCore.QSizePolicy.Expanding, QtCore.QSizePolicy.Minimum))
+            10, 1, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
         self._imageWindow._layout.insertWidget(0, automaticOptions)
 
         # set up HBox with level slider:
-        sliderBox = QtGui.QWidget(self._imageWindow, "sliderBox")
-        l = QtGui.QHBoxLayout(sliderBox, 2, 6)
+        sliderBox = QtGui.QWidget(self._imageWindow)
+        l = QtGui.QHBoxLayout(sliderBox)
+        l.setMargin(2)
+        l.setSpacing(6)
 
-        self.sliderModeChooser = QtGui.QComboBox(sliderBox, "sliderModeChooser")
-        self.sliderModeChooser.insertItem("Steps:")
-        self.sliderModeChooser.insertItem("Steps*:")
-        self.sliderModeChooser.insertItem("Cost:")
+        self.sliderModeChooser = QtGui.QComboBox(sliderBox)
+        self.sliderModeChooser.insertItem(0, "Steps:")
+        self.sliderModeChooser.insertItem(1, "Steps*:")
+        self.sliderModeChooser.insertItem(2, "Cost:")
         self.connect(self.sliderModeChooser, QtCore.SIGNAL("activated(int)"),
                      self.setSliderMode)
         l.addWidget(self.sliderModeChooser)
 
-        self._levelSlider = QtGui.QSlider(sliderBox, "_levelSlider")
-        self._levelSlider.setOrientation(QtGui.QSlider.Horizontal)
+        self._levelSlider = QtGui.QSlider(sliderBox)
+        self._levelSlider.setOrientation(QtCore.Qt.Horizontal)
         #self._levelSlider.setSteps(-1, -10)
         self._levelSlider.setRange(
             0, level0.faceCount - self._estimatedApexFaceCount)
@@ -281,7 +284,7 @@ class Workspace(mapdisplay.MapDisplay):
         self._imageWindow._layout.insertWidget(1, sliderBox)
 
         # (finished setting up widgets)
-        if self.isShown():
+        if self.isVisible():
             automaticOptions.show()
             sliderBox.show()
 
@@ -467,7 +470,7 @@ class Workspace(mapdisplay.MapDisplay):
             # FIXME: for scissors:?
 #             tools.activeCostMeasure = \
 #                 statistics.HyperbolicInverse(self.costMeasure(self.map))
-            self._csChooser.setCurrentItem(
+            self._csChooser.setCurrentIndex(
                 self.colorSpaceNames.index(colorSpace or "RGB"))
 
     colorSpaceNames = ["RGB", "RGBPrime", "Luv", "Lab", "red", "green", "blue"]
@@ -495,7 +498,7 @@ class Workspace(mapdisplay.MapDisplay):
             self.recomputeAutomaticLevels()
             tools.activeCostMeasure = \
                 statistics.HyperbolicInverse(self.costMeasure(self.map))
-            self._cmChooser.setCurrentItem(index)
+            self._cmChooser.setCurrentIndex(index)
 
     costMeasureNames = ["face mean difference",
                         "face homogeneity",
@@ -549,19 +552,19 @@ class Workspace(mapdisplay.MapDisplay):
             self.displayLevel(levelIndex = sliderValue)
             return
 
-        p = float(sliderValue) / self._levelSlider.maxValue()
+        p = float(sliderValue) / self._levelSlider.maximum()
         if self._sliderCosts:
             self.displayLevel(cost = self._sliderCosts[-1] * p)
         else:
             self.displayLevel(
-                levelIndex = int(p**0.2 * self._levelSlider.maxValue()))
+                levelIndex = int(p**0.2 * self._levelSlider.maximum()))
 
     def _updateLevelSlider(self):
         self._levelSlider.blockSignals(True)
         if self._sliderMode == 0:
             # FIXME: why not level0.faceCount - map.faceCount?
             self._levelSlider.setValue(
-                self._levelSlider.maxValue() -
+                self._levelSlider.maximum() -
                 (self.map.faceCount - self._estimatedApexFaceCount))
         else:
             pass # FIXME
@@ -599,7 +602,7 @@ class Workspace(mapdisplay.MapDisplay):
                         levelIndex = max(0, i-1)
                         break
 
-            faceCount = (self._levelSlider.maxValue() -
+            faceCount = (self._levelSlider.maximum() -
                          (levelIndex - self._estimatedApexFaceCount))
 
         if force:
@@ -685,4 +688,4 @@ if __name__ == "__main__":
     app = QtGui.QApplication(sys.argv)
     w = main(filename, biScale)
     app.connect(app, QtCore.SIGNAL("lastWindowClosed()"), app, QtCore.SLOT("quit()"))
-    app.exec_loop()
+    app.exec_()
