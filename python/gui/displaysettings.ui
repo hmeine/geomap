@@ -75,8 +75,8 @@
   </widget>
   <action name="mapCleanupAction">
    <property name="icon">
-    <iconset>
-     <normaloff>image0</normaloff>image0</iconset>
+    <iconset resource="icons.qrc">
+     <normaloff>:/icon/image_00.png</normaloff>:/icon/image_00.png</iconset>
    </property>
    <property name="text">
     <string>&amp;Clean Map</string>
