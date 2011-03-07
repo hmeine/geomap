@@ -110,8 +110,6 @@ class MapFaces(vigrapyqt4.Overlay):
         #p.drawPolygon(self._qpointarray, True, s, e-s)
 
         r = p.clipRegion().boundingRect()
-        r.translate(-self.viewer.upperLeft().x(),
-                    -self.viewer.upperLeft().y())
         bbox = BoundingBox(Vector2(r.left() / zoomFactor - 0.5,
                                    r.top() / zoomFactor - 0.5),
                            Vector2(r.right() / zoomFactor + 0.5,
@@ -322,8 +320,6 @@ class MapEdges(vigrapyqt4.Overlay):
         self._setupPainter(p)
 
         r = p.clipRegion().boundingRect()
-        r.translate(-self.viewer.upperLeft().x(),
-                    -self.viewer.upperLeft().y())
         bbox = BoundingBox(Vector2(r.left() / self._zoom - 0.5,
                                    r.top() / self._zoom - 0.5),
                            Vector2(r.right() / self._zoom + 0.5,
@@ -1047,5 +1043,7 @@ def simpleTest():
 
 if __name__ == "__main__":
     d, a = simpleTest()
+    import roiselector
+    rs = roiselector.ROISelector(d)
     if not hasattr(a, '_in_event_loop') or not a._in_event_loop:
         sys.exit(a.exec_())
