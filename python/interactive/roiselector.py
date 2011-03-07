@@ -46,6 +46,7 @@ class ROISelector(QImageViewerTool):
             if not self.visible:
                 return
             updateRect |= self.windowRect()
+            updateRect.adjust(0, 0, 1, 1)
             self._viewer.update(updateRect)
             self.emit(QtCore.SIGNAL("roiChanged"), (roi, ))
 
