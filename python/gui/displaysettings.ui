@@ -76,7 +76,7 @@
   <action name="mapCleanupAction">
    <property name="icon">
     <iconset resource="icons.qrc">
-     <normaloff>:/icon/image_00.png</normaloff>:/icon/image_00.png</iconset>
+     <normaloff>:/icon/icon/clean_map.png</normaloff>:/icon/icon/clean_map.png</iconset>
    </property>
    <property name="text">
     <string>&amp;Clean Map</string>
@@ -94,7 +94,7 @@
    </property>
    <property name="icon">
     <iconset resource="icons.qrc">
-     <normaloff>:/icon/image_06.png</normaloff>:/icon/image_06.png</iconset>
+     <normaloff>:/icon/icon/paintbrush.png</normaloff>:/icon/icon/paintbrush.png</iconset>
    </property>
    <property name="text">
     <string>Active &amp;Paintbrush</string>
@@ -112,7 +112,7 @@
    </property>
    <property name="icon">
     <iconset resource="icons.qrc">
-     <normaloff>:/icon/image_07.png</normaloff>:/icon/image_07.png</iconset>
+     <normaloff>:/icon/icon/navigate.png</normaloff>:/icon/icon/navigate.png</iconset>
    </property>
    <property name="text">
     <string>&amp;Navigate Map</string>
@@ -130,7 +130,7 @@
    </property>
    <property name="icon">
     <iconset resource="icons.qrc">
-     <normaloff>:/icon/image_08.png</normaloff>:/icon/image_08.png</iconset>
+     <normaloff>:/icon/icon/display_normalize.png</normaloff>:/icon/icon/display_normalize.png</iconset>
    </property>
    <property name="text">
     <string>&amp;Normalize</string>
@@ -148,7 +148,7 @@
    </property>
    <property name="icon">
     <iconset resource="icons.qrc">
-     <normaloff>:/icon/image_09.png</normaloff>:/icon/image_09.png</iconset>
+     <normaloff>:/icon/icon/scissors.png</normaloff>:/icon/icon/scissors.png</iconset>
    </property>
    <property name="text">
     <string>&amp;Intelligent Scissors</string>
@@ -163,7 +163,7 @@
   <action name="undoAction">
    <property name="icon">
     <iconset resource="icons.qrc">
-     <normaloff>:/icon/image_10.png</normaloff>:/icon/image_10.png</iconset>
+     <normaloff>:/icon/icon/undo.png</normaloff>:/icon/icon/undo.png</iconset>
    </property>
    <property name="text">
     <string>&amp;Undo</string>
@@ -207,7 +207,7 @@
     </property>
     <property name="icon">
      <iconset resource="icons.qrc">
-      <normaloff>:/icon/image_01.png</normaloff>:/icon/image_01.png</iconset>
+      <normaloff>:/icon/icon/display_original.png</normaloff>:/icon/icon/display_original.png</iconset>
     </property>
     <property name="text">
      <string>&amp;Original</string>
@@ -225,7 +225,7 @@
     </property>
     <property name="icon">
      <iconset resource="icons.qrc">
-      <normaloff>:/icon/image_02.png</normaloff>:/icon/image_02.png</iconset>
+      <normaloff>:/icon/icon/display_colored.png</normaloff>:/icon/icon/display_colored.png</iconset>
     </property>
     <property name="text">
      <string>w/ &amp;Colors</string>
@@ -243,7 +243,7 @@
     </property>
     <property name="icon">
      <iconset resource="icons.qrc">
-      <normaloff>:/icon/image_03.png</normaloff>:/icon/image_03.png</iconset>
+      <normaloff>:/icon/icon/display_boundary.png</normaloff>:/icon/icon/display_boundary.png</iconset>
     </property>
     <property name="text">
      <string>&amp;Boundary Indicator</string>
@@ -261,7 +261,7 @@
     </property>
     <property name="icon">
      <iconset resource="icons.qrc">
-      <normaloff>:/icon/image_04.png</normaloff>:/icon/image_04.png</iconset>
+      <normaloff>:/icon/icon/display_labels.png</normaloff>:/icon/icon/display_labels.png</iconset>
     </property>
     <property name="text">
      <string>Region &amp;Labels</string>
@@ -279,7 +279,7 @@
     </property>
     <property name="icon">
      <iconset resource="icons.qrc">
-      <normaloff>:/icon/image_05.png</normaloff>:/icon/image_05.png</iconset>
+      <normaloff>:/icon/icon/display_means.png</normaloff>:/icon/icon/display_means.png</iconset>
     </property>
     <property name="text">
      <string>Region &amp;Means</string>
