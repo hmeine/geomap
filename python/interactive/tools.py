@@ -538,7 +538,7 @@ class IntelligentScissors(QImageViewerTool):
         self._viewer.addOverlay(self._overlay)
 
     def disconnectViewer(self):
-        self.viewer.removeOverlay(self._overlay)
+        self._viewer.removeOverlay(self._overlay)
         QImageViewerTool.disconnectViewer(self)
 
     def startContour(self):
@@ -603,8 +603,9 @@ class IntelligentScissors(QImageViewerTool):
                 self._protectPath(self._liveWire.pathDarts())
                 self._startNodeLabel = self._liveWire.endNodeLabel()
         
-        self.viewer.replaceOverlay(
-            EdgeOverlay([], QtCore.Qt.yellow, 2), self._overlay)
+        o = EdgeOverlay([], QtCore.Qt.yellow, 2)
+        self._viewer.replaceOverlay(o, self._overlay)
+        self._overlay = o
 
         self.startLiveWire()
         return True
@@ -618,9 +619,9 @@ class IntelligentScissors(QImageViewerTool):
         if not self._liveWire:
             if node.label() != self._startNodeLabel:
                 self._startNodeLabel = node.label()
-                self.viewer.replaceOverlay(
-                    PointOverlay([node.position()], QtCore.Qt.green, 1),
-                    self.overlayIndex)
+                o = PointOverlay([node.position()], QtCore.Qt.green, 1)
+                self._viewer.replaceOverlay(o, self._overlay)
+                self._overlay = o
         else:
             if node.label() != self._liveWire.endNodeLabel():
                 if self._liveWire.setEndNodeLabel(node.label()): # TODO: else... (delayed)
@@ -629,9 +630,9 @@ class IntelligentScissors(QImageViewerTool):
                     self._loop = self._liveWire.loopPath(self._loopNodeLabel)
                     if self._loop:
                         pathEdges.extend([dart.edge() for dart in self._loop])
-                    self.viewer.replaceOverlay(
-                        EdgeOverlay(pathEdges, QtCore.Qt.yellow, 2),
-                        self.overlayIndex)
+                    o = EdgeOverlay(pathEdges, QtCore.Qt.yellow, 2)
+                    self._viewer.replaceOverlay(o, self._overlay)
+                    self._overlay = o
 
     def _protectPath(self, darts):
         protect = not self.activeModifiers() & QtCore.Qt.ControlModifier
