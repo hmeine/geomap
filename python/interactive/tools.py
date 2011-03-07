@@ -50,7 +50,7 @@ class _OldManualClassifier(QImageViewerTool):
         self.foreground[face.label()] = newClass
         self.manual[face.label()] = newClass
         print "manually changed face %d to %s" % (face.label(), newClass)
-        self.emit(QtCore.SIGNAL("classChanged"), (face, ))
+        self.emit(QtCore.SIGNAL("classChanged"), face)
         return True
 
 # --------------------------------------------------------------------
@@ -150,7 +150,7 @@ class ManualClassifier(QImageViewerTool):
         self.manual[face.label()] = newClassIndex
         #print "manually changed face %d to %s" % (face.label(), newClassIndex)
         self._overlays[0].updateFaceROI(face)
-        self.emit(QtCore.SIGNAL("classChanged"), (face, ))
+        self.emit(QtCore.SIGNAL("classChanged"), face)
 
     def toggleOverlays(self, onoff = None):
         if onoff is None:
@@ -261,7 +261,7 @@ class SeedSelector(QImageViewerTool):
         if not self.activeModifiers() & QtCore.Qt.ControlModifier:
             seed = (x, y)
             self.seeds.append(seed)
-            self.emit(QtCore.SIGNAL("seedAdded"), (seed, ))
+            self.emit(QtCore.SIGNAL("seedAdded"), seed)
             if self.map and self.markFlags:
                 self.map.faceAt(seed).setFlag(self.markFlags)
         else:
@@ -270,7 +270,7 @@ class SeedSelector(QImageViewerTool):
                 return False
             self.seeds.remove(seed)
             self._seedMap.remove(seed)
-            self.emit(QtCore.SIGNAL("seedRemoved"), (seed, ))
+            self.emit(QtCore.SIGNAL("seedRemoved"), seed)
             if self.map and self.markFlags:
                 self.map.faceAt((x, y)).setFlag(self.markFlags, False)
         
@@ -309,8 +309,8 @@ class ActivePaintbrush(QImageViewerTool):
         self._path = []
         self._changed = False
         self.mouseMoved(x, y)
-        self.emit(QtCore.SIGNAL("paintbrushStarted"), (
-            self._map.face(self._currentLabel), ))
+        self.emit(QtCore.SIGNAL("paintbrushStarted"),
+                  self._map.face(self._currentLabel))
         return True
 
     def mouseMoved(self, x, y):
@@ -348,8 +348,8 @@ class ActivePaintbrush(QImageViewerTool):
             return False
         self._painting = False
         if self._changed:
-            self.emit(QtCore.SIGNAL("paintbrushFinished"), (
-                self._map.face(self._currentLabel), ))
+            self.emit(QtCore.SIGNAL("paintbrushFinished"),
+                      self._map.face(self._currentLabel))
         return True
 
     def mouseDoubleClicked(self, x, y, button):
@@ -357,7 +357,7 @@ class ActivePaintbrush(QImageViewerTool):
             return False
         face = self._map.faceAt((x, y))
         maputils.protectFace(face, not face.flag(PROTECTED_FACE))
-        self.emit(QtCore.SIGNAL("faceProtectionChanged"), (face, ))
+        self.emit(QtCore.SIGNAL("faceProtectionChanged"), face)
         return True
 
 # --------------------------------------------------------------------
@@ -576,7 +576,7 @@ class IntelligentScissors(QImageViewerTool):
         if self._contour:
             for dart in self._contour:
                 dart.edge().setFlag(CURRENT_CONTOUR, False)
-            self.emit(QtCore.SIGNAL("contourFinished"), (self._contour, ))
+            self.emit(QtCore.SIGNAL("contourFinished"), self._contour)
             self._prevContour = self._contour
             self._contour = []
 

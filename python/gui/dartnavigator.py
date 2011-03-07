@@ -102,4 +102,4 @@ class DartNavigator(QtGui.QDialog):
             self.ui.faceLabel.setText(
                 """Left: %s\nRight: %s""" % (str(leftFace)[8:-1], str(rightFace)[8:-1]))
         self.setWindowTitle("DartNavigator(%d)" % (self.dart.label(), ))
-        self.emit(QtCore.SIGNAL('updateDart'),(self.dart,))
+        self.emit(QtCore.SIGNAL('updateDart'), self.dart)

@@ -48,7 +48,7 @@ class ROISelector(QImageViewerTool):
             updateRect |= self.windowRect()
             updateRect.adjust(0, 0, 1, 1)
             self._viewer.update(updateRect)
-            self.emit(QtCore.SIGNAL("roiChanged"), (roi, ))
+            self.emit(QtCore.SIGNAL("roiChanged"), roi)
 
     def _startPainting(self):
         self._painting = True
@@ -107,7 +107,7 @@ class ROISelector(QImageViewerTool):
             self._stopPainting()
             if self.roi is not None:
                 self.setROI(self.roi & self._validRect)
-                self.emit(QtCore.SIGNAL("roiSelected"), (self.roi, ))
+                self.emit(QtCore.SIGNAL("roiSelected"), self.roi)
             return True
         return False
 
