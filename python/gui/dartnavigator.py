@@ -90,16 +90,16 @@ class DartNavigator(QtGui.QDialog):
             self.dart.partialArea(), len(self.dart))
         if self.costMeasure:
             dartDesc += "\nassociated cost: %s" % self.costMeasure(self.dart)
-        self.dartLabel.setText(dartDesc)
-        for node, nodeLabel in ((self.dart.startNode(), self.startNodeLabel),
-                                (self.dart.endNode(), self.endNodeLabel)):
+        self.ui.dartLabel.setText(dartDesc)
+        for node, nodeLabel in ((self.dart.startNode(), self.ui.startNodeLabel),
+                                (self.dart.endNode(), self.ui.endNodeLabel)):
             nodeLabel.setText(
                 "Node %d (deg. %d)\nat %s" % (
                 node.label(), node.degree(), node.position()))
         if self.dart.map().mapInitialized():
             leftFace = self.dart.leftFace()
             rightFace = self.dart.rightFace()
-            self.faceLabel.setText(
+            self.ui.faceLabel.setText(
                 """Left: %s\nRight: %s""" % (str(leftFace)[8:-1], str(rightFace)[8:-1]))
-        self.setCaption("DartNavigator(%d)" % (self.dart.label(), ))
+        self.setWindowTitle("DartNavigator(%d)" % (self.dart.label(), ))
         self.emit(QtCore.SIGNAL('updateDart'),(self.dart,))
