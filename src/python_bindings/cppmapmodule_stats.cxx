@@ -57,7 +57,9 @@ class FaceColorStatisticsWrapper
         def("regionImage", &regionImage);
         def("regionImage", &convertToRegionMeans);
 
+        def("attachHooks", &Statistics::attachHooks);
         def("detachHooks", &Statistics::detachHooks);
+        def("map", &Statistics::map);
 
         def("superSampledCount", &Statistics::superSampledCount);
         def("minSampleCount", &Statistics::minSampleCount);
@@ -171,7 +173,7 @@ class FaceColorStatisticsWrapper
 #endif
 
     static Statistics *create(
-        GeoMap &map, OriginalImage const &originalImage, int minSampleCount)
+        boost::shared_ptr<GeoMap> map, OriginalImage const &originalImage, int minSampleCount)
     {
         double maxDiffNorm = 255.*std::sqrt((double)originalImage.bands());
         return new Statistics(map, originalImage,

@@ -98,7 +98,7 @@ class FaceColorStatistics : boost::noncopyable
         Functor;
 
 //     template<int SplineOrder>
-    FaceColorStatistics(GeoMap &map, const OriginalImage &originalImage,
+    FaceColorStatistics(boost::shared_ptr<GeoMap> map, const OriginalImage &originalImage,
                         double maxDiffNorm = 1.0, unsigned int minSampleCount = 1);
     ~FaceColorStatistics();
 
@@ -347,9 +347,25 @@ class FaceColorStatistics : boost::noncopyable
             d.first, d.second);
     }
 
-    const GeoMap *map() const
+    const boost::shared_ptr<GeoMap> map() const
     {
-        return &map_;
+        return map_;
+    }
+
+    void attachHooks(boost::shared_ptr<GeoMap> map)
+    {
+        vigra_precondition(!connections_.size(),
+            "FaceColorStatistics: attachHooks() called with existing connections");
+        map_ = map;
+        connections_.push_back(
+            map->preMergeFacesHook.connect(
+                sigc::mem_fun(this, &FaceColorStatistics::preMergeFaces)));
+        connections_.push_back(
+            map->postMergeFacesHook.connect(
+                sigc::mem_fun(this, &FaceColorStatistics::postMergeFaces)));
+        connections_.push_back(
+            map->associatePixelsHook.connect(
+                sigc::mem_fun(this, &FaceColorStatistics::associatePixels)));
     }
 
     void detachHooks()
@@ -374,10 +390,16 @@ class FaceColorStatistics : boost::noncopyable
     {
         bool result = true;
 
-        if(superSampled_.get())
+        if(!map_)
+        {
+            std::cerr << "FaceColorStatistics not attached to any GeoMap!\n";
+            result = false;
+        }
+
+        if(map_ && superSampled_.get())
         {
             unsigned int realSuperSampledCount = 0;
-            for(GeoMap::FaceIterator it = map_.facesBegin(); it.inRange(); ++it)
+            for(GeoMap::FaceIterator it = map_->facesBegin(); it.inRange(); ++it)
             {
                 if((*superSampled_)[(*it)->label()])
                     ++realSuperSampledCount;
@@ -417,10 +439,10 @@ class FaceColorStatistics : boost::noncopyable
         faceROI &= vigra::Rect2D(originalImage_.size());
 
         GeoMap::LabelImageIterator
-            labUL = map_.labelsUpperLeft(),
+            labUL = map_->labelsUpperLeft(),
             ul = labUL + faceROI.upperLeft(),
             lr = labUL + faceROI.lowerRight();
-        GeoMap::LabelImageAccessor lac(map_.labelAccessor());
+        GeoMap::LabelImageAccessor lac(map_->labelAccessor());
 
         for(; ul.y < lr.y; ++ul.y)
         {
@@ -431,7 +453,7 @@ class FaceColorStatistics : boost::noncopyable
         }
     }
 
-    GeoMap &map_;
+    boost::shared_ptr<GeoMap> map_;
     std::vector<sigc::connection> connections_;
     const OriginalImage originalImage_;
     std::vector<Functor *> functors_;
@@ -450,35 +472,27 @@ class FaceColorStatistics : boost::noncopyable
 template<class OriginalImage>
 // template<int SplineOrder>
 FaceColorStatistics<OriginalImage>::FaceColorStatistics(
-    GeoMap &map, const OriginalImage &originalImage,
+    boost::shared_ptr<GeoMap> map, const OriginalImage &originalImage,
     double maxDiffNorm, unsigned int minSampleCount)
 : map_(map),
   originalImage_(originalImage),
-  functors_(map.maxFaceLabel(), NULL),
+  functors_(map->maxFaceLabel(), NULL),
   minSampleCount_(minSampleCount),
   superSampledCount_(0),
   maxDiffNorm_(maxDiffNorm)
 {
-    for(GeoMap::FaceIterator it = map.facesBegin(); it.inRange(); ++it)
+    for(GeoMap::FaceIterator it = map->facesBegin(); it.inRange(); ++it)
         functors_[(*it)->label()] = new Functor();
 
     detail::InitFaceFunctors<Functor> iff(functors_);
-    inspectTwoImages(map.srcLabelRange(),
+    inspectTwoImages(map->srcLabelRange(),
                      srcImage(originalImage),
                      iff);
 
     if(minSampleCount)
         ensureMinSampleCount(minSampleCount);
 
-    connections_.push_back(
-        map.preMergeFacesHook.connect(
-            sigc::mem_fun(this, &FaceColorStatistics::preMergeFaces)));
-    connections_.push_back(
-        map.postMergeFacesHook.connect(
-            sigc::mem_fun(this, &FaceColorStatistics::postMergeFaces)));
-    connections_.push_back(
-        map.associatePixelsHook.connect(
-            sigc::mem_fun(this, &FaceColorStatistics::associatePixels)));
+    attachHooks(map);
 }
 
 template<class OriginalImage>
@@ -490,7 +504,7 @@ void FaceColorStatistics<OriginalImage>::ensureMinSampleCount(
         typename OriginalImage::value_type>::RealPromote FloatPixel;
     std::auto_ptr<vigra::SplineImageView<5, FloatPixel> > siv;
 
-    for(GeoMap::FaceIterator it = map_.finiteFacesBegin();
+    for(GeoMap::FaceIterator it = map_->finiteFacesBegin();
         it.inRange(); ++it)
     {
         if(functors_[(*it)->label()]->count() < minSampleCount)
@@ -498,7 +512,7 @@ void FaceColorStatistics<OriginalImage>::ensureMinSampleCount(
             if(!superSampled.get())
             {
                 superSampled.reset(
-                    new std::vector<unsigned char>(map_.maxFaceLabel(), 0));
+                    new std::vector<unsigned char>(map_->maxFaceLabel(), 0));
                 siv.reset(
                     new vigra::SplineImageView<5, FloatPixel>(
                         srcImageRange(originalImage_)));
@@ -542,7 +556,7 @@ void FaceColorStatistics<OriginalImage>::copyRegionImage(
     DEST_ITERATOR dul, DEST_ACCESSOR da) const
 {
     transformRegionImage(
-        map_.srcLabelRange(), destIter(dul, da));
+        map_->srcLabelRange(), destIter(dul, da));
 }
 
 template<class OriginalImage>
