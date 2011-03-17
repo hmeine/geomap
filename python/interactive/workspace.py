@@ -15,6 +15,11 @@ import progress
 # TODO: add API for adding cost measures (obviously needs factories)
 
 def labelRoot(lut, label):
+    """Applies LUT mapping repeatedly, until identity is reached.
+    Effectively, searches root within (merge) mapping tree.  The LUT
+    is updated along the way in order to minimize the number of future
+    lookups (i.e. afterwards, all visited nodes will point directly to
+    the root)."""
     result = lut[label]
     if lut[result] != result:
         result = labelRoot(lut, result)
@@ -568,6 +573,11 @@ class Workspace(mapdisplay.MapDisplay):
             self._levelSlider.setValue(
                 self._levelSlider.maximum() -
                 (self.map.faceCount - self._estimatedApexFaceCount))
+        elif self._sliderMode == 2:
+            # TODO: convert map state into cost, set slider
+            # pos. accordingly; current problem: _costLog might have
+            # more entries than we have automatic levels currently?
+            pass
         else:
             pass # FIXME
         self._levelSlider.blockSignals(False)
