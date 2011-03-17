@@ -21,7 +21,7 @@ class MapSearcher(QImageViewerTool):
         self.connectViewer(display.viewer)
 
     def mousePressed(self, x, y, button):
-        if button != QtCore.Qt.LeftButton:
+        if button != QtCore.Qt.LeftButton or self.activeModifiers():
             return False
         nearestNode = self._map.nearestNode((x, y))
         #sys.stdout.write("Node %d is %.2f from %d/%d\n" % (nearestNode.label(), minDist, x, y))
@@ -42,7 +42,7 @@ class _OldManualClassifier(QImageViewerTool):
         self.connectViewer(parent.viewer)
 
     def mousePressed(self, x, y, button):
-        if button != QtCore.Qt.LeftButton:
+        if button != QtCore.Qt.LeftButton or self.activeModifiers():
             return False
         face = self._map.faceAt((x, y))
         oldClass = self.foreground[face.label()]
@@ -163,7 +163,7 @@ class ManualClassifier(QImageViewerTool):
     def mousePressed(self, x, y, button):
         if not self._enabled:
             return False
-        if button not in (QtCore.Qt.LeftButton, QtCore.Qt.MidButton):
+        if button not in (QtCore.Qt.LeftButton, QtCore.Qt.MidButton) or self.activeModifiers():
             return False
         face = self._map.faceAt((x, y))
         if self.filter and not self.filter(face):
@@ -253,7 +253,7 @@ class SeedSelector(QImageViewerTool):
         return self._seedMap
 
     def mousePressed(self, x, y, button):
-        if button != QtCore.Qt.LeftButton:
+        if button != QtCore.Qt.LeftButton or self.activeModifiers():
             return False
 
         viewer = self.parent().viewer
@@ -299,7 +299,7 @@ class ActivePaintbrush(QImageViewerTool):
         self.connectViewer(parent.viewer)
 
     def mousePressed(self, x, y, button):
-        if button != QtCore.Qt.LeftButton:
+        if button != QtCore.Qt.LeftButton or self.activeModifiers():
             return False
         if not self._map.mapInitialized():
             sys.stderr.write("Paintbrush: Map not initialized. Unable to determine faces.\n")
@@ -589,6 +589,9 @@ class IntelligentScissors(QImageViewerTool):
         """With left mouse button, the live wire is started, with the
         middle mouse button it can be cancelled."""
 
+        if self.activeModifiers():
+            return False
+
         if button == QtCore.Qt.RightButton:
             if self._liveWire:
                 self.stopCurrentContour()
@@ -651,7 +654,7 @@ class IntelligentScissors(QImageViewerTool):
         (i.e. a path back to the starting node), this becomes
         protected in addition to the last segment."""
 
-        if button == QtCore.Qt.LeftButton:
+        if button == QtCore.Qt.LeftButton and not self.activeModifiers():
             if self._loop:
                 self._protectPath(self._loop)
                 self._loop = None
