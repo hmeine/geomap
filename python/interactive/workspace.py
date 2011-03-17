@@ -338,9 +338,11 @@ class Workspace(mapdisplay.MapDisplay):
         self._perform(FaceProtection(self, face.label()))
 
         bbox = face.boundingBox()
-        updateRect = self.viewer.windowCoordinates(bbox)
+        updateRect = QtCore.QRect(
+            self.viewer.windowCoordinate(*bbox.begin()),
+            self.viewer.windowCoordinate(*bbox.end()))
         lw = self.edgeOverlay.width + 1
-        updateRect.addCoords(-lw, -lw, lw, lw)
+        updateRect.adjust(-lw, -lw, lw + 1, lw + 1)
         self.viewer.update(updateRect)
 
     def scissorsFinished(self, contour):
