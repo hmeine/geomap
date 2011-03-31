@@ -1854,6 +1854,72 @@ def mapValidDarts(function, geomap, default = None):
     return result
 
 # --------------------------------------------------------------------
+
+def cpuCount(fallback = 1):
+    '''
+    Determine the number of CPU-cores via multiprocessing.cpu_count(),
+    falling back to the given value (default = single core).
+    '''
+    import multiprocessing
+    try:
+        return multiprocessing.cpu_count()
+    except NotImplementedError:
+        print "WARNING: Could not determine core count. Using fallback (%d)." % fallback
+    return fallback
+
+def chop(l, n):
+    '''
+    Chop list l into n chunks
+    '''
+    for i in xrange(0, len(l), n):
+        yield l[i:i+n]
+
+def _mapValidFacesWorker(function, geoMap, faceLabels, resultQueue):
+    '''
+    Worker function targeted by a single process during multi-core processing of a
+     geomap's faces.
+    @param function: (inspecting) function to be applied to the faces
+    @param geoMap: GeoMap to be processed
+    @param faceLabels: Subset of the geoMaps face labels to be processed
+    @param resultQueue: Queue shared by all processes working on the geoMap object
+    '''
+    for faceLabel in faceLabels:
+        result = function(geoMap.face(faceLabel))
+        resultQueue.put((faceLabel, result))
+
+def mapValidFacesParallel(function, geoMap, default = None, workerCount = None):
+    '''
+    API-compatible variant of mapValidFaces that applies the given
+    function to batches of faces in parallel (using the
+    multiprocessing module) and collects the results.  By default, one
+    worker process is spawned for each cpu core (cf. cpuCount()).
+    '''
+    from multiprocessing import Queue, Process
+
+    if workerCount is None:
+        workerCount = cpuCount()
+
+    faceLabels = chop([face.label() for face in geoMap.faceIter()], workerCount)
+
+    resultQueue = Queue()
+
+    processes = [Process(target = _mapValidFacesWorker,
+                         args = (function, geoMap, workerLabels, resultQueue))
+                 for workerLabels in faceLabels]
+
+    for process in processes:
+        process.start()
+    for process in processes:
+        process.join()
+
+    result = [default] * geoMap.maxFaceLabel()
+    while not resultQueue.empty():
+        faceLabel, value = resultQueue.get()
+        result[faceLabel] = value
+
+    return result
+
+# --------------------------------------------------------------------
 #                       Seeded Region Growing
 # --------------------------------------------------------------------
 
