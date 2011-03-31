@@ -4,6 +4,7 @@
 #include <iostream>
 #include <algorithm>
 #include <set>
+#include <stdio.h>
 #include "mydebug.hxx"
 #include "debugimage.hxx"
 #include "crop.hxx"
