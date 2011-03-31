@@ -1,6 +1,7 @@
 #ifndef VIGRA_POLYGON_HXX
 #define VIGRA_POLYGON_HXX
 
+#include <vigra/box.hxx>
 #include <vigra/diff2d.hxx>
 #include <vigra/gaussians.hxx>
 #include <vigra/splines.hxx>
@@ -8,7 +9,6 @@
 #include <vector>
 #include <cmath>
 #include <algorithm>
-#include "box.hxx"
 
 namespace vigra {
 
