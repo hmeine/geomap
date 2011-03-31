@@ -1,12 +1,14 @@
+#define PY_ARRAY_UNIQUE_SYMBOL geomap_PyArray_API
+#define NO_IMPORT_ARRAY
+#include <vigra/numpy_array.hxx>
 #include <boost/python.hpp>
 #include <boost/python/detail/api_placeholder.hpp>
 
-#include <vigra/pythonvector.hxx>
 #include <vigra/splineimageview.hxx>
 
-#include <vigra/pythonimage.hxx>
 
 #include "vigra/polygon.hxx"
+#include "python_types.hxx"
 
 #include <vector>
 #include <algorithm>

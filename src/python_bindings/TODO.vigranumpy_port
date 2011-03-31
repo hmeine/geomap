@@ -1,0 +1,12 @@
+- throw out pythonutil.hxx?
+
+- remove meshIter
+
+- replace Rect2D with Box<int, 2> (in C++ and Python)
+  (maybe wait for Box to appear in VIGRA repo? but API won't change)
+
+- remove pythondiff2d.cxx eventually?
+
+- fix the Makefiles/build system (use CMake?)
+
+- channelrepresentation.cxx was excluded from build

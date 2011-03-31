@@ -1971,7 +1971,7 @@ GeoMap::FacePtr GeoMap::removeBridge(const GeoMap::Dart &dart)
     }
     else
     {
-        if(contourPos == face.contoursBegin() and face.label())
+        if(contourPos == face.contoursBegin() && face.label())
         {
             // determine outer anchor, swap if necessary:
             // COMPLEXITY: depends on number of darts in contours

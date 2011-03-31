@@ -3,6 +3,8 @@
 
 #include <map>
 
+#include <vigra/numerictraits.hxx>
+
 namespace vigra {
 
 template<class Position, class Payload>

@@ -336,7 +336,7 @@ class ActivePaintbrush(QImageViewerTool):
                 self._currentLabel = survivor.label()
             else:
                 self._currentLabel = otherLabel
-        except Exception, e:
+        except Exception:
             sys.stderr.write("Paintbrush: Merge operation failed. Cancelling paint mode.\n")
             self._painting = False
             raise

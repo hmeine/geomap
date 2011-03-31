@@ -31,30 +31,30 @@ namespace vigra {
 template <class SrcIter, class SrcAcc,
           class DestIter, class DestAcc,
           class KernelIter>
-void 
+void
 oversamplingConvolutionLine(SrcIter s, SrcIter send, SrcAcc src,
                             DestIter d, DestAcc dest,
                             KernelIter intKernel, int intRadius,
                             KernelIter halfintKernel, int halfintRadius)
 {
-    typedef typename 
+    typedef typename
         NumericTraits<typename SrcAcc::value_type>::RealPromote
         TmpType;
-        
+
     int wo = send - s;
     int wn = 2*(wo-1)+1;
     int wo2 = 2*wo - 2;
-    
+
     vigra_precondition(2*intRadius+1 <= wo && 2*halfintRadius <= wo,
        "oversamplingConvolutionLine(): kernel larger than line");
-    
+
     int i;
     for(i=0; i<wn; ++i, ++d)
     {
         TmpType sum = NumericTraits<TmpType>::zero();
         KernelIter k;
         int lbound, hbound;
-        
+
         if(i%2 == 0)
         {
             // integer convolution
@@ -69,9 +69,9 @@ oversamplingConvolutionLine(SrcIter s, SrcIter send, SrcAcc src,
             hbound = i/2 + halfintRadius;
             k = halfintKernel + 2*halfintRadius - 1;
         }
-            
+
         if(lbound < 0 || hbound >= wo)
-        {    
+        {
             for(int m=lbound; m <= hbound; ++m, --k)
             {
                 int mm = (m < 0) ?
@@ -86,16 +86,16 @@ oversamplingConvolutionLine(SrcIter s, SrcIter send, SrcAcc src,
         {
             SrcIter ss = s + lbound;
             SrcIter ssend = s + hbound;
-            
+
             for(; ss <= ssend; ++ss, --k)
             {
                 sum += *k * src(ss);
             }
         }
-        
+
         dest.set(sum, d);
     }
-    
+
 }
 
 template <class Vector>
@@ -103,11 +103,11 @@ int makeSmoothingKernels(Vector & intKernel, Vector & halfintKernel, double scal
 {
     int intRadius = int(VIGRA_CSTD::ceil(3.0*scale));
     int halfintRadius = intRadius + 1;
-    
-    double s2 = (scale > 0.0) ? 
+
+    double s2 = (scale > 0.0) ?
                     scale*scale*2.0 :
                     1.0;
-    
+
     intKernel.resize(2*intRadius+1);
     double sum = VIGRA_CSTD::exp(0.0);
     for(int i = 1; i <= intRadius; ++i)
@@ -118,7 +118,7 @@ int makeSmoothingKernels(Vector & intKernel, Vector & halfintKernel, double scal
     {
         intKernel[i + intRadius] = VIGRA_CSTD::exp(-i*i/s2) / sum;
     }
-    
+
     halfintKernel.resize(2*halfintRadius);
     sum = 0.0;
     for(int i = 0; i < halfintRadius; ++i)
@@ -129,7 +129,7 @@ int makeSmoothingKernels(Vector & intKernel, Vector & halfintKernel, double scal
     {
         halfintKernel[i + halfintRadius] = VIGRA_CSTD::exp(-(i+0.5)*(i+0.5)/s2) / sum;
     }
-    
+
     return intRadius;
 }
 
@@ -142,7 +142,7 @@ int makeDerivativeKernels(Vector & intKernel, Vector & halfintKernel, double sca
     int halfintRadius = intRadius;
     intKernel.resize(2*intRadius+1);
     halfintKernel.resize(2*halfintRadius);
-    
+
     if (scale == 0.0)
     {
         intKernel[0] = 0.5;
@@ -185,17 +185,17 @@ int makeDerivativeKernels(Vector & intKernel, Vector & halfintKernel, double sca
 
 template <class SrcIter, class SrcAcc,
           class DestIter, class DestAcc>
-void 
+void
 oversamplingConvolution(SrcIter sul, SrcIter slr, SrcAcc src,
                         DestIter dul, DestAcc dest,
                         double scale, int xorder, int yorder)
 {
-    typedef typename 
+    typedef typename
         NumericTraits<typename SrcAcc::value_type>::RealPromote
         TmpType;
     typedef BasicImage<TmpType> TmpImage;
     typedef typename TmpImage::traverser TmpIter;
-        
+
     vigra_precondition(scale >= 0.0,
        "oversamplingConvolution(): scale must be >= 0");
 
@@ -207,55 +207,55 @@ oversamplingConvolution(SrcIter sul, SrcIter slr, SrcAcc src,
     ArrayVector<double> intKernel, halfintKernel;
     int intRadius = makeSmoothingKernels(intKernel, halfintKernel, scale);
     int halfintRadius = intRadius + 1;
-    
+
     ArrayVector<double> intDerivativeKernel, halfintDerivativeKernel;
     int intDerivativeRadius = makeDerivativeKernels(intDerivativeKernel, halfintDerivativeKernel, scale);
     int halfintDerivativeRadius = intDerivativeRadius;
-    
+
     vigra_precondition(2*intDerivativeRadius+1 <= wo && 2*halfintDerivativeRadius <= wo &&
                        2*intDerivativeRadius+1 <= ho && 2*halfintDerivativeRadius <= ho,
        "oversamplingConvolution(): kernel larger than image");
-    
+
     TmpImage tmp(wo, hn);
-    
+
     SrcIter s = sul;
     TmpIter t = tmp.upperLeft();
-    
-    for(; s.x < slr.x; ++s.x, ++t.x)
+
+    for(; s.x != slr.x; ++s.x, ++t.x)
     {
         typename SrcIter::column_iterator sc = s.columnIterator();
         typename TmpIter::column_iterator tc = t.columnIterator();
         if(yorder)
         {
             oversamplingConvolutionLine(sc, sc+ho, src, tc, tmp.accessor(),
-                                  intDerivativeKernel.begin(), intDerivativeRadius, 
+                                  intDerivativeKernel.begin(), intDerivativeRadius,
                                   halfintDerivativeKernel.begin(), halfintDerivativeRadius);
         }
         else
         {
             oversamplingConvolutionLine(sc, sc+ho, src, tc, tmp.accessor(),
-                                  intKernel.begin(), intRadius, 
+                                  intKernel.begin(), intRadius,
                                   halfintKernel.begin(), halfintRadius);
         }
     }
-    
+
     t = tmp.upperLeft();
     TmpIter tlr = tmp.lowerRight();
-    
-    for(; t.y < tlr.y; ++t.y, ++dul.y)
+
+    for(; t.y != tlr.y; ++t.y, ++dul.y)
     {
         typename TmpIter::row_iterator tr = t.rowIterator();
         typename DestIter::row_iterator dr = dul.rowIterator();
         if(xorder)
         {
             oversamplingConvolutionLine(tr, tr+wo, tmp.accessor(), dr, dest,
-                                  intDerivativeKernel.begin(), intDerivativeRadius, 
+                                  intDerivativeKernel.begin(), intDerivativeRadius,
                                   halfintDerivativeKernel.begin(), halfintDerivativeRadius);
         }
         else
         {
             oversamplingConvolutionLine(tr, tr+wo, tmp.accessor(), dr, dest,
-                                  intKernel.begin(), intRadius, 
+                                  intKernel.begin(), intRadius,
                                   halfintKernel.begin(), halfintRadius);
         }
     }
@@ -263,7 +263,7 @@ oversamplingConvolution(SrcIter sul, SrcIter slr, SrcAcc src,
 
 template <class SrcIter, class SrcAcc,
           class DestIter, class DestAcc>
-inline void 
+inline void
 oversamplingConvolution(triple<SrcIter, SrcIter, SrcAcc> src,
                         pair<DestIter, DestAcc> dest,
                         double scale, int xorder, int yorder)
@@ -272,7 +272,7 @@ oversamplingConvolution(triple<SrcIter, SrcIter, SrcAcc> src,
                             dest.first, dest.second, scale, xorder, yorder);
 }
 
-} // namespace vigra 
+} // namespace vigra
 
 
 #endif /* VIGRA_OVERSAMPLING_HXX */
