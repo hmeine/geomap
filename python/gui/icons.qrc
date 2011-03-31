@@ -1,0 +1,15 @@
+<RCC>
+  <qresource prefix="icon">
+    <file>icon/clean_map.png</file>
+    <file>icon/display_original.png</file>
+    <file>icon/display_colored.png</file>
+    <file>icon/display_boundary.png</file>
+    <file>icon/display_labels.png</file>
+    <file>icon/display_means.png</file>
+    <file>icon/paintbrush.png</file>
+    <file>icon/navigate.png</file>
+    <file>icon/display_normalize.png</file>
+    <file>icon/scissors.png</file>
+    <file>icon/undo.png</file>
+  </qresource>
+</RCC>

@@ -176,7 +176,7 @@ def delaunayMap(points, imageSize = (0, 0)):
     return _delaunayMapFromData(nodePositions, edges, imageSize,
                                 sigma)
 
-def delaunayToVoronoi(delaunayMap):
+def delaunayToVoronoi(delaunayMap, clipAtBorder = True):
     """Given a delauny map, compute the corresponding voronoi map.
     Internally, this uses `maputils.dualMap` with an appropriate
     definition of node positions (triangle circumcenters).
@@ -213,8 +213,11 @@ def delaunayToVoronoi(delaunayMap):
         nodePositions = [cc and cc[0]
                          for cc in calculateTriangleCircumcircles(delaunayMap)],
         midPoints = False,
-        onDemandNodeHook = createInfiniteNode)
+        onDemandNodeHook = createInfiniteNode,
+        initializeMap = False)
 
+    if not clipAtBorder:
+        return raw
     return maputils.clipMapEdgesAtBorder(raw)
 
 def cdtFromPSLG(pslg, onlyInner = False):
@@ -484,14 +487,14 @@ def removeWeakChords(delaunayMap):
             result += 1
     return result
 
-import qt
 def chordColors(delaunayMap):
-    result = [qt.Qt.red] * delaunayMap.maxEdgeLabel()
+    from PyQt4 import QtCore
+    result = [QtCore.Qt.red] * delaunayMap.maxEdgeLabel()
     for edge in delaunayMap.edgeIter():
         if edge.flag(CONTOUR_SEGMENT):
-            result[edge.label()] = qt.Qt.cyan
+            result[edge.label()] = QtCore.Qt.cyan
         elif edge.flag(WEAK_CHORD):
-            result[edge.label()] = qt.Qt.blue
+            result[edge.label()] = QtCore.Qt.blue
     return result
 
 # --------------------------------------------------------------------

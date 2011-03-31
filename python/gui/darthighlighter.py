@@ -1,7 +1,7 @@
-from weakref import ref
-import vigrapyqt
 import sys
-import qt
+from weakref import ref
+from PyQt4 import QtCore
+import vigrapyqt4
 
 class DartHighlighter(object):
     """The DartHighlighter class is attached to a viewer and a Map and
@@ -16,7 +16,7 @@ class DartHighlighter(object):
     def setMap(self, map):
         self._map = ref(map)
 
-    def highlight(self, darts, color = qt.Qt.yellow):
+    def highlight(self, darts, color = QtCore.Qt.yellow):
         """highlight(darts)
         Highlight the given darts (can be any iterable returning labels
         or Dart objects)."""
@@ -47,9 +47,9 @@ class DartHighlighter(object):
         if darts == None or not len(darts):
             return
 
-        self.eo = vigrapyqt.EdgeOverlay([dart.edge() for dart in darts], color)
+        self.eo = vigrapyqt4.EdgeOverlay([dart.edge() for dart in darts], color)
         self.eo.width = 2
-        self.no = vigrapyqt.PointOverlay(
+        self.no = vigrapyqt4.PointOverlay(
             [dart.startNode().position() for dart in darts], color, 3)
         self.color = color # used in the viewer's RMB menu
 

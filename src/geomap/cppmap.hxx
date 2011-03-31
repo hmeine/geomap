@@ -10,15 +10,9 @@
 #include <vigra/multi_array.hxx>
 #include <sigc++/sigc++.h>
 #include <boost/utility.hpp> // boost::noncopyable
+#include <boost/math/special_functions/fpclassify.hpp> // boost::math::isnan (for Mac/Win!)
 
 #include <cfloat>
-
-#ifdef _WIN32 // at least _MSC_VER and __MINGW32__ don't have isnan:
-  inline int isnan(double t) { return _isnan(t); }
-#else
-# include <cmath>
-  using std::isnan;
-#endif
 
 // The define USE_INSECURE_CELL_PTRS can be used to switch between
 // "safe" cell handling e.g. for Python and a possibly faster C++ way.
@@ -1567,7 +1561,7 @@ class DartPosition
                                    + center[0]*diff[1] - diff[0]*center[1]))
              - dot(diff, p1_ - center))
             / dist2);
-        if(!isnan(lambda))
+        if(!boost::math::isnan(lambda))
             diff *= lambda;
         else
         {

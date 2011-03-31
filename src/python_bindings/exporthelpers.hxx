@@ -177,7 +177,7 @@ generic__copy__(boost::python::object copyable)
 {
     namespace bp = boost::python;
 
-    Copyable *newCopyable = new Copyable(bp::extract<const Copyable &>(copyable));
+    Copyable *newCopyable = new Copyable(bp::extract<const Copyable &>(copyable)());
     bp::object result =
         bp::object(bp::detail::new_reference(bp::managingPyObject(newCopyable)));
 
@@ -196,7 +196,7 @@ generic__deepcopy__(boost::python::object copyable, boost::python::dict memo)
     bp::object copyMod = bp::import("copy");
     bp::object deepcopy = copyMod.attr("deepcopy");
 
-    Copyable *newCopyable = new Copyable(bp::extract<const Copyable &>(copyable));
+    Copyable *newCopyable = new Copyable(bp::extract<const Copyable &>(copyable)());
     bp::object result =
         bp::object(bp::detail::new_reference(bp::managingPyObject(newCopyable)));
 

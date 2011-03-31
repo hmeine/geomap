@@ -1,32 +1,38 @@
 from darthighlighter import DartHighlighter
 
 # ui-generated base classes:
-from dartnavigatorbase import DartNavigatorBase
-import qt
+from dartnavigator_ui import Ui_DartNavigator
+from PyQt4 import QtCore, QtGui
 
-class DartNavigator(DartNavigatorBase):
-    __base = DartNavigatorBase
+class DartNavigator(QtGui.QDialog):
+    __base = QtGui.QDialog
     
     def __init__(self, dart, costMeasure, parent, name = None):
-        self.__base.__init__(self, parent, name)
+        self.__base.__init__(self, parent)
+        if name:
+            self.setObjectName(name)
+
         self.dart = dart
         self.costMeasure = costMeasure
-        self.connect(self.nextPhiButton, qt.SIGNAL("clicked()"),
+
+        self.ui = Ui_DartNavigator()
+        self.ui.setupUi(self)
+        self.connect(self.ui.nextPhiButton, QtCore.SIGNAL("clicked()"),
                      self.nextPhi)
-        self.connect(self.prevPhiButton, qt.SIGNAL("clicked()"),
+        self.connect(self.ui.prevPhiButton, QtCore.SIGNAL("clicked()"),
                      self.prevPhi)
-        self.connect(self.nextAlphaButton, qt.SIGNAL("clicked()"),
+        self.connect(self.ui.nextAlphaButton, QtCore.SIGNAL("clicked()"),
                      self.nextAlpha)
-        self.connect(self.nextSigmaButton, qt.SIGNAL("clicked()"),
+        self.connect(self.ui.nextSigmaButton, QtCore.SIGNAL("clicked()"),
                      self.nextSigma)
-        self.connect(self.prevSigmaButton, qt.SIGNAL("clicked()"),
+        self.connect(self.ui.prevSigmaButton, QtCore.SIGNAL("clicked()"),
                      self.prevSigma)
 
-        self.connect(self.continuousCheckBox, qt.SIGNAL("toggled(bool)"),
+        self.connect(self.ui.continuousCheckBox, QtCore.SIGNAL("toggled(bool)"),
                      self.toggleContinuous)
 
-        self.timer = qt.QTimer(self)
-        self.connect(self.timer, qt.SIGNAL("timeout()"),
+        self.timer = QtCore.QTimer(self)
+        self.connect(self.timer, QtCore.SIGNAL("timeout()"),
                      self.highlightNext)
 
         self._darthighlighter = DartHighlighter(parent.map, parent.viewer)
@@ -36,7 +42,7 @@ class DartNavigator(DartNavigatorBase):
         self._darthighlighter.highlight(None)
         self.__base.closeEvent(self, e)
         if e.isAccepted():
-            self.deleteLater() # like qt.Qt.WDestructiveClose ;-)
+            self.deleteLater() # like QtCore.Qt.WDestructiveClose ;-)
 
     def highlightNext(self):
         self.activePerm()
@@ -51,11 +57,11 @@ class DartNavigator(DartNavigatorBase):
             self.timer.start(1200)
         else:
             self.timer.stop()
-        self.nextPhiButton.setToggleButton(onoff)
-        self.prevPhiButton.setToggleButton(onoff)
-        self.nextAlphaButton.setToggleButton(onoff)
-        self.nextSigmaButton.setToggleButton(onoff)
-        self.prevSigmaButton.setToggleButton(onoff)
+        self.ui.nextPhiButton.setToggleButton(onoff)
+        self.ui.prevPhiButton.setToggleButton(onoff)
+        self.ui.nextAlphaButton.setToggleButton(onoff)
+        self.ui.nextSigmaButton.setToggleButton(onoff)
+        self.ui.prevSigmaButton.setToggleButton(onoff)
 
     def moveDart(self, perm):
         perm()
@@ -84,16 +90,16 @@ class DartNavigator(DartNavigatorBase):
             self.dart.partialArea(), len(self.dart))
         if self.costMeasure:
             dartDesc += "\nassociated cost: %s" % self.costMeasure(self.dart)
-        self.dartLabel.setText(dartDesc)
-        for node, nodeLabel in ((self.dart.startNode(), self.startNodeLabel),
-                                (self.dart.endNode(), self.endNodeLabel)):
+        self.ui.dartLabel.setText(dartDesc)
+        for node, nodeLabel in ((self.dart.startNode(), self.ui.startNodeLabel),
+                                (self.dart.endNode(), self.ui.endNodeLabel)):
             nodeLabel.setText(
                 "Node %d (deg. %d)\nat %s" % (
                 node.label(), node.degree(), node.position()))
         if self.dart.map().mapInitialized():
             leftFace = self.dart.leftFace()
             rightFace = self.dart.rightFace()
-            self.faceLabel.setText(
+            self.ui.faceLabel.setText(
                 """Left: %s\nRight: %s""" % (str(leftFace)[8:-1], str(rightFace)[8:-1]))
-        self.setCaption("DartNavigator(%d)" % (self.dart.label(), ))
-        self.emit(qt.PYSIGNAL('updateDart'),(self.dart,))
+        self.setWindowTitle("DartNavigator(%d)" % (self.dart.label(), ))
+        self.emit(QtCore.SIGNAL('updateDart'), self.dart)

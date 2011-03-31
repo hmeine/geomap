@@ -1,20 +1,21 @@
-import os, sys, qt, fig, math
+import os, sys, fig, math
+from PyQt4 import QtCore, QtGui
 
 from vigra import Vector2, readImage, Rect2D, Size2D, meshIter
-import vigrapyqt
+import vigrapyqt4
 from geomap import BoundingBox, Polygon, simplifyPolygon, intPos, contourPoly
 from polytools import clipPoly
 import flag_constants
 
 _qtColor2figColorMapping = {
-    qt.Qt.black : fig.colorBlack,
-    qt.Qt.blue : fig.colorBlue,
-    qt.Qt.green : fig.colorGreen,
-    qt.Qt.cyan : fig.colorCyan,
-    qt.Qt.red : fig.colorRed,
-    qt.Qt.magenta : fig.colorMagenta,
-    qt.Qt.yellow : fig.colorYellow,
-    qt.Qt.white : fig.colorWhite,
+    QtCore.Qt.black : fig.colorBlack,
+    QtCore.Qt.blue : fig.colorBlue,
+    QtCore.Qt.green : fig.colorGreen,
+    QtCore.Qt.cyan : fig.colorCyan,
+    QtCore.Qt.red : fig.colorRed,
+    QtCore.Qt.magenta : fig.colorMagenta,
+    QtCore.Qt.yellow : fig.colorYellow,
+    QtCore.Qt.white : fig.colorWhite,
     }
 
 def qtColor2figColor(color, figFile):
@@ -391,7 +392,7 @@ class FigExporter:
         """Set color (and possibly line width) from overlay attributes."""
         if colorAttr not in attr:
             color = overlay.color
-            if type(color) == qt.QColor:
+            if type(color) == QtGui.QColor:
                 color = qtColor2figColor(color, self.f)
             attr[colorAttr] = color
             #print "fetched %s %s from %s" % (colorAttr, color, overlay)
@@ -399,7 +400,7 @@ class FigExporter:
         if colorAttr == "penColor" and \
                hasattr(overlay, "fillColor") and "fillColor" not in attr:
             color = overlay.fillColor
-            if type(color) == qt.QColor:
+            if type(color) == QtGui.QColor:
                 color = qtColor2figColor(color, self.f)
             if color is not None:
                 attr["fillColor"] = color
@@ -616,11 +617,11 @@ class FigExporter:
 
 def addStandardOverlay(fe, overlay, **attr):
     # FIXME: str(type(overlay)).contains(...) instead?
-    if isinstance(overlay, vigrapyqt.PointOverlay):
+    if isinstance(overlay, vigrapyqt4.PointOverlay):
         return fe.addPointOverlay(overlay, **attr)
-    elif isinstance(overlay, vigrapyqt.EdgeOverlay):
+    elif isinstance(overlay, vigrapyqt4.EdgeOverlay):
         return fe.addEdgeOverlay(overlay, **attr)
-    elif isinstance(overlay, vigrapyqt.CircleOverlay):
+    elif isinstance(overlay, vigrapyqt4.CircleOverlay):
         return fe.addCircleOverlay(overlay, **attr)
 
 def _exportOverlays(fe, overlays, overlayHandler, startDepth = 100):
@@ -629,7 +630,7 @@ def _exportOverlays(fe, overlays, overlayHandler, startDepth = 100):
         if hasattr(overlay, 'visible') and not overlay.visible:
             continue
         if overlayHandler(fe, overlay, depth = depth) is None:
-            if isinstance(overlay, vigrapyqt.OverlayGroup):
+            if isinstance(overlay, vigrapyqt4.OverlayGroup):
                 depth = _exportOverlays(
                     fe, overlay.overlays, overlayHandler, startDepth = depth)
             else:
@@ -661,7 +662,7 @@ def exportImageWindow(
     can be disabled entirely by setting `bgFilename` to `False`.
 
     Overlays are saved using the given overlayHandler.  The default
-    handler (addStandardOverlay) can handle the standard vigrapyqt
+    handler (addStandardOverlay) can handle the standard vigrapyqt4
     point, edge, and circle overlays."""
     
     figFilename = basepath + ".fig"

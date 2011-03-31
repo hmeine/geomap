@@ -1,7 +1,13 @@
-%.py: %.ui
-	pyuic $< -o $@
+PYUIC = pyuic4
+PYRCC = pyrcc4
 
-UI_GENERATED = dartnavigatorbase.py displaysettings.py
+%_ui.py: %.ui
+	$(PYUIC) $< -o $@
+
+%_rc.py: %.qrc
+	$(PYRCC) $< -o $@
+
+UI_GENERATED = dartnavigator_ui.py displaysettings_ui.py icons_rc.py
 
 all: $(UI_GENERATED)
 

@@ -69,6 +69,12 @@ class StatusMessage(object):
 
         self._start(message)
 
+    @staticmethod
+    def once(message, stream = None):
+        if stream is None:
+            stream = sys.stdout
+        stream.write("  "*(_level - 1) + message + "\n")
+
     def _start(self, message):
         self._message = "  "*(_level - 1) + message
         self._promille = 0

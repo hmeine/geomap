@@ -1,18 +1,19 @@
-import sys, math, qt
+import sys, math
 import fig, figexport
-import vigra, vigrapyqt
+import vigra, vigrapyqt4
 import maputils, flag_constants, tools, statistics
 from vigra import Rect2D, Vector2
 from geomap import simplifyPolygon, intPos, BoundingBox, contourPoly
 from maputils import removeCruft
 from weakref import ref
+from PyQt4 import QtCore, QtGui
 
 from darthighlighter import DartHighlighter
 from dartnavigator import DartNavigator
 from roiselector import ROISelector
 
 # ui-generated base class:
-import displaysettings
+from displaysettings_ui import Ui_DisplaySettings
 
 assert bool(vigra.NBYTE) and not bool(vigra.BYTE), \
        "this code relies on the fact that `normalize` can be either a bool or a PixelType"
@@ -31,15 +32,15 @@ def findZoomFactor(srcSize, destSize):
         result *= 2
     return result
 
-class MapFaces(vigrapyqt.Overlay):
-    __base = vigrapyqt.Overlay
+class MapFaces(vigrapyqt4.Overlay):
+    __base = vigrapyqt4.Overlay
 
     # TODO: remove _map (reuse from edgeOverlay)
 
     def __init__(self, map, edgeOverlay,
                  color = None, width = 0, fillColor = None,
                  flags = None):
-        self.__base.__init__(self, color, width, fillColor)
+        self.__base.__init__(self, color = color, width = width, fillColor = fillColor)
         self.setMap(map)
         self.edgeOverlay = edgeOverlay
         self.flags = flags
@@ -59,17 +60,17 @@ class MapFaces(vigrapyqt.Overlay):
         one call to viewer.update(ROI).)"""
         
         if isinstance(face, (tuple, list)):
-            roi = qt.QRect()
+            roi = QtCore.QRect()
             for face in face:
                 roi |= self._faceROI(face)
         else:
             roi = self._faceROI(face)
-        roi.moveBy(self.viewer.upperLeft().x(),
-                   self.viewer.upperLeft().y())
+        roi.translate(self.viewer.upperLeft().x(),
+                      self.viewer.upperLeft().y())
         self.viewer.update(roi)
 
     def _getZoomedFace(self, face):
-        """Return the QPointArray for the given GeoMap.Face object."""
+        """Return the QPolygon for the given GeoMap.Face object."""
 
         zoomedEdge = self.edgeOverlay._getZoomedEdge
         edges = []
@@ -82,7 +83,7 @@ class MapFaces(vigrapyqt.Overlay):
                 contourSize += ze.size()
             sizes.append(contourSize)
 
-        qpa = qt.QPointArray(sum(sizes))
+        qpa = QtGui.QPolygon(sum(sizes))
         ti = 0
         for edge, reverse in edges:
             if reverse:
@@ -109,8 +110,6 @@ class MapFaces(vigrapyqt.Overlay):
         #p.drawPolygon(self._qpointarray, True, s, e-s)
 
         r = p.clipRegion().boundingRect()
-        r.moveBy(-self.viewer.upperLeft().x(),
-                 -self.viewer.upperLeft().y())
         bbox = BoundingBox(Vector2(r.left() / zoomFactor - 0.5,
                                    r.top() / zoomFactor - 0.5),
                            Vector2(r.right() / zoomFactor + 0.5,
@@ -121,7 +120,7 @@ class MapFaces(vigrapyqt.Overlay):
                 for edge in map.edgeIter():
                     edgeColor = self.colors[edge.label()]
                     if edgeColor and bbox.intersects(edge.boundingBox()):
-                        p.setPen(qt.QPen(edgeColor, self.width))
+                        p.setPen(QtGui.QPen(edgeColor, self.width))
                         p.drawPolyline(self._getZoomedEdge(edge))
             except IndexError, e:
                 print e #"IndexError: %d > %d (maxEdgeLabel: %d)!" % (
@@ -140,23 +139,22 @@ class MapFaces(vigrapyqt.Overlay):
                                 index += size
                         if self.fillColor:
                             p.save()
-                            p.setPen(qt.Qt.NoPen)
+                            p.setPen(QtCore.Qt.NoPen)
                             p.drawPolygon(qpa)
                             p.restore()
                     else:
                         p.drawPolygon(qpa)
 
-class MapEdges(vigrapyqt.Overlay):
+class MapEdges(vigrapyqt4.Overlay):
     __slots__ = ("colors", "protectedColor", "protectedWidth",
                  "_map", "_attachedHooks", "_removedEdgeLabel",
                  "_zoom", "_zoomedEdges")
 
-    __base = vigrapyqt.Overlay
+    __base = vigrapyqt4.Overlay
     
     def __init__(self, map, color, width = 0,
-                 protectedColor = None, protectedWidth = None,
-                 name = None):
-        self.__base.__init__(self, color, width, name = name)
+                 protectedColor = None, protectedWidth = None):
+        self.__base.__init__(self, color = color, width = width)
         self.setMap(map)
         self.colors = None
         self.protectedColor = protectedColor
@@ -199,7 +197,7 @@ class MapEdges(vigrapyqt.Overlay):
         if isinstance(edge, (tuple, list)):
             if isinstance(edge[0], int):
                 edge = map(self._map().edge, edge)
-            updateROI = qt.QRect()
+            updateROI = QtCore.QRect()
             for edge in edge:
                 self.colors[edge.label()] = newColor
                 updateROI |= self._edgeROI(edge)
@@ -221,29 +219,28 @@ class MapEdges(vigrapyqt.Overlay):
         one call to viewer.update(ROI).)"""
         
         if isinstance(edge, (tuple, list)):
-            roi = qt.QRect()
+            roi = QtCore.QRect()
             for edge in edge:
                 roi |= self._edgeROI(edge)
         else:
             roi = self._edgeROI(edge)
-        roi.moveBy(self.viewer.upperLeft().x(),
-                   self.viewer.upperLeft().y())
+        roi.translate(self.viewer.upperLeft().x(),
+                      self.viewer.upperLeft().y())
         self.viewer.update(roi)
 
     def _calculateZoomedEdge(self, edgeLabel, edge):
+        """Zoom edge according to zoom level.  Does not do upperLeft()
+        translation yet (only accounts for the pixel-center
+        offset)."""
         offset = Vector2(self._zoom / 2.0 - 0.5, self._zoom / 2.0 - 0.5)
         origEdgePoints = (
             simplifyPolygon(edge * self._zoom, 0.1)
             + offset).roundToInteger()
 
         qpa = self._zoomedEdges[edgeLabel]
-        if qpa == None:
-            qpa = qt.QPointArray(len(origEdgePoints))
+        if qpa == None or qpa.size() != len(origEdgePoints):
+            qpa = QtGui.QPolygon(len(origEdgePoints))
             self._zoomedEdges[edgeLabel] = qpa
-        elif qpa.size() != len(origEdgePoints):
-            # extra parameter in c++ would be QGArray.SpeedOptim (1), but
-            # is not available here:
-            qpa.resize(len(origEdgePoints))
 
         for i, pos in enumerate(origEdgePoints):
             qpa.setPoint(i, pos[0], pos[1])
@@ -264,7 +261,7 @@ class MapEdges(vigrapyqt.Overlay):
         if self._zoomedEdges[index]:
             updateROI = self._zoomedEdges[index].boundingRect()
         else:
-            updateROI = qt.QRect()
+            updateROI = QtCore.QRect()
 
         if edgePoints:
             # TODO: knowing the bounding box for the update would be
@@ -274,8 +271,8 @@ class MapEdges(vigrapyqt.Overlay):
         else:
             self._zoomedEdges[index] = None
 
-        updateROI.moveBy(self.viewer.upperLeft().x(),
-                         self.viewer.upperLeft().y())
+        updateROI.translate(self.viewer.upperLeft().x(),
+                            self.viewer.upperLeft().y())
         self.viewer.update(updateROI)
 
     def _preRemoveEdgeHook(self, dart):
@@ -297,14 +294,14 @@ class MapEdges(vigrapyqt.Overlay):
         if self._map() and self._map().imageSize()[0]:
             zoom *= findZoomFactor(
                 self._map().imageSize()[0],
-                self.viewer.pixmap.size().width())
+                self.viewer.originalWidth())
         if self._zoom != zoom:
             self._zoom = zoom
             self._zoomedEdges = [None] * len(self._zoomedEdges)
 
     def _getZoomedEdge(self, edge):
-        """Return the QPointArray for the given GeoMap.Edge object.
-        The QPointArrays are cached and will be created on demand if
+        """Return the QPolygon for the given GeoMap.Edge object.
+        The QPolygons are cached and will be created on demand if
         you call this function."""
         index = edge.label()
         result = self._zoomedEdges[index]
@@ -319,19 +316,18 @@ class MapEdges(vigrapyqt.Overlay):
         self._setupPainter(p)
 
         r = p.clipRegion().boundingRect()
-        r.moveBy(-self.viewer.upperLeft().x(),
-                 -self.viewer.upperLeft().y())
         bbox = BoundingBox(Vector2(r.left() / self._zoom - 0.5,
                                    r.top() / self._zoom - 0.5),
                            Vector2(r.right() / self._zoom + 0.5,
                                    r.bottom() / self._zoom + 0.5))
         map = self._map()
+
         if self.colors:
             try:
                 for edge in map.edgeIter():
                     edgeColor = self.colors[edge.label()]
                     if edgeColor and bbox.intersects(edge.boundingBox()):
-                        p.setPen(qt.QPen(edgeColor, self.width))
+                        p.setPen(QtGui.QPen(edgeColor, self.width))
                         p.drawPolyline(self._getZoomedEdge(edge))
             except IndexError, e:
                 print e #"IndexError: %d > %d (maxEdgeLabel: %d)!" % (
@@ -342,18 +338,18 @@ class MapEdges(vigrapyqt.Overlay):
                     p.drawPolyline(self._getZoomedEdge(edge))
 
         if self.protectedColor:
-            p.setPen(qt.QPen(self.protectedColor,
+            p.setPen(QtGui.QPen(self.protectedColor,
                              self.protectedWidth or self.width))
             for edge in map.edgeIter():
                 if edge.flag(flag_constants.ALL_PROTECTION) and \
                        bbox.intersects(edge.boundingBox()):
                     p.drawPolyline(self._getZoomedEdge(edge))
 
-class MapNodes(vigrapyqt.Overlay):
-    __base = vigrapyqt.Overlay
+class MapNodes(vigrapyqt4.Overlay):
+    __base = vigrapyqt4.Overlay
     
     def __init__(self, map, color, radius = 0.2, relativeRadius = True):
-        self.__base.__init__(self, color)
+        self.__base.__init__(self, color = color)
         self.setMap(map)
         self.setRadius(radius, relativeRadius)
         self._zoom = None
@@ -387,11 +383,11 @@ class MapNodes(vigrapyqt.Overlay):
         d0 = Vector2(0.5 * (self._zoom-1) - self.radius,
                      0.5 * (self._zoom-1) - self.radius)
         w = 2 * self.radius + 1
-        self._elSize = qt.QSize(w, w)
+        self._elSize = QtCore.QSize(w, w)
         self._qpointlist = [None] * self._map().maxNodeLabel()
         for node in self._map().nodeIter():
             ip = intPos(node.position() * self._zoom + d0)
-            self._qpointlist[node.label()] = qt.QPoint(ip[0], ip[1])
+            self._qpointlist[node.label()] = QtCore.QPoint(ip[0], ip[1])
 
     def removeNode(self, node):
         if self._qpointlist:
@@ -400,9 +396,9 @@ class MapNodes(vigrapyqt.Overlay):
                 sys.stderr.write("WARNING: MapNodes.removeNode(): Node already None!\n")
                 return
             if self.visible:
-                ur = qt.QRect(self._qpointlist[nodeLabel], self._elSize)
-                ur.moveBy(self.viewer.upperLeft().x(),
-                          self.viewer.upperLeft().y())
+                ur = QtCore.QRect(self._qpointlist[nodeLabel], self._elSize)
+                ur.translate(self.viewer.upperLeft().x(),
+                             self.viewer.upperLeft().y())
                 self.viewer.update(ur)
             self._qpointlist[nodeLabel] = None
         return True
@@ -411,7 +407,7 @@ class MapNodes(vigrapyqt.Overlay):
         if self._map() and self._map().imageSize()[0]:
             zoom *= findZoomFactor(
                 self._map().imageSize()[0],
-                self.viewer.pixmap.size().width())
+                self.viewer.originalWidth())
         if self._zoom != zoom:
             self._zoom = zoom
             self._qpointlist = None
@@ -441,10 +437,10 @@ class MapNodes(vigrapyqt.Overlay):
                     #p.drawPoint(point)
                     p.drawLine(point, point)
         else:
-            p.setBrush(qt.QBrush(self.color))
+            p.setBrush(QtGui.QBrush(self.color))
             for point in self._qpointlist:
                 if point: # TODO: boundingRect
-                    p.drawEllipse(qt.QRect(point, self._elSize))
+                    p.drawEllipse(QtCore.QRect(point, self._elSize))
 
 # --------------------------------------------------------------------
 #                             MapDisplay
@@ -541,8 +537,8 @@ def addMapOverlay(fe, overlay, skipBorder = False, **attr):
     else:
         return figexport.addStandardOverlay(fe, overlay, **attr)
 
-class MapDisplay(displaysettings.DisplaySettings):
-    __base = displaysettings.DisplaySettings
+class MapDisplay(QtGui.QMainWindow):
+    __base = QtGui.QMainWindow
 
     # actually, this has only documenting effect; since this inherits
     # PyQt widgets, any attribute may be used:
@@ -556,9 +552,13 @@ class MapDisplay(displaysettings.DisplaySettings):
     def __init__(self, map, preparedImage = None, immediateShow = True,
                  faceMeans = None):
         self.__base.__init__(self)
+
         self.tool = None
         self._togglingGUI = False
         self._faceMeans = None # temp. needed (for _enableImageActions)
+
+        self.ui = Ui_DisplaySettings()
+        self.ui.setupUi(self)
 
         # for backward compatibility:
         if hasattr(preparedImage, "imageSize") and hasattr(map, "width"):
@@ -582,7 +582,7 @@ class MapDisplay(displaysettings.DisplaySettings):
             self.setImage(preparedImage, normalize = False)
 
         self.image = preparedImage
-        self._imageWindow = vigrapyqt.ImageWindow(self.image, vigra.BYTE, self)
+        self._imageWindow = vigrapyqt4.ImageWindow(self.image, vigra.BYTE, self)
         self._imageWindow.label.hide()
         self.setCentralWidget(self._imageWindow)
         self.viewer = self._imageWindow.viewer
@@ -604,42 +604,42 @@ class MapDisplay(displaysettings.DisplaySettings):
         self._normalizeStates = [False, False, True, True, False]
         if self.image.bands() == 3:
             self._backgroundMode = 1
-            self.displayColoredAction.setOn(True)
+            self.ui.displayColoredAction.setChecked(True)
         else:
             self._backgroundMode = 0
-            self.displayOriginalAction.setOn(True)
+            self.ui.displayOriginalAction.setChecked(True)
         self._enableImageActions()
 
-        self.connect(self.backgroundGroup, qt.SIGNAL("selected(QAction*)"),
+        self.connect(self.ui.backgroundGroup, QtCore.SIGNAL("selected(QAction*)"),
                      self.setBackgroundMode)
-        self.connect(self.nodeDisplayAction, qt.SIGNAL("toggled(bool)"),
+        self.connect(self.ui.nodeDisplayAction, QtCore.SIGNAL("toggled(bool)"),
                      self.toggleNodeDisplay)
-        self.connect(self.edgeDisplayAction, qt.SIGNAL("toggled(bool)"),
+        self.connect(self.ui.edgeDisplayAction, QtCore.SIGNAL("toggled(bool)"),
                      self.toggleEdgeDisplay)
-        self.connect(self.normalizeAction, qt.SIGNAL("toggled(bool)"),
+        self.connect(self.ui.normalizeAction, QtCore.SIGNAL("toggled(bool)"),
                      self.toggleNormalize)
-        self.connect(self.mapCleanupAction, qt.SIGNAL("activated()"),
+        self.connect(self.ui.mapCleanupAction, QtCore.SIGNAL("activated()"),
                      self.cleanupMap)
-        self.connect(self.paintbrushAction, qt.SIGNAL("toggled(bool)"),
+        self.connect(self.ui.paintbrushAction, QtCore.SIGNAL("toggled(bool)"),
                      self.activatePaintbrush)
-        self.connect(self.scissorsAction, qt.SIGNAL("toggled(bool)"),
+        self.connect(self.ui.scissorsAction, QtCore.SIGNAL("toggled(bool)"),
                      self.activateScissors)
-        self.connect(self.navigateAction, qt.SIGNAL("toggled(bool)"),
+        self.connect(self.ui.navigateAction, QtCore.SIGNAL("toggled(bool)"),
                      self.activateNavigator)
-        self.connect(self._imageWindow, qt.PYSIGNAL("captionChanged"),
+        self.connect(self._imageWindow, QtCore.SIGNAL("captionChanged"),
                      self.statusMessage)
-                     #self.statusBar(), qt.SLOT("message(const QString&)"))
+                     #self.statusBar(), QtCore.SLOT("message(const QString&)"))
 
-        self.setCaption("Map Display")
+        self.setWindowTitle("Map Display")
 
-        self.edgeOverlay = MapEdges(map, qt.Qt.red,
-                                    protectedColor = qt.Qt.green,
+        self.edgeOverlay = MapEdges(map, QtCore.Qt.red,
+                                    protectedColor = QtCore.Qt.green,
                                     protectedWidth = 2)
         self.viewer.addOverlay(self.edgeOverlay)
-        self.edgeOverlay.visible = self.edgeDisplayAction.isOn()
-        self.nodeOverlay = MapNodes(map, qt.Qt.blue)
+        self.edgeOverlay.visible = self.ui.edgeDisplayAction.isChecked()
+        self.nodeOverlay = MapNodes(map, QtCore.Qt.blue)
         self.viewer.addOverlay(self.nodeOverlay)
-        self.nodeOverlay.visible = self.nodeDisplayAction.isOn()
+        self.nodeOverlay.visible = self.ui.nodeDisplayAction.isChecked()
         self._dh = DartHighlighter(map, self.viewer)
         self.dn = None
 
@@ -702,9 +702,9 @@ class MapDisplay(displaysettings.DisplaySettings):
 
     def statusMessage(self, msg):
         # workaround - don't know why connecting the PYSIGNAL directly
-        # does not work (maybe qt.PYSIGNAL("captionChanged(QString)")
+        # does not work (maybe QtCore.SIGNAL("captionChanged(QString)")
         # would work?)
-        self.statusBar().message(msg)
+        self.statusBar().showMessage(msg)
 
     def currentRole(self):
         return ("original", "colored", "bi", "labels", "faceMeans")[
@@ -712,11 +712,11 @@ class MapDisplay(displaysettings.DisplaySettings):
 
     def setBackgroundMode(self, mode):
         if type(mode) != int:
-            mode = [self.displayOriginalAction,
-                    self.displayColoredAction,
-                    self.displayBIAction,
-                    self.displayLabelsAction,
-                    self.displayMeansAction].index(mode)
+            mode = [self.ui.displayOriginalAction,
+                    self.ui.displayColoredAction,
+                    self.ui.displayBIAction,
+                    self.ui.displayLabelsAction,
+                    self.ui.displayMeansAction].index(mode)
 
         displayImage = None
         if mode == 0:
@@ -736,8 +736,8 @@ class MapDisplay(displaysettings.DisplaySettings):
         self.image = displayImage
         self._backgroundMode = mode
         normalize = self._normalizeStates[mode]
-        if self.normalizeAction.isOn() != normalize:
-            self.normalizeAction.setOn(normalize)
+        if self.ui.normalizeAction.isChecked() != normalize:
+            self.ui.normalizeAction.setChecked(normalize)
         else:
             self._setImage(self.image, normalize)
 
@@ -787,7 +787,7 @@ class MapDisplay(displaysettings.DisplaySettings):
             roiImage = self._faceMeans.regionImage(roiImage)
         # FIXME: use global normalization here
         self.viewer.replaceROI(roiImage.toPNM(vigra.BYTE),
-                               qt.QPoint(*roi.upperLeft()))
+                               QtCore.QPoint(*roi.upperLeft()))
 
     def _postMergeFacesHook(self, survivor):
         if self._backgroundMode < 3:
@@ -813,7 +813,7 @@ class MapDisplay(displaysettings.DisplaySettings):
         self.detachHooks()
         return self.__base.hideEvent(self, e)
 
-    def showMarkedEdges(self, colorMarked = qt.Qt.green, colorUnmarked = None,
+    def showMarkedEdges(self, colorMarked = QtCore.Qt.green, colorUnmarked = None,
                         markFlags = flag_constants.ALL_PROTECTION):
         edgeColors = [None] * self.map.maxEdgeLabel()
         for edge in self.map.edgeIter():
@@ -850,8 +850,8 @@ class MapDisplay(displaysettings.DisplaySettings):
         elif tool == 2:
             self.tool = tools.ActivePaintbrush(self.map, self)
         elif tool == 3:
-            if self.edgeOverlay.color == qt.Qt.red:
-                self.edgeOverlay.color = qt.Qt.black
+            if self.edgeOverlay.color == QtCore.Qt.red:
+                self.edgeOverlay.color = QtCore.Qt.black
             self.nodeOverlay.visible = False
             self.tool = tools.IntelligentScissors(
                 self.map, self.edgeOverlay, self)
@@ -867,9 +867,9 @@ class MapDisplay(displaysettings.DisplaySettings):
             print "  give 1 for MapSearcher, 2 for ActivePaintbrush, 3 for IntelligentScissors, 4 for SeedSelector"
             tool = 0
         self._togglingGUI = True
-        self.scissorsAction.setOn(tool == 3)
-        self.paintbrushAction.setOn(tool == 2)
-        self.navigateAction.setOn(tool == 1)
+        self.ui.scissorsAction.setChecked(tool == 3)
+        self.ui.paintbrushAction.setChecked(tool == 2)
+        self.ui.navigateAction.setChecked(tool == 1)
         self._togglingGUI = False
 
     def activateScissors(self, onoff = True):
@@ -884,10 +884,10 @@ class MapDisplay(displaysettings.DisplaySettings):
     def cleanupMap(self):
         removeCruft(self.map, 7)
 
-    def createDartNavigator(self, dart, costMeasure, parent, name = None):
+    def createDartNavigator(self, dart, costMeasure, parent):
         """Factory for DartNavigator, allows to use more specialized
         dart navigators in subclasses."""
-        self.dn = DartNavigator(dart, costMeasure, self, name)
+        self.dn = DartNavigator(dart, costMeasure, self)
 
     def navigate(self, dart, center = True, costMeasure = None, new = False):
         if type(dart) == int:
@@ -898,7 +898,7 @@ class MapDisplay(displaysettings.DisplaySettings):
             dart = list(dart.contours())
         if new or not self.dn:
             self.createDartNavigator(dart, costMeasure, self)
-            self.connect(self.dn, qt.SIGNAL("destroyed(QObject*)"),
+            self.connect(self.dn, QtCore.SIGNAL("destroyed(QObject*)"),
                          self._dartNavigatorDestroyed)
         else:
             if costMeasure:
@@ -912,11 +912,11 @@ class MapDisplay(displaysettings.DisplaySettings):
             self.viewer.optimizeUpperLeft()
 
     def _enableImageActions(self):
-        self.displayBIAction.setEnabled("bi" in self.images)
-        self.displayOriginalAction.setEnabled("original" in self.images)
-        self.displayColoredAction.setEnabled("colored" in self.images)
-        self.displayLabelsAction.setEnabled(True)
-        self.displayMeansAction.setEnabled(bool(self._faceMeans))
+        self.ui.displayBIAction.setEnabled("bi" in self.images)
+        self.ui.displayOriginalAction.setEnabled("original" in self.images)
+        self.ui.displayColoredAction.setEnabled("colored" in self.images)
+        self.ui.displayLabelsAction.setEnabled(True)
+        self.ui.displayMeansAction.setEnabled(bool(self._faceMeans))
 
     def _setImage(self, image, normalize):
         self.image = image
@@ -1017,3 +1017,29 @@ class MapDisplay(displaysettings.DisplaySettings):
 
         fe = self.saveFig(basepath, *args, **kwargs)
         return fe.f.fig2dev(lang = "pdf")
+
+def simpleTest():
+    global a
+    hasApp = QtGui.QApplication.instance()
+    if not hasApp:
+        import sys
+        a = QtGui.QApplication(sys.argv)
+    else:
+        a = hasApp
+
+    import vigra, crackConvert
+    img = vigra.GrayImage(5, 5)
+    img.subImage((1,1), (4,4)).init(1)
+    img[1,1] = 3
+    cm = crackConvert.crackEdgeMap(img)
+    mw = MapDisplay(cm, img)
+    mw.show()
+
+    return mw, a
+
+if __name__ == "__main__":
+    d, a = simpleTest()
+    import roiselector
+    rs = roiselector.ROISelector(d)
+    if not hasattr(a, '_in_event_loop') or not a._in_event_loop:
+        sys.exit(a.exec_())
