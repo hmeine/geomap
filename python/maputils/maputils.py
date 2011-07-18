@@ -155,7 +155,7 @@ def subpixelWatershedData(spws, biSIV, filter = None, mask = None,
     sys.stdout.write("- finding critical points..\n")
     c = time.clock()
 
-    if mask:
+    if mask is not None:
         spws.findCriticalPoints(mask)
 
     rawSaddles = spws.saddles()
@@ -359,8 +359,7 @@ def subpixelWatershedMap(
 
     if mask is None and saddleThreshold or saddleOrthoGrad:
         threshold = saddleThreshold or saddleOrthoGrad
-        mask = vigra.transformImage(
-            boundaryIndicator, "\l x: x > %s ? 1 : 0" % (threshold/2, ))
+        mask = (boundaryIndicator > threshold / 2)
 
     filters = []
     if saddleThreshold:
