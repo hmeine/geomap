@@ -9,6 +9,7 @@
 #include <vigra/seededregiongrowing.hxx>
 #include <vigra/stdimage.hxx>
 #include <vigra/transformimage.hxx>
+#include <vigra/numerictraits.hxx>
 
 #include <algorithm>
 #include <functional>
@@ -311,6 +312,13 @@ public:
     reference operator[](argument_type /*label*/)
         { return stats_; }
 
+        /** new seededRegionGrowing() API requirement
+        */
+    LabelType maxRegionLabel() const
+        { return vigra::NumericTraits<LabelType>::max(); }
+
+        /** read the statistics functor for a region via its label
+        */
 private:
     RegionStatistics stats_;
 };
