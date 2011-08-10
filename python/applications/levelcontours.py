@@ -225,7 +225,7 @@ def marchingSquares(image, level = 0, variant = True, border = True,
     connections2 = ((1, 0), (0, 2), (1, 2), (3, 1), (3, 0), (0, 1), (3, 2), (3, 2), (2, 3), (1, 3), (2, 0), (0, 3), (1, 3), (2, 1), (2, 0), (0, 1))
     configurations = (0, 0, 1, 2, 3, 4, 5, 7, 8, 9, 11, 12, 13, 14, 15, 16, 16)
 
-    result = geomap.GeoMap(image.size())
+    result = geomap.GeoMap(image.shape)
     
     def addNodeDirectX(x, y, ofs):
         pos = Vector2(x+ofs, y)
@@ -273,18 +273,18 @@ def marchingSquares(image, level = 0, variant = True, border = True,
         addNodeX = addNodeDirectX
         addNodeY = addNodeDirectY
 
-    hNodes = vigra.GrayImage(image.size())
-    for y in range(image.height()):
-        for x in range(image.width()-1):
+    hNodes = vigra.Image(image.shape, numpy.uint32)
+    for y in range(image.height):
+        for x in range(image.width-1):
             v1 = image[x,   y]
             v2 = image[x+1, y]
             if (v1 < level) != (v2 < level):
                 ofs = (level - v1)/(v2 - v1)
                 hNodes[x, y] = addNodeX(x, y, ofs).label()
 
-    vNodes = vigra.GrayImage(image.size())
-    for y in range(image.height()-1):
-        for x in range(image.width()):
+    vNodes = vigra.Image(image.shape, numpy.uint32)
+    for y in range(image.height-1):
+        for x in range(image.width):
             v1 = image[x, y]
             v2 = image[x, y+1]
             if (v1 < level) != (v2 < level):
@@ -292,7 +292,7 @@ def marchingSquares(image, level = 0, variant = True, border = True,
                 vNodes[x, y] = addNodeY(x, y, ofs).label()
 
     nodes = (hNodes, vNodes, vNodes, hNodes)
-    offsets = (Point2D(0, 0), Point2D(0, 0), Point2D(1, 0), Point2D(0, 1))
+    offsets = numpy.array(((0, 0), (0, 0), (1, 0), (0, 1)))
 
     defaultConnections = connections1
     if variant == False:
@@ -300,8 +300,8 @@ def marchingSquares(image, level = 0, variant = True, border = True,
     if isinstance(variant, bool):
         variant = None
 
-    for y in range(image.height()-1):
-        for x in range(image.width()-1):
+    for y in range(image.height-1):
+        for x in range(image.width-1):
             config = int(image[x,   y  ] < level)   + \
                      int(image[x+1, y  ] < level)*2 + \
                      int(image[x,   y+1] < level)*4 + \
@@ -312,10 +312,11 @@ def marchingSquares(image, level = 0, variant = True, border = True,
                     connections = connections2
             for s, e in connections[
                 configurations[config]:configurations[config+1]]:
-                s = result.node(int(nodes[s][offsets[s] + (x, y)]))
-                e = result.node(int(nodes[e][offsets[e] + (x, y)]))
-                if s != e:
-                    result.addEdge(s, e, [s.position(), e.position()])
+                startNode = result.node(int(nodes[s][tuple(offsets[s] + (x, y))]))
+                endNode   = result.node(int(nodes[e][tuple(offsets[e] + (x, y))]))
+                if startNode != endNode:
+                    result.addEdge(startNode, endNode,
+                                   [startNode.position(), endNode.position()])
 
     maputils.mergeDegree2Nodes(result) # node suppression
     result = maputils.copyMapContents(result)[0] # compress edge labels
@@ -352,3 +353,21 @@ def marchingSquares(image, level = 0, variant = True, border = True,
 #     result, _, _ = ed.computeMap(image)
 #     maputils.mergeDegree2Nodes(result)
 #     return result
+
+# --------------------------------------------------------------------
+
+"""
+import numpy
+#vigra.ScalarImage((200,100), numpy.uint8)
+import vigra
+import sys
+sys.path.append("/home/hmeine/vigra/vigranumpy/private/subpixelWatersheds")
+import levelcontours
+i = vigra.readImage("/home/hmeine/Testimages/walk.png")
+lc = levelcontours.marchingSquares(i[...,0], 200)
+
+import vigra.pyqt
+vigra.pyqt.showImage(i)
+
+import mapdisplay
+"""
