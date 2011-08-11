@@ -1,6 +1,3 @@
-include(FindPkgConfig)
-PKG_CHECK_MODULES(sigcpp REQUIRED sigc++-2.0)
-
 INCLUDE_DIRECTORIES(
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${sigcpp_INCLUDE_DIRS}
@@ -25,7 +22,7 @@ VIGRA_ADD_NUMPY_MODULE(geomap
     dsl.cxx
   LIBRARIES
     vigranumpy_core
-    ${sigcpp_LIBRARIES}
+    boost_signals
 )
 
 IF(PYTHON_PLATFORM MATCHES "^windows$")
