@@ -1,8 +1,4 @@
-_cvsVersion = "$Id$" \
-              .split(" ")[2:-2]
-
-from hourglass import composeTangentLists, Polygon
-from statistics import dartTangents
+from geomap import composeTangentLists, Polygon
 
 class Path(list):
     """Represents a dart path.  In addition to being a list of darts,
@@ -21,11 +17,11 @@ class Path(list):
             dart.nextAlpha()
         super(Path, self).reverse()
 
-    def tangents(self):
-        """path.tangents() -> tangent list
+    def tangents(self, dartTangents):
+        """path.tangents(dartTangents) -> tangent list
 
         Returns a composed tangentList for all darts in the given
-        path.  Calls statistics.dartTangents on each dart and uses
+        path.  Calls dartTangents on each dart and uses
         composeTangentLists to return a single tangent list."""
 
         result = []
@@ -79,9 +75,13 @@ class Path(list):
         """Re-implement slicing to prevent.. eh.. "slicing". ;-)"""
         return self.__class__(super(Path, self).__getslice__(*args))
 
-    def __add__(self, dart):
+    def __add__(self, dart_s):
+        """Allows (path + dart) as well as (path1 + path2)."""
         result = self.__class__(self)
-        result.append(dart)
+        if isinstance(dart_s, list):
+            result.extend(dart_s)
+        else:
+            result.append(dart_s)
         return result
 
 def contour(anchor):
@@ -142,7 +142,7 @@ def allContinuations(startDart, length, klass = Path):
     * do not contain an edge with BORDER_PROTECTION and
     
     * do not contain a direct pair of opposite darts
-      (i.e. loops are allowed, but no"U-turns").
+      (i.e. loops are allowed, but no "U-turns").
 
     You can change the class of the returned paths (default: Path)
     with the optional 'klass' argument.  (The given type must support
@@ -157,8 +157,7 @@ def allContinuations(startDart, length, klass = Path):
 from flag_constants import BORDER_PROTECTION
 
 def _fillContinuations(prefix, dart, length, allPaths):
-    currentPath = prefix.__class__(prefix)
-    currentPath.append(dart.clone())
+    currentPath = prefix + dart.clone()
 
     if length == 1:
         allPaths.append(currentPath)

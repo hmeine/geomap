@@ -1,6 +1,7 @@
 #ifndef VIGRA_POLYGON_HXX
 #define VIGRA_POLYGON_HXX
 
+#include <vigra/box.hxx>
 #include <vigra/diff2d.hxx>
 #include <vigra/gaussians.hxx>
 #include <vigra/splines.hxx>
@@ -8,7 +9,6 @@
 #include <vector>
 #include <cmath>
 #include <algorithm>
-#include "box.hxx"
 
 namespace vigra {
 
@@ -100,6 +100,26 @@ class PointArray
         return points_.rend();
     }
 
+    const_reference front() const
+    {
+        return points_.front();
+    }
+
+    reference front()
+    {
+        return points_.front();
+    }
+
+    const_reference back() const
+    {
+        return points_.back();
+    }
+
+    reference back()
+    {
+        return points_.back();
+    }
+
     void push_back(const_reference v)
     {
         points_.push_back(v);
@@ -119,7 +139,7 @@ class PointArray
     iterator insert(iterator pos, InputIterator i, InputIterator end)
     {
         int index = pos - begin();
-        points_.insert(pos,i, end);
+        points_.insert(pos, i, end);
         return begin() + index;
     }
 
@@ -248,6 +268,12 @@ class Polygon : public PointArray<POINT>
         return partialArea_;
     }
 
+        /// Returns true iff the last and first points are equal.
+    bool closed() const
+    {
+        return this->points_[this->size()-1] == this->points_[0];
+    }
+
         /**
          * Tests whether the given point lies within this polygon.
          * Requires that this polygon is closed.
@@ -260,7 +286,7 @@ class Polygon : public PointArray<POINT>
          */
     bool contains(const_reference point) const
     {
-        vigra_precondition(this->points_[this->size()-1] == this->points_[0],
+        vigra_precondition(closed(),
                            "Polygon::contains() requires polygon to be closed!");
         int result = 0;
         bool above = this->points_[0][1] < point[1];
@@ -296,6 +322,8 @@ class Polygon : public PointArray<POINT>
         Base::push_back(v);
     }
 
+        // TODO: turn into general insert()?
+        // should preserve closedness then, too!
     void extend(const Polygon &other)
     {
         if(!other.size())
@@ -374,7 +402,7 @@ class Polygon : public PointArray<POINT>
     {
         partialAreaValid_ = false;
         lengthValid_ = false;
-        return Base::insert(pos,i, end);
+        return Base::insert(pos, i, end);
     }
 
     Polygon split(unsigned int pos)
@@ -388,7 +416,10 @@ class Polygon : public PointArray<POINT>
         }
 
         Polygon result(this->begin() + pos, this->end());
-        if(pos > this->size() / 3)
+        this->points_.erase(this->begin() + pos + 1, this->end());
+
+#if 0 // FIXME: somehow this does not work!
+        if(pos > this->size() * 2 / 3)
         {
              // heuristic: when splitting off only a "small part",
              // re-use existing information
@@ -398,8 +429,9 @@ class Polygon : public PointArray<POINT>
                 partialArea_ -= result.partialArea();
         }
         else
+#endif
             invalidateProperties();
-        this->points_.erase(this->begin() + pos + 1, this->end());
+
         return result;
     }
 
@@ -424,11 +456,11 @@ class Polygon : public PointArray<POINT>
         std::swap(partialAreaValid_, rhs.partialAreaValid_);
     }
 
-//     void swap(PointArray &rhs)
-//     {
-//         Base::swap(rhs);
-//         invalidateProperties();
-//     }
+    void swap(Base &rhs)
+    {
+        Base::swap(rhs);
+        invalidateProperties();
+    }
 
     void reverse()
     {
@@ -576,14 +608,14 @@ class BBoxPolygon : public Polygon<POINT>
     {
         if(boundingBoxValid_)
         {
-            if((x[0] < this->points_[pos][0]) &&
-               (this->points_[pos][0] == boundingBox_.end()[0]) ||
-               (x[0] > this->points_[pos][0]) &&
-               (this->points_[pos][0] == boundingBox_.begin()[0]) ||
-               (x[1] < this->points_[pos][1]) &&
-               (this->points_[pos][1] == boundingBox_.end()[1]) ||
-               (x[1] > this->points_[pos][1]) &&
-               (this->points_[pos][1] == boundingBox_.begin()[1]))
+            if(((x[0] < this->points_[pos][0]) &&
+                (this->points_[pos][0] == boundingBox_.end()[0])) ||
+               ((x[0] > this->points_[pos][0]) &&
+                (this->points_[pos][0] == boundingBox_.begin()[0])) ||
+               ((x[1] < this->points_[pos][1]) &&
+                (this->points_[pos][1] == boundingBox_.end()[1])) ||
+               ((x[1] > this->points_[pos][1]) &&
+                (this->points_[pos][1] == boundingBox_.begin()[1])))
                 boundingBoxValid_ = false;
         }
         Base::setPoint(pos, x);
@@ -625,15 +657,131 @@ class BBoxPolygon : public Polygon<POINT>
 
     void swap(BBoxPolygon &rhs)
     {
-        Base::swap(rhs);
+        Base::swap(static_cast<Base &>(rhs));
         std::swap(boundingBox_, rhs.boundingBox_);
         std::swap(boundingBoxValid_, rhs.boundingBoxValid_);
+    }
+
+    void swap(typename Base::Base &rhs)
+    {
+        Base::swap(rhs);
+        boundingBoxValid_ = false;
     }
 
   protected:
     mutable BoundingBox boundingBox_;
     mutable bool boundingBoxValid_;
 };
+
+/********************************************************************/
+
+template<class Point>
+Point centroid(const Polygon<Point> &polygon)
+{
+    vigra_precondition(polygon.closed(),
+                       "centroid() expects a closed polygon");
+    double a = 0.0;
+    TinyVector<double, 2> result;
+    for(unsigned int i = 0; i < polygon.size()-1; ++i)
+    {
+        double pa = (polygon[i][0]*polygon[i+1][1] -
+                     polygon[i][1]*polygon[i+1][0]);
+        a += pa;
+        result += (polygon[i] + polygon[i+1])*pa;
+    }
+    return result / (3*a);
+}
+
+/********************************************************************/
+
+namespace detail {
+template<class Point>
+struct CCWCompare
+{
+    Point p0_;
+    CCWCompare(const Point &p0)
+    : p0_(p0)
+    {}
+
+    bool operator()(const Point &a, const Point &b) const
+    {
+        return (a[1]-p0_[1])*(b[0]-p0_[0]) - (a[0]-p0_[0])*(b[1]-p0_[1]) > 0;
+    }
+};
+}
+
+template<class PointArray>
+void convexHull(
+    const PointArray &poly, PointArray &chull)
+{
+    vigra_precondition(poly.size() >= 2,
+                       "at least two input points needed for convexHull!");
+
+    typedef typename PointArray::value_type Point;
+    typedef typename Point::value_type Coordinate;
+
+    // find extremal point (max. y, then min. x):
+    unsigned int i0 = 0;
+    Point p0 = poly[0];
+    for(unsigned int i = 1; i < poly.size(); ++i)
+    {
+        Coordinate yDiff = poly[i][1] - p0[1];
+        if(yDiff > 0 || (yDiff == 0 && poly[i][0] < p0[0]))
+        {
+            p0 = poly[i];
+            i0 = i;
+        }
+    }
+
+    // sort other points by angle from p0:
+    std::vector<Point> other(poly.begin(), poly.begin() + i0);
+    other.insert(other.end(), poly.begin()+i0+1, poly.end());
+    std::sort(other.begin(), other.end(), detail::CCWCompare<Point>(p0));
+
+    std::vector<Point> result(poly.size()+1);
+    result[0] = p0;
+    result[1] = other[0];
+    typename std::vector<Point>::iterator currentEnd = result.begin() + 1;
+
+    // Graham's scan:
+    Point endSegment = *currentEnd - currentEnd[-1];
+    Coordinate sa2;
+    for(unsigned int i = 1; i < other.size(); ++i)
+    {
+        do
+        {
+            Point diff = other[i] - currentEnd[-1];
+            sa2 = diff[0]*endSegment[1] - endSegment[0]*diff[1];
+            if(sa2 > 0)
+            {
+                // point is to the left, add to convex hull:
+                *(++currentEnd) = other[i];
+                endSegment = other[i] - currentEnd[-1];
+            }
+            else if(sa2 == 0)
+            {
+                // points are collinear, keep far one:
+                if(diff.squaredMagnitude() > endSegment.squaredMagnitude())
+                {
+                    *currentEnd = other[i];
+                    endSegment = diff;
+                }
+            }
+            else
+            {
+                // point is to the right, backtracking needed:
+                --currentEnd;
+                endSegment = *currentEnd - currentEnd[-1];
+            }
+        }
+        while(sa2 < 0);
+    }
+
+    // return closed Polygon:
+    *(++currentEnd) = p0;
+    ++currentEnd;
+    chull.insert(chull.end(), result.begin(), currentEnd);
+}
 
 /********************************************************************/
 
@@ -768,7 +916,7 @@ void simplifyPolygonDigitalLine(
     vigra_precondition(connectivity == 4 || connectivity == 8,
        "simplifyPolygonDigitalLine(): connectivity must be 4 or 8.");
 
-    bool isOpenPolygon = (poly[0] - poly[size-1]).magnitude() > 1e-6;
+    bool isOpenPolygon = poly[size-1] != poly[0];
 
     ArrayVector<TinyVector<double, 3> > lines;
     Point l1 = poly[0],
@@ -849,13 +997,7 @@ void resamplePolygon(
     typedef typename PointArray::value_type Point;
 
     int size = poly.size();
-    if(size <= 2)
-    {
-        simple = poly;
-        return;
-    }
-
-    bool isOpenPolygon = (poly[0] - poly[size-1]).magnitude() > 1e-6;
+    bool isOpenPolygon = !poly.closed();
 
     ArrayVector<double> arcLength;
     poly.arcLengthList(arcLength);
@@ -1024,7 +1166,7 @@ void resamplePolygonExponentialFilter(
         return;
     }
 
-    bool isOpenPolygon = (poly[0] - poly[size-1]).magnitude() > 1e-6;
+    bool isOpenPolygon = !poly.closed();
 
     typedef typename PointArray::value_type Point;
     ArrayVector<Point> pforward(size), pbackward(size);
@@ -1255,7 +1397,7 @@ void resamplePolygonGaussianFilter(
     vigra_precondition(arcLengths[size-1] > g.radius(),
         "resamplePolygonGaussianFilter(): Filter longer than polygon.");
 
-    bool isOpenPolygon = (poly[0] - poly[size-1]).magnitude() > 1e-6;
+    bool isOpenPolygon = !poly.closed();
 
     int steps = int(std::ceil(arcLengths[size-1] / desiredPointDistance));
     double newStep = arcLengths[size-1] / steps;
@@ -1342,7 +1484,7 @@ void polygonSplineControlPoints(
     vigra_precondition(size >= 4,
         "polygonSplineControlPoints(): Polygon must have at least 4 points.");
 
-    bool isOpenPolygon = (poly[0] - poly[size-1]).magnitude() > 1e-6;
+    bool isOpenPolygon = !poly.closed();
 
     ArrayVector<double> arcLength;
     poly.arcLengthList(arcLength);
@@ -1588,7 +1730,7 @@ struct Scanlines
 
     int endIndex() const
     {
-        return scanLines_.size() + startIndex_;
+        return startIndex_ + scanLines_.size();
     }
 
     Scanline &operator[](unsigned int index)
@@ -1608,6 +1750,28 @@ struct Scanlines
 
     Scanlines &operator+=(const Scanlines &other)
     {
+        merge(other);
+        normalize();
+        return *this;
+    }
+
+    void reverse()
+    {
+        for(unsigned int i = 0; i < size(); ++i)
+        {
+            Scanlines::Scanline &scanline(scanLines_[i]);
+            for(unsigned int j = 0; j < scanline.size(); ++j)
+                scanline[j].direction = -scanline[j].direction;
+        }
+    }
+
+        /** Merge info from two Scanlines without re-normalizing.
+         * The latter is left up to the user since multiple merge()
+         * operations can be efficiently finished with only one
+         * normalize().
+         */
+    void merge(const Scanlines &other)
+    {
         // ensure that other's line domain is contained in this one's:
         int missingAtStart = startIndex() - other.startIndex();
         if(missingAtStart > 0)
@@ -1623,7 +1787,7 @@ struct Scanlines
             scanLines_.resize(scanLines_.size() + missingAtEnd);
         }
 
-        // now add other's data and re-normalize:
+        // now add other's data:
         std::vector<Scanline>::iterator
             destLine(scanLines_.begin() + (other.startIndex() - startIndex()));
         for(std::vector<Scanline>::const_iterator srcLine = other.scanLines_.begin();
@@ -1631,9 +1795,6 @@ struct Scanlines
         {
             destLine->insert(destLine->end(), srcLine->begin(), srcLine->end());
         }
-        normalize();
-
-        return *this;
     }
 
     void normalize()
@@ -1656,6 +1817,82 @@ struct Scanlines
                     ++j;
             }
         }
+    }
+};
+
+/// iterator over the crossed pixels:
+class ScanlinesIter
+{
+    const Scanlines &scanlines;
+    int x, y;
+    unsigned int si;
+
+        // check that current position is valid,
+        // else move until true or atEnd()
+    void ensureValid()
+    {
+        vigra_assert(
+            (y < scanlines.endIndex()) && (si < scanlines[y].size()),
+            "invalid Scanline or ScanlineSegment");
+        while(x >= scanlines[y][si].end)
+        {
+            ++si;
+            while(si >= scanlines[y].size())
+            {
+                ++y;
+                if(y >= scanlines.endIndex())
+                    return;
+                si = 0;
+            }
+            x = scanlines[y][si].begin;
+        }
+    }
+
+  public:
+    typedef vigra::Point2D value_type;
+
+    ScanlinesIter(const Scanlines &sl)
+    : scanlines(sl),
+      x(0),
+      y(scanlines.startIndex()),
+      si(0)
+    {
+        while(y < scanlines.endIndex() && !scanlines[y].size())
+            ++y;
+        if(y < scanlines.endIndex())
+            x = scanlines[y][0].begin;
+        ensureValid();
+    }
+
+    ScanlinesIter & operator++()
+    {
+        vigra_precondition(inRange(),
+            "ScanlinesIter::operator++ called on out-of-range iterator!");
+        ++x;
+        ensureValid();
+        return *this;
+    }
+
+    ScanlinesIter operator++(int)
+    {
+        ScanlinesIter ret(*this);
+        operator++();
+        return ret;
+    }
+
+    bool atEnd() const
+    {
+        return y >= scanlines.endIndex();
+    }
+
+    bool inRange() const
+    {
+        return y < scanlines.endIndex();
+    }
+
+    Point2D operator*() const
+    {
+        return Point2D(x, y);
     }
 };
 
@@ -1781,7 +2018,7 @@ unsigned int fillScannedPoly(
 
     // clip to image range vertically:
     int y = std::max(0, scanlines.startIndex()),
-     endY = std::min(ds[1], scanlines.endIndex());
+     endY = std::min((int)ds[1], scanlines.endIndex());
 
     for(DestIterator row(dul + y); y < endY; ++y, ++row)
     {
@@ -1848,7 +2085,7 @@ unsigned int drawScannedPoly(
 
     // clip to image range vertically:
     int y = std::max(0, scanlines.startIndex()),
-     endY = std::min(ds[1], scanlines.endIndex());
+     endY = std::min((int)ds[1], scanlines.endIndex());
 
     for(DestIterator row(dul + y); y < endY; ++y, ++row)
     {

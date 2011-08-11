@@ -1,54 +1,65 @@
+
 PLATFORM = $(shell PATH=/software/Modules/bin:$(PATH) platform)
 curdir = .
 
-# should point to build directory of interactive2 (where configure was called):
-INT2BUILDDIR = ../../interactive2/build-$(PLATFORM)
-include $(INT2BUILDDIR)/config/Makefile.include
+include ../Makefile.include
 
-LOCAL_CPPFLAGS = -I. -I../cellimage
+LOCAL_CPPFLAGS = -I. -I../cellimage \
+	-I"`python -c 'import numpy; print numpy.get_include()'`"
 
-#CXXFLAGS += -Wall -g -W
-CXXFLAGS += -Wall -O3 -DNDEBUG
-CPPFLAGS += $(LOCAL_CPPFLAGS)
-LIBCPPFLAGS += $(LOCAL_CPPFLAGS)
-TARGET = hourglassmodule.la
+# define this if you have installed John Maddock's math_toolkit from
+# the boost vault (which is needed for proper t-test support), see
+# http://johnmaddock.co.uk/ or just do the following here in hourglass/:
+#  svn co http://svn.boost.org/svn/boost/sandbox/math_toolkit/boost
+#LOCAL_CPPFLAGS += -DHAVE_MATH_TOOLKIT
+
+CXXFLAGS += -Wall -Wno-strict-aliasing
+#CXXFLAGS += -g -W
+CXXFLAGS += -pipe -DNDEBUG
+CPPFLAGS := $(LOCAL_CPPFLAGS) $(CPPFLAGS)
+LIBCPPFLAGS := $(LOCAL_CPPFLAGS) $(LIBCPPFLAGS)
+TARGET = geomapmodule.la
 MODULE = $(patsubst %.la,%.so,$(TARGET))
 
+#	channelrepresentation.lo \
+
 OBJS = \
+	vectorconv.lo \
+	pythondiff2d.lo \
 	shapecontext.lo \
-    hourglassmodule.lo \
+	geomapmodule.lo \
 	polygon.lo \
 	statistics.lo \
-	delaunay.lo \
-	cppmap.lo \
+	features.lo \
+	ellipse.lo \
+	cppmapmodule_utils.lo \
+	cppmapmodule_stats.lo \
 	cppmapmodule.lo \
+	cppmap.lo \
+	cppmap_utils.lo \
+	crackedgemap.lo \
 	dsl.lo \
 
-IMPEX_LIB = `vigra-config --impex_lib`
-
 $(TARGET): $(OBJS)
-	$(LINKCXXMODULE) -o $(TARGET) $(OBJS) $(BOOST_PYTHON_LIB) -lboost_signals `vigra-interactive-config --pythonimage-lib`
+	$(LINKCXXMODULE) -o $(TARGET) $(OBJS) $(BOOST_PYTHON_LIB) -lboost_signals vigranumpycore.so
 	test -s $(MODULE) || ln -s .libs/$(MODULE) .
+
+test: $(TARGET)
+	python test.py
 
 install: $(TARGET)
 	$(INSTALL) -d $(dynmoddir)
 	$(LIBINSTALL) $(TARGET) $(dynmoddir)
 
-hourglass: hourglass.o
-	$(CXX) -o $@ $< $(IMPEX_LIB)
-
-delaunay: delaunay.o deltest.o
-	$(CXX) -o $@ delaunay.o deltest.o
-
 $(INT2BUILDDIR)/config/Makefile.include:
 	@echo
 	@echo "*** Check if your vigra/interactive2 build directory is $(INT2BUILDDIR)."
 	@echo "*** Otherwise, change the definition of INT2BUILDDIR in the Makefile."
+	@exit 1
 
 clean:
-	rm -f $(OBJS) $(TARGET) hourglass delaunay *.o *.ld *.d
+	rm -f $(OBJS) $(TARGET) *.o *.ld *.d *.so
 
 ifneq "$(MAKECMDGOALS)" "clean"
-include hourglass.d
 include $(patsubst %.lo,%.ld,$(OBJS))
 endif

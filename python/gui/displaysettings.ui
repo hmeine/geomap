@@ -1,275 +1,301 @@
-<!DOCTYPE UI><UI version="3.3" stdsetdef="1">
-<class>DisplaySettings</class>
-<author>Hans Meine &lt;hans_meine@gmx.net&gt;</author>
-<widget class="QMainWindow">
-    <property name="name">
-        <cstring>Form10</cstring>
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <author>Hans Meine &lt;hans_meine@gmx.net&gt;</author>
+ <class>DisplaySettings</class>
+ <widget class="QMainWindow" name="DisplaySettings">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>800</width>
+    <height>720</height>
+   </rect>
+  </property>
+  <widget class="QWidget" name="widget">
+   <layout class="QHBoxLayout"/>
+  </widget>
+  <widget class="QToolBar" name="toolBar">
+   <property name="windowTitle">
+    <string>Tools</string>
+   </property>
+   <attribute name="toolBarArea">
+    <enum>TopToolBarArea</enum>
+   </attribute>
+   <attribute name="toolBarBreak">
+    <bool>false</bool>
+   </attribute>
+   <addaction name="displayOriginalAction"/>
+   <addaction name="displayColoredAction"/>
+   <addaction name="displayBIAction"/>
+   <addaction name="displayLabelsAction"/>
+   <addaction name="displayMeansAction"/>
+   <addaction name="separator"/>
+   <addaction name="normalizeAction"/>
+   <addaction name="separator"/>
+   <addaction name="navigateAction"/>
+   <addaction name="paintbrushAction"/>
+   <addaction name="scissorsAction"/>
+  </widget>
+  <widget class="QMenuBar" name="MenuBar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>800</width>
+     <height>20</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="View">
+    <property name="title">
+     <string>&amp;View</string>
     </property>
-    <property name="geometry">
-        <rect>
-            <x>0</x>
-            <y>0</y>
-            <width>800</width>
-            <height>720</height>
-        </rect>
+    <addaction name="displayOriginalAction"/>
+    <addaction name="displayColoredAction"/>
+    <addaction name="displayBIAction"/>
+    <addaction name="displayLabelsAction"/>
+    <addaction name="displayMeansAction"/>
+    <addaction name="separator"/>
+    <addaction name="nodeDisplayAction"/>
+    <addaction name="edgeDisplayAction"/>
+    <addaction name="separator"/>
+    <addaction name="normalizeAction"/>
+   </widget>
+   <widget class="QMenu" name="Tools">
+    <property name="title">
+     <string>&amp;Tools</string>
     </property>
-    <property name="caption">
-        <string>Form10</string>
+    <addaction name="undoAction"/>
+    <addaction name="mapCleanupAction"/>
+    <addaction name="paintbrushAction"/>
+    <addaction name="scissorsAction"/>
+    <addaction name="navigateAction"/>
+   </widget>
+   <addaction name="View"/>
+   <addaction name="Tools"/>
+  </widget>
+  <action name="mapCleanupAction">
+   <property name="icon">
+    <iconset resource="icons.qrc">
+     <normaloff>:/icon/icon/clean_map.png</normaloff>:/icon/icon/clean_map.png</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;Clean Map</string>
+   </property>
+   <property name="iconText">
+    <string>Clean Map</string>
+   </property>
+   <property name="toolTip">
+    <string>Clean up map (remove bridges, ...)</string>
+   </property>
+  </action>
+  <action name="paintbrushAction">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="icons.qrc">
+     <normaloff>:/icon/icon/paintbrush.png</normaloff>:/icon/icon/paintbrush.png</iconset>
+   </property>
+   <property name="text">
+    <string>Active &amp;Paintbrush</string>
+   </property>
+   <property name="iconText">
+    <string>Active Paintbrush</string>
+   </property>
+   <property name="shortcut">
+    <string>P</string>
+   </property>
+  </action>
+  <action name="navigateAction">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="icons.qrc">
+     <normaloff>:/icon/icon/navigate.png</normaloff>:/icon/icon/navigate.png</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;Navigate Map</string>
+   </property>
+   <property name="iconText">
+    <string>Navigate Map</string>
+   </property>
+   <property name="shortcut">
+    <string>N</string>
+   </property>
+  </action>
+  <action name="normalizeAction">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="icons.qrc">
+     <normaloff>:/icon/icon/display_normalize.png</normaloff>:/icon/icon/display_normalize.png</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;Normalize</string>
+   </property>
+   <property name="iconText">
+    <string>Normalize</string>
+   </property>
+   <property name="shortcut">
+    <string>Shift+N</string>
+   </property>
+  </action>
+  <action name="scissorsAction">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="icons.qrc">
+     <normaloff>:/icon/icon/scissors.png</normaloff>:/icon/icon/scissors.png</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;Intelligent Scissors</string>
+   </property>
+   <property name="iconText">
+    <string>Intelligent Scissors</string>
+   </property>
+   <property name="shortcut">
+    <string>I</string>
+   </property>
+  </action>
+  <action name="undoAction">
+   <property name="icon">
+    <iconset resource="icons.qrc">
+     <normaloff>:/icon/icon/undo.png</normaloff>:/icon/icon/undo.png</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;Undo</string>
+   </property>
+   <property name="iconText">
+    <string>Undo</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Z</string>
+   </property>
+  </action>
+  <action name="edgeDisplayAction">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="iconText">
+    <string>Display Edges</string>
+   </property>
+   <property name="shortcut">
+    <string>E</string>
+   </property>
+  </action>
+  <action name="nodeDisplayAction">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="iconText">
+    <string>Display Nodes</string>
+   </property>
+   <property name="shortcut">
+    <string>Shift+*</string>
+   </property>
+  </action>
+  <actiongroup name="backgroundGroup">
+   <action name="displayOriginalAction">
+    <property name="checkable">
+     <bool>true</bool>
     </property>
-    <hbox>
-        <property name="name">
-            <cstring>unnamed</cstring>
-        </property>
-    </hbox>
-</widget>
-<menubar>
-    <property name="name">
-        <cstring>MenuBar</cstring>
+    <property name="icon">
+     <iconset resource="icons.qrc">
+      <normaloff>:/icon/icon/display_original.png</normaloff>:/icon/icon/display_original.png</iconset>
     </property>
-    <item text="&amp;View" name="View">
-        <action name="displayOriginalAction"/>
-        <action name="displayColoredAction"/>
-        <action name="displayBIAction"/>
-        <action name="displayLabelsAction"/>
-        <action name="displayMeansAction"/>
-        <separator/>
-        <action name="normalizeAction"/>
-    </item>
-    <item text="&amp;Tools" name="Tools">
-        <action name="mapCleanupAction"/>
-        <action name="paintbrushAction"/>
-        <action name="navigateAction"/>
-    </item>
-</menubar>
-<toolbars>
-    <toolbar dock="2">
-        <property name="name">
-            <cstring>toolBar</cstring>
-        </property>
-        <property name="label">
-            <string>Tools</string>
-        </property>
-        <action name="displayOriginalAction"/>
-        <action name="displayColoredAction"/>
-        <action name="displayBIAction"/>
-        <action name="displayLabelsAction"/>
-        <action name="displayMeansAction"/>
-        <separator/>
-        <action name="normalizeAction"/>
-        <separator/>
-        <action name="paintbrushAction"/>
-        <action name="navigateAction"/>
-    </toolbar>
-</toolbars>
-<actions>
-    <action>
-        <property name="name">
-            <cstring>mapCleanupAction</cstring>
-        </property>
-        <property name="iconSet">
-            <iconset>image0</iconset>
-        </property>
-        <property name="text">
-            <string>Clean Map</string>
-        </property>
-        <property name="menuText">
-            <string>&amp;Clean Map</string>
-        </property>
-        <property name="toolTip">
-            <string>Clean up map (remove bridges, ...)</string>
-        </property>
-    </action>
-    <actiongroup>
-        <property name="name">
-            <cstring>backgroundGroup</cstring>
-        </property>
-        <property name="text">
-            <string>ActionGroup</string>
-        </property>
-        <property name="usesDropDown">
-            <bool>false</bool>
-        </property>
-        <action>
-            <property name="name">
-                <cstring>displayOriginalAction</cstring>
-            </property>
-            <property name="toggleAction">
-                <bool>true</bool>
-            </property>
-            <property name="iconSet">
-                <iconset>image1</iconset>
-            </property>
-            <property name="text">
-                <string>Original</string>
-            </property>
-            <property name="menuText">
-                <string>&amp;Original</string>
-            </property>
-            <property name="accel">
-                <string>1</string>
-            </property>
-        </action>
-        <action>
-            <property name="name">
-                <cstring>displayColoredAction</cstring>
-            </property>
-            <property name="toggleAction">
-                <bool>true</bool>
-            </property>
-            <property name="iconSet">
-                <iconset>image2</iconset>
-            </property>
-            <property name="text">
-                <string>w/ Colors</string>
-            </property>
-            <property name="menuText">
-                <string>w/ &amp;Colors</string>
-            </property>
-            <property name="accel">
-                <string>2</string>
-            </property>
-        </action>
-        <action>
-            <property name="name">
-                <cstring>displayBIAction</cstring>
-            </property>
-            <property name="toggleAction">
-                <bool>true</bool>
-            </property>
-            <property name="iconSet">
-                <iconset>image3</iconset>
-            </property>
-            <property name="text">
-                <string>Boundary Indicator</string>
-            </property>
-            <property name="menuText">
-                <string>&amp;Boundary Indicator</string>
-            </property>
-            <property name="accel">
-                <string>3</string>
-            </property>
-        </action>
-        <action>
-            <property name="name">
-                <cstring>displayLabelsAction</cstring>
-            </property>
-            <property name="toggleAction">
-                <bool>true</bool>
-            </property>
-            <property name="iconSet">
-                <iconset>image4</iconset>
-            </property>
-            <property name="text">
-                <string>Region Labels</string>
-            </property>
-            <property name="menuText">
-                <string>Region &amp;Labels</string>
-            </property>
-            <property name="accel">
-                <string>4</string>
-            </property>
-        </action>
-        <action>
-            <property name="name">
-                <cstring>displayMeansAction</cstring>
-            </property>
-            <property name="toggleAction">
-                <bool>true</bool>
-            </property>
-            <property name="iconSet">
-                <iconset>image5</iconset>
-            </property>
-            <property name="text">
-                <string>Region Means</string>
-            </property>
-            <property name="menuText">
-                <string>Region &amp;Means</string>
-            </property>
-            <property name="accel">
-                <string>5</string>
-            </property>
-        </action>
-    </actiongroup>
-    <action>
-        <property name="name">
-            <cstring>paintbrushAction</cstring>
-        </property>
-        <property name="toggleAction">
-            <bool>true</bool>
-        </property>
-        <property name="iconSet">
-            <iconset>image6</iconset>
-        </property>
-        <property name="text">
-            <string>Active Paintbrush</string>
-        </property>
-        <property name="menuText">
-            <string>Active &amp;Paintbrush</string>
-        </property>
-    </action>
-    <action>
-        <property name="name">
-            <cstring>navigateAction</cstring>
-        </property>
-        <property name="toggleAction">
-            <bool>true</bool>
-        </property>
-        <property name="iconSet">
-            <iconset>image7</iconset>
-        </property>
-        <property name="text">
-            <string>Navigate Map</string>
-        </property>
-        <property name="menuText">
-            <string>&amp;Navigate Map</string>
-        </property>
-    </action>
-    <action>
-        <property name="name">
-            <cstring>normalizeAction</cstring>
-        </property>
-        <property name="toggleAction">
-            <bool>true</bool>
-        </property>
-        <property name="iconSet">
-            <iconset>image8</iconset>
-        </property>
-        <property name="text">
-            <string>Normalize</string>
-        </property>
-        <property name="menuText">
-            <string>&amp;Normalize</string>
-        </property>
-    </action>
-</actions>
-<images>
-    <image name="image0">
-        <data format="PNG" length="1424">89504e470d0a1a0a0000000d4948445200000016000000160806000000c4b46c3b0000055749444154388d7595db6f5c571587bfbdf73967ee339ec449ec36716e4e4d09496908d082940a104215285cc4631f408a943f81d7bcf40990905085c41bd01689422494343191e22614bbe46287603717bbce8c9df8369e9cb9cfb9cdd99b07db555bd3dfd37a58fbdb6badbdd65ef0393a7bf6ac3873e68cd5ed769f89a2a8fff2a54b12109fe7ff597dd65185c61cb6e13bc03120d76ed59f7d5aeb86c5fe1d957c3aa901f3fe32ed7f8d5d9dcdecdc3579edcd371e5f78fbf7cb3d88b7818d31e2c287cd63459a3f6bbad557b3aa72d04e249dc70d57e4a871fcc871760c7e812b6337987c34c3befd47ccdc6ca3b730bfe46b2de75319f1db4c76ef3b7ffee56bed462b30000ae0dcb973fdbf38f7ebdfbdf19b5fbde63f5de98f3349ab6515c5892f0e5329ad71e1837fb258becefec3fba93d2c73fafbaf88385c50a3d7ce27ba6beb03cb95a55786868eae0d0c0c3e78f2683a0c821009f05e97a13b57fef6f523c3099cdd3685748eaf0e2678266de85379be347c126be065aecf4f70757a82ca72851f9efa112f1d18e2d497076997ef16ee3f98385ded78835ea763178b452c80c134f6f0b1172d9958456505cdb0c1e8c3dbd42e76517b6d7efacd53bc70f024730bcfb3f4df2617de7b97ea528966cd67efbedd0c0c8c88432327539363e733c252761cc73d0be0f12ac14f7e7ed63bffd69fb297fe30c6f3cfcdd0e9d31cfdc6cb7cebd009f6f53f07c0a1bdc37cfbf48f71dc15f61c38cc54e52fb82662e86bdfd39942b6595dbca7944a48ad354201c24965de9f7bfad681bc391d9112ef5e1c63fdc93c8eb449ecb0e8dbb99b8495443b496697d798bef310a512bcf09513c47187990f6ed51f4c8fbf7e6f62f4723a9b5d003a5beda66ebbe607bde5d21f478676e5fb725900b401df0f886243bddde5fadd475cfbf7247eb3cbd0816759abac736f6ac278ede6f8dc8dd1d795521f09692f5996e55b9b606d3437db5e7023e5d8dff5bc801e0213472c55ebbc73e526e3e337f13b2df61d3cc29e3d4506fb731821690d8df4cab377a783a0d7c864931ed01342180b4002f7e7eb7e5c6badc63ad6a964420aa100877c36c3a9978e325f5aa5eeae73fcc5a3a46cc9ce4c9a95aa8fd709ba1dbf59b1042188d071ecd875dd8d76732c696e5dbfe8d5aaee5418e3eb48630063c0a07184205dc82185c092061df7f07448b5d5c28f5a95f5d2478b0927e18109a494662b58fc9e66eaeadfa347ae37eb05bd10cb6c8ca5008121653b148a1992c90c268a10028228c4f85d43a857e3d073b1ed10e86d8db4dc3226fef157ed76a2b2ebb61b464b8cd9804731e41292ddc51c563a8d5492846311f5147ed78f9b8d46b9db785a03fc4db0f914d8008dc5fb4be5f55a391612b9099608a495202921934963d90ec208daed0e91dff6a3b0b1ac887d20b02c4b57abd54f479c4c0a73ebf29bad7a4b97a2ae678cdcb84c4881e32876e57364fb92482409cba611f4f07d5dafafaf2e6854008480de568a6cb69f4a79ce74a2f041cdf3fd2db210024b39387682622a83438c3686c00bf0dacdb556f5c99aa5940f444208b30d2ce58639bfb878bbd1f46a1ba53008348e2d71320ef9bcc24841278ef03ccf845167a1ed565c61db811022564ab10d5ca9ac01b0e256ee357a721429ea42084092b214c584cdae4c8e94ed98a0a7020251ead6ab7790ba0378c6988f1f0e36ffe32da5143c2e55fcc8eb3cd446ce8c0cef5f05166dc75a89b33b974bae79b2de89e6ee4f4d8e8d5f7afb7c7966fc3f06b12ea5ac29a5825aadf6316bdb0e2be6f3a2de6c260d148102e000d666766af38cb6047e32936b81a901ad76bbddfb24e7ff2ec742a120b5d68e1022053842183b8a62658c4108612ca57ada98808dde0da49471b3d9349f64fc0fb28bb1a3a7d1ebee0000000049454e44ae426082</data>
-    </image>
-    <image name="image1">
-        <data format="PNG" length="932">89504e470d0a1a0a0000000d4948445200000016000000160806000000c4b46c3b0000036b49444154388d6d94cd72d4461485bfdb7d35d2fcd5d4d8010aca14c98e4df63c45decf2f9354f6c90b902c3105361e243cd2b4a556df2c4c2b32d0555d5ae8f639e79efb239797973f89c86be067a004841f1c1199ae996166df8618701491b722f2af7aef5f9bd96fc01b606b66eedb47ce399c73df016692af2789c835f0bb990d2a22bf006fccec57335b65c5f9415996ec763baaaae2743a114220c6c8388ea494107948d0cc12f0dccc5a11f95bcdacfcaa7465660a38334355393b3be3e5cb979c9f9fa3aa841068db96a669a8eb9aaeebe624c9ccb622b2010acdd9ca03b503d86c36bc78f1828b8b0b76bb1d455100b0dd6e393b3be3d9b367745dc7f178e4cb972fd475cdf17874210449290920191800ef3de7e7e7bc7af58a274f9eb05aad70ce4de966bf5595e572c97ebfe7fefe9ebaae79fffe3d1f3e7ce0fefe1e334373115495fd7ecfc5c5054f9f3ea5aaaaef407fd421ce394208f47d4f5114c4188931a2f9f162b1a0aa2a42081c0e07b6db2d55555114c52382fc1dc791b66df9f8f123575757841030b3894ce70acc8cd3e9448c91b66d29cb92e572c972b9a42ccb896418069aa6e1fafa9aa669e8ba6e029d1cc8ad35ef4f33631806628c8410381e8fa82a4551e0bda7eb3aeabae6743ad1f73d31469c73ccb11e15ef472793e4548761e0743a4d7d1c639cfa793e953a8e23defb87d199052e160bbcf7536006ca99a49430b3e93b1faa47568808e33812639c885415ef3d29a509601cc78924df711cbf573c1b49c6719c187370ce2403e749cb6a737bcdf709f0bfe2ac64fe73be0b3259be1978188649d0bc1d27e0b9b2f9268b31ce17cd947a8e6ddb96aeeb5055168bc5638f3368d334841058afd7acd76baaaa9afccefe654bfabea7691a6e6e6e18c7718acd5e6b56d6f73d755d73737383738eed76cb7ebf67bd5e539625655922220cc3c0dddd1d87c381cf9f3f134260b55a4de4794af561db594a29a5beef53dff76e1806dab6e5f6f6165565b3d9b0dbed5055baaee3eeee8ee3f1c8300c00144581aa26114922920053116945e4dacc9e8bc846555dae7c2e4ad7751c0e87c97b11990a5b1405cbe512554dceb95b11f9049cd439f7d6ccfe70ceb545516c168b85cc5b0f1e56a5f71ee7dc54b4bc11b34d455124effd2711f91378a7c03f402f227f79ef0b559594d2a34264efe65396fb76b643928804e7dc3b11b9fa0fa2c9979de75f919d0000000049454e44ae426082</data>
-    </image>
-    <image name="image2">
-        <data format="PNG" length="1069">89504e470d0a1a0a0000000d4948445200000016000000160806000000c4b46c3b000003f449444154388d9d954d6f1b5514869f7b67c65f19d74ed40fa589a040a94aa12c522410546181bae982ffc3cf81150b8404aa106c405d51502955a5d000217515f72389dd38aec7f6cc9d7b0e8b19bb210b84b8d25ddee7bce73d1fd7708393c045e01c50050cffef283002fe00b6c212fa31f01ed004ecf117a68ca5e8bf8105d803be075c08bc52422f038da38aadb1342b4d569babc4514c7fdaa737e93176639c77c70309b00c24c02f2145facd121ace14d7c21a17162f706de51a57da5788c398beebd31977d81c6eb2d1dfe0f1e83123379a0591921303513813572ab5810938d538c5fad975ae2f5fe752e3122dd3c262f19167adbec660694077b9cbf6789bdf86f7b9d7bf4767d0b1639718450d6066600263595968f17aeb3ceb67aff37efb2a2be10a356a5853d81e11513555626296ebcb5caebdcdd5c58fd838b3c337bbdf71f3c19724e900cad40178293ec127e7d679b771955a738d28384340e588e5665e48ab010135a04dd5af12f206674eb669f56e93a487801660630cab8d161fe4cb5c78a8c8d253f296e2ab2d7cd8200f2ae426c0198312205a61220bec4d2b6c0e03ee4e955e6b091bd6310654678a5519e73999cf310707844347b87080d69a506fa18d16be1193d46206c1090e2566675465ebb9e56102bb0ad3d820faa24bc2a23f6192e74c8d070493652043cc2841a30126aa63aa75b4799a9df84db67c859dc4d24be130374c8d92ab222aff0417f0b29e288814d71a4c9e8177e864c064e2f96b7a9e0d63487248d5301570b67cafa5caa3606bc08a873c0527600ccc8ba72039dea6244e1859980a78855cc01b105514998f4c38ab7733acb0e004331d838f0a58e821884005c4a381c38990019940aee0141c8a23c5f9f49815c6b01086d47c0ede81076c08c6966a3da820fe05d869a1381548ade2788673cfe75eccad48c59169061a818645cf88e7e8b253159c2869097665374d6484e4fbe4f9e45857a8b29fa5749a235ead41650268841153d880016350649efe5460ecc6ecedfec4a1ff11dcdd52f1b1e27593433eb3f719454d2efa36abfe244ddf26a00a046002443c394a269e836497ddeeb7ecfffe2959be81a61374299d2738072753c7d75b8fb8d50d7839aaf04ebbc987ad53bcc622a74d4c5c6d91361619e8739e0ceed0ddfc9c61e70679b20375075969ef11b002824326fb220ff7c5768de34e7fcc57d53e2b4185b72a0dd6da4bec4d9ef2f393c76cef6c933cf915cd86c5f30a50453008c55ed6906231ef512ce918c57a60e49564e278e01db765cc17bd6748d06128b7c89c03c9cb010016803a02f4811e300929fea81f084968106331e445dcd9208d55197b4fd187c78e054e001152426f02dd10f813c830dca64a849d7f70ffed84a5628b6098025de0d1df4327130b26f6021a0000000049454e44ae426082</data>
-    </image>
-    <image name="image3">
-        <data format="PNG" length="1399">89504e470d0a1a0a0000000d4948445200000016000000160806000000c4b46c3b0000053e49444154388d3d95db4b5bcf1ec53f33fb968b21b1a9d5606a7b8a378aa7b1b4951f055ff4a914ce5329fdeffad67fa2704e2f60c1b650d1aa988a468d971893b893b877f69ebde73cd8ec81616060be6bcd62adef57d8b67d576b3dafb57ea8b57600a1b506404a896ddba452290cc3402985effb28a588e31800ad354208000df4803dadf51f5308312f84f84f1445ff68ad73524a0960591623232394cb651e3d7a442693e1f4f4947abd4ea7d3a1dfef27005a6bb4d6b1d6ba2184f8af102234a328fa9794f21f21c4bfa5941929a5701c878989099e3d7bc6ebd7af595c5c446b4dad56636767876ab5caeeee2ef57a1dd775514aa1948ac3302c29a5fac04f5308e108217242888c94d2cce5727266668657af5ef1f6ed5b6cdbe6cb972f5c5d5df1f0e143565656585d5de5e4e4849d9d1dfefcf9c3d1d1118d4623beb8b8c8b5dbed11a59465fed54aa6d369313e3e2e97969678f7ee1d2f5ebc607b7b9b0f1f3eb0b6b646bfdfa75028303f3f4fa55261616181959515969797393c3c64676747aeafaf8b8d8d0dd16eb78529a5c4711ccae532abababbc79f306c77178fffe3d1f3f7e646b6b8b4ea74314459c9d9d717c7cccfafa3a77efdea5542a313535c5d3a74f595c5cc4f77deaf53add6e17d3b66d8ac5220b0b0b542a150e0e0ef8fcf9331b1b1b9c9d9d717373c370856148a7d3a1dbedd2e974f07d9f52a944369b657f7f9f8b8b0b4cd3bcdd42084cd30460737313dff729140abc7cf99256abc5d9d919e7e7e7b45a2dbadd2e711c93cbe5a8542aacaeae323737c7f6f6369f3e7da2d3e9d0ebf59052622aa5180c060983838303c6c6c6b877ef1ea3a3a3944a258220a0d96c72727282e779cccdcdb1bcbc8cd69aaf5fbfb2bbbb4bb3d9a4dfefe3791e4a294cad35411010862142085cd7e5fafa9a6ab58a6ddb8c8d8d31393949a954626666867c3e4f3e9fa756abf1e3c70f5cd74dc212c7316118128621a665590821924bcbb208c330f167bbdda65eaf532c162997cb4c4c4c707979c9e1e1219d4e876c364b3a9d4e6a0c0363c6719c681c044112e35c2e87effb846188e779341a0d5cd7e5f8f838491e80e3380c5bc0f01442dc4a2184208a226e6e6e12170821b06d1bd33411421004015a6bd2e934711ca39442089130350c0321046118de32fe9b73c230240802945200445194000c06039452388e839472186152a914e9741ac77188e398288a504aa1b5466aad514a11040100994c06c77188a228011a82492993df599645369b657c7c9cd9d959f2f9fc6d41296fed36646559169393938c8e8ed26c36d9dfdfe7eaea0a2104a9548a388e87ed11cbb248a7d34c4f4f53a95448a552388ec3d1d111d7d7d70024912e168b2c2d2d3139398961189c9e9eb2b5b545ad56a3d168d0eff71142601806f7efdf676e6e8e858505cecfcf393c3c646c6c8c7c3ecfe5e5e52d63d334310c03d33413ff3e78f080e7cf9fb3b4b444bbdda656abf1f3e74f8e8f8f2997cbcccccc502814d8dfdf676d6d8dc78f1f279269ad89e318536bad832088832088bbdd6ebcb9b929bf7fffceefdfbf999f9f4fd83d79f204cff308c390a3a323be7dfbc6af5fbf00b873e70eaeebc6dd6e370ec3308ee3589b5114f53dcf6bf47abd52100423d96c565e5e5e260f8bc522535353cccece625916f57a9d5aad46ad56a3d7eb313d3d8d6118b45aadd8f3bc2b2144d3b66dcf544aedf9beffbf56abd5bfb9b919b12c4b643299c4a7aeebb2b7b747b55a4de2daeff709828091911132990cbeefd36eb763dff79bc067dbb64f4cad75552915f47abd1fdd6ed71a0c0662e8e9e1524ae1791e5aeb64a8fe1d8d68ad715d9776bb1d0f06035f6b7d621846fdff78093236c3c877360000000049454e44ae426082</data>
-    </image>
-    <image name="image4">
-        <data format="PNG" length="737">89504e470d0a1a0a0000000d4948445200000016000000160806000000c4b46c3b000002a849444154388d9d954d4be35014869fd4a4b9a6ad1a3a52540a535a61b2b0064198a5b87023b8e9c69d5bff927f66c659082e46c18dd5a941ab1d1171c0262dade66b16add5f44367fa2e4fce7dce79cfbdb957023e015f80cf800a488ca7106800bf800bb90bdd02be02292036263800ee816f802b03b92e7409d086752ccb329224e1791e6118be079e039ac0914cc77eaa0b95df763c3131c1c2c202baae234912ed761bc771b06d1bc771868153401250e46e30d6edb4074da7d3643219e2f1786fa510022104b3b3b3b4db6d5aad16f57a1dc771f07dff852101924c9f841064b3591289c428cb9122baaee3fb3ee57219cff37adf231ba5691a2b2b2b1f42fb25cb324288482c02dedada626767876c364b1886ef6d1400beefa3691acbcbcb6c6e6e924c265f8bbd4d340c03555529954a00589645ad56a352a960db36b1d86b1f611852281448a7d300a4522932990c8d466310dc6f279fcf93cfe7595d5da55aad7271718165592412090a85028aa28c1ecfbb5ebbd2340dc330300c83c3c3435cd74592deff417bdee2f1389393931f16f17dff436804ac691a5353531f2e1855fceeee8e9b9b9b41f0bfcab6eda1f1e3e3639e9f9fc7070f53b95ce6f6f63612eb811b8d06474747ff0df53c8fa5a5a581b9c7de26eceded615916d56a3562ebad666666f07d9f2008705d97eded6d767777999f9f8fe4458edbdada1aa55289a7a727cecfcfb9baba425114745def9d71d3343938382097cbb1bebe8e1002dbb6797c7c1c008774aebc4008110031555529168b148b45eaf53a9797975c5f5f130401aaaab2b1b1c1e2e2620f72767646b3d90c5e384028d3b998ef81b956ab95a46f43a7a7a7314d13d33447ce797f7f9f2ef00ff000b4643a6fd477a0797a7a9a648c37cf75dd17f003f003a8c9400578067e02ca38e093939317701ba801bfff0255d5f0eaf509a26e0000000049454e44ae426082</data>
-    </image>
-    <image name="image5">
-        <data format="PNG" length="762">89504e470d0a1a0a0000000d4948445200000016000000160806000000c4b46c3b000002c149444154388d9d954d4fe25014861f4a819682124a5ac41046d860eaacdccc3f3071313fd15fa0ee34ae6632312e4c98c4c480c980f885413ec418a983d09659808d05c70fcef2bdf73ef7dcf3de73af6f63632301e4812f4008f0315b0c812ef007a88863e877e01b10058419c10ed0047e000311581a43bf02e1c98c0783018d4603dbb689c562cccfcfbf055e004ce0b7c8e8f8d131547c99f1eded2d4b4b4bacafaf130c06a956ab542a156e6e6ef0fbfd288a42201078098e021120208e45619ca900609a268220b0b6b686aeeb6e4ad96c966c360bc0e9e929f57a9d5aadc6e3e323baae3f337c804f6422daed36ababab188681cff77f1f73b91cb95c0e80fbfb7b363737492693eeb8c7a856ab85aaaaacacacbc099d8c42a18065591ecd03761c874422c1eeee2efbfbfbf4fbfd3781ed769badad2d2ccb42d3349acda63be696a2dbeda2aa2a9224914aa500d8dede26180c92c964300c034992dc858787879c9d9db9c70f8542d46a35344df3822dcb7ae93000f97c1e1899b9b3b34328144296653a9d0ed168d453d3c99832efb55014c535eae8e8884c26f3ae076e8d9f9e9e0887c3ef6ee238ce878c75c10f0f0fc462b1f71708af777cbd5e271e8f4f833f1ab66dbfaab75a2d4f629f060f87c329ad5c2e934ea73d9a0b4e269354abd5cfeec3e5e525a55269eacebbe0482442a7d3616f6f8f62b148afd77b1524cb3283c100dbb629954a5c5c5cb0b8b8c8f9f9b9679ee7ba5d5f5fa3280a575757148b45d2e9349aa6914aa590651900c330383838a0d168100e879165995eaf87aaaa53e021a327cf711cc70104511489c7e398a6c9c9c909c7c7c7e8ba8edfefc7344deeeeee989b9b7321dd6e97e5e565e799030c45460f731358100421c284a1cf6d6c9aa6abbd8402040201244972805ba00dfc1519fd513f015392a40833fc79e38671c6d05f404d04ca401f28008159c0e38e75801e5003aeff01f718fa14ac7f2b370000000049454e44ae426082</data>
-    </image>
-    <image name="image6">
-        <data format="PNG" length="844">89504e470d0a1a0a0000000d4948445200000016000000160806000000c4b46c3b0000031349444154388db5935d48536118c77f3bc7795adae7b2d05a4482d22ce8c6116511d98d0a491118455050dd64505e79d15574d307081942dd295de40716830285c40c56c370d9da466ecb74d5e674399df378769ceb621b94342ba5071ede8b97e7c7fffd3fff17fe53695638bf1ad871fbdc7e8e961f2434eac46aede7ba39e0cc5a09b5d4a0ddb73637477fe4c82126bfbab1bb3c28f3aa0360d9e0bd5bb30ff5fb6207bbee9c449e0a637378f93e1e728e4c2db012b0b471cdaa33f527776f58ab5f8fe5552f5f46861cde490dea820080b01caa3e37eb9e9a633870e2d459a3dbfbd9e81ff1e01d5799998b236834cb56bc3734337fa9307f9daac435da44ee16872738cb949c60954ee4f987e96529cec9cbcbb305834126c53ced959b0f62d9520e05c6034cc504ba5d51804f00e23f829f582c1651a7d36dd4ebf5d8debd179ff7bc1e73bb87beb90273df81c740e45f155f686c6c2c292929290c04024c4c4c505a5acaba4d5b04cfd8ac043c042649fe8dbffe1f3b2b2b2b9dd168548d442289cecece447d7d7da2a2a2220138815d4036c99d097fa3580388d5d5d5cf1a1a1ab689a29835383888dd6e67787898bebe3e80abc038a04dcd24d28399aa10385e545474baadadad40a7d3adf7783c92cbe5c26ab5d2dede0e701e780384487a1b03162073dc2ee7e7e7dfafabab637a7a9af2f2729a9a9a70bbdd0c0c0cd0d5d505700df808cc0132a0a6a1f0fb54149b4ca6a7cdcdcd627171318aa220cb32ddddddc462313a3a3a5055f506f01608a46c9805e28b3dfcb9d6008fcc66f3b170388cd7eba5b5b51549921004019bcd862449771545e90146806fc00c30bf58dde2e51daeadad3d268a220e8783969616229108068381d1d151807645515e025f007f2628fceaf11ea3d168aeaaaac26c3663b1580030994cf87c3e42a110403f1004c69682a6add80c5caca9a9b929cb327ebf1f59968946a3949595d1dbdb8bcfe703b805bc00bc29b573a4a295099cf1124014c59e783cfe0cb0a72c48fb1a5f6a2ebdbca3c006603bc9a0a7bd7703e15487521d65090b16830b48464f9b3ad3e038c927cf92cc6aec4f4ad3f50339a246c2d7c33b860000000049454e44ae426082</data>
-    </image>
-    <image name="image7">
-        <data format="PNG" length="505">89504e470d0a1a0a0000000d4948445200000016000000160806000000c4b46c3b000001c049444154388db5d53d68544110c0f19fa7078a2251b410445e63a1d6012b2129b2cd6140050b114bb50a162a22580816511024859642b050344888c5bb2285656263a129d23c045154c2a1118403b57873e472784f89dcc0143b1f7f6667677719906cfa97a05cb6038f6279262956ff1b9ccbb6e2318e876916a793e2c786c151e9338cf5b89a38595579ad02ba134fff0015b6fb55456da9f07dc7d90a7fbb0a3c3059d7e35c36a4ece985a4580edb28ae633f7ee21d2693623efc07f140d9f3568755eb82ee551eca28ea613b8ae798c7434c61127773d98948ad474e33186be05cb6077318eed9d1155c4a8a5bf8865a547a1313b9ac7bc7c3980b56d98a5cf61687ba828ea0855738876db813becb58891d7466fb4d57ee52521cae9a8a21ec0bf02ebc0ffb797c5031aaba9cc7b0d0e35bc24bcca081e5d0066e2bc7ed634fce42b04a70527c8984c54e4452fcc23ddcc0085e878ee009ae25c54a1774118d60ad5d90a4f89ccbc694e3d60edb4c2e6be12a0e44681d1349f122d66de5d4ac1bb78149df4728976dc6ee8adc7655855527bb1dd3f8d447a72a72fb8393e22b4e296f63af34717143e080af625cf9b8776416e37ffb4506f6350d4c7e037dc28360d82baa230000000049454e44ae426082</data>
-    </image>
-    <image name="image8">
-        <data format="PNG" length="1091">89504e470d0a1a0a0000000d4948445200000016000000160806000000c4b46c3b0000040a49444154388d6d954b6f13491485bfaebafd70cb4e9cd8890531222321c406cd965f31ff8f5f33b398051a05660141164121891c03318d9ffd703faa66917413c39454bbbae79e7bcea92ae7e5cb977dc7719e01c7800f38fccf721ca7d9d65aacb53f1fb1d7d7d7879bcde64244fe12adf5336bed1fc00ba063ad553f1729a5504afd02583701383f3f3f582e975e1004ff00a9388ef31bf0c25afbdc5a1bd68ceb02dff7d9dddd250802d23425cb32cab2a4aa2a8c31388ec3d9d9999e4c26caf33c03fceebaee53b1d6fa774c436bad00ca5a8b88b0bfbfcfa3478fe8f57a8808599611c7318bc582f97c4e92247cf8f081288ad05a535595027c6bad2ff5b48ee338800268b7db3c7cf890e170c8eeee2eaeeb02d0e974d8dfdf673018902409373737000441c0d7af5f59ad56dc4dac6a6000b4d6f47a3d1e3f7eccc1c1016118a294e2b6e70fbd45846eb7cbd1d1114f9e3ce1eaea8a376fdef0eedd3b8c3100486d8288b0b7b7c77038e4f0f09020087e01ad57abd5c2f33c8c318808f3f99c388e09c3903ccf6f81eb62cff30882802ccbf8fefd3b9d4e872008705d77ab410d9ae739d3e994d3d3535ebf7ecd62b1c05adb906c18d7d149d394b22c89e318dff769b55ab45a2d7cdf6fa4592e978cc763debf7fcf783c268a228c3168ad9b184a1dadfbf9b4d65214056559926519ebf59a3ccf11115cd7258a22aeaeae98cd66c4714c966588483395b5962df3fe6f596bf9f6ed1bcbe512630c4992309bcdb61a976589520aad35c6985bedabaa6a4630c6509625c6183ccf436bcd6c36234912f23ca72c4bd23465b3d934e7aaaa6aa6ad13a194fa2185e33854554559964da3c562d180d440799e374dea9de779635acd5aeeeb52555523fe643261b3d9e0baeed615de6c36e479deb0cdb2acd1f87e7ae43e68555528a5984c26bf18a2946ad81645d1c896a62945516c5da02d296a8d2e2f2fc9b28c56abd530544a6d79705f8ae9744a1445f8becfcecece76dceaa293931346a311070707f4fb7dbadd6ef34e28a5b6cc8de398f178cc683422cff3e605f43cef96719de1d3d353fdead52b46a31122c283070f383e3ea6dfefb3b3b343a7d34129459aa67cf9f285f3f3733e7dfac462b1a0d7ebfd48c39d7c628cb1676767071717172a8e63e238264912a6d3291f3f7ec4f77d068301c3e190200888a288cf9f3f73737343922400846178ff6db18091ebebebc16ab5f23ccf3322a2c230a4280aaaaa62bd5eb35eaf99cfe75c5e5e222218639adfc4755d8220a0d7ebd5d7be149195526a2545515c846178023c1f0c067e9ee74eb7dbdd725a6b8debba884813bdaaaa701c8776bbcdd1d111fd7edf763a9d5510047f8bc85b514afde9fb7e22224f8ba2f0cbb254699a36857536ef7e08cab26c9a6aad69b7db0c0603f6f6f62adff7d7aeebbed55afffb1ff6b59353392d4a020000000049454e44ae426082</data>
-    </image>
-</images>
-<layoutdefaults spacing="6" margin="11"/>
-</UI>
+    <property name="text">
+     <string>&amp;Original</string>
+    </property>
+    <property name="iconText">
+     <string>Original</string>
+    </property>
+    <property name="shortcut">
+     <string>1</string>
+    </property>
+   </action>
+   <action name="displayColoredAction">
+    <property name="checkable">
+     <bool>true</bool>
+    </property>
+    <property name="icon">
+     <iconset resource="icons.qrc">
+      <normaloff>:/icon/icon/display_colored.png</normaloff>:/icon/icon/display_colored.png</iconset>
+    </property>
+    <property name="text">
+     <string>w/ &amp;Colors</string>
+    </property>
+    <property name="iconText">
+     <string>w/ Colors</string>
+    </property>
+    <property name="shortcut">
+     <string>2</string>
+    </property>
+   </action>
+   <action name="displayBIAction">
+    <property name="checkable">
+     <bool>true</bool>
+    </property>
+    <property name="icon">
+     <iconset resource="icons.qrc">
+      <normaloff>:/icon/icon/display_boundary.png</normaloff>:/icon/icon/display_boundary.png</iconset>
+    </property>
+    <property name="text">
+     <string>&amp;Boundary Indicator</string>
+    </property>
+    <property name="iconText">
+     <string>Boundary Indicator</string>
+    </property>
+    <property name="shortcut">
+     <string>3</string>
+    </property>
+   </action>
+   <action name="displayLabelsAction">
+    <property name="checkable">
+     <bool>true</bool>
+    </property>
+    <property name="icon">
+     <iconset resource="icons.qrc">
+      <normaloff>:/icon/icon/display_labels.png</normaloff>:/icon/icon/display_labels.png</iconset>
+    </property>
+    <property name="text">
+     <string>Region &amp;Labels</string>
+    </property>
+    <property name="iconText">
+     <string>Region Labels</string>
+    </property>
+    <property name="shortcut">
+     <string>4</string>
+    </property>
+   </action>
+   <action name="displayMeansAction">
+    <property name="checkable">
+     <bool>true</bool>
+    </property>
+    <property name="icon">
+     <iconset resource="icons.qrc">
+      <normaloff>:/icon/icon/display_means.png</normaloff>:/icon/icon/display_means.png</iconset>
+    </property>
+    <property name="text">
+     <string>Region &amp;Means</string>
+    </property>
+    <property name="iconText">
+     <string>Region Means</string>
+    </property>
+    <property name="shortcut">
+     <string>5</string>
+    </property>
+   </action>
+  </actiongroup>
+ </widget>
+ <layoutdefault spacing="6" margin="11"/>
+ <resources>
+  <include location="icons.qrc"/>
+ </resources>
+ <connections/>
+</ui>

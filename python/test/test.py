@@ -1,8 +1,8 @@
 from vigra import Vector2, Size2D, labelImage4
-from hourglass import Polygon
+from geomap import Polygon
 import maputils
 
-from hourglass import GeoMap, contourPoly
+from geomap import GeoMap, contourPoly
 #from map import GeoMap
 execfile("testSPWS")
 
@@ -30,7 +30,7 @@ assert contourPoly(hole.contour()).contains((16,17))
 
 dart = hole.contour()
 while True:
-    while dart.startNode().degree() > 2:
+    while dart.startNode().hasMinDegree(3):
         face = maputils.removeEdge(dart.clone().prevSigma())
     if dart.nextPhi() == hole.contour():
         break
@@ -50,7 +50,7 @@ for p in [(16, 17), (13, 17)]: # in hole
 # test copying / init from map data with disconnected contours:
 import copy
 om = copy.copy(map)
-assert om.__getstate__() == map.__getstate__()
+assert om.__getstate__()[:6] == map.__getstate__()[:6]
 assert om.checkConsistency(), "map inconsistent"
 assert maputils.checkLabelConsistency(om), "om.labelImage() inconsistent"
 
@@ -59,7 +59,7 @@ assert maputils.checkLabelConsistency(om), "om.labelImage() inconsistent"
 # --------------------------------------------------------------------
 
 from vigra import readImage, resizeImageSplineInterpolation, transformImage, gaussianGradientAsVector, gaussianGradientMagnitude, SplineImageView5
-from hourglass import SubPixelWatersheds5
+from geomap import SubPixelWatersheds5
 
 img = readImage("test_blox.png")
 img = resizeImageSplineInterpolation(img, Size2D(128, 128))
@@ -71,7 +71,9 @@ img.spws = SubPixelWatersheds5(img.gm)
 
 import maputils
 maxima, flowlines = maputils.subpixelWatershedData(
-    img.spws, img.gm.siv, 0.7, perpendicularDistEpsilon = None)
+    img.spws, img.gm.siv,
+    maputils.PassValueFilter(img.gm.siv, 0.7),
+    perpendicularDistEpsilon = None)
 
 map = GeoMap(maxima, [], img.size())
 maputils.addFlowLinesToMap(flowlines, map)
@@ -115,7 +117,7 @@ def checkPassValues(map, siv):
     for edge in map.edgeIter():
         if edge.flag(BORDER_PROTECTION):
             continue
-        pv = map.wsStats.passValue(edge)
+        pv = map.wsStats.dartPassValue(edge.dart())
         actualPV = min([siv[p] for p in edge])
         assert pv == actualPV, "%s != %s" % (pv, actualPV) # no epsilon needed ;-)
 
@@ -221,7 +223,7 @@ random.seed(seed)
 def mergeEdgesCandidates(map):
     result = []
     for node in map.nodeIter():
-        if node.degree() == 2 and not node.anchor().edge().isLoop():
+        if node.hasDegree(2) and not node.anchor().edge().isLoop():
             result.append(node.label())
     return result
 
@@ -240,7 +242,7 @@ def mergeFacesCandidates(map):
     return result
 
 for node in map.nodeIter():
-    if node.degree() == 0:
+    if node.isIsolated():
         map.removeIsolatedNode(node)
 
 backup = copy.copy(map)

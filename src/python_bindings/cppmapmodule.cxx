@@ -1,8 +1,8 @@
+#define PY_ARRAY_UNIQUE_SYMBOL geomap_PyArray_API
+#define NO_IMPORT_ARRAY
+#include <vigra/numpy_array.hxx>
 #include "cppmap.hxx"
-#include "facestatistics.hxx"
 #include "exporthelpers.hxx"
-#include <vigra/pythonimage.hxx>
-#include <vigra/pythonutil.hxx>
 #include <vigra/copyimage.hxx>
 #include <iostream>
 #include <boost/bind.hpp>
@@ -15,13 +15,17 @@
 
 #include <boost/python.hpp>
 #include <boost/python/detail/api_placeholder.hpp>
+
+using vigra::NumpyFImage;
 namespace bp = boost::python;
 
-CELL_PTR(GeoMap::Edge) pySplitEdge(
+typedef vigra::TinyVector<double, 2> Vector2;
+
+GeoMap::EdgePtr pySplitEdge(
     GeoMap &geomap, GeoMap::Edge &edge, unsigned int segmentIndex,
     bp::object newPoint)
 {
-    bp::extract<vigra::Vector2> insertPoint(newPoint);
+    bp::extract<Vector2> insertPoint(newPoint);
     if(insertPoint.check())
         return geomap.splitEdge(edge, segmentIndex, insertPoint());
     return geomap.splitEdge(edge, segmentIndex);
@@ -173,6 +177,11 @@ class SimpleCallback
         disconnect();
     }
 
+    bool connected() const
+    {
+        return connections_.size() && connections_[0].connected();
+    }
+
     void disconnect()
     {
         for(unsigned int i = 0; i < connections_.size(); ++i)
@@ -259,7 +268,7 @@ class SplitEdgeCallbacks : public SimpleCallback
     }
 
     void preSplitEdge(GeoMap::Edge &edge, unsigned int segmentIndex,
-                      vigra::Vector2 const &newPoint, bool insertPoint)
+                      Vector2 const &newPoint, bool insertPoint)
     {
         preOpCallback_(boost::ref(edge), segmentIndex,
                        insertPoint ? bp::object(newPoint) : bp::object());
@@ -353,7 +362,7 @@ class AssociatePixelsCallback : public SimpleCallback
                 bind(boost::mem_fn(&AssociatePixelsCallback::operator()), this, _1, _2)));
     }
 
-    void operator()(GeoMap::Face &face, const PixelList &pixels)
+    void operator()(const GeoMap::Face &face, const PixelList &pixels)
     {
         callback_(boost::ref(face), pixels);
     }
@@ -447,8 +456,8 @@ createGeoMap(bp::list nodePositions,
                     "GeoMap.__init__: edge geometry not convertable to Vector2Array");
             CellLabel startNodeLabel = bp::extract<CellLabel>(edgeTuple[0])();
             CellLabel endNodeLabel   = bp::extract<CellLabel>(edgeTuple[1])();
-            CELL_PTR(GeoMap::Node) startNode(result->node(startNodeLabel));
-            CELL_PTR(GeoMap::Node) endNode(result->node(endNodeLabel));
+            GeoMap::NodePtr startNode(result->node(startNodeLabel));
+            GeoMap::NodePtr endNode(result->node(endNodeLabel));
             vigra_precondition(
                 startNode && endNode, "invalid start- or endNodeLabel!");
             result->addEdge(*startNode, *endNode, pe(), i);
@@ -458,13 +467,13 @@ createGeoMap(bp::list nodePositions,
     return result;
 }
 
-CELL_PTR(GeoMap::Edge) addEdgeBackwardCompatibility(
+GeoMap::EdgePtr addEdgeBackwardCompatibility(
     GeoMap &geomap,
     CellLabel startNodeLabel, CellLabel endNodeLabel,
     const Vector2Array &points, CellLabel label)
 {
     std::cerr << "API warning: addEdge() now takes Node objects, not labels!\n";
-    CELL_PTR(GeoMap::Node)
+    GeoMap::NodePtr
         startNode(geomap.node(startNodeLabel)),
         endNode(geomap.node(endNodeLabel));
     vigra_precondition(
@@ -501,9 +510,12 @@ labelImage(const GeoMap &map)
 {
     if(!map.hasLabelImage())
         return bp::object();
-    vigra::PythonGrayImage result(map.imageSize());
+    vigra::Size2D imageSize = map.imageSize();
+
+    typedef NumpyFImage::view_type::difference_type NumpyFImageShape;
+    NumpyFImage result = NumpyFImage(NumpyFImageShape(imageSize.x,imageSize.y));
     copyImage(map.srcLabelRange(), destImage(result));
-    return bp::object(result);
+    return bp::object(bp::handle<>(bp::borrowed(result.pyObject())));
 }
 
 bp::list GeoMap_sortEdgesEventually(
@@ -515,15 +527,15 @@ bp::list GeoMap_sortEdgesEventually(
     for(GeoMap::UnsortableGroups::iterator it = unsortable.begin();
         it != unsortable.end(); ++it)
     {
-        std::cerr << "copying unsortable group (" << it->size() << " darts): ";
+//         std::cerr << "copying unsortable group (" << it->size() << " darts): ";
         bp::list unsortableGroup;
         for(GeoMap::UnsortableGroups::value_type::iterator dit = it->begin();
             dit != it->end(); ++dit)
         {
-            std::cerr << ".";
+//             std::cerr << ".";
             unsortableGroup.append(*dit);
         }
-        std::cerr << "\n";
+//         std::cerr << "\n";
         result.append(unsortableGroup);
     }
     return result;
@@ -533,8 +545,16 @@ bp::list GeoMap_sigmaMapping(GeoMap &map)
 {
     bp::list result;
     const GeoMap::SigmaMapping &sigmaMapping(map.sigmaMapping());
-    for(GeoMap::SigmaMapping::const_iterator it = sigmaMapping.begin();
-        it != sigmaMapping.end(); ++it)
+    GeoMap::SigmaMapping::const_iterator
+        first = sigmaMapping.begin(),
+        last = sigmaMapping.end();
+    while(*first == 0 && last[-1] == 0 && last >= first + 3)
+    {
+        ++first;
+        --last;
+    }
+    for(GeoMap::SigmaMapping::const_iterator it = first;
+        it != last; ++it)
     {
         if(map.edge(abs(*it)))
             result.append(*it);
@@ -565,7 +585,8 @@ struct GeoMapPickleSuite : bp::pickle_suite
         bp::list nodePositions;
         for(GeoMap::NodeIterator it = map.nodesBegin(); it.inRange(); ++it)
         {
-            for(unsigned int i = 0; i < (len(nodePositions)- (*it)->label()); ++i)
+            unsigned int missingNones = (*it)->label() - len(nodePositions);
+            for(unsigned int i = 0; i < missingNones; ++i)
                 nodePositions.append(bp::object());
             nodePositions.append((*it)->position());
         }
@@ -573,7 +594,8 @@ struct GeoMapPickleSuite : bp::pickle_suite
         bp::list edgeTuples;
         for(GeoMap::EdgeIterator it = map.edgesBegin(); it.inRange(); ++it)
         {
-            for(unsigned int i = 0; i < (len(edgeTuples)- (*it)->label()); ++i)
+            unsigned int missingNones = (*it)->label() - len(edgeTuples);
+            for(unsigned int i = 0; i < missingNones; ++i)
                 edgeTuples.append(bp::object());
             edgeTuples.append(
                 bp::make_tuple(
@@ -597,11 +619,12 @@ struct GeoMapPickleSuite : bp::pickle_suite
             edgeFlags.append((*it)->flags());
         }
 
-        bp::list faceFlags, faceAnchors;
+        bp::list faceFlags, faceAnchors, faceLabels;
         for(GeoMap::FaceIterator it = map.facesBegin(); it.inRange(); ++it)
         {
-            faceFlags.append((*it)->flags() & ~0xf0000000);
+            faceFlags.append((*it)->flags() & ~0xf0000000U);
             faceAnchors.append((*it)->contour().label());
+            faceLabels.append((*it)->label());
         }
 
         return bp::make_tuple(
@@ -610,7 +633,7 @@ struct GeoMapPickleSuite : bp::pickle_suite
             map.mapInitialized(),
             map.hasLabelImage(),
             edgeFlags,
-            faceFlags, faceAnchors,
+            faceFlags, faceAnchors, make_tuple(faceLabels, map.maxFaceLabel()),
             pyMap.attr("__dict__"));
     }
 
@@ -628,7 +651,15 @@ struct GeoMapPickleSuite : bp::pickle_suite
         bp::list edgeFlags = bp::extract<bp::list>(state[4])();
         bp::list faceFlags = bp::extract<bp::list>(state[5])();
         bp::list faceAnchors = bp::extract<bp::list>(state[6])();
-        bp::object __dict__ = state[7];
+        bool hasLabels = len(state) > 8; // backward compat.
+        bp::list faceLabels;
+        CellLabel newMaxFaceLabel = 0;
+        if(hasLabels)
+        {
+            faceLabels = bp::extract<bp::list>(state[7][0])();
+            newMaxFaceLabel = bp::extract<CellLabel>(state[7][1])();
+        }
+        bp::object __dict__ = state[-1];
 
         GeoMap_setSigmaMapping(map, pySigmaMapping, edgesSorted);
         if(mapInitialized)
@@ -640,16 +671,55 @@ struct GeoMapPickleSuite : bp::pickle_suite
             (*it)->setFlag(bp::extract<unsigned int>(edgeFlags[i])());
         }
 
+        std::vector<CellLabel> newFaceLabels(map.maxFaceLabel());
         for(i = 0; i < map.faceCount(); ++i)
         {
-            int anchorLabel = bp::extract<unsigned int>(faceAnchors[i])();
-            map.dart(anchorLabel).leftFace()->setFlag(
-                bp::extract<unsigned int>(faceFlags[i])());
+            GeoMap::Dart anchor =
+                map.dart(bp::extract<int>(faceAnchors[i])());
+            anchor.leftFace()->setFlag(
+                bp::extract<CellFlags>(faceFlags[i])() & ~(CellFlags)0xf0000000);
+            if(hasLabels)
+                newFaceLabels[anchor.leftFaceLabel()] =
+                    bp::extract<CellLabel>(faceLabels[i])();
         }
+
+        if(mapInitialized && hasLabels)
+            map.changeFaceLabels(newFaceLabels, newMaxFaceLabel);
 
         bp::extract<bp::dict>(pyMap.attr("__dict__"))().update(__dict__);
     }
 };
+
+void GeoMap_setEdgePreferences(GeoMap &geomap,
+                               bp::list edgePreferences)
+{
+    std::auto_ptr<GeoMap::EdgePreferences> cppep(
+        new GeoMap::EdgePreferences(len(edgePreferences)));
+
+    for(unsigned int i = 0; i < cppep->size(); ++i)
+    {
+        double pref = bp::extract<double>(edgePreferences[i])();
+        (*cppep)[i] = pref;
+    }
+
+    geomap.setEdgePreferences(cppep);
+}
+
+bp::object GeoMap_internalSplitInfo(GeoMap &geoMap)
+{
+    const detail::PlannedSplits *splitInfo = geoMap.internalSplitInfo();
+    if(!splitInfo)
+        return bp::object();
+    bp::list result;
+    for(unsigned int i = 0; i < splitInfo->size(); ++i)
+    {
+        const detail::PlannedSplits::value_type &si((*splitInfo)[i]);
+        result.append(bp::make_tuple(
+                          si.segmentIndex, si.arcLength, si.position,
+                          si.dartLabel, si.sigmaPos, si.splitGroup));
+    }
+    return result;
+}
 
 std::string Node__repr__(GeoMap::Node const &node)
 {
@@ -665,9 +735,16 @@ std::string Edge__repr__(GeoMap::Edge const &edge)
     std::stringstream s;
     s.unsetf(std::ios::scientific);
     s.precision(1);
-    s << "<GeoMap.Edge " << edge.label()
-      << ", node " << edge.startNodeLabel() << " -> " << edge.endNodeLabel()
-      << ", partial area " << edge.partialArea() << ", length " << edge.length()
+    s << "<GeoMap.Edge " << edge.label();
+      //<< ", node " << edge.startNodeLabel() << " -> " << edge.endNodeLabel()
+    if(edge.isLoop())
+        s << "(self-loop)";
+    if(edge.isBridge())
+        s << ", bridge in face " << edge.leftFaceLabel();
+    else
+        s << ", faces " << edge.leftFaceLabel() << "(l), "
+          << edge.rightFaceLabel() << "(r)";
+    s << ", partial area " << edge.partialArea() << ", length " << edge.length()
       << ", " << edge.size() << " points>";
     return s.str();
 }
@@ -676,8 +753,10 @@ std::string Face__repr__(GeoMap::Face const &face)
 {
     std::stringstream s;
     s << "<GeoMap.Face " << face.label() << ", "
-      << (face.contoursEnd() - face.holesBegin())
-      << " holes, area " << face.area() << ">";
+      << face.holeCount() << " holes, area " << face.area();
+    if(face.area() != face.pixelArea()) // prevent redundant output for crack-edge maps
+        s << " (" << face.pixelArea() << " px)";
+    s << ">";
     return s.str();
 }
 
@@ -694,6 +773,17 @@ std::string Dart__repr__(GeoMap::Dart const &dart)
     return s.str();
 }
 
+std::string SimpleCallback__repr__(SimpleCallback const &cb)
+{
+    std::stringstream s;
+    s << "<SimpleCallback, ";
+    if(cb.connected())
+        s << "active>";
+    else
+        s << "detached>";
+    return s.str();
+}
+
 template<class T>
 T returnCopy(const T &v)
 {
@@ -702,157 +792,8 @@ T returnCopy(const T &v)
 
 /********************************************************************/
 
-#include <vigra/crackconnections.hxx>
-
-vigra::PythonGrayImage
-pyCrackConnectionImage(vigra::PythonImage const &labels)
-{
-    vigra::PythonGrayImage result(labels.size() + vigra::Diff2D(1, 1));
-    crackConnectionImage(srcImageRange(labels), destImage(result));
-
-    vigra::PythonGrayImage::traverser
-        end = result.lowerRight() - vigra::Diff2D(1, 1),
-        row = result.upperLeft();
-    for(; row.y < end.y; ++row.y)
-    {
-        vigra::PythonGrayImage::traverser it = row;
-        for(; it.x < end.x; ++it.x)
-        {
-            if((int)*it & 1)
-                it[vigra::Diff2D(1, 0)] = (int)it[vigra::Diff2D(1, 0)] | 4;
-            if((int)*it & 2)
-                it[vigra::Diff2D(0, 1)] = (int)it[vigra::Diff2D(0, 1)] | 8;
-        }
-        if((int)*it & 2)
-            it[vigra::Diff2D(0, 1)] = (int)it[vigra::Diff2D(0, 1)] | 8;
-    }
-
-    for(; row.x < end.x; ++row.x)
-        if((int)*row & 1)
-            row[vigra::Diff2D(1, 0)] = (int)row[vigra::Diff2D(1, 0)] | 4;
-
-    return result;
-}
-
-/********************************************************************/
-
-template<class TargetType>
-struct CastingAccessor
-{
-    template<class ITERATOR>
-    TargetType operator()(ITERATOR const &it) const
-    {
-        return static_cast<TargetType>(*it);
-    }
-};
-
-template<class T>
-struct DiffNormTraits {};
-
-template<class OriginalImage>
-class FaceColorStatisticsWrapper
-: bp::class_<FaceColorStatistics<OriginalImage>, boost::noncopyable>
-{
-  public:
-    typedef FaceColorStatistics<OriginalImage> Statistics;
-    typedef typename Statistics::Functor StatsFunctor;
-
-    FaceColorStatisticsWrapper(const char *name)
-    : bp::class_<Statistics, boost::noncopyable>(name, bp::no_init)
-    {
-        def("__init__", make_constructor(
-                &create,
-                // FaceColorStatistics store a ref. to originalImage,
-                // actually also to the map, but we need to prevent
-                // cyclic dependencies:
-                bp::default_call_policies(), // FIXME!!
-                // bp::with_custodian_and_ward_postcall<0, 2>(),
-                (bp::arg("map"), bp::arg("originalImage"),
-                 bp::arg("minSampleCount") = 1)));
-
-        def("pixelCount", &pixelCount);
-        def("average", &average);
-        this->attr("__getitem__") = this->attr("average");
-        def("variance", &variance);
-
-        def("faceMeanDiff", &Statistics::faceMeanDiff);
-        def("faceHomogenity", &Statistics::faceHomogenity);
-        def("faceAreaHomogenity", &Statistics::faceAreaHomogenity);
-
-        def("regionImage", &regionImage);
-        def("regionImage", &convertToRegionMeans);
-
-        def("detachHooks", &Statistics::detachHooks);
-    }
-
-    static void
-    checkFaceLabel(Statistics const &stats, CellLabel faceLabel)
-    {
-        if((unsigned int)faceLabel >= stats.size())
-        {
-            PyErr_SetString(PyExc_IndexError,
-                            "face label out of bounds.");
-            boost::python::throw_error_already_set();
-        }
-        if(!stats[faceLabel])
-        {
-            PyErr_SetString(PyExc_ValueError,
-                            "no information for the given face label.");
-            boost::python::throw_error_already_set();
-        }
-    }
-
-    static unsigned int
-    pixelCount(Statistics const &stats, CellLabel faceLabel)
-    {
-        checkFaceLabel(stats, faceLabel);
-        return stats.pixelCount(faceLabel);
-    }
-
-    static typename StatsFunctor::result_type
-    average(Statistics const &stats, CellLabel faceLabel)
-    {
-        checkFaceLabel(stats, faceLabel);
-        return stats.average(faceLabel);
-    }
-
-    static typename StatsFunctor::result_type
-    variance(Statistics const &stats, CellLabel faceLabel, bool unbiased)
-    {
-        checkFaceLabel(stats, faceLabel);
-        return stats.variance(faceLabel, unbiased);
-    }
-
-    static Statistics *create(
-        GeoMap &map, OriginalImage const &originalImage, int minSampleCount)
-    {
-        double maxDiffNorm = 255.*sqrt(originalImage.bands());
-        return new Statistics(map, originalImage,
-                              maxDiffNorm, minSampleCount);
-    }
-
-    static OriginalImage regionImage(const Statistics &stats)
-    {
-        OriginalImage result(stats.map()->imageSize());
-
-        stats.copyRegionImage(destImage(result));
-
-        return result;
-    }
-
-    static OriginalImage convertToRegionMeans(
-        const Statistics &stats, vigra::PythonSingleBandImage labels)
-    {
-        OriginalImage result(labels.size());
-
-        stats.transformRegionImage(
-            srcImageRange(labels, CastingAccessor<int>()), destImage(result));
-
-        return result;
-    }
-};
-
-/********************************************************************/
+void defMapStats();
+void defMapUtils();
 
 void defMap()
 {
@@ -885,8 +826,8 @@ void defMap()
                 "  called when the removal of edges results in pixels being\n"
                 "  associated with the surrounding face (called with the face as\n"
                 "  first, and a list of Point2Ds as second parameter)\n\n"
-                "GeoMap objects can be pickled, at will guarantee persistence of edges\n"
-                "and nodes with their geometry and labels (face labels may change!).",
+                "GeoMap objects can be pickled, which will preserve most of the GeoMap's\n"
+                "state, e.g. node/edge/face geometry, anchors, labels, and flags.",
                 init<vigra::Size2D>(arg("imageSize"),
                     "GeoMap(nodePositions, edges, imageSize)\n\n"
                     "Creates a GeoMap of the given `imageSize`.\n\n"
@@ -910,21 +851,23 @@ void defMap()
                      (arg("nodePositions") = list(),
                       arg("edgeTuples") = list(),
                       arg("imageSize") = vigra::Size2D(0, 0))))
-            .def("node", &GeoMap::node, crp,
+            .def("__copy__", &generic__copy__<GeoMap>)
+            .def("__deepcopy__", &generic__deepcopy__<GeoMap>)
+            .def("node", (GeoMap::NodePtr(GeoMap::*)(CellLabel))&GeoMap::node, crp,
                  "node(label) -> Node\n\n"
                  "Return Node object for the given label.")
-            .def("nodeIter", &GeoMap::nodesBegin,
+            .def("nodeIter", (GeoMap::NodeIterator(GeoMap::*)())&GeoMap::nodesBegin,
                  "Iterates over all existing nodes.\n\n"
                  ">>> for node in amap.nodeIter():\n"
                  "...     print node.label(), node.degree(), node.anchor()")
-            .def("edge", &GeoMap::edge, crp,
+            .def("edge", (GeoMap::EdgePtr(GeoMap::*)(CellLabel))&GeoMap::edge, crp,
                  "edge(label) -> Edge\n\n"
                  "Return Edge object for the given label.")
-            .def("edgeIter", &GeoMap::edgesBegin,
+            .def("edgeIter", (GeoMap::EdgeIterator(GeoMap::*)())&GeoMap::edgesBegin,
                  "Iterates over all existing edges.\n\n"
                  ">>> for edge in amap.edgeIter():\n"
                  "...     print \"Edge %d has %d points\" % len(edge)")
-            .def("face", &GeoMap::face, crp,
+            .def("face", (GeoMap::FacePtr(GeoMap::*)(CellLabel))&GeoMap::face, crp,
                  "face(label) -> Face\n\n"
                  "Return Face object for the given label.")
             .def("faceIter", &faceIter, arg("skipInfinite") = false,
@@ -941,7 +884,7 @@ void defMap()
                  "negative dart labels correspond to the opposite half-edge\n"
                  "(meaning that Darts with negative labels start at the end of\n"
                  "the corresponding edge).")
-            .def("faceAt", &GeoMap::faceAt, crp)
+            .def("faceAt", (GeoMap::FacePtr (GeoMap::*)(const Vector2 &))&GeoMap::faceAt, crp)
             .add_property("nodeCount", &GeoMap::nodeCount,
                           "Return the number of nodes in this graph/map.")
             .add_property("edgeCount", &GeoMap::edgeCount,
@@ -962,11 +905,11 @@ void defMap()
                  "imageSize() -> Size2D\n\n"
                  "Return the image size (as passed to __init__).\n"
                  "If the map has a labelImage, this is its size.")
-            .def("addNode", (CELL_PTR(GeoMap::Node) (GeoMap::*)(const vigra::Vector2 &))&GeoMap::addNode, crp, args("position"),
+            .def("addNode", (GeoMap::NodePtr (GeoMap::*)(const Vector2 &))&GeoMap::addNode, crp, args("position"),
                  "addNode(position) -> Node\n\n"
                  "Add node at the given position and return the new Node\n"
                  "object.")
-            .def("addNode", (CELL_PTR(GeoMap::Node) (GeoMap::*)(const vigra::Vector2 &, CellLabel))&GeoMap::addNode, crp, args("position", "label"))
+            .def("addNode", (GeoMap::NodePtr (GeoMap::*)(const Vector2 &, CellLabel))&GeoMap::addNode, crp, args("position", "label"))
             .def("addEdge", &addEdgeBackwardCompatibility, crp,
                  (arg("startNodeLabel"), arg("endNodeLabel"),
                   arg("points"), arg("label") = 0),
@@ -1054,6 +997,16 @@ void defMap()
                  "`sortEdgesDirectly`/`sortEdgesEventually`/`setSigmaMapping`\n"
                  "has been used.")
             .def("splitParallelEdges", &GeoMap::splitParallelEdges)
+            .def("setEdgePreferences", &GeoMap_setEdgePreferences,
+                 "setEdgePreferences(list)\n\n"
+                 "Set edge preferences (one float per edge).  This is used for\n"
+                 "deciding upon the survivor when merging parallel darts in\n"
+                 "`splitParallelEdges()`; edges with higher values are more likely\n"
+                 "to be preserved.  (If no preferences are given, the dart with\n"
+                 "the smallest curvature around the split node survives.)")
+            .def("_internalSplitInfo", &GeoMap_internalSplitInfo,
+                 "for debugging / paper writing only\n"
+                 "list of (segmentIndex, arcLength, position, dartLabel, sigmaPos, splitGroup)")
             .def("initializeMap", &GeoMap::initializeMap, (arg("initLabelImage") = true),
                  "initializeMap(initLabelImage = True) -> None\n\n"
                  "This finishes the initialization of a GeoMap.  Call this after\n"
@@ -1080,6 +1033,17 @@ void defMap()
                  "i.e. initializeMap(...) has already been called with\n"
                  "its initLabelImage parameter set to True (default).  Then,\n"
                  "labelImage() returns a GrayImage, else None.")
+            .def("setHasLabelImage", &GeoMap::setHasLabelImage,
+                 arg("onoff"),
+                 "setHasLabelImage(onoff)\n\n"
+                 "Retroactively add/remove a label image from this GeoMap.\n"
+                 "Note that although a `faceLabelLUT()` will also appear, it\n"
+                 "will not carry any data on past merge operations.")
+            .def("faceLabelLUT", &GeoMap::faceLabelLUT,
+                 return_internal_reference<>(),
+                 "Return the internal LabelLUT used for the labelImage.  This can\n"
+                 "be useful since it represents all face merge operations that\n"
+                 "happened so far.")
             .def("labelImage", &labelImage,
                  "labelImage() -> GrayImage/None\n\n"
                  "Return a GrayImage where all pixels that are entirely inside\n"
@@ -1121,6 +1085,8 @@ void defMap()
                  return_value_policy<copy_const_reference>())
             .def("setPosition", &GeoMap::Node::setPosition)
             .def("degree", &GeoMap::Node::degree)
+            .def("hasMinDegree", &GeoMap::Node::hasMinDegree, arg("minDegree"))
+            .def("hasDegree", &GeoMap::Node::hasDegree, arg("exactDegree"))
             .def("isIsolated", &GeoMap::Node::isIsolated,
                  "isIsolated() -> bool\n\n"
                  "Return True iff there is no edge attached to this node.\n"
@@ -1173,6 +1139,10 @@ void defMap()
             .def(self != self)
             .def("__repr__", &Edge__repr__)
         ;
+        scope().attr("Edge").attr("BORDER_PROTECTION") =
+            (unsigned int)GeoMap::Edge::BORDER_PROTECTION;
+        scope().attr("Edge").attr("ALL_PROTECTION") =
+            (unsigned int)GeoMap::Edge::ALL_PROTECTION;
 
         class_<GeoMap::Face, boost::noncopyable>(
             "Face",
@@ -1211,11 +1181,11 @@ void defMap()
                  "not defined.")
             .def("pixelArea", &GeoMap::Face::pixelArea)
             .def("contour", &GeoMap::Face::contour,
-                 return_value_policy<copy_const_reference>(),
-                 arg("index") = 0)
+                 return_value_policy<copy_const_reference>())
             .def("contours", &faceContours)
             .def("holeContours", &faceHoleContours)
             .def("holeCount", &GeoMap::Face::holeCount)
+            .def("scanLines", &GeoMap::Face::scanLines)
             .def("flags", &GeoMap::Face::flags)
             .def("flag", &GeoMap::Face::flag, arg("which"))
             .def("setFlag", &GeoMap::Face::setFlag,
@@ -1353,9 +1323,9 @@ void defMap()
         register_ptr_to_python< std::auto_ptr<AlphaOrbitIterator> >();
 
 #ifndef USE_INSECURE_CELL_PTRS
-        register_ptr_to_python< CELL_PTR(GeoMap::Node) >();
-        register_ptr_to_python< CELL_PTR(GeoMap::Edge) >();
-        register_ptr_to_python< CELL_PTR(GeoMap::Face) >();
+        register_ptr_to_python< GeoMap::NodePtr >();
+        register_ptr_to_python< GeoMap::EdgePtr >();
+        register_ptr_to_python< GeoMap::FacePtr >();
 #endif
 
         class_<SimpleCallback>("SimpleCallback",
@@ -1366,6 +1336,8 @@ void defMap()
                  "Disconnect this callback.  This operation is not\n"
                  "reversible, you have to reconnect in the same way as before to\n"
                  "aquire a new `SimpleCallback`.")
+            .def("connected", &SimpleCallback::connected)
+            .def("__repr__", &SimpleCallback__repr__)
         ;
 
         def("addRemoveNodeCallback", &addRemoveNodeCallback,
@@ -1421,6 +1393,7 @@ void defMap()
         geoMap.attr("BYTES_PER_FACE") = sizeof(GeoMap::Face);
         geoMap.attr("BYTES_PER_MAP") = sizeof(GeoMap);
     }
+    register_ptr_to_python< std::auto_ptr<GeoMap> >();
 
     RangeIterWrapper<ContourPointIter>("ContourPointIter")
         .def(init<GeoMap::Dart, bool>((arg("dart"), arg("firstTwice") = false)));
@@ -1435,17 +1408,26 @@ void defMap()
         "Returns the length of contourPoly(anchor) (is however much faster than\n"
         "using that function, since it simply sums up all length()s of the\n"
         "darts in the phi orbit.");
-    def("isoperimeter", &isoperimeter,
-        "isoperimeter(anchor) -> length\n\n"
-        "Returns a the isoperimetric ratio for contourPoly(anchor).\n"
+    def("isoperimetricQuotient", &isoperimetricQuotient,
+        "isoperimetricQuotient(anchor) -> length\n\n"
+        "Returns the isoperimetric quotient for contourPoly(anchor).\n"
         "This is defined by sq(contourLength(anchor))/(4*pi*contourArea(anchor)).");
     def("contourPoly", &contourPoly,
         "contourPoly(anchor) -> Polygon\n\n"
         "Returns a Polygon composed by traversing anchor's phi orbit once.");
 
-    class_<DartPosition>("DartPosition",
-                         "Helper class for traversing a Dart's geometry.",
-                         init<GeoMap::Dart>())
+    class_<DartPosition>(
+        "DartPosition",
+        "A DartPosition object represents a (variable) position on a (fixed)\n"
+        "dart.\n\n"
+        "The exact current position can be queried with dp() (where dp\n"
+        "denotes a DartPosition object), and always lies on the Dart's\n"
+        "polygon.  It may not be identical to any of the Dart's support\n"
+        "points though, but may lie on the polyline segment between to\n"
+        "support points.  This segment is then called the \"current segment\",\n"
+        "and segmentIndex() gives its index between 0 and N-2, where N is\n"
+        "the number of points in the Dart.",
+        init<GeoMap::Dart>())
         .def("atEnd", &DartPosition::atEnd)
         .def("__call__", &DartPosition::operator(),
              return_value_policy<copy_const_reference>())
@@ -1454,11 +1436,15 @@ void defMap()
         .def("segmentIndex", &DartPosition::segmentIndex)
         .def("arcLength", &DartPosition::arcLength)
         .def("segmentStart", &DartPosition::segmentStart,
-             return_value_policy<copy_const_reference>())
+             return_value_policy<copy_const_reference>(),
+             "Return start position of current segment.\n"
+             "(I.e. dp() is always on the segment between dp.segmentStart() and dp.segmentEnd().)")
         .def("segmentEnd", &DartPosition::segmentEnd,
              return_value_policy<copy_const_reference>())
         .def("segmentLength", &DartPosition::segmentLength)
-        .def("gotoArcLength", &DartPosition::gotoArcLength)
+        .def("gotoArcLength", &DartPosition::gotoArcLength,
+             """Try to go to the exact given arcLength (forward or backward).\n"
+             """Returns false iff not possible (i.e. arcLength out of range).\n")
         .def("gotoNextSegment", &DartPosition::gotoNextSegment)
         .def("gotoPrevSegment", &DartPosition::gotoPrevSegment)
         .def("leaveCircle", &DartPosition::leaveCircle)
@@ -1468,12 +1454,6 @@ void defMap()
     implicitly_convertible<GeoMap::Node, GeoMap::SigmaAnchor>();
     implicitly_convertible<GeoMap::Dart, GeoMap::SigmaAnchor>();
 
-    def("crackConnectionImage", &pyCrackConnectionImage,
-        args("labelImage"),
-        "crackConnectionImage(labelImage)\n\n"
-        "Tranform a region image into an image with crack connections marked.\n"
-        "(Bit 1: connected to the right, bit 2: connected downwards)");
-
-    FaceColorStatisticsWrapper<vigra::PythonGrayImage>("FaceGrayStatistics");
-    FaceColorStatisticsWrapper<vigra::PythonVector3Image>("FaceRGBStatistics");
+    defMapStats();
+    defMapUtils();
 }

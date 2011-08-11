@@ -6,9 +6,61 @@
 class LabelLUT
 {
   public:
-    typedef unsigned int LabelType;
-    typedef std::vector<LabelType> LUTType;
-    typedef LUTType::size_type size_type;
+    typedef unsigned int           LabelType;
+    typedef std::vector<LabelType> LUTType; // internal array type
+    typedef LUTType::size_type     size_type;
+    typedef LabelType              value_type;
+
+    class MergedIterator
+    {
+        const LUTType &prevMerged_;
+        LabelType currentLabel_;
+        bool atEnd_;
+
+      public:
+        typedef LabelType value_type;
+        typedef LabelType reference;
+        typedef std::forward_iterator_tag iterator_category;
+
+        MergedIterator(const LUTType &prevMerged, LabelType start)
+        : prevMerged_(prevMerged),
+          currentLabel_(start),
+          atEnd_(false)
+        {
+        }
+
+        LabelType operator*() const
+        {
+            return currentLabel_;
+        }
+
+        MergedIterator & operator++()
+        {
+            LabelType next = prevMerged_[currentLabel_];
+            if(next == currentLabel_)
+                atEnd_ = true;
+            else
+                currentLabel_ = next;
+            return *this;
+        }
+        
+        MergedIterator operator++(int)
+        {
+            MergedIterator ret(*this);
+            operator++();
+            return ret;
+        }
+
+        bool atEnd() const
+        {
+            return atEnd_;
+        }
+
+        bool inRange() const
+        {
+            return !atEnd_;
+        }
+    };
 
     LabelLUT()
     {}
@@ -49,19 +101,10 @@ class LabelLUT
 
     void relabel(LabelType from, LabelType to)
     {
-        LabelType prev, toEnd;
-
-        for(toEnd = to; true; toEnd = prev)
-        {
-            // find end of "to" list (for later concatenation)
-            prev = prevMerged_[toEnd];
-            if(prev == toEnd)
-                break;
-        }
-
+        // relabel elements in "from" list:
+        LabelType prev;
         for(LabelType fromIt = from; true; fromIt = prev)
         {
-            // relabel elements in "from" list:
             labelLUT_[fromIt] = to;
 
             prev = prevMerged_[fromIt];
@@ -69,8 +112,15 @@ class LabelLUT
                 break;
         }
 
-        // concatenate lists:
-        prevMerged_[toEnd] = from;
+        // insert from-list at beginning of to-list:
+        if(prevMerged_[to] != to)
+            prevMerged_[prev] = prevMerged_[to];
+        prevMerged_[to] = from;
+    }
+
+    MergedIterator mergedBegin(LabelType start) const
+    {
+        return MergedIterator(prevMerged_, start);
     }
 
   protected:

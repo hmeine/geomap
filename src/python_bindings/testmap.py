@@ -1,4 +1,4 @@
-import hourglass
+import geomap
 
 from vigra import Vector2, Size2D, addPathFromHere
 
@@ -33,9 +33,9 @@ def showMapStats(map):
 # --------------------------------------------------------------------
 
 print "- creating empty GeoMap..."
-tm = hourglass.GeoMap([], [], Size2D(256, 256))
+tm = geomap.GeoMap([], [], Size2D(256, 256))
 
-points = hourglass.Vector2Array([Vector2(232.20846246994, 81.488755298170375), Vector2(228.16750125077627, 81.481533365106415), Vector2(224.94552025882538, 81.580691309124461)])
+points = geomap.Vector2Array([Vector2(232.20846246994, 81.488755298170375), Vector2(228.16750125077627, 81.481533365106415), Vector2(224.94552025882538, 81.580691309124461)])
 
 n1 = tm.addNode(points[0])
 n2 = tm.addNode(points[-1])
@@ -51,8 +51,8 @@ for i, p in enumerate(dart):
     assert p == edge[-1-i]
 
 print "- testing ContourPointIter..."
-assert len(list(hourglass.ContourPointIter(dart))) == 2*len(list(dart))-2
-closed = list(hourglass.ContourPointIter(dart, True))
+assert len(list(geomap.ContourPointIter(dart))) == 2*len(list(dart))-2
+closed = list(geomap.ContourPointIter(dart, True))
 assert len(closed) == 2*len(list(dart))-1
 assert closed[0] == closed[-1]
 
@@ -66,14 +66,14 @@ except RuntimeError:
 
 # --------------------------------------------------------------------
 
-import random, hourglass
+import random, geomap
 from vigra import *
 points = [None]
 for i in range(100):
     points.append(Vector2(10*random.random(), 10*random.random()))
 
 print "\n- creating Map from %d random points..." % (len(points)-1, )
-gm = hourglass.GeoMap(points, [], Size2D(11, 11))
+gm = geomap.GeoMap(points, [], Size2D(11, 11))
 
 showMapStats(gm)
 
@@ -93,11 +93,11 @@ points, edgeData = triangle.delaunay(points[1:])
 edgeTuples = [startEnd and
               (startEnd[0], startEnd[1],
                #([points[startEnd[0]], points[startEnd[1]]]))
-              hourglass.Vector2Array([points[startEnd[0]], points[startEnd[1]]]))
+              geomap.Vector2Array([points[startEnd[0]], points[startEnd[1]]]))
               for startEnd in edgeData]
 
 print "\n- creating Map from delaunay data (%d edges)..." % (len(edgeTuples)-1, )
-gm = hourglass.GeoMap(points, edgeTuples, Size2D(11, 11))
+gm = geomap.GeoMap(points, edgeTuples, Size2D(11, 11))
 
 showMapStats(gm)
 
@@ -108,12 +108,12 @@ showMapStats(gm)
 # --------------------------------------------------------------------
 
 print "\n- unpickling large.map"
-import hourglass, pickle
+import geomap, pickle
 amap = pickle.load(file("large.map"))
 #data = list(amap.__getstate__()[:3])
-#data[1] = [poly and (poly[0], poly[1], hourglass.Vector2Array(poly[2])) for poly in data[1]]
+#data[1] = [poly and (poly[0], poly[1], geomap.Vector2Array(poly[2])) for poly in data[1]]
 print "- initializing GeoMap with that data..."
-cppmap = hourglass.GeoMap(*amap.__getstate__()[:3])
+cppmap = geomap.GeoMap(*amap.__getstate__()[:3])
 
 # --------------------------------------------------------------------
 #          run the following from within ../subpixelWatersheds
@@ -130,7 +130,7 @@ pythonMap.initializeMap()
 if pythonMap.unsortable:
     sys.stderr.write("### UNSORTABLE HANDLING NOT DONE IN C++ YET, SKIPPING...\n")
 else:
-    cppmap = hourglass.GeoMap([], [], Size2D(39, 39))
+    cppmap = geomap.GeoMap([], [], Size2D(39, 39))
     cppnodes = [node and cppmap.addNode(node) for node in maxima2]
     assert cppnodes[-1].label() == len(maxima2)-1, "Oops, label shift :-("
     maputils.addFlowLinesToMap(flowlines2, cppmap)
@@ -150,7 +150,7 @@ e("map")
 checkConsistency(e.map)
 
 def recreateWithCPPMap(pythonMap):
-    cppmap = hourglass.GeoMap([], [], pythonMap.imageSize())
+    cppmap = geomap.GeoMap([], [], pythonMap.imageSize())
     cppnodes = [node and cppmap.addNode(node.position()) for node in pythonMap.nodes]
     for edge in pythonMap.edgeIter():
         cppmap.addEdge(cppnodes[edge.startNodeLabel()],
@@ -187,5 +187,5 @@ testHist = e.map.history
 print "\n- replaying history (%d entries) on C++ map..." % (len(testHist), )
 for op, dl in testHist:
     #print op, dl
-    eval("hourglass.%s" % op)(cppmap.dart(dl))
+    eval("geomap.%s" % op)(cppmap.dart(dl))
     cppmap.checkConsistency()

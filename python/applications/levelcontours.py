@@ -1,45 +1,59 @@
 import sys, copy
-from vigra import Vector2, polynomialRealRoots
+import numpy, vigra, geomap, maputils, flag_constants, progress
+from geomap import Vector2, Point2D
 
-def findZeroCrossingsOnGrid(siv):
+__all__ = ["levelSetMap", "marchingSquares"]
+
+# TODO:
+# 1) better border handling in followContour() (predictorStep, correctorStep)
+# 3) make followContour() check for both possible intersections
+#    and remove the duplicate filtering (cf. levelcontours_both_intersections.diff)
+# 4) don't store zc positions in a GeoMap, but use a PositionedMap and
+#    cancel out points instead of starting new edges everytime
+#    (-> consecutive node and edge labels)
+# 5) try larger stepsizes and a good criterion for decreasing h
+#    (e.g. the size of the corrector step?!)
+
+def findZeroCrossingsOnGrid(siv, level, minDist = 0.1):
     result = []
-    # FIXME: why is the order of those loops important?!?
+    existing = geomap.PositionedMap()
+    minDist2 = minDist*minDist
+
+    def addIntersection(p):
+        if not existing(p, minDist2):
+            result.append(p)
+            existing.insert(p, True)
+    
     for y in range(siv.height()-1):
         for x in range(siv.width()-1):
             coeff = siv.coefficients(x, y)
 
-            xPoly = [coeff[k,0] for k in range(4)]
+            xPoly = [coeff[k,0] for k in range(coeff.width())]
+            xPoly[0] -= level
             try:
-                for k in polynomialRealRoots(xPoly):
+                for k in vigra.polynomialRealRoots(xPoly):
                     if k < 0.0 or k >= 1.0:
                         continue
-                    result.append(Vector2(x+k, y))
+                    addIntersection(Vector2(x+k, y))
             except Exception, e:
                 sys.stderr.write("WARNING: no convergence in polynomialRealRoots(%s):\n  %s\n" % (xPoly, e))
 
-            yPoly = [coeff[0,k] for k in range(4)]
+            yPoly = [coeff[0,k] for k in range(coeff.height())]
+            yPoly[0] -= level
             try:
-                for k in polynomialRealRoots(yPoly):
+                for k in vigra.polynomialRealRoots(yPoly):
                     if k < 0.0 or k >= 1.0:
                         continue
-                    result.append(Vector2(x, y+k))
+                    addIntersection(Vector2(x, y+k))
             except Exception, e:
                 sys.stderr.write("WARNING: no convergence in polynomialRealRoots(%s):\n  %s\n" % (yPoly, e))
-    
     return result
 
 # --------------------------------------------------------------------
 
-def gradient(siv, pos):
-    return Vector2(siv.dx(pos[0], pos[1]), siv.dy(pos[0], pos[1]))
-
-def gradientDir(siv, pos):
-    result = gradient(siv, pos)
-    return result / result.magnitude()
-
 def tangentDir(siv, pos):
     result = Vector2(-siv.dy(pos[0], pos[1]), siv.dx(pos[0], pos[1]))
-    return result / result.magnitude()
+    return result / numpy.linalg.norm(result)
 
 def predictorStep(siv, pos, h):
     """predictorStep(siv, pos, h) -> Vector2
@@ -48,69 +62,80 @@ def predictorStep(siv, pos, h):
     to gradient).  Returns None if that point is outside the
     SplineImageView."""
     
-    result = pos + h*tangentDir(siv, pos)
-    if not siv.isInside(result[0], result[1]):
-        return None
-    return result
+    return pos + h*tangentDir(siv, pos)
 
-def correctorStep(siv, pos, epsilon = 1e-8, n0 = 3):
-    result = copy.copy(pos) # copy
+def correctorStep(siv, level, pos, epsilon = 1e-8):
+    """Perform corrector step, i.e. perform 1D iterative Newton method in
+    direction of gradient in order to return to zero level (with
+    accuracy given by epsilon)."""
+    
+    x, y = pos
+    n = Vector2(siv.dx(x, y), siv.dy(x, y))
+    n /= numpy.linalg.norm(n)
 
     for k in range(100):
-        value = siv(result[0], result[1])
+        value = siv(x, y) - level
         if abs(value) < epsilon:
             break
-        g = gradient(siv, result)
-        correction = value / g.squaredMagnitude()
-        result -= g * correction
-        if not siv.isInside(result[0], result[1]):
-            return None, None # out of range
-        if (result-pos).squaredMagnitude() > 1.0: # FIXME
-            return None, None
+        
+        g = numpy.dot(Vector2(siv.dx(x, y), siv.dy(x, y)), n)
+        if not g:
+            sys.stderr.write("WARNING: correctorStep: zero gradient!\n")
+            break # FIXME: return None instead?
+        correction = -value * n / g
 
-    # FIXME: find out why this does not always converge to epsilons
-    # around 1e-8, but don't throw away good points (value < 1e-5)!
-#     if abs(value) > max(epsilon, 1e-5):
-#         return None, None
+        # prevent too large steps (i.e. if norm(g) is small):
+        if correction.squaredMagnitude() > 0.25:
+            correction /= 20*numpy.linalg.norm(correction)
 
-    contraction = float(k) / n0
-    return result, contraction
+        x += correction[0]
+        y += correction[1]
+        
+        if not siv.isInside(x, y):
+            return None # out of range
 
-def predictorCorrectorStep(siv, pos, h, epsilon):
-    while abs(h) > 1e-6: # FIXME
+    return Vector2(x, y)
+
+def predictorCorrectorStep(siv, level, pos, h, epsilon):
+    while abs(h) > 1e-6:
         p1 = predictorStep(siv, pos, h)
-        if not p1:
+        if not siv.isInside(p1[0], p1[1]):
+            #print "predictor went outside at", p1
+            return p1, None
+
+        p2 = correctorStep(siv, level, p1, epsilon)
+        if not p2 or squaredNorm(p2 - p1) > h:
             h /= 2.0
             continue
-        p2, contraction = correctorStep(siv, p1, epsilon)
-        if not p2:
-            h /= 2.0
-            continue
-        h /= min(2.0, max(0.5, pow(contraction, 0.5)))
-        if abs(h) > 0.2:
-            h = h < 0 and -0.2 or 0.2
-        break
-    else:
-        return None, None
-    return p2, h
+
+        h *= 2
+        return p2, h
+
+    sys.stderr.write(
+        "WARNING: predictorCorrectorStep: not converged at %s!\n" % p2)
+    return p2, None
 
 # --------------------------------------------------------------------
 
-def followContour(siv, geomap, nodeLabel, h):
-    pos = geomap.node(nodeLabel).position()
-    x = round(pos[0])
-    y = round(pos[1])
+def followContour(siv, level, geomap, nodeLabel, h):
+    correctorEpsilon = 1e-6
+    nodeCrossingDist = 0.01
+    
+    #global pos, ip, poly, startNode, diff, npos, nip, intersection
+    startNode = geomap.node(nodeLabel)
+    pos = startNode.position()
+    ix = int(pos[0])
+    iy = int(pos[1])
     poly = [pos]
     while True:
-        npos, _ = predictorCorrectorStep(siv, pos, h, 1e-6)
-        if not npos:
-            return poly
-        nx = int(npos[0])
-        ny = int(npos[1])
-        if nx != x or ny != y:
-            # determine grid intersection
+        npos, nh = predictorCorrectorStep(siv, level, pos, h, correctorEpsilon)
+        h = max(min(h, nh), 1e-5)
+        nix = int(npos[0])
+        niy = int(npos[1])
+        if nix != ix or niy != iy:
+            # determine grid intersection:
             diff = npos - pos
-            if nx != x:
+            if nix != ix:
                 intersectionX = round(npos[0])
                 intersectionY = pos[1]+(intersectionX-pos[0])*diff[1]/diff[0]
             else:
@@ -118,204 +143,231 @@ def followContour(siv, geomap, nodeLabel, h):
                 intersectionX = pos[0]+(intersectionY-pos[1])*diff[0]/diff[1]
             intersection = Vector2(intersectionX, intersectionY)
 
-            # connect to crossed Node
-            node = geomap.nearestNode(intersection, 0.01)
-            if node and node.label() == nodeLabel: # and len(poly) < 2:
-                print "coming from node %d to %d, ignoring crossing, poly len: %d" \
-                      % (nodeLabel, node.label(), len(poly))                    
-                pass
-            elif node:
-                poly.append(node.position())
-                print "added", geomap.addEdge(nodeLabel, node.label(), poly)
-                if not node.degree() % 2:
-                    return
-                poly = [node.position()]
-                nodeLabel = node.label()
-            else:
+            # connect to crossed Node:
+            endNode = geomap.nearestNode(intersection, nodeCrossingDist)
+            if not endNode:
                 sys.stderr.write("WARNING: level contour crossing grid at %s without intersection Node!\n" % repr(intersection))
-            x = nx
-            y = ny
+            elif endNode.label() != startNode.label() or len(poly) >= 3:
+                # FIXME: better criterion than len(poly) would be poly.length()
+                poly.append(endNode.position())
+                geomap.addEdge(startNode, endNode, poly)
+                if not endNode.degree() % 2:
+                    return
+                poly = [endNode.position()]
+                startNode = endNode
+
+            ix = nix
+            iy = niy
+
+        if nh is None:
+            return # out of image range (/no convergence)
         poly.append(npos)
         pos = npos
 
-def haralickConstraint(z, i, x, y, t):
-    if i.g2(x, y) < t:
-        return False
-    gx, gy = i.dx(x, y), i.dy(x, y)
-    return (gx**3 * i.dx3(x, y) + \
-            3*gx**2 * gy * i.dxxy(x, y) + \
-            3*gx * gy**2 * i.dxyy(x, y) + \
-            gy**3 * i.dy3(x, y) < 0)
-
-def laplaceConstraint(z, i, x, y, t):
-    if i.g2(x, y) < t:
-        return False
-    gx, gy = -z.dx(x, y), -z.dy(x, y)
-    return (gx**3 * i.dx3(x, y) + \
-            3*gx**2 * gy * i.dxxy(x, y) + \
-            3*gx * gy**2 * i.dxyy(x, y) + \
-            gy**3 * i.dy3(x, y) < 0)
-
-def splineConstraint(z, i, x, y, t):
-    if i(x,y) < t:
-        return False
-#      gx, gy, gxx, gxy, gyy = i.dx(x,y), i.dy(x,y), i.dxx(x,y), i.dxy(x,y), i.dyy(x,y)
-#      l = gy**2 * gxx - 2*gx*gy*gxy + gx**2 * gyy
-#      r = gx**2 * gxx + 2*gx*gy*gxy + gy**2 * gyy
-#     return (l > r and l > 0.0)
-#      return (l <= 0.0)
-    gx, gy, gxx, gxy, gyy = z.dx(x,y), z.dy(x,y), i.dxx(x,y), i.dxy(x,y), i.dyy(x,y)
-    return gx**2 * gxx + 2*gx*gy*gxy + gy**2 * gyy <= 0.0
-
-class ZeroEdges:
-    """zero crossings of an image, its oriented second derivative, the
-    Laplacian, or the height ridge by splines"""
+def levelSetMap(image, level = 0, sigma = None):
+    siv = hasattr(image, "siv") and image.siv or vigra.SplineImageView3(image)
     
-    def __init__(self, image, method = "haralick"):
-        """method should be one of:
-        'direct', 'haralick', 'laplace', or 'splineridge'"""
-        
-        s = SplineImageView5(image)
-        self.i = s
-        z = GrayImage(image.size())
-        if method is "direct":
-            z = image
-        elif method is "haralick":
-            for x,y in image.size():
-                z[x,y] =  s.dx(x,y)**2 * s.dxx(x,y) + \
-                          2*s.dx(x,y)*s.dy(x,y)*s.dxy(x,y) + \
-                          s.dy(x,y)**2 * s.dyy(x,y)
-        elif method is "laplace":
-            for x,y in image.size():
-                z[x,y] =  s.dxx(x,y) + s.dyy(x,y)
-        else:
-            for x,y in image.size():
-                gx, gy, gxx, gxy, gyy = s.dx(x,y), s.dy(x,y), s.dxx(x,y), s.dxy(x,y), s.dyy(x,y)
-                z[x,y] =  gx*gy*(gyy - gxx) + gxy*(gx**2 - gy**2)
-        self.z = SplineImageView3(z)
-        self.regions = transformImage(z, '\l x: x > 0? 1: x<0? -1: 0')
-        self.m = method
+    zc = findZeroCrossingsOnGrid(siv, level)
+    result = geomap.GeoMap(zc, [], image.size())
 
-    def _addFacetIntersection(self, facetX, facetY, point):
-        facetIndex = facetX + 10000*facetY
-        if self.facets.has_key(facetIndex):
-            self.facets[facetIndex].append(point)
-        else:
-            self.facets[facetIndex] = [point]
+    msg = progress.StatusMessage("- following level set contours")
+    next = progress.ProgressHook(msg).rangeTicker(result.nodeCount)
 
-    def points(self, useConstraint = True, t = 1e-7):
-        result = []
-        self.facets = {}
+    for node in result.nodeIter():
+        next()
+        if node.isIsolated():
+            followContour(siv, level, result, node.label(), 0.1)
 
-        if not useConstraint:
-            def checkConstraint(z, i, xx, yy, t):
-                return True
-        elif self.m == "haralick":
-            checkConstraint = haralickConstraint
-        elif self.m in "laplace":
-            checkConstraint = laplaceConstraint
-        else:
-            checkConstraint = splineConstraint
+    maputils.mergeDegree2Nodes(result)
+    result = maputils.copyMapContents( # compress labels and simplify polygons
+        result, edgeTransform = lambda e: \
+        geomap.simplifyPolygon(e, 0.05, 0.2))[0]
+    #maputils.connectBorderNodes(result, 0.01)
 
-        for x, y in self.i.size() - Size2D(1, 1):
-            c = self.z.coefficients(x, y)
-            xPoly = [c[k,0] for k in range(4)]
-            yPoly = [c[0,k] for k in range(4)]
+    result.sortEdgesEventually(0.4, 0.01)
+    result.initializeMap()
+    return result
+    
+# --------------------------------------------------------------------
 
-            for k in polynomialRealRoots(xPoly):
-                if k < 0.0 or k >= 1.0:
-                    continue
+def marchingSquares(image, level = 0, variant = True, border = True,
+                    initialize = True, markOuter = 1):
+    """Return a new GeoMap with sub-pixel level contours extracted by
+    the marching squares method.  (Pixels with values < level are
+    separated from pixels >= level.)
 
-                p = (x + k, y)
-                if not checkConstraint(self.z, self.i, p[0], p[1], t):
-                    continue
-                result.append(p)
+    If the image does not have an attribute 'siv', standard linear
+    interpolation is used.  If image.siv exists, it should be a
+    SplineImageView that is used for the Newton-Raphson method to
+    perform another subsequent sub-pixel correction.
 
-                self._addFacetIntersection(x, y,   p)
-                self._addFacetIntersection(x, y-1, p)
+    The optional parameter `variant` determines the handling of the
+    ambiguous diagonal configuration:
 
-            for k in polynomialRealRoots(yPoly):
-                if k < 0.0 or k >= 1.0:
-                    continue
+    `variant` = True (default)
+      always let the two sampling points above `level` be connected
 
-                p = (x, y + k)
-                if not checkConstraint(self.z, self.i, p[0], p[1], t):
-                    continue
-                result.append(p)
+    `variant` = False
+      always let the two opposite sampling points < `level` be connected
 
-                self._addFacetIntersection(x,   y, p)
-                self._addFacetIntersection(x-1, y, p)
+    `variant` = SplineImageView(...)
+      for each ambiguous configuration, check the midpoint of the
+      square; then handle as if variant = (midpoint >= level)
 
+    If `initialize` is a true value (default), the map will be
+    initialized.
+
+    If markOuter is != 0, the faces above(outer == 1) / below(outer == -1)
+    the threshold are marked with the OUTER_FACE flag (this only works
+    if the map is initialized)."""
+    
+    connections1 = ((1, 0), (0, 2), (1, 2), (3, 1), (3, 0), (0, 2), (3, 1), (3, 2), (2, 3), (1, 0), (2, 3), (0, 3), (1, 3), (2, 1), (2, 0), (0, 1))
+    connections2 = ((1, 0), (0, 2), (1, 2), (3, 1), (3, 0), (0, 1), (3, 2), (3, 2), (2, 3), (1, 3), (2, 0), (0, 3), (1, 3), (2, 1), (2, 0), (0, 1))
+    configurations = (0, 0, 1, 2, 3, 4, 5, 7, 8, 9, 11, 12, 13, 14, 15, 16, 16)
+
+    result = geomap.GeoMap(image.shape)
+    
+    def addNodeDirectX(x, y, ofs):
+        pos = Vector2(x+ofs, y)
+        # out of three successive pixels, the middle one may be the
+        # threshold, then we would get duplicate points already in the
+        # horizontal pass:
+        node = result.nearestNode(pos, 1e-8)
+        return node or result.addNode(pos)
+
+    def addNodeDirectY(x, y, ofs):
+        pos = Vector2(x, y+ofs)
+        node = result.nearestNode(pos, 1e-8) # already exists? (e.g. hNodes?)
+        return node or result.addNode(pos)
+
+    def addNodeNewtonRefinementX(x, y, ofs):
+        for i in range(100):
+            o = -(image.siv(x+ofs, y)-level) / image.siv.dx(x+ofs, y)
+            if abs(o) > 0.5:
+                o = vigra.sign(o)*0.05
+            ofs += o
+            if ofs <= 0 or ofs >= 1:
+                ofs -= o
+                break
+            if abs(o) < 1e-4:
+                break
+        return addNodeDirectX(x, y, ofs)
+
+    def addNodeNewtonRefinementY(x, y, ofs):
+        for i in range(100):
+            o = -(image.siv(x, y+ofs)-level) / image.siv.dy(x, y+ofs)
+            if abs(o) > 0.5:
+                o = vigra.sign(o)*0.05
+            ofs += o
+            if ofs <= 0 or ofs >= 1:
+                ofs -= o
+                break
+            if abs(o) < 1e-4:
+                break
+        return addNodeDirectY(y, y, ofs)
+
+    if hasattr(image, "siv"):
+        addNodeX = addNodeNewtonRefinementX
+        addNodeY = addNodeNewtonRefinementY
+    else:
+        addNodeX = addNodeDirectX
+        addNodeY = addNodeDirectY
+
+    hNodes = vigra.Image(image.shape, numpy.uint32)
+    for y in range(image.height):
+        for x in range(image.width-1):
+            v1 = image[x,   y]
+            v2 = image[x+1, y]
+            if (v1 < level) != (v2 < level):
+                ofs = (level - v1)/(v2 - v1)
+                hNodes[x, y] = addNodeX(x, y, ofs).label()
+
+    vNodes = vigra.Image(image.shape, numpy.uint32)
+    for y in range(image.height-1):
+        for x in range(image.width):
+            v1 = image[x, y]
+            v2 = image[x, y+1]
+            if (v1 < level) != (v2 < level):
+                ofs = (level - v1)/(v2 - v1)
+                vNodes[x, y] = addNodeY(x, y, ofs).label()
+
+    nodes = (hNodes, vNodes, vNodes, hNodes)
+    offsets = numpy.array(((0, 0), (0, 0), (1, 0), (0, 1)))
+
+    defaultConnections = connections1
+    if variant == False:
+        defaultConnections = connections2
+    if isinstance(variant, bool):
+        variant = None
+
+    for y in range(image.height-1):
+        for x in range(image.width-1):
+            config = int(image[x,   y  ] < level)   + \
+                     int(image[x+1, y  ] < level)*2 + \
+                     int(image[x,   y+1] < level)*4 + \
+                     int(image[x+1, y+1] < level)*8
+            connections = defaultConnections
+            if variant is not None and config in (6, 9):
+                if variant(x + 0.5, y + 0.5) < level:
+                    connections = connections2
+            for s, e in connections[
+                configurations[config]:configurations[config+1]]:
+                startNode = result.node(int(nodes[s][tuple(offsets[s] + (x, y))]))
+                endNode   = result.node(int(nodes[e][tuple(offsets[e] + (x, y))]))
+                if startNode != endNode:
+                    result.addEdge(startNode, endNode,
+                                   [startNode.position(), endNode.position()])
+
+    maputils.mergeDegree2Nodes(result) # node suppression
+    result = maputils.copyMapContents(result)[0] # compress edge labels
+
+    if border:
+        maputils.connectBorderNodes(result, 0.5)
+        result.sortEdgesEventually(0.4, 0.01)
+
+    if not initialize:
         return result
 
-    def edges(self, useConstraint = True, t = 1e-7):
-        try:
-            f = self.facets
-        except:
-            self.points(useConstraint, t)
-            f = self.facets
+    result.initializeMap()
+    if markOuter:
+        markOuter = markOuter > 0
+        it = result.faceIter()
+        if border:
+            it.next().setFlag(flag_constants.OUTER_FACE)
+        for face in it:
+            face.setFlag(flag_constants.OUTER_FACE,
+                         (face.contours().next().label() < 0) == markOuter)
 
-        e = []
-        for k in f.values():
-            if len(k) == 1:
-                continue
-            elif len(k) == 2:
-                e.append(k)
-            else:
-                xx = reduce(lambda x,y: x+y[0], k, 0.0) / len(k)
-                yy = reduce(lambda x,y: x+y[1], k, 0.0) / len(k)
-                for kk in k:
-                    e.append([(xx,yy),kk])
-        return e
+    return result
 
 # --------------------------------------------------------------------
 
-from operator import setitem
-def distinct(l):
-    d = {}
-    map(setitem, (d,)*len(l), l, [])
-    return d.keys()
+# from vigra import addPathFromHere
+# addPathFromHere("../evaluation/")
+# import edgedetectors
 
-def levelEdgesMap(edges, imageSize):
-    assert len(edges[0]) >= 2 and len(edges[0][0]) == 2, \
-           "mapFromZeroEdges() expects output of ZeroEdges.edges() as parameter!"
-
-    nodePositions = [ep[0] for ep in edges]
-    nodePositions.extend([ep[1] for ep in edges])
-
-    nodePositions = distinct(nodePositions)
-    nodePositions.insert(0, None)
-
-    edgeTriples = [(nodePositions.index(ep[0]), nodePositions.index(ep[1]),
-                    [Vector2(*ep[0]), Vector2(*ep[1])])
-                   for ep in edges]
-    edgeTriples.insert(0, None)
-
-    nodePositions = [np and Vector2(*np) for np in nodePositions]
-
-    result = Map(nodePositions, edgeTriples, imageSize,
-                 performEdgeSplits = False)
-    removeCruft(result, 2)
-    return result
-
-### USAGE EXAMPLE: ###
-# ze = ZeroEdges(transformImage(phi, '\l x: x + %s' % level), "direct")
-# ee = ze.edges(False)
-# levelMap = levelEdgesMap(ee, phi.size())
+# def levelSetMap(image, level = 0, sigma = None):
+#     ed = edgedetectors.EdgeDetector(
+#         bi = "Thresholding", s1 = sigma, nonmax = "zerosSubPixel",
+#         threshold = level)
+#     result, _, _ = ed.computeMap(image)
+#     maputils.mergeDegree2Nodes(result)
+#     return result
 
 # --------------------------------------------------------------------
 
-from vigra import addPathFromHere
-addPathFromHere("../evaluation/")
-import edgedetectors
-from maputils import removeCruft
+"""
+import numpy
+#vigra.ScalarImage((200,100), numpy.uint8)
+import vigra
+import sys
+sys.path.append("/home/hmeine/vigra/vigranumpy/private/subpixelWatersheds")
+import levelcontours
+i = vigra.readImage("/home/hmeine/Testimages/walk.png")
+lc = levelcontours.marchingSquares(i[...,0], 200)
 
-def levelSetMap(image, threshold, sigma = None):
-    ed = edgedetectors.EdgeDetector(
-        bi = "Thresholding", s1 = sigma, nonmax = "zerosSubPixel",
-        threshold = threshold)
-    result, _, _ = ed.computeMap(image)
-    removeCruft(result, 2)
-    return result
+import vigra.pyqt
+vigra.pyqt.showImage(i)
 
-__all__ = ["levelSetMap"]
+import mapdisplay
+"""

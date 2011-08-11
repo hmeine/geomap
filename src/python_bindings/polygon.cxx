@@ -1,15 +1,19 @@
+#define PY_ARRAY_UNIQUE_SYMBOL geomap_PyArray_API
+#define NO_IMPORT_ARRAY
+#include <vigra/numpy_array.hxx>
 #include "vigra/polygon.hxx"
 
 #include <boost/python.hpp>
 #include <boost/python/detail/api_placeholder.hpp>
 #include <boost/python/make_constructor.hpp>
 #include <vigra/gaussians.hxx>
-#include <vigra/pythonimage.hxx>
 #include <vigra/linear_algebra.hxx>
-#include <vigra/regression.hxx>
+#include <vigra/geometric_fitting.hxx>
 #include <cmath>
-#include "delaunay.hxx"
+#include <iostream>
 #include "exporthelpers.hxx"
+#include "python_types.hxx"
+
 
 using namespace vigra;
 using namespace boost::python;
@@ -66,21 +70,6 @@ struct BoxPickleSuite : pickle_suite
         return make_tuple(b.begin(), b.end());
     }
 };
-
-double angleTheta(double dy, double dx)
-{
-    double denom = std::fabs(dx) + std::fabs(dy);
-    if(!denom)
-        return 0.0;
-    double result = dy / denom;
-    if(dx < 0)
-    {
-        result = 2 - result;
-        if(dy < 0)
-            result = result - 4;
-    }
-    return result;
-}
 
 // index started with zero (commented out) for better python iterations
 // (allowing "for .. in .." or "enumerate(..)")
@@ -182,30 +171,25 @@ Polygon split(Polygon & p, int pos)
     return p.split(pos);
 }
 
+template<class Polygon>
+std::string Polygon__repr__(Polygon const &polygon)
+{
+    std::stringstream s;
+    s.precision(3);
+    s << "<Polygon (" << polygon.size() << " points, length: " << polygon.length()
+      << (polygon.closed() ? " px., closed)>" : " px.)>");
+    return s.str();
+}
+
 template<class Iterator>
 void defIter(const char *name)
 {
     class_<Iterator>(name, no_init)
         .def("__len__", &Iterator::__len__)
-        .def("__iter__", &Iterator::__iter__)
+        .def("__iter__", &Iterator::__iter__,
+             return_internal_reference<>())
         .def("next", &Iterator::next)
     ;
-}
-
-template<class Array>
-STLIterWrapper<typename Array::const_iterator>
-__iter__(const Array &a)
-{
-    return STLIterWrapper<typename Array::const_iterator>(
-        a.begin(), a.end());
-}
-
-template<class Array>
-STLIterWrapper<typename Array::const_reverse_iterator>
-__reviter__(const Array &a)
-{
-    return STLIterWrapper<typename Array::const_reverse_iterator>(
-        a.rbegin(), a.rend());
 }
 
 template<class Array>
@@ -214,6 +198,14 @@ list arcLengthList(const Array &a)
     list result;
     PythonListBackInserter ins(result);
     a.arcLengthList(ins);
+    return result;
+}
+
+template<class Array>
+Array pyConvexHull(const Array &a)
+{
+    Array result;
+    convexHull(a, result);
     return result;
 }
 
@@ -281,29 +273,39 @@ Array polygonSplineControlPoints(const Array &a, int segmentCount)
     return result;
 }
 
+ScanlinesIter createScanlinesIter(const Scanlines &sl)
+{
+    return ScanlinesIter(sl);
+}
+
 unsigned int pyFillScannedPoly(
     const Scanlines &scanlines,
-    PythonImage &targetV,
+    NumpyFImage &target,
     GrayValue value)
     //const Pixel &value)
 {
-    PythonSingleBandImage target(targetV.subImage(0));
     return fillScannedPoly(scanlines, value,
                            target.traverser_begin(),
-                           target.size(),
+                           Size2D(target.shape(0),target.shape(1)),
                            StandardValueAccessor<GrayValue>());
 }
 
 unsigned int pyDrawScannedPoly(
     const Scanlines &scanlines,
-    PythonImage &targetV,
+    NumpyFImage &target,
     float value)
 {
-    PythonSingleBandImage target(targetV.subImage(0));
     return drawScannedPoly(scanlines, value,
                            target.traverser_begin(),
-                           target.size(),
+                           Size2D(target.shape(0),target.shape(1)),
                            StandardValueAccessor<GrayValue>());
+}
+
+// needed for signature conversion only (bbox poly vs. poly)
+template<class Polygon>
+Vector2 pyCentroid(const Polygon &p)
+{
+    return centroid(p);
 }
 
 template<class Array>
@@ -1662,13 +1664,11 @@ struct ParabolaFit
 
 void markEdgeInLabelImage(
     const Scanlines &scanlines,
-    PythonImage &labelVImage)
+    NumpyFImage &labelImage)
 {
-    PythonSingleBandImage labelImage(labelVImage.subImage(0));
-
     // clip to image range vertically:
     int y = std::max(0, scanlines.startIndex()),
-     endY = std::min(labelImage.height(), scanlines.endIndex());
+     endY = std::min(static_cast<int>(labelImage.shape(1)), scanlines.endIndex());
 
     for(; y < endY; ++y)
     {
@@ -1680,12 +1680,12 @@ void markEdgeInLabelImage(
                   end = scanline[j].end;
             if(begin < 0)
                 begin = 0;
-            if(end > labelImage.width())
-                end = labelImage.width();
+            if(end > labelImage.shape(0))
+                end = labelImage.shape(0);
 
             for(int x = begin; x < end; ++x)
             {
-                PythonSingleBandImage::reference old(labelImage(x, y));
+                GrayValue & old(labelImage(x, y));
                 if(old < 0)
                     old -= 1;
                 else
@@ -1697,15 +1697,13 @@ void markEdgeInLabelImage(
 
 list removeEdgeFromLabelImage(
     const Scanlines &scanlines,
-    PythonImage &labelVImage,
+    NumpyFImage &labelImage,
     GrayValue substituteLabel)
 {
-    PythonSingleBandImage labelImage(labelVImage.subImage(0));
-
     list result;
     // clip to image range vertically:
     int y = std::max(0, scanlines.startIndex()),
-     endY = std::min(labelImage.height(), scanlines.endIndex());
+     endY = std::min(static_cast<int>(labelImage.shape(1)), scanlines.endIndex());
 
     for(; y < endY; ++y)
     {
@@ -1717,12 +1715,12 @@ list removeEdgeFromLabelImage(
                   end = scanline[j].end;
             if(begin < 0)
                 begin = 0;
-            if(end > labelImage.width())
-                end = labelImage.width();
+            if(end > labelImage.shape(0))
+                end = labelImage.shape(0);
 
             for(int x = begin; x < end; ++x)
             {
-                PythonSingleBandImage::reference old(labelImage(x, y));
+                GrayValue & old(labelImage(x, y));
                 if(old != -1)
                 {
                     old += 1;
@@ -1748,80 +1746,70 @@ struct ArrayPickleSuite : pickle_suite
     }
 };
 
-list sigmaOrbit(const QuadEdge *edge)
+template<class Polygon>
+list intersectLine(
+    const Polygon &polygon, Vector2 const &lineStart, Vector2 const &lineEnd)
 {
-    const QuadEdge *orig(edge);
     list result;
-    do
+
+    if(!polygon.size())
+        return result;
+
+    Vector2
+        lineDir(lineEnd - lineStart),
+        lineNormal(lineDir[1], -lineDir[0]);
+
+    if(!lineNormal.magnitude())
     {
-        if(edge->dest().label())
-        {
-            int edgeLabel = edge->holderIndex();
-            if(edge->isAnchor())
-                result.append( edgeLabel);
-            else
-                result.append(-edgeLabel);
-        }
-        // this is confusing; I understood nextOrg() was the right
-        // one, but apparently that would've been in a clockwise
-        // manner (contrary to the documentation)..
-        edge = edge->prevOrg();
+        std::cerr << "WARNING: intersectLine with zero-length line!\n";
+        result.append(polygon);
+        return result;
     }
-    while(edge != orig);
+
+    lineNormal = lineNormal / lineNormal.magnitude();
+
+    Polygon currentPart;
+    bool inside = dot(polygon[0] - lineStart, lineNormal) >= 0;
+
+    double prevDist = 0.0;
+    for(unsigned int pointIndex = 0; pointIndex < polygon.size(); ++pointIndex)
+    {
+        // skip outside points
+        double dist = dot(polygon[pointIndex] - lineStart, lineNormal);
+        if(dot(polygon[pointIndex] - lineStart, lineNormal) < 0)
+        {
+            if(inside)
+            {
+                currentPart.push_back(
+                    polygon[pointIndex-1] - (prevDist / (dist - prevDist)) *
+                    (polygon[pointIndex] - polygon[pointIndex-1]));
+                result.append(currentPart);
+                currentPart = Polygon();
+                inside = false;
+            }
+            prevDist = dist;
+            continue;
+        }
+
+        if(!inside)
+        {
+            // previous is outside, this is inside:
+            currentPart.push_back(
+                polygon[pointIndex-1] - (prevDist / (dist - prevDist)) *
+                (polygon[pointIndex] - polygon[pointIndex-1]));
+            inside = true;
+        }
+
+        currentPart.push_back(polygon[pointIndex]);
+    }
+
+    if(inside)
+        result.append(currentPart);
+
     return result;
 }
 
-tuple delaunay(const PointArray<Vector2> &points)
-{
-    // Construct a large surrounding triangle containing all points:
-    Vector2 p1(-1e12, -1e8), p2(1e12, -1e8), p3(0.0, 3e16);
-    Subdivision mesh(p1, p2, p3);
-
-    list nodePositions, edges, orbits;
-    nodePositions.append(object()); // node labels start with 1
-    orbits.append(object());
-
-    for(unsigned int i = 0; i < points.size(); ++i)
-    {
-        if(mesh.insertSite(points[i]) > 0)
-            nodePositions.append(points[i]);
-//         else
-//             nodePositions.append(object());
-    }
-
-    for(Subdivision::NodeIterator it = mesh.nodesBegin();
-        it != mesh.nodesEnd(); ++it)
-    {
-        orbits.append(object());
-    }
-
-    for(Subdivision::EdgeIterator it = mesh.edgesBegin();
-        it != mesh.edgesEnd(); ++it)
-    {
-        if(!*it)
-        {
-            edges.append(object());
-            continue;
-        }
-
-        const QuadEdge *edge((*it)->e);
-        const DelaunayNode &o(edge->org()), &d(edge->dest());
-        if(!o.label() || !d.label())
-        {
-            edges.append(object());
-            continue;
-        }
-
-        edges.append(make_tuple(o.label(), d.label()));
-
-        if(!orbits[o.label()])
-            orbits[o.label()] = sigmaOrbit(edge);
-        if(!orbits[d.label()])
-            orbits[d.label()] = sigmaOrbit(edge->opposite());
-    }
-
-    return make_tuple(nodePositions, edges, orbits);
-}
+double angleTheta(double dy, double dx); // implemented in cppmap.cxx
 
 void defPolygon()
 {
@@ -1850,8 +1838,10 @@ void defPolygon()
         .def("__getitem__", &Array__getitem_slice__<Vector2Array>)
         .def("__getitem__", &Array__getitem__<Vector2Array>)
         .def("__setitem__", &Array__setitem__<Vector2Array>)
-        .def("__iter__", &__iter__<Vector2Array>)
-        .def("__reviter__", &__reviter__<Vector2Array>)
+        .def("__iter__",    &Array__iter__<Vector2Array>,
+             with_custodian_and_ward_postcall<0, 1>())
+        .def("__reviter__", &Array__reviter__<Vector2Array>,
+             with_custodian_and_ward_postcall<0, 1>())
         .def("insert", &insert<Vector2Array>)
         .def(self * double())
         .def(self + Vector2())
@@ -1874,8 +1864,10 @@ void defPolygon()
         .def("__getitem__", &Array__getitem_slice__<Point2DArray>)
         .def("__getitem__", &Array__getitem__<Point2DArray>)
         .def("__setitem__", &Array__setitem__<Point2DArray>)
-        .def("__iter__", &__iter__<Point2DArray>)
-        .def("__reviter__", &__reviter__<Point2DArray>)
+        .def("__iter__",    &Array__iter__<Point2DArray>,
+             with_custodian_and_ward_postcall<0, 1>())
+        .def("__reviter__", &Array__reviter__<Point2DArray>,
+             with_custodian_and_ward_postcall<0, 1>())
         .def("insert", &insert<Point2DArray>)
     ;
     register_ptr_to_python< std::auto_ptr<Point2DArray> >();
@@ -1891,15 +1883,19 @@ void defPolygon()
         .def("__getitem__", &Array__getitem__<PythonPolygon>)
         .def("__setitem__", &Polygon__setitem__<PythonPolygon>)
         .def("split", &split<PythonPolygon>)
+        .def("closed", &PythonPolygon::closed,
+             "Return True iff poly[-1] == poly[0]")
         .def("length", &PythonPolygon::length)
         .def("partialArea", &PythonPolygon::partialArea)
         .def("boundingBox", &PythonPolygon::boundingBox)
         .def("contains", &PythonPolygon::contains)
-        .def("swap", &PythonPolygon::swap)
+        .def("swap", (void (PythonPolygon::*)(PythonPolygon &))&PythonPolygon::swap)
+        .def("swap", (void (PythonPolygon::*)(Vector2Array &))&PythonPolygon::swap)
         .def("reverse", &PythonPolygon::reverse)
         .def("nearestPoint", &PythonPolygon::nearestPoint)
         .def("invalidateProperties", &PythonPolygon::invalidateProperties)
         .def("arcLengthList", &arcLengthList<PythonPolygon>)
+        .def("__repr__", &Polygon__repr__<PythonPolygon>)
         .def_pickle(ArrayPickleSuite<PythonPolygon>())
     ;
     PolygonFromPython<PythonPolygon>();
@@ -1915,10 +1911,15 @@ void defPolygon()
              &BoundingBox::begin, return_internal_reference<>())
         .def("end", (const Vector2 &(BoundingBox::*)() const)
              &BoundingBox::end, return_internal_reference<>())
+        .def("setBegin", &BoundingBox::setBegin, arg("begin"))
+        .def("setEnd", &BoundingBox::setEnd, arg("end"))
         .def("moveTo", &BoundingBox::moveTo, arg("newBegin"))
         .def("moveBy", &BoundingBox::moveBy, arg("offset"))
         .def("area", &BoundingBox::volume)
         .def("size", &BoundingBox::size)
+        .def("setSize", &BoundingBox::setSize)
+        .def("addSize", &BoundingBox::addSize)
+        .def("addBorder", &BoundingBox::addBorder)
         .def("isEmpty", &BoundingBox::isEmpty)
         .def("contains", (bool (BoundingBox::*)(const Vector2 &) const)
              &BoundingBox::contains)
@@ -1942,7 +1943,11 @@ void defPolygon()
         .def("__getitem__", &Scanlines__getitem__, return_internal_reference<>())
         .def("startIndex", &Scanlines::startIndex)
         .def("endIndex", &Scanlines::endIndex)
+        .def("points", &createScanlinesIter,
+             with_custodian_and_ward_postcall<0, 1>())
     ;
+
+    RangeIterWrapper<ScanlinesIter>("_ScanlinesIter");
 
     class_<Scanlines::Scanline>("Scanline", no_init)
         .def("__len__", &Scanlines::Scanline::size)
@@ -1969,6 +1974,8 @@ void defPolygon()
     def("drawScannedPoly", &pyDrawScannedPoly);
     def("markEdgeInLabelImage", &markEdgeInLabelImage);
     def("removeEdgeFromLabelImage", &removeEdgeFromLabelImage);
+
+    def("convexHull", (PythonPolygon (*)(const PythonPolygon &))&pyConvexHull);
 
     def("simplifyPolygon",
         (Vector2Array (*)(const Vector2Array &,double))&simplifyPolygon,
@@ -2007,13 +2014,17 @@ void defPolygon()
 
     def("spline3Integral", vigra::detail::spline3Integral<Vector2>);
 
+    def("centroid", &pyCentroid<PythonPolygon>);
+
     def("curvatureList", &curvatureList<Vector2Array>,
         (arg("pointArray"), arg("dx") = 5, arg("skipPoints") = 1),
         "curvatureList(pointArray, dx = 5, skipPoints = 1)\n"
         "calculates curvatures values for each triangle between point triples\n"
         "with indices (i-dx, i, i+dx), ignoring skipPoints points from both ends.\n"
         "returns a list of (arcLength, curvature) pairs,\n"
-        "whose length is len(pointArray) - 2*dx - 2*skipPoints.");
+        "whose length is len(pointArray) - 2*dx - 2*skipPoints.\n"
+        "(It is possible to get a smaller result if some of the triangles have\n"
+        "sides smaller than eps=1e-8 and will be skipped.)");
 
     def("thirdDerivativeOfPolygon", &pyThirdDerivativeOfPolygon,
         (arg("pointArray"), arg("sigma")),
@@ -2140,7 +2151,7 @@ void defPolygon()
              "  a * x + b * y + p == 0\n\n"
              "holds for all (x,y) on the line.\n"
              "'res' is the residual of the estimate, namely\n"
-             "the std.dev. perpendicular to the line.\n")
+             "the std.dev. perpendicular to the line.")
         .def("computeParametricEquation",
              &LineFit::pyComputeParametricEquation,
              "computeParametricEquation() -> res, (center, orientation)\n\n"
@@ -2148,7 +2159,7 @@ void defPolygon()
              "  (x,y) = center + t * orientation\n\n"
              "holds for all (x,y) on the line.\n"
              "'res' is the residual of the estimate, namely\n"
-             "the std.dev. perpendicular to the line.\n")
+             "the std.dev. perpendicular to the line.")
     ;
 
     class_<ParabolaFit>("ParabolaFit")
@@ -2177,8 +2188,9 @@ void defPolygon()
         .def_readonly("count", &ParabolaFit::count,
                       "the number of values included in the fit")
     ;
-    def("delaunay", &delaunay);
 
     def("intPos", &intPos);
     def("intPos", &intPos_Box<BoundingBox>);
+
+    def("intersectLine", &intersectLine<PythonPolygon>);
 }

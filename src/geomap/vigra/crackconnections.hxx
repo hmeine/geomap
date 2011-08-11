@@ -3,7 +3,18 @@
 
 namespace vigra {
 
-// dest. image must be of src size + (1, 1)
+/**
+ * Given a label image, create an image containing a combination of
+ * the following bits for every pixel *corner*:
+ *
+ * CRACK_CONN_RIGHT (1):
+ *   a crack edge lies between this pixel corner and the one to the right
+ *
+ * CRACK_CONN_DOWN (2):
+ *   a crack edge lies between this pixel corner and the one downwards
+ *
+ * The destination image must be of src size + (1, 1).
+ */
 template <class SrcImageIterator, class SrcAccessor,
           class DestImageIterator, class DestAccessor>
 void
@@ -11,7 +22,10 @@ crackConnectionImage(SrcImageIterator srcUpperLeft,
                      SrcImageIterator srcLowerRight, SrcAccessor sa,
                      DestImageIterator destUpperLeft, DestAccessor da)
 {
-    enum { CONN_RIGHT = 1, CONN_DOWN = 2 };
+    enum {
+        CONN_RIGHT = 1,
+        CONN_DOWN = 2,
+    };
 
     // first row
     {
@@ -19,25 +33,25 @@ crackConnectionImage(SrcImageIterator srcUpperLeft,
         SrcImageIterator src(srcUpperLeft);
         DestImageIterator dest(destUpperLeft);
         da.set((int)(CONN_RIGHT | CONN_DOWN), dest);
-        
+
         // middle part of first row
         SrcImageIterator left(src);
         ++src.x, ++dest.x;
-        for(; src.x < srcLowerRight.x; ++src.x, ++dest.x, ++left.x)
+        for(; src.x != srcLowerRight.x; ++src.x, ++dest.x, ++left.x)
         {
             int conn = CONN_RIGHT;
             if(sa(left) != sa(src))
                 conn |= CONN_DOWN;
             da.set(conn, dest);
         }
-        
+
         // upper right corner
         da.set((int)CONN_DOWN, dest);
     }
 
     // middle rows
     ++srcUpperLeft.y, ++destUpperLeft.y;
-    for(; srcUpperLeft.y < srcLowerRight.y; ++srcUpperLeft.y, ++destUpperLeft.y)
+    for(; srcUpperLeft.y != srcLowerRight.y; ++srcUpperLeft.y, ++destUpperLeft.y)
     {
         SrcImageIterator src(srcUpperLeft);
         DestImageIterator dest(destUpperLeft);
@@ -54,7 +68,7 @@ crackConnectionImage(SrcImageIterator srcUpperLeft,
         // middle part
         SrcImageIterator left(src);
         ++src.x, ++dest.x, ++up.x;
-        for(; src.x < srcLowerRight.x; ++src.x, ++dest.x, ++left.x, ++up.x)
+        for(; src.x != srcLowerRight.x; ++src.x, ++dest.x, ++left.x, ++up.x)
         {
             int conn = 0;
             if(sa(up) != sa(src))
@@ -71,7 +85,7 @@ crackConnectionImage(SrcImageIterator srcUpperLeft,
     // last row
     DestImageIterator dest(destUpperLeft);
     SrcImageIterator src(srcUpperLeft);
-    for(; src.x < srcLowerRight.x; ++src.x, ++dest.x)
+    for(; src.x != srcLowerRight.x; ++src.x, ++dest.x)
         da.set((int)CONN_RIGHT, dest);
 }
 
