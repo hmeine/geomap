@@ -639,6 +639,8 @@ class GeoMap::Edge
     }
 };
 
+std::string description(GeoMap::Edge const &edge);
+
 class DartPointIter
 {
     GeoMap::EdgePtr edge_;

@@ -734,17 +734,7 @@ std::string Edge__repr__(GeoMap::Edge const &edge)
     std::stringstream s;
     s.unsetf(std::ios::scientific);
     s.precision(1);
-    s << "<GeoMap.Edge " << edge.label();
-      //<< ", node " << edge.startNodeLabel() << " -> " << edge.endNodeLabel()
-    if(edge.isLoop())
-        s << "(self-loop)";
-    if(edge.isBridge())
-        s << ", bridge in face " << edge.leftFaceLabel();
-    else
-        s << ", faces " << edge.leftFaceLabel() << "(l), "
-          << edge.rightFaceLabel() << "(r)";
-    s << ", partial area " << edge.partialArea() << ", length " << edge.length()
-      << ", " << edge.size() << " points>";
+    s << "<GeoMap.Edge " << edge.label() << ", " << description(edge) << ">";
     return s.str();
 }
 
