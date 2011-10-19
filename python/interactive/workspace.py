@@ -695,6 +695,8 @@ if __name__ == "__main__":
         filename = sys.argv[1]
     if len(sys.argv) > 2:
         biScale = float(sys.argv[2])
+    if len(sys.argv) > 3:
+        saddleThreshold = float(sys.argv[3])
 
     app = QtGui.QApplication(sys.argv)
     w = main(filename, biScale)
