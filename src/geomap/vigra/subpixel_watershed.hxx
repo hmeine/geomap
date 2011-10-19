@@ -809,8 +809,8 @@ template <class IMAGEVIEW>
 void rungeKuttaStep1(IMAGEVIEW const & image,
                     double x, double y, double s, double *xx, double *yy)
 {
-    xx = x;
-    yy = y;
+    *xx = x;
+    *yy = y;
     if(!image.isInside(x, y))
         return;
     double x1 = s*image.dx(x,y);
@@ -833,8 +833,8 @@ void rungeKuttaStep1(IMAGEVIEW const & image,
         return;
     double x4 = s*image.dx(nx, ny);
     double y4 = s*image.dy(nx, ny);
-    xx = x + x1 / 6.0 + x2 / 3.0 + x3 / 3.0 + x4 / 6.0;
-    yy = y + y1 / 6.0 + y2 / 3.0 + y3 / 3.0 + y4 / 6.0;
+    *xx = x + x1 / 6.0 + x2 / 3.0 + x3 / 3.0 + x4 / 6.0;
+    *yy = y + y1 / 6.0 + y2 / 3.0 + y3 / 3.0 + y4 / 6.0;
 }
 
 template <class IMAGEVIEW>
