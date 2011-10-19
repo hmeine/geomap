@@ -4,6 +4,8 @@ curdir = .
 
 include ../Makefile.include
 
+BOOST_SIGNALS_LIB := -lboost_signals
+
 LOCAL_CPPFLAGS = -I. -I../cellimage \
 	-I"`python -c 'import numpy; print numpy.get_include()'`"
 
@@ -41,7 +43,7 @@ OBJS = \
 	dsl.lo \
 
 $(TARGET): $(OBJS)
-	$(LINKCXXMODULE) -o $(TARGET) $(OBJS) $(BOOST_PYTHON_LIB) -lboost_signals vigranumpycore.so
+	$(LINKCXXMODULE) -o $(TARGET) $(OBJS) $(BOOST_PYTHON_LIB) $(BOOST_SIGNALS_LIB) vigranumpycore.so
 	test -s $(MODULE) || ln -s .libs/$(MODULE) .
 
 test: $(TARGET)

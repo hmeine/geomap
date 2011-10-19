@@ -1,3 +1,5 @@
+VIGRA_FIND_PACKAGE( Boost 1.40.0 COMPONENTS signals )
+
 INCLUDE_DIRECTORIES(
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${sigcpp_INCLUDE_DIRS}
@@ -21,8 +23,8 @@ VIGRA_ADD_NUMPY_MODULE(geomap
     crackedgemap.cxx
     dsl.cxx
   LIBRARIES
-    vigranumpy_core
-    boost_signals
+#    vigranumpy_core
+    ${Boost_SIGNALS_LIBRARIES}
 )
 
 IF(PYTHON_PLATFORM MATCHES "^windows$")
