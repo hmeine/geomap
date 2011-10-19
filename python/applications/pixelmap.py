@@ -164,7 +164,7 @@ def cannyEdgeMap(image, scale, thresh):
     obtained from cannyEdgeImage(image, scale, thresh).
     (Internally creates a pixel GeoMap first.)"""
     
-    edgeImage = vigra.cannyEdgeImage(image, scale, thresh)
+    edgeImage = vigra.analysis.cannyEdgeImage(image, scale, thresh)
     edgeImage = cannyEdgeImageThinning(edgeImage)
     pixelMap = cellimage.GeoMap(edgeImage, 0, cellimage.CellType.Line)
     spmap = pixelMap2subPixelMap(
@@ -180,8 +180,7 @@ def crackEdgeMap(labelImage, midCracks = False):
     midpoints of the cracks, not of the crack segments themselves."""
 
     print "- creating pixel-based GeoMap..."
-    ce = vigra.regionImageToCrackEdgeImage(
-        transformImage(labelImage, "\l x:x+1"), 0)
+    ce = vigra.analysis.regionImageToCrackEdgeImage(labelImage + 1, 0)
     pixelMap = cellimage.GeoMap(ce, 0, cellimage.CellType.Line)
 
     print "- converting pixel-based GeoMap..."
@@ -192,8 +191,7 @@ def crackEdgeMap(labelImage, midCracks = False):
 
 def thresholdMap(scalarImage, threshold, midCracks = False):
     """Shortcut for calling crackEdgeMap with a thresholded image."""
-    bin = transformImage(scalarImage, "\l x: x > %s ? 1:0" % threshold)
-    return crackEdgeMap(bin, midCracks)
+    return crackEdgeMap(scalarImage >= threshold, midCracks)
 
 def pixelWatershedMap(biImage, crackEdges = 4, midCracks = False):
     """pixelWatershedMap(biImage, crackEdges = 4, midCracks = False)
@@ -219,7 +217,7 @@ def pixelWatershedMap(biImage, crackEdges = 4, midCracks = False):
         return crackEdgeMap(lab, midCracks)
 
     print "- watershed segmentation..."
-    lab, count = vigra.watershedSegmentation(biImage, vigra.KeepContours)
+    lab, count = vigra.analysis.watershedSegmentation(biImage, vigra.KeepContours)
 
     print "- creating pixel-based GeoMap..."
     pixelMap = cellimage.GeoMap(lab, 0, cellimage.CellType.Vertex)
