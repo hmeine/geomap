@@ -250,7 +250,8 @@ class FaceColorStatistics : boost::noncopyable
             it != pixels.end(); ++it)
         {
 #ifndef NDEBUG
-            if(originalImage_.isInside(*it))
+            if(originalImage_.isInside(
+                   typename OriginalImage::difference_type((*it).x, (*it).y)))
 #endif
                 f(originalImage_((*it).x,(*it).y));
         }
