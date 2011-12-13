@@ -43,7 +43,7 @@ Array__getitem_slice__(Array const & a, boost::python::slice sl)
         bounds;
     try
     {
-        bounds = sl.template get_indicies<>(a.begin(), a.end());
+        bounds = sl.template get_indices<>(a.begin(), a.end());
     }
     catch (std::invalid_argument)
     {
