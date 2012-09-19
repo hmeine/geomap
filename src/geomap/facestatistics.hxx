@@ -91,7 +91,7 @@ Scalar clampedScalarVariance(vigra::TinyVector<Scalar, Dim> s)
 }
 
 template<class OriginalImage>
-class FaceColorStatistics : boost::noncopyable
+class FaceColorStatistics
 {
   public:
     typedef vigra::FindAverageAndVariance<typename OriginalImage::value_type>
@@ -100,6 +100,7 @@ class FaceColorStatistics : boost::noncopyable
 //     template<int SplineOrder>
     FaceColorStatistics(boost::shared_ptr<GeoMap> map, const OriginalImage &originalImage,
                         double maxDiffNorm = 1.0, unsigned int minSampleCount = 1);
+    FaceColorStatistics(const FaceColorStatistics &other);
     ~FaceColorStatistics();
 
     unsigned int
@@ -494,6 +495,20 @@ FaceColorStatistics<OriginalImage>::FaceColorStatistics(
         ensureMinSampleCount(minSampleCount);
 
     attachHooks(map);
+}
+
+template<class OriginalImage>
+FaceColorStatistics<OriginalImage>::FaceColorStatistics(
+    const FaceColorStatistics &other)
+: originalImage_(other.originalImage_),
+  functors_(other.functors_),
+  minSampleCount_(other.minSampleCount_),
+  superSampled_(other.superSampled_.get()
+                ? (new std::vector<unsigned char>(*other.superSampled_))
+                : NULL),
+  superSampledCount_(other.superSampledCount_),
+  maxDiffNorm_(other.maxDiffNorm_)
+{
 }
 
 template<class OriginalImage>

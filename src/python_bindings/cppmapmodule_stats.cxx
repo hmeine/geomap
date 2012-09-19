@@ -41,6 +41,9 @@ class FaceColorStatisticsWrapper
                 (bp::arg("map"), bp::arg("originalImage"),
                  bp::arg("minSampleCount") = 1)));
 
+        def("__copy__", &generic__copy__<Statistics>);
+        def("__deepcopy__", &__deepcopy__);
+
         def("pixelCount", &pixelCount);
         def("average", &average);
         this->attr("__getitem__") = this->attr("average");
@@ -91,6 +94,33 @@ class FaceColorStatisticsWrapper
                  &StatsFunctor::operator(),
                  bp::args("sample"))
         ;
+    }
+
+    // generic__deepcopy__ not applicable - we need to recursively deepcopy the GeoMap
+    static boost::python::object
+    __deepcopy__(boost::python::object statistics, boost::python::dict memo)
+    {
+        bp::object copyMod = bp::import("copy");
+        bp::object deepcopy = copyMod.attr("deepcopy");
+
+        Statistics *newStatistics = new Statistics(
+            bp::extract<const Statistics &>(statistics)());
+        bp::object result =
+            bp::object(bp::detail::new_reference(bp::managingPyObject(newStatistics)));
+
+        // (cf. builtin_id() in Python/bltinmodule.c; statisticsId must be
+        // the same as the value of id(statistics))
+        bp::object statisticsId(bp::handle<>(PyLong_FromVoidPtr(statistics.ptr())));
+        memo[statisticsId] = result;
+
+        newStatistics->attachHooks(
+            bp::extract<boost::shared_ptr<GeoMap> >(
+                deepcopy(statistics.attr("map")(), memo)));
+
+        bp::extract<bp::dict>(result.attr("__dict__"))().update(
+            deepcopy(bp::extract<bp::dict>(statistics.attr("__dict__"))(), memo));
+
+        return result;
     }
 
     static inline void
