@@ -14,7 +14,7 @@ using vigra::NumpyFImage;
 using vigra::TinyVector;
 using vigra::Diff2D;
 
-typedef vigra::NumpyArray<2, vigra::Singleband<int> >  NumpyIImage;
+typedef vigra::NumpyArray<2, vigra::Singleband<npy_int32> >  NumpyIImage;
 
 struct EdgeProtectionPickleSuite : bp::pickle_suite
 {
