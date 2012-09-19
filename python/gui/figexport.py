@@ -1,9 +1,9 @@
 import os, sys, fig, math
 from PyQt4 import QtCore, QtGui
 
-from vigra import Vector2, readImage, Rect2D, Size2D, meshIter
-import vigrapyqt4
-from geomap import BoundingBox, Polygon, simplifyPolygon, intPos, contourPoly
+from vigra import readImage
+import vigra.pyqt
+from geomap import Vector2, Rect2D, Size2D, meshIter, BoundingBox, Polygon, simplifyPolygon, intPos, contourPoly
 from polytools import clipPoly
 import flag_constants
 

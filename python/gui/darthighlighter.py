@@ -1,7 +1,7 @@
 import sys
 from weakref import ref
 from PyQt4 import QtCore
-import vigrapyqt4
+import vigra.pyqt
 
 class DartHighlighter(object):
     """The DartHighlighter class is attached to a viewer and a Map and

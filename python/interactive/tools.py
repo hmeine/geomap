@@ -5,7 +5,7 @@ from PyQt4 import QtCore, QtGui
 import geomap, maputils
 from maputils import mergeFacesByLabel
 from flag_constants import FOREGROUND_FACE, BACKGROUND_FACE, SRG_SEED
-from vigrapyqt4 import EdgeOverlay, PointOverlay
+#from vigra.pyqt import EdgeOverlay, PointOverlay
 from qimageviewertool import QImageViewerTool
 
 __all__ = ["MapSearcher", "ManualClassifier", "ActivePaintbrush", "SeedSelector",
