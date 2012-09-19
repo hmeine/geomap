@@ -43,7 +43,11 @@ Array__getitem_slice__(Array const & a, boost::python::slice sl)
         bounds;
     try
     {
+#if BOOST_VERSION >= 104800
         bounds = sl.template get_indices<>(a.begin(), a.end());
+#else
+        bounds = sl.template get_indicies<>(a.begin(), a.end());
+#endif
     }
     catch (std::invalid_argument)
     {
