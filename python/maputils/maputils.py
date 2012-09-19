@@ -829,7 +829,7 @@ def drawLabelImage(aMap, scale = 1, verbose = True):
     # to middle of new, scaled pixel (scale/2, scale/2):
     offset = vigra.Vector2(scale / 2.0 - 0.5, scale / 2.0 - 0.5)
     for contour in holes:
-        for hole in holeComponent(contour):
+        for hole in holeComponent(contour.anchor()):
             if verbose and done % 23 == 0:
                 sys.stdout.write("\r[%d%%] Face %d/%d" % (
                     done*100/total, done, total))
@@ -880,7 +880,7 @@ def checkCachedPropertyConsistency(aMap):
     for face in aMap.faceIter():
         bbox = hourglass.BoundingBox()
         area = 0.0
-        for dart in face.contour().phiOrbit():
+        for dart in face.contour().anchor().phiOrbit():
             edge = realPolys[dart.edgeLabel()]
             bbox |= edge.boundingBox()
             if dart.edge().isBridge():
@@ -1247,7 +1247,7 @@ def mergeFacesCompletely(dart, mergeDegree2Nodes = True):
 def findCommonDart(face1, face2):
     """Find a dart with leftFace() == face1 and rightFace() == face2."""
     for contour in face1.contours():
-        for contourIt in contour.phiOrbit():
+        for contourIt in contour.anchor().phiOrbit():
             if contourIt.rightFaceLabel() == face2.label():
                 return contourIt
 
@@ -1582,7 +1582,7 @@ def contourDarts(face):
     contours, i.e. substitues the following standard loop construct:
 
       for contour in face.contours():
-          for dart in contour.phiOrbit():
+          for dart in contour.anchor().phiOrbit():
               doSth(dart)
 
     Thus, you can now write:
@@ -1591,7 +1591,7 @@ def contourDarts(face):
           doSth(dart)"""
 
     for contour in face.contours():
-        for dart in contour.phiOrbit():
+        for dart in contour.anchor().phiOrbit():
             yield dart
 
 def neighborFaces(face):
@@ -1628,7 +1628,7 @@ def holeComponent(dart, includeExterior = False):
             continue
         result.append(face)
         seen[face.label()] = None
-        for dart in face.contour().phiOrbit():
+        for dart in face.contour().anchor().phiOrbit():
             border[dart.rightFace()] = None
     if not includeExterior:
         del result[0]
@@ -1645,7 +1645,7 @@ def showHomotopyTree(face, indentation = ""):
         face = face.face(0)
     print indentation + str(face)
     for contour in face.holeContours():
-        for hole in holeComponent(contour):
+        for hole in holeComponent(contour.anchor()):
             showHomotopyTree(hole, indentation + "  ")
 
 def edgeAtBorder(edge):

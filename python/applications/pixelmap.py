@@ -85,7 +85,7 @@ def pixelMap2subPixelMap(geomap, scale = 1.0, offset = Vector2(0, 0),
     # the border closing was done in C++, so we have to mark the
     # border edges manually:
     assert result.face(0).holeCount() == 1
-    for dart in result.face(0).holeContours().next().phiOrbit():
+    for dart in result.face(0).holeContours().next().anchor().phiOrbit():
         edge = dart.edge()
         if not edge.leftFaceLabel() or not edge.rightFaceLabel():
             edge.setFlag(BORDER_PROTECTION)
