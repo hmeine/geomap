@@ -8,7 +8,6 @@
 #include <boost/python/make_constructor.hpp>
 #include <vigra/gaussians.hxx>
 #include <vigra/linear_algebra.hxx>
-#include <vigra/geometric_fitting.hxx>
 #include <cmath>
 #include <iostream>
 #include "exporthelpers.hxx"
@@ -1441,29 +1440,6 @@ list composeTangentLists(const list &tangentLists)
     return result;
 }
 
-struct LineFit : public IncrementalFitLine
-{
-    void addPoints(const PointArray<Vector2> &a)
-    {
-        for(unsigned int i = 0; i < a.size(); ++i)
-            addPoint(a[i]);
-    }
-
-    tuple pyComputeImplictEquation() const
-    {
-        double a,b,c;
-        double result = computeImplictEquation(a, b, c);
-        return make_tuple(result, make_tuple(a, b, c));
-    }
-
-    tuple pyComputeParametricEquation() const
-    {
-        Vector2 c, o;
-        double result = computeParametricEquation(c, o);
-        return make_tuple(result, make_tuple(c, o));
-    }
-};
-
 struct ParabolaFit
 {
     ContinuousDirection makeContinuous;
@@ -2137,30 +2113,6 @@ void defPolygon()
         "The length may also be negative, which means that the tangent list is\n"
         "to be reversed (the curve the tangents come from is traversed in the\n"
         "opposite orientation).");
-
-    class_<LineFit>("LineFit")
-        .def(init<LineFit>())
-        .def("addPoint",
-             (void (LineFit::*)(const Vector2 &))&LineFit::addPoint<Vector2>)
-        .def("addPoints",
-             &LineFit::addPoints)
-        .def("computeImplictEquation",
-             &LineFit::pyComputeImplictEquation,
-             "computeImplictEquation() -> res, (a, b, p)\n\n"
-             "Compute parameters such that ::\n\n"
-             "  a * x + b * y + p == 0\n\n"
-             "holds for all (x,y) on the line.\n"
-             "'res' is the residual of the estimate, namely\n"
-             "the std.dev. perpendicular to the line.")
-        .def("computeParametricEquation",
-             &LineFit::pyComputeParametricEquation,
-             "computeParametricEquation() -> res, (center, orientation)\n\n"
-             "Compute center, orientation such that ::\n\n"
-             "  (x,y) = center + t * orientation\n\n"
-             "holds for all (x,y) on the line.\n"
-             "'res' is the residual of the estimate, namely\n"
-             "the std.dev. perpendicular to the line.")
-    ;
 
     class_<ParabolaFit>("ParabolaFit")
         .def(init<ParabolaFit>())
