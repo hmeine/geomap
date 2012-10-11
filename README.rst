@@ -22,7 +22,6 @@ at least the same number of files from one-off experiments and student
 thesises, and you are close to the status I was looking at this
 morning.)
 
-Compilation and running will *fail* at the moment, because the build
-system, includes and imports have not been adapted yet.  Nevertheless,
-we have a public repository now, which at last makes collaboration
-possible! :-)
+Compilation was fixed, but the python files have not been updated and tested yet.
+Nevertheless, we have a public repository now, which at last makes
+collaboration possible! :-)
