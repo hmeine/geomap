@@ -1,5 +1,5 @@
-#ifndef VIGRA_POLYGON_HXX
-#define VIGRA_POLYGON_HXX
+#ifndef VIGRA_GEOMAP_POLYGON_HXX
+#define VIGRA_GEOMAP_POLYGON_HXX
 
 #include <vigra/box.hxx>
 #include <vigra/diff2d.hxx>
@@ -2141,4 +2141,4 @@ void swap(vigra::Polygon<T> &a, vigra::Polygon<T> &b)
 
 } // namespace std
 
-#endif // VIGRA_POLYGON_HXX
+#endif // VIGRA_GEOMAP_POLYGON_HXX

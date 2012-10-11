@@ -4,7 +4,7 @@
 #include "filteriterator.hxx"
 #include "labellut.hxx"
 #include "vigra/map2d.hxx"
-#include "vigra/polygon.hxx"
+#include "polygon.hxx"
 #include <vector>
 #include <list>
 #include <vigra/multi_array.hxx>
