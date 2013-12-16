@@ -25,3 +25,19 @@ morning.)
 Compilation was fixed, but the python files have not been updated and tested yet.
 Nevertheless, we have a public repository now, which at last makes
 collaboration possible! :-)
+
+Structure
+---------
+
+Interesting frontend bits that come to my mind (many of the often
+needed and more or less stable functions and classes are even
+documented):
+
+* general helper functions are in maputils.py
+* sub-pixel watersheds are initialized from within maputils.py
+* crack-edge maps (and mid-cracks etc.) are initialized using crackConvert.py
+* display GeoMaps on top of images using mapdisplay.py
+* (Constrained) Delaunay Triangulation is in delaunay.py
+* Chordal Axis Transform (CAT) is in delaunay.py, too
+* a simple segmentation GUI / frontend is in workplace.py
+
