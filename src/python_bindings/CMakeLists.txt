@@ -17,6 +17,7 @@ VIGRA_ADD_NUMPY_MODULE(geomap
     cppmapmodule_utils.cxx
     cppmapmodule_stats.cxx
     cppmapmodule.cxx
+    geomapmodule.cxx
     dsl.cxx
   LIBRARIES
     libgeomap

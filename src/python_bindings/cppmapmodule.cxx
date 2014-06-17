@@ -781,9 +781,6 @@ T returnCopy(const T &v)
 
 /********************************************************************/
 
-void defMapStats();
-void defMapUtils();
-
 void defMap()
 {
     using namespace boost::python;
@@ -1442,7 +1439,4 @@ void defMap()
 
     implicitly_convertible<GeoMap::Node, GeoMap::SigmaAnchor>();
     implicitly_convertible<GeoMap::Dart, GeoMap::SigmaAnchor>();
-
-    defMapStats();
-    defMapUtils();
 }
