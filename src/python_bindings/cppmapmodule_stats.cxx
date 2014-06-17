@@ -31,47 +31,47 @@ class FaceColorStatisticsWrapper
     FaceColorStatisticsWrapper(const char *name)
     : bp::class_<Statistics, boost::noncopyable>(name, bp::no_init)
     {
-        def("__init__", bp::make_constructor(
-                &create,
-                // FaceColorStatistics stores a ref. to originalImage,
-                // actually also to the map, but we need to prevent
-                // cyclic dependencies:
-                bp::default_call_policies(), // FIXME!!
-                // bp::with_custodian_and_ward_postcall<0, 2>(),
-                (bp::arg("map"), bp::arg("originalImage"),
-                 bp::arg("minSampleCount") = 1)));
+        this->def("__init__", bp::make_constructor(
+                      &create,
+                      // FaceColorStatistics stores a ref. to originalImage,
+                      // actually also to the map, but we need to prevent
+                      // cyclic dependencies:
+                      bp::default_call_policies(), // FIXME!!
+                      // bp::with_custodian_and_ward_postcall<0, 2>(),
+                      (bp::arg("map"), bp::arg("originalImage"),
+                       bp::arg("minSampleCount") = 1)));
 
-        def("__copy__", &generic__copy__<Statistics>);
-        def("__deepcopy__", &__deepcopy__);
+        this->def("__copy__", &generic__copy__<Statistics>);
+        this->def("__deepcopy__", &__deepcopy__);
 
-        def("pixelCount", &pixelCount);
-        def("average", &average);
+        this->def("pixelCount", &pixelCount);
+        this->def("average", &average);
         this->attr("__getitem__") = this->attr("average");
-        def("variance", &variance);
-        def("functor", &functor);
+        this->def("variance", &variance);
+        this->def("functor", &functor);
 
-        def("faceMeanDiff", &Statistics::faceMeanDiff);
-        def("faceHomogeneity", &Statistics::faceHomogeneity);
-        def("faceAreaHomogeneity", &Statistics::faceAreaHomogeneity);
+        this->def("faceMeanDiff", &Statistics::faceMeanDiff);
+        this->def("faceHomogeneity", &Statistics::faceHomogeneity);
+        this->def("faceAreaHomogeneity", &Statistics::faceAreaHomogeneity);
 #ifdef HAVE_MATH_TOOLKIT
-        def("faceTTest", &Statistics::faceTTest,
+        this->def("faceTTest", &Statistics::faceTTest,
             "Returns the confidence that the distributions of the two\n"
             "adjacent regions do *not* have the same mean, given the\n"
             "samples.  I.e. a value of 0.95 would mean that the confidence\n"
             "of the null hypothesis that the two means are equal is only 5%.");
-        def("debugTTest", &debugTTest);
+        this->def("debugTTest", &debugTTest);
 #endif
 
-        def("regionImage", &regionImage);
-        def("regionImage", &convertToRegionMeans);
+        this->def("regionImage", &regionImage);
+        this->def("regionImage", &convertToRegionMeans);
 
-        def("attachHooks", &Statistics::attachHooks);
-        def("detachHooks", &Statistics::detachHooks);
-        def("map", &Statistics::map);
+        this->def("attachHooks", &Statistics::attachHooks);
+        this->def("detachHooks", &Statistics::detachHooks);
+        this->def("map", &Statistics::map);
 
-        def("superSampledCount", &Statistics::superSampledCount);
-        def("minSampleCount", &Statistics::minSampleCount);
-        def("checkConsistency", &Statistics::checkConsistency);
+        this->def("superSampledCount", &Statistics::superSampledCount);
+        this->def("minSampleCount", &Statistics::minSampleCount);
+        this->def("checkConsistency", &Statistics::checkConsistency);
 
         bp::scope parent(*this); // Functor shall become a nested class
 
