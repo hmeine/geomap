@@ -69,7 +69,7 @@ degree = degree + degree
 degree = degree + degree
 
 def pyCrackConnectionImage(labelImage):
-    result = GrayImage(labelImage.size()+Size2D(1,1))
+    result = ScalarImage(labelImage.size()+Size2D(1,1))
 
     for y in range(labelImage.height()-1):
         for x in range(labelImage.width()-1):
@@ -202,7 +202,7 @@ def pyCrackEdgeGraph(labelImage, eightConnectedRegions = True,
             if conn & CONN_DIAG:
                 cc[x,y] = conn | CONN_MAYBE_NODE
     
-    nodeImage = GrayImage(cc.size())
+    nodeImage = ScalarImage(cc.size())
     # nodeImage encoding: each pixel's higher 28 bits encode the
     # (label + 1) of a node that has been inserted into the resulting
     # GeoMap at the corresponding position (+1 because zero is a valid
@@ -252,7 +252,7 @@ def pyCrackEdgeGraph(labelImage, eightConnectedRegions = True,
     return result
 
 def showDegrees(crackConnectionImage):
-    degreeImage = GrayImage(crackConnectionImage.size())
+    degreeImage = ScalarImage(crackConnectionImage.size())
     for p in crackConnectionImage.size():
         degreeImage[p] = degree[int(crackConnectionImage[p])]
     return vigra.showImage(degreeImage)
@@ -262,28 +262,28 @@ if __name__ == "__main__":
 
     class CrackEdgeMapTest(unittest.TestCase):
         def testSimpleMap(self):
-            g = GrayImage(10, 10)
+            g = ScalarImage((10, 10))
             for y in range(5, 10):
                 g[5,y] = 1
             cem = crackEdgeMap(g)
             self.assertEqual(cem.faceCount, 3) # should be one infinite, one background, and one foreground region
 
         def test8Connected(self):
-            g = GrayImage(10, 10)
+            g = ScalarImage((10, 10))
             for xy in range(3, 7):
                 g[xy,xy] = 1
             cem = crackEdgeMap(g)
             self.assertEqual(cem.faceCount, 3) # should be one infinite, one background, and one foreground region
 
         def test8ConnectedOpposite(self):
-            g = GrayImage(10, 10)
+            g = ScalarImage((10, 10))
             for xy in range(3, 7):
                 g[8-xy,xy] = 1
             cem = crackEdgeMap(g)
             self.assertEqual(cem.faceCount, 3) # should be one infinite, one background, and one foreground region
 
         def test8ConnectedLoop(self):
-            g = GrayImage(10, 10)
+            g = ScalarImage((10, 10))
             g[4,4] = 1
             g[5,5] = 1
             g[4,6] = 1
@@ -299,14 +299,14 @@ if __name__ == "__main__":
             self.assertEqual(cem.faceCount, 11)
 
         def testComplexImage(self):
-            labels = vigra.labelImageWithBackground8(
-                vigra.readImage("crackConvert-test1.png")[0], 0)[0]
+            labels = vigra.analysis.labelImageWithBackground(
+                vigra.readImage("crackConvert-test1.png")[0].astype(int), 8, 0)[0]
             cem = crackEdgeMap(labels)
             self.assertEqual(cem.faceCount, 26)
 
         def testCrackConnectionImage(self):
-            labels = vigra.labelImageWithBackground8(
-                vigra.readImage("crackConvert-test1.png")[0], 0)[0]
+            labels = vigra.analysis.labelImageWithBackground(
+                vigra.readImage("crackConvert-test1.png")[0].astype(int), 8, 0)[0]
             cc = crackConnectionImage(labels)
             cc_ref = vigra.readImage("crackConvert-test1cc.png")
             self.assertEqual(numpy.abs(cc - cc_ref).max(), 0)
