@@ -154,7 +154,7 @@ class CellPyramid
                       << "  (subindex " << lastCheckpointIt->second.subIndex_
                      << ")\n";
 
-            operator=(lastCheckpointIt->second);
+            *this = lastCheckpointIt->second;
             return true;
         }
 

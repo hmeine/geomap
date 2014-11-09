@@ -64,7 +64,7 @@ serializeCellImage(
 
 vigra::cellimage::GeoMap *
 createGeoMap(
-    NumpyFImage &image,
+    const NumpyFImage &image,
     float boundaryValue,
 	vigra::cellimage::CellType cornerType)
 {
