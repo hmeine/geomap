@@ -5,6 +5,8 @@
 #include "foureightsegmentation.hxx"
 #include "cellconfigurations.hxx"
 
+#include <boost/format.hpp>
+
 #include <iostream>
 #include <algorithm>
 #include <set>
@@ -679,17 +681,9 @@ void GeoMap::initCellImage(BImage & contourImage, CellType cornerType)
                     debugImage(crop(srcImageRange(contourImage),
                                     Rect2D(x, y, x+5, y+5)),
                                std::cerr);
-                    char message[200];
-#ifdef _MSC_VER
-                    _snprintf
-#else
-                    snprintf
-#endif
-                        (message, 200, "GeoMap::init(): "
-                            "Configuration at (%d, %d) must be thinned further (found configuration %d)",
-                            x, y, conf);
-
-                    vigra_precondition(0, message);
+                    vigra_precondition(0, (boost::format(
+                        "GeoMap::init(): Configuration at (%1%, %2%) must be thinned further "
+                        "(found configuration %3%)") % x % y % conf).str());
                 }
 
                 cell->setType(cellConf[conf], 0);
@@ -1136,7 +1130,7 @@ void GeoMap::initFaceList(BImage & contourImage, CellLabel maxFaceLabel)
                     CellLabel edgeIndex = leftNeighbor->label();
 
                     vigra_precondition(edgeList_[edgeIndex].initialized(),
-                                       "EdgeInfo expected to be initialized");
+                                       (boost::format("EdgeInfo %1% expected to be initialized") % edgeIndex).str());
 
                     DartTraverser anchor = edgeList_[edgeIndex].start;
                     if(anchor.leftFaceLabel() != index)
@@ -1189,7 +1183,7 @@ void GeoMap::initFaceList(BImage & contourImage, CellLabel maxFaceLabel)
                         CellLabel edgeIndex = neighbor->label();
 
                         vigra_precondition(edgeList_[edgeIndex].initialized(),
-                                           "EdgeInfo should be initialized");
+                                           (boost::format("EdgeInfo %1% should be initialized") % edgeIndex).str());
 
                         DartTraverser anchor = edgeList_[edgeIndex].start;
                         if(anchor.leftFaceLabel() != index)
