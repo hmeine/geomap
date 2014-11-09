@@ -1,2 +1,3 @@
 ADD_SUBDIRECTORY(geomap)
 ADD_SUBDIRECTORY(python_bindings)
+ADD_SUBDIRECTORY(cellimage)
