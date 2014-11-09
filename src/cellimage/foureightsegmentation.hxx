@@ -284,6 +284,36 @@ class CrackEdgeIterator : public CrackContourCirculator<IMAGEITERATOR>
     }
 };
 
+// -------------------------------------------------------------------
+//                    GeoMap helper function
+// -------------------------------------------------------------------
+
+template<class SrcIter, class SrcAcc>
+void initGeoMapContourImage(SrcIter ul, SrcIter lr, SrcAcc src,
+                            BImage &contourImage,
+                            typename SrcAcc::value_type boundaryValue)
+{
+    int w = lr.x - ul.x;
+    int h = lr.y - ul.y;
+    int x,y;
+
+    initImageBorder(destImageRange(contourImage),
+                    1, 0);
+    initImageBorder(srcIterRange(contourImage.upperLeft()+Diff2D(1,1),
+                                 contourImage.lowerRight()-Diff2D(1,1),
+                                 contourImage.accessor()),
+                    1, 1);
+
+    for(y=0; y<h; ++y, ++ul.y)
+    {
+        SrcIter sx = ul;
+        for(x=0; x<w; ++x, ++sx.x)
+        {
+            contourImage(x+2, y+2) = (src(sx) == boundaryValue ? 1 : 0);
+        }
+    }
+}
+
 /********************************************************************/
 /*                                                                  */
 /*                              GeoMap                              */
@@ -914,9 +944,6 @@ public:
                      bool cropToBaseImage) const;
 };
 
-// -------------------------------------------------------------------
-//                    GeoMap functions
-// -------------------------------------------------------------------
 template<class SrcTraverser>
 inline typename GeoMap::ScanIterator<SrcTraverser>::type
 GeoMap::cellScanIterator(
@@ -930,32 +957,6 @@ GeoMap::cellScanIterator(
         (cells + cellBounds.upperLeft(), cells + cellBounds.lowerRight(),
          CellPixel(cellType, cell.label),
          upperLeft + cellBounds.upperLeft());
-}
-
-template<class SrcIter, class SrcAcc>
-void initGeoMapContourImage(SrcIter ul, SrcIter lr, SrcAcc src,
-                            BImage &contourImage,
-                            typename SrcAcc::value_type boundaryValue)
-{
-    int w = lr.x - ul.x;
-    int h = lr.y - ul.y;
-    int x,y;
-
-    initImageBorder(destImageRange(contourImage),
-                    1, 0);
-    initImageBorder(srcIterRange(contourImage.upperLeft()+Diff2D(1,1),
-                                 contourImage.lowerRight()-Diff2D(1,1),
-                                 contourImage.accessor()),
-                    1, 1);
-
-    for(y=0; y<h; ++y, ++ul.y)
-    {
-        SrcIter sx = ul;
-        for(x=0; x<w; ++x, ++sx.x)
-        {
-            contourImage(x+2, y+2) = (src(sx) == boundaryValue ? 1 : 0);
-        }
-    }
 }
 
 std::ostream &
