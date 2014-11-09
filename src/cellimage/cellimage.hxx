@@ -27,6 +27,7 @@ private:
     CellLabel typeLabel_;
 
     friend struct CellPixelSerializer;
+    friend struct TypeLabelAccessor;
 
 public:
     CellPixel() {}
@@ -121,6 +122,23 @@ struct LabelAccessor
     }
 };
 
+struct TypeLabelAccessor
+{
+    typedef int value_type;
+
+    template<class Iterator>
+    value_type operator()(const Iterator &it) const
+    {
+        return it->typeLabel_;
+    }
+
+    template<class Iterator>
+    void set(value_type typeLabel, const Iterator &it) const
+    {
+        it->typeLabel_ = typeLabel;
+    }
+};
+    
 template<CellType type>
 struct LabelWriter
 {
