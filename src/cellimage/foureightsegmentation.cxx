@@ -1,13 +1,15 @@
+#include "mydebug.hxx"
+#include "debugimage.hxx"
+#include "crop.hxx"
+
 #include "foureightsegmentation.hxx"
 #include "cellconfigurations.hxx"
 
 #include <iostream>
 #include <algorithm>
 #include <set>
+
 #include <stdio.h>
-#include "mydebug.hxx"
-#include "debugimage.hxx"
-#include "crop.hxx"
 
 #if !defined(NDEBUG) && !defined(_MSC_VER)
 #  warning Consistency checks will be done after every Euler operation!
