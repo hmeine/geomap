@@ -366,8 +366,8 @@ public:
         }
 
     private:
-            // the "careful" sigma operations guarantee that at least
-            // one step is made (they work even if isSingular()), and
+            // the "careful" nextSigma operation guarantees that at least
+            // one step is made (i.e. works even if isSingular()), and
             // do not loop infinitely in case no edge is attached
             // (i.e. if the dart is indeed singular)
         DartTraverser &carefulNextSigma() throw ()
@@ -381,26 +381,6 @@ public:
                     ++neighborCirc_;
                 }
                 tryNextSigma();
-                if(neighborCirc_ == nend)
-                {
-                    // did not find any adjacent line pixel
-                    break;
-                }
-            }
-            return *this;
-        }
-
-        DartTraverser &carefulPrevSigma() throw ()
-        {
-            CellImageEightCirculator nend = neighborCirc_;
-            while(neighborCirc_->type() != CellTypeLine)
-            {
-                if(neighborCirc_->type() == CellTypeVertex)
-                {
-                    neighborCirc_.swapCenterNeighbor();
-                    --neighborCirc_;
-                }
-                tryPrevSigma();
                 if(neighborCirc_ == nend)
                 {
                     // did not find any adjacent line pixel
