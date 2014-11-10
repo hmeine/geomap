@@ -882,28 +882,28 @@ void GeoMap::initNodeList(CellLabel maxNodeLabel)
             if(cell->type() != CellTypeVertex)
                 continue;
 
-            CellLabel index = cell->label();
-            vigra_precondition(index < nodeList_.size(),
+            CellLabel nodeLabel = cell->label();
+            vigra_precondition(nodeLabel < nodeList_.size(),
                                "nodeList_ must be large enough");
 
-            if(!nodeList_[index].initialized())
+            if(!nodeList_[nodeLabel].initialized())
             {
-                nodeList_[index].label = index;
+                nodeList_[nodeLabel].label = nodeLabel;
                 ++nodeCount_;
 
-                nodeList_[index].degree = 0;
-                nodeList_[index].size = 1;
-                nodeList_[index].anchor = DartTraverser(
+                nodeList_[nodeLabel].degree = 0;
+                nodeList_[nodeLabel].size = 1;
+                nodeList_[nodeLabel].anchor = DartTraverser(
                     this, CellImageEightCirculator(cell,
                                                    EightNeighborCode::West));
-                if(!nodeList_[index].anchor.isSingular())
+                if(!nodeList_[nodeLabel].anchor.isSingular())
                 {
-                    DartTraverser dart(nodeList_[index].anchor);
+                    DartTraverser dart(nodeList_[nodeLabel].anchor);
                     do
                     {
-                        ++nodeList_[index].degree;
+                        ++nodeList_[nodeLabel].degree;
                     }
-                    while(dart.nextSigma() != nodeList_[index].anchor);
+                    while(dart.nextSigma() != nodeList_[nodeLabel].anchor);
                 }
 
                 // calculate area from following the outer contour of the node
@@ -911,19 +911,19 @@ void GeoMap::initNodeList(CellLabel maxNodeLabel)
                 CrackContourCirculator<CellImage::traverser> crackend(crack);
                 do
                 {
-                    crackCirculatedAreas[index] += crack.diff().x * crack.pos().y -
+                    crackCirculatedAreas[nodeLabel] += crack.diff().x * crack.pos().y -
                                                    crack.diff().y * crack.pos().x;
                 }
                 while(++crack != crackend);
 
-                crackCirculatedAreas[index] /= 2;
+                crackCirculatedAreas[nodeLabel] /= 2;
             }
             else
             {
                 // calculate area from counting the pixels of the node
-                ++nodeList_[index].size;
+                ++nodeList_[nodeLabel].size;
             }
-            nodeList_[index].bounds |= pos;
+            nodeList_[nodeLabel].bounds |= pos;
         }
     }
 
@@ -1095,17 +1095,17 @@ void GeoMap::initFaceList(BImage & contourImage, CellLabel maxFaceLabel)
                 continue;
             }
 
-            CellLabel index = cell->label();
-            vigra_precondition(index < faceList_.size(),
+            CellLabel faceLabel = cell->label();
+            vigra_precondition(faceLabel < faceList_.size(),
                                "faceList_ must be large enough");
-            if(!faceList_[index].initialized())
+            if(!faceList_[faceLabel].initialized())
             {
-                //std::cerr << "found face " << index << " at " << pos.x << "," << pos.y << "\n";
-                faceList_[index].label = index;
+                //std::cerr << "found face " << faceLabel << " at " << pos.x << "," << pos.y << "\n";
+                faceList_[faceLabel].label = faceLabel;
                 ++faceCount_;
-                //faceList_[index].anchor = pos;
-                faceList_[index].bounds |= pos;
-                faceList_[index].size = 1;
+                //faceList_[faceLabel].anchor = pos;
+                faceList_[faceLabel].bounds |= pos;
+                faceList_[faceLabel].size = 1;
 
                 // find incident node
                 if(leftNeighbor->type() == CellTypeVertex)
@@ -1117,10 +1117,10 @@ void GeoMap::initFaceList(BImage & contourImage, CellLabel maxFaceLabel)
                                          CellImageEightCirculator(leftNeighbor));
                     anchor.prevSigma();
 
-                    vigra_invariant(anchor.leftFaceLabel() == index,
+                    vigra_invariant(anchor.leftFaceLabel() == faceLabel,
                                     "GeoMap::initFaceList()");
 
-                    faceList_[index].contours.push_back(anchor);
+                    faceList_[faceLabel].contours.push_back(anchor);
                 }
                 else
                 {
@@ -1133,19 +1133,19 @@ void GeoMap::initFaceList(BImage & contourImage, CellLabel maxFaceLabel)
                                        (boost::format("EdgeInfo %1% expected to be initialized") % edgeIndex).str());
 
                     DartTraverser anchor = edgeList_[edgeIndex].start;
-                    if(anchor.leftFaceLabel() != index)
+                    if(anchor.leftFaceLabel() != faceLabel)
                         anchor.nextAlpha();
 
-                    vigra_invariant(anchor.leftFaceLabel() == index,
+                    vigra_invariant(anchor.leftFaceLabel() == faceLabel,
                                     "GeoMap::initFaceList()");
 
-                    faceList_[index].contours.push_back(anchor);
+                    faceList_[faceLabel].contours.push_back(anchor);
                 }
             }
             else
             {
-                faceList_[index].bounds |= pos;
-                ++faceList_[index].size;
+                faceList_[faceLabel].bounds |= pos;
+                ++faceList_[faceLabel].size;
 
                 // look for inner contours
                 CellImageEightCirculator neighbor(cell);
@@ -1170,10 +1170,10 @@ void GeoMap::initFaceList(BImage & contourImage, CellLabel maxFaceLabel)
                         DartTraverser anchor(this, n);
                         anchor.prevSigma();
 
-                        vigra_invariant(anchor.leftFaceLabel() == index,
+                        vigra_invariant(anchor.leftFaceLabel() == faceLabel,
                                         "GeoMap::initFaceList()");
 
-                        faceList_[index].contours.push_back(anchor);
+                        faceList_[faceLabel].contours.push_back(anchor);
                     }
                     else
                     {
@@ -1186,13 +1186,13 @@ void GeoMap::initFaceList(BImage & contourImage, CellLabel maxFaceLabel)
                                            (boost::format("EdgeInfo %1% should be initialized") % edgeIndex).str());
 
                         DartTraverser anchor = edgeList_[edgeIndex].start;
-                        if(anchor.leftFaceLabel() != index)
+                        if(anchor.leftFaceLabel() != faceLabel)
                             anchor.nextAlpha();
 
-                        vigra_invariant(anchor.leftFaceLabel() == index,
+                        vigra_invariant(anchor.leftFaceLabel() == faceLabel,
                                         "GeoMap::initFaceList()");
 
-                        faceList_[index].contours.push_back(anchor);
+                        faceList_[faceLabel].contours.push_back(anchor);
                     }
                 }
                 while(++neighbor != nend);
