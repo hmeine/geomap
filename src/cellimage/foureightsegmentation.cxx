@@ -698,7 +698,7 @@ void GeoMap::initCellImage(BImage & contourImage, CellType cornerType)
 
 /********************************************************************/
 
-CellLabel GeoMap::label0Cells()
+CellLabel GeoMap::labelNodes()
 {
     BImage nodeImage(cellImage.size());
     BImage::traverser nodes = nodeImage.upperLeft() + Diff2D(2,2);
@@ -724,7 +724,7 @@ CellLabel GeoMap::label0Cells()
                 do
                 {
                     vigra_precondition((n->type() != CellTypeLine || n[1].type() || CellTypeLine),
-                                       (boost::format("label0Cells(): Node at (%1%, %2%) has two "
+                                       (boost::format("labelNodes(): Node at (%1%, %2%) has two "
                                                       "incident edgels from the same edge (direction: %3%)")
                                         % x % y % (n - nend)).str());
                 }
@@ -741,7 +741,7 @@ CellLabel GeoMap::label0Cells()
 
 /********************************************************************/
 
-CellLabel GeoMap::label1Cells(CellLabel maxNodeLabel)
+CellLabel GeoMap::labelEdges(CellLabel maxNodeLabel)
 {
     std::vector<bool> nodeProcessed(maxNodeLabel + 1, false);
 
@@ -780,7 +780,7 @@ CellLabel GeoMap::label1Cells(CellLabel maxNodeLabel)
 
 /********************************************************************/
 
-CellLabel GeoMap::label2Cells(BImage & contourImage)
+CellLabel GeoMap::labelFaces(BImage & contourImage)
 {
     // labelImageWithBackground() starts with label 1, so don't
     // include outer border (infinite regions shall have label 0)

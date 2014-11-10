@@ -741,9 +741,9 @@ public:
         cells = cellImage.upperLeft() + Diff2D(2, 2);
         initCellImage(contourImage, cornerType);
 
-        CellLabel maxNodeLabel = label0Cells();
-        CellLabel maxEdgeLabel = label1Cells(maxNodeLabel);
-        CellLabel maxFaceLabel = label2Cells(contourImage);
+        CellLabel maxNodeLabel = labelNodes();
+        CellLabel maxEdgeLabel = labelEdges(maxNodeLabel);
+        CellLabel maxFaceLabel = labelFaces(contourImage);
         labelSelfLoops(maxNodeLabel, maxEdgeLabel);
 
         nodeCount_ = edgeCount_ = faceCount_ = 0;
@@ -899,9 +899,9 @@ public:
     friend class DartTraverser;
 
     void initCellImage(BImage &contourImage, CellType cornerType);
-    CellLabel label0Cells();
-    CellLabel label1Cells(CellLabel maxNodeLabel);
-    CellLabel label2Cells(BImage &contourImage);
+    CellLabel labelNodes();
+    CellLabel labelEdges(CellLabel maxNodeLabel);
+    CellLabel labelFaces(BImage &contourImage);
     void labelSelfLoops(CellLabel &maxNodeLabel,
                         CellLabel &maxEdgeLabel);
 
