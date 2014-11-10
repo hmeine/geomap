@@ -709,7 +709,7 @@ public:
     template<class SrcIter, class SrcAcc>
     GeoMap(SrcIter ul, SrcIter lr, SrcAcc src,
            typename SrcAcc::value_type boundaryValue,
-           CellType cornerType)
+           CellType cornerType = CellTypeLine)
     : initialized_(false)
     {
         init(ul, lr, src, boundaryValue, cornerType);
@@ -718,7 +718,7 @@ public:
     template<class SrcIter, class SrcAcc>
     GeoMap(triple<SrcIter, SrcIter, SrcAcc> src,
            typename SrcAcc::value_type boundaryValue,
-           CellType cornerType)
+           CellType cornerType = CellTypeLine)
     : initialized_(false)
     {
         init(src.first, src.second, src.third, boundaryValue, cornerType);

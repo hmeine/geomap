@@ -171,7 +171,7 @@ BOOST_PYTHON_MODULE_INIT(cellimage)
         .def("__init__", make_constructor(
                  &createGeoMap, default_call_policies(),
                  (arg("image"), arg("edgeLabel"),
-                  arg("cornerType") = CellTypeVertex)))
+                  arg("cornerType") = CellTypeLine)))
         .def("maxNodeLabel", &GeoMap::maxNodeLabel)
         .add_property("nodes", &NodeListProxy::create)
         .def("maxEdgeLabel", &GeoMap::maxEdgeLabel)
