@@ -767,6 +767,9 @@ CellLabel GeoMap::labelEdges(CellLabel maxNodeLabel)
                 this, CellImageEightCirculator(cell, EightNeighborCode::West));
             DartTraverser dend = dart;
 
+            if(dart.isSingular())
+                continue;
+
             do
             {
                 if(dart.edgeLabel() != 0)

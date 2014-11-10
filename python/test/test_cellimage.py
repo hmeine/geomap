@@ -47,5 +47,5 @@ def test_regression():
     gm = map_from_boundaries('failing.png')
     assert len(gm.faces) == 3
     assert len(gm.edges) == 2
-    assert len(gm.nodes) == 2
+    assert len(gm.nodes) == 3
 
