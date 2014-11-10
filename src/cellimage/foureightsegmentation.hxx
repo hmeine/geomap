@@ -905,7 +905,7 @@ public:
     void labelSelfLoops(CellLabel &maxNodeLabel,
                         CellLabel &maxEdgeLabel);
 
-    void labelEdge(CellImageEightCirculator rayAtStart,
+    void labelEdge(CellImageEightCirculator circ,
                    CellLabel newLabel);
 
     void initNodeList(CellLabel maxNodeLabel);

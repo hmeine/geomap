@@ -760,18 +760,18 @@ CellLabel GeoMap::label1Cells(CellLabel maxNodeLabel)
 
             nodeProcessed[cell->label()] = true;
 
-            DartTraverser rayAtStart(
+            DartTraverser dart(
                 this, CellImageEightCirculator(cell, EightNeighborCode::West));
-            DartTraverser rayEnd = rayAtStart;
+            DartTraverser dend = dart;
 
             do
             {
-                if(rayAtStart.edgeLabel() != 0)
+                if(dart.edgeLabel() != 0)
                     continue;
 
-                labelEdge(rayAtStart.neighborCirculator(), ++maxEdgeLabel);
+                labelEdge(dart.neighborCirculator(), ++maxEdgeLabel);
             }
-            while(rayAtStart.nextSigma() != rayEnd);
+            while(dart.nextSigma() != dend);
         }
     }
 
@@ -811,29 +811,29 @@ void GeoMap::labelSelfLoops(CellLabel & maxNodeLabel, CellLabel & maxEdgeLabel)
             // mark first point as node
             (*cell) = CellPixel(CellTypeVertex, ++maxNodeLabel);
 
-            CellImageEightCirculator rayAtStart(cell);
-            CellImageEightCirculator rayEnd = rayAtStart;
+            CellImageEightCirculator circ(cell);
+            CellImageEightCirculator circEnd = circ;
 
             do
             {
-                if(rayAtStart->type() != CellTypeLine)
+                if(circ->type() != CellTypeLine)
                     continue;
-                if(rayAtStart->label() != 0)
+                if(circ->label() != 0)
                     continue;
 
-                labelEdge(rayAtStart, ++maxEdgeLabel);
+                labelEdge(circ, ++maxEdgeLabel);
             }
-            while(++rayAtStart != rayEnd);
+            while(++circ != circEnd);
         }
     }
 }
 
 /********************************************************************/
 
-void GeoMap::labelEdge(CellImageEightCirculator rayAtStart,
+void GeoMap::labelEdge(CellImageEightCirculator circ,
                        CellLabel newLabel)
 {
-    EdgelIterator edge(rayAtStart);
+    EdgelIterator edge(circ);
 
     // follow the edge and relabel it
     for(; !edge.atEnd(); ++edge)
