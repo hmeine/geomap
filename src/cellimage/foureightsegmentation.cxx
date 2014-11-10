@@ -358,6 +358,7 @@ GeoMap::EdgeInfo &GeoMap::mergeEdges(const DartTraverser & dart)
 {
     //std::cerr << "mergeEdges(" << dart << ")\n";
     // merge smaller edge (mergedEdge) into larger one (survivor):
+    validateDart(dart);
     DartTraverser dart1(dart);
     dart1.nextSigma();
     bool firstIsSmaller =
