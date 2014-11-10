@@ -689,8 +689,11 @@ void GeoMap::initCellImage(BImage & contourImage, CellType cornerType)
         }
     }
 
-    // FIXME: this should be done for all contours, not just the boundary!
-    cellImage(1, 1).setType(CellTypeVertex, 0); // FIXME: for faceList_[0].anchor
+    // FIXME: this special-handling of the boundary is only necessary
+    // because the containment hierarchy is determined in a strange
+    // way (faceList_[0].anchor is directly initialized from this
+    // position)
+    cellImage(1, 1).setType(CellTypeVertex, 0);
 #ifndef NDEBUG
     std::cerr << "*** RUN-TIME WARNING: slowness results from missing NDEBUG flag during compilation of foureightsegmentation.cxx! ***\n";
 #endif
