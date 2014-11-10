@@ -795,7 +795,7 @@ CellLabel GeoMap::label2Cells(BImage & contourImage)
 
 /********************************************************************/
 
-void GeoMap::labelCircles(CellLabel & maxNodeLabel, CellLabel & maxEdgeLabel)
+void GeoMap::labelSelfLoops(CellLabel & maxNodeLabel, CellLabel & maxEdgeLabel)
 {
     for(int y=-1; y < cellImage.height()-3; ++y)
     {

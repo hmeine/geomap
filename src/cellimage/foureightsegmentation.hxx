@@ -744,7 +744,7 @@ public:
         CellLabel maxNodeLabel = label0Cells();
         CellLabel maxEdgeLabel = label1Cells(maxNodeLabel);
         CellLabel maxFaceLabel = label2Cells(contourImage);
-        labelCircles(maxNodeLabel, maxEdgeLabel);
+        labelSelfLoops(maxNodeLabel, maxEdgeLabel);
 
         nodeCount_ = edgeCount_ = faceCount_ = 0;
 
@@ -902,8 +902,8 @@ public:
     CellLabel label0Cells();
     CellLabel label1Cells(CellLabel maxNodeLabel);
     CellLabel label2Cells(BImage &contourImage);
-    void labelCircles(CellLabel &maxNodeLabel,
-                      CellLabel &maxEdgeLabel);
+    void labelSelfLoops(CellLabel &maxNodeLabel,
+                        CellLabel &maxEdgeLabel);
 
     void labelEdge(CellImageEightCirculator rayAtStart,
                    CellLabel newLabel);
