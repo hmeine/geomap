@@ -11,8 +11,6 @@
 #include <algorithm>
 #include <set>
 
-#include <stdio.h>
-
 #if !defined(NDEBUG) && !defined(_MSC_VER)
 #  warning Consistency checks will be done after every Euler operation!
 #endif
@@ -725,14 +723,10 @@ CellLabel GeoMap::label0Cells()
 
                 do
                 {
-                    if(n->type() == CellTypeLine && n[1].type() == CellTypeLine)
-                    {
-                        char msg[200];
-                        sprintf(msg, "label0Cells(): "
-                                "Node at (%d, %d) has two incident edgels from the same edge (direction: %d)",
-                                x, y, n - nend);
-                        vigra_precondition(0, msg);
-                    }
+                    vigra_precondition((n->type() != CellTypeLine || n[1].type() || CellTypeLine),
+                                       (boost::format("label0Cells(): Node at (%1%, %2%) has two "
+                                                      "incident edgels from the same edge (direction: %3%)")
+                                        % x % y % (n - nend)).str());
                 }
                 while(++n != nend);
 #endif
