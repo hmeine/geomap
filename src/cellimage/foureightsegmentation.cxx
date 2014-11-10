@@ -31,9 +31,8 @@ inline void validateDart(const GeoMap::DartTraverser &dart)
                            "dart's edge is not valid (initialized())");
 }
 #else
-// extra def. to prevent compiler warning due to unused param:
-inline void validateDart(const GeoMap::DartTraverser &)
-{}
+// separate def. to prevent compiler warning due to unused param:
+inline void validateDart(const GeoMap::DartTraverser &) {}
 #endif
 
 struct FindMaxLabel
@@ -786,11 +785,11 @@ CellLabel GeoMap::label2Cells(BImage & contourImage)
     // include outer border (infinite regions shall have label 0)
     return labelImageWithBackground(
         srcIterRange(contourImage.upperLeft() + Diff2D(1,1),
-                     contourImage.lowerRight() - Diff2D(1,1),
-                     contourImage.accessor()),
+                     contourImage.lowerRight() - Diff2D(1,1)),
         destIter(cellImage.upperLeft() + Diff2D(1,1),
                  LabelWriter<CellTypeRegion>()),
-        false, 1);
+        false, // eight_neighbors = false -> 4-neighborhood
+        1);    // background: contour value
 }
 
 /********************************************************************/
