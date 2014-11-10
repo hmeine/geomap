@@ -691,6 +691,7 @@ void GeoMap::initCellImage(BImage & contourImage, CellType cornerType)
         }
     }
 
+    // FIXME: this should be done for all contours, not just the boundary!
     cellImage(1, 1).setType(CellTypeVertex, 0); // FIXME: for faceList_[0].anchor
 #ifndef NDEBUG
     std::cerr << "*** RUN-TIME WARNING: slowness results from missing NDEBUG flag during compilation of foureightsegmentation.cxx! ***\n";
@@ -1101,12 +1102,9 @@ void GeoMap::initFaceList(BImage & contourImage, CellLabel maxFaceLabel)
                 faceList_[faceLabel].label = faceLabel;
                 ++faceCount_;
 
-                // find incident node
+                // determine anchor (either via node or via edge):
                 if(leftNeighbor->type() == CellTypeVertex)
                 {
-                    vigra_precondition(leftNeighbor->type() == CellTypeVertex,
-                                       "leftNeighbor expected to be a vertex");
-
                     DartTraverser anchor(this,
                                          CellImageEightCirculator(leftNeighbor));
                     anchor.prevSigma();
@@ -1136,7 +1134,7 @@ void GeoMap::initFaceList(BImage & contourImage, CellLabel maxFaceLabel)
                     faceList_[faceLabel].contours.push_back(anchor);
                 }
             }
-            else
+            else // faceLabel seen before
             {
                 // look for inner contours
                 CellImageEightCirculator neighbor(cell);
