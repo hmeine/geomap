@@ -892,7 +892,6 @@ void GeoMap::initNodeList(CellLabel maxNodeLabel)
                 ++nodeCount_;
 
                 nodeList_[nodeLabel].degree = 0;
-                nodeList_[nodeLabel].size = 1;
                 nodeList_[nodeLabel].anchor = DartTraverser(
                     this, CellImageEightCirculator(cell,
                                                    EightNeighborCode::West));
@@ -918,12 +917,9 @@ void GeoMap::initNodeList(CellLabel maxNodeLabel)
 
                 crackCirculatedAreas[nodeLabel] /= 2;
             }
-            else
-            {
-                // calculate area from counting the pixels of the node
-                ++nodeList_[nodeLabel].size;
-            }
+
             nodeList_[nodeLabel].bounds |= pos;
+            ++nodeList_[nodeLabel].size;
         }
     }
 
@@ -1098,14 +1094,12 @@ void GeoMap::initFaceList(BImage & contourImage, CellLabel maxFaceLabel)
             CellLabel faceLabel = cell->label();
             vigra_precondition(faceLabel < faceList_.size(),
                                "faceList_ must be large enough");
+
             if(!faceList_[faceLabel].initialized())
             {
                 //std::cerr << "found face " << faceLabel << " at " << pos.x << "," << pos.y << "\n";
                 faceList_[faceLabel].label = faceLabel;
                 ++faceCount_;
-                //faceList_[faceLabel].anchor = pos;
-                faceList_[faceLabel].bounds |= pos;
-                faceList_[faceLabel].size = 1;
 
                 // find incident node
                 if(leftNeighbor->type() == CellTypeVertex)
@@ -1144,9 +1138,6 @@ void GeoMap::initFaceList(BImage & contourImage, CellLabel maxFaceLabel)
             }
             else
             {
-                faceList_[faceLabel].bounds |= pos;
-                ++faceList_[faceLabel].size;
-
                 // look for inner contours
                 CellImageEightCirculator neighbor(cell);
                 CellImageEightCirculator nend = neighbor;
@@ -1197,6 +1188,9 @@ void GeoMap::initFaceList(BImage & contourImage, CellLabel maxFaceLabel)
                 }
                 while(++neighbor != nend);
             }
+
+            faceList_[faceLabel].bounds |= pos;
+            ++faceList_[faceLabel].size;
         }
     }
 }

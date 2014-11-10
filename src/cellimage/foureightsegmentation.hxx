@@ -643,7 +643,7 @@ public:
         Rect2D bounds;
         unsigned int size;
 
-        CellInfo() : label(NumericTraits<CellLabel>::max()) {}
+        CellInfo() : label(NumericTraits<CellLabel>::max()), size(0) {}
 
         bool initialized() const
         { return label != NumericTraits<CellLabel>::max(); }
