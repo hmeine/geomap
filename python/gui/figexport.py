@@ -617,11 +617,11 @@ class FigExporter:
 
 def addStandardOverlay(fe, overlay, **attr):
     # FIXME: str(type(overlay)).contains(...) instead?
-    if isinstance(overlay, vigrapyqt4.PointOverlay):
+    if isinstance(overlay, vigra.pyqt.PointOverlay):
         return fe.addPointOverlay(overlay, **attr)
-    elif isinstance(overlay, vigrapyqt4.EdgeOverlay):
+    elif isinstance(overlay, vigra.pyqt.EdgeOverlay):
         return fe.addEdgeOverlay(overlay, **attr)
-    elif isinstance(overlay, vigrapyqt4.CircleOverlay):
+    elif isinstance(overlay, vigra.pyqt.CircleOverlay):
         return fe.addCircleOverlay(overlay, **attr)
 
 def _exportOverlays(fe, overlays, overlayHandler, startDepth = 100):
@@ -630,7 +630,7 @@ def _exportOverlays(fe, overlays, overlayHandler, startDepth = 100):
         if hasattr(overlay, 'visible') and not overlay.visible:
             continue
         if overlayHandler(fe, overlay, depth = depth) is None:
-            if isinstance(overlay, vigrapyqt4.OverlayGroup):
+            if isinstance(overlay, vigra.pyqt.OverlayGroup):
                 depth = _exportOverlays(
                     fe, overlay.overlays, overlayHandler, startDepth = depth)
             else:
