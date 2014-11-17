@@ -1,7 +1,6 @@
 import copy
 from PyQt4 import QtCore, QtGui
-from vigra import Rect2D
-from geomap import intPos
+from geomap import intPos, Rect2D
 from qimageviewertool import QImageViewerTool
 
 class ROISelector(QImageViewerTool):
