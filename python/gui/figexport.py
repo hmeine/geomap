@@ -8,14 +8,14 @@ from polytools import clipPoly
 import flag_constants
 
 _qtColor2figColorMapping = {
-    QtCore.Qt.black : fig.colorBlack,
-    QtCore.Qt.blue : fig.colorBlue,
-    QtCore.Qt.green : fig.colorGreen,
-    QtCore.Qt.cyan : fig.colorCyan,
-    QtCore.Qt.red : fig.colorRed,
-    QtCore.Qt.magenta : fig.colorMagenta,
-    QtCore.Qt.yellow : fig.colorYellow,
-    QtCore.Qt.white : fig.colorWhite,
+    QtCore.Qt.black : fig.Color.Black,
+    QtCore.Qt.blue : fig.Color.Blue,
+    QtCore.Qt.green : fig.Color.Green,
+    QtCore.Qt.cyan : fig.Color.Cyan,
+    QtCore.Qt.red : fig.Color.Red,
+    QtCore.Qt.magenta : fig.Color.Magenta,
+    QtCore.Qt.yellow : fig.Color.Yellow,
+    QtCore.Qt.white : fig.Color.White,
     }
 
 def qtColor2figColor(color, figFile):
@@ -37,7 +37,7 @@ class FigExporter:
 
     All addFoo() variants allow to set properties of the resulting fig
     objects via keyword arguments, e.g. addROIRect(myroi, depth = 40,
-    penColor = fig.colorYellow), cf. documentation of fig.Object .
+    penColor = fig.Color.Yellow), cf. documentation of fig.Object .
 
     For a discussion of the scaling/clipping, see documentation of
     __init__()."""
@@ -131,7 +131,7 @@ class FigExporter:
             roi.moveBy(-self.roi.begin())
 
         if "fillColor" in attr and not "fillStyle" in attr:
-            attr["fillStyle"] = fig.fillStyleSolid
+            attr["fillStyle"] = fig.FillStyle.Solid
 
         result = fig.PolyBox(roi.begin()[0] * self.scale,
                              roi.begin()[1] * self.scale,
@@ -219,15 +219,15 @@ class FigExporter:
 
                 label = fig.Text(Vector2(textX, textY),
                                  str(labelType(labels[x, y])),
-                                 alignment = fig.alignCentered)
+                                 alignment = fig.Alignment.Centered)
                 label.pos += (0, label.height / 2)
 
                 label.depth = pixelRect.depth - 10
-                label.font = fig.fontHelvetica
+                label.font = fig.Font.Helvetica
                 result.append(label)
 
             if fill:
-                pixelRect.fillStyle = fig.fillStyleSolid
+                pixelRect.fillStyle = fig.FillStyle.Solid
                 pixelRect.fillColor = self.f.getColor(int(fill[x, y]))
                     
             result.append(pixelRect)
@@ -287,7 +287,7 @@ class FigExporter:
         anyways)."""
 
         if "fillColor" in attr and not "fillStyle" in attr:
-            attr["fillStyle"] = fig.fillStyleSolid
+            attr["fillStyle"] = fig.FillStyle.Solid
 
         # no ROI to clip to?
         if not self.roi:
@@ -312,7 +312,7 @@ class FigExporter:
         # general case: perform clipping, add parts one-by-one:
         result = [] # fig.Compound(container) - I dont't dare grouping here..
         closeAtBorder = (
-            attr.get("fillStyle", fig.fillStyleNone) != fig.fillStyleNone)
+            attr.get("fillStyle", fig.FillStyle.None) != fig.FillStyle.None)
         for part in clipPoly(polygon, clipRect, closeAtBorder):
             if part.length(): # don't add zero-length polygons
                 result.append(self.addEdge(part, **attr))
@@ -331,7 +331,7 @@ class FigExporter:
         By default, circles will be filled, but have lineWidth=0.
         To draw a transparent circle, call:
         
-        fi.addPointCircles([Vector2(5.2,5.3)], 2, penColor=fig.colorCyan,fillStyle=fig.fillStyleNone,lineWidth=1)
+        fi.addPointCircles([Vector2(5.2,5.3)], 2, penColor=fig.Color.Cyan,fillStyle=fig.FillStyle.None,lineWidth=1)
 
         If returnIndices is set to True (default: False), a list of
         (i, c) pairs is returned instead, where c is the fig.Circle
@@ -343,8 +343,8 @@ class FigExporter:
 
         attr = dict(attr)
         if "fillStyle" not in attr:
-            attr["fillStyle"] = fig.fillStyleSolid
-        if "lineWidth" not in attr and attr["fillStyle"] != fig.fillStyleNone:
+            attr["fillStyle"] = fig.FillStyle.Solid
+        if "lineWidth" not in attr and attr["fillStyle"] != fig.FillStyle.None:
             attr["lineWidth"] = 0
 
         compound = fig.Compound(container)
@@ -502,7 +502,7 @@ class FigExporter:
         For example, to draw only a subregion, and shift the upper left of
         the region to the origin, call
         
-        fi.addMapEdges(map, penColor=fig.colorGreen, \
+        fi.addMapEdges(map, penColor=fig.Color.Green, \
              offset=Vector2(-13,-13), roi=BoundingBox(Vector2(13,13), Vector2(24,24)))
         
         """
@@ -560,7 +560,7 @@ class FigExporter:
 
         attr = dict(attr)
         attr["lineWidth"] = attr.get("lineWidth", 0)
-        attr["fillStyle"] = attr.get("fillStyle", fig.fillStyleSolid)
+        attr["fillStyle"] = attr.get("fillStyle", fig.FillStyle.Solid)
 
         compound = fig.Compound(container)
         if returnFaces:
