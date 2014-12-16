@@ -13,3 +13,5 @@ Debug/
 *.dll
 *.pdb
 *.ilk
+
+.DS_Store
