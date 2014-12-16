@@ -43,7 +43,7 @@ struct NotNull
 
 typedef vigra::TinyVector<double, 2>       Vector2;
 typedef vigra::PointArray<Vector2>         Vector2Array;
-typedef vigra::BBoxPolygon<Vector2>        Polygon;
+typedef vigra::BBoxPolygon<Vector2>        Vector2Polygon;
 
 typedef vigra::PointArray<vigra::Point2D> PixelList;
 
@@ -475,7 +475,7 @@ const CellLabel UNINITIALIZED_CELL_LABEL =
     vigra::NumericTraits<CellLabel>::max();
 
 class GeoMap::Edge
-: public Polygon, boost::noncopyable
+  : public Vector2Polygon, boost::noncopyable
 {
   public:
     typedef vigra::BBoxPolygon<Vector2> Base;
@@ -1005,7 +1005,7 @@ double angleTheta(double dy, double dx);
 double contourArea(const GeoMap::Dart &dart);
 double contourLength(const GeoMap::Dart &dart);
 double isoperimetricQuotient(const GeoMap::Dart &dart);
-Polygon contourPoly(const GeoMap::Dart &dart);
+Vector2Polygon contourPoly(const GeoMap::Dart &dart);
 
 /********************************************************************/
 /*                                                                  */

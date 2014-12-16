@@ -79,15 +79,15 @@ double isoperimetricQuotient(const GeoMap::Dart &dart)
     return vigra::squaredNorm(length)/(4*M_PI*area);
 }
 
-Polygon contourPoly(const GeoMap::Dart &dart)
+Vector2Polygon contourPoly(const GeoMap::Dart &dart)
 {
-    Polygon result;
+    Vector2Polygon result;
     GeoMap::Dart d(dart);
     do
     {
         if(d.label() < 0)
         {
-            Polygon rev(*d.edge());
+            Vector2Polygon rev(*d.edge());
             rev.reverse();
             result.extend(rev);
         }
@@ -1477,7 +1477,7 @@ bool GeoMap::checkConsistency()
             }
         }
 
-        Polygon poly((*it)->begin(), (*it)->end());
+        Vector2Polygon poly((*it)->begin(), (*it)->end());
         if(fabs((*it)->partialArea() - poly.partialArea()) > 1e-4)
         {
             std::cerr << "  Edge " << (*it)->label()
