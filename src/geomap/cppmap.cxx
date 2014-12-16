@@ -79,15 +79,15 @@ double isoperimetricQuotient(const GeoMap::Dart &dart)
     return vigra::squaredNorm(length)/(4*M_PI*area);
 }
 
-Polygon contourPoly(const GeoMap::Dart &dart)
+Vector2Polygon contourPoly(const GeoMap::Dart &dart)
 {
-    Polygon result;
+    Vector2Polygon result;
     GeoMap::Dart d(dart);
     do
     {
         if(d.label() < 0)
         {
-            Polygon rev(*d.edge());
+            Vector2Polygon rev(*d.edge());
             rev.reverse();
             result.extend(rev);
         }
@@ -402,7 +402,7 @@ void GeoMap::sortEdgesDirectly()
     vigra_precondition(!mapInitialized(),
         "sigma orbits cannot be changed after initializeMap()");
 
-    typedef std::pair<double, int> DartAngle;
+    typedef std::pair<double, int> DartAngle; // dart (angle, label) pairs
 
     for(NodeIterator it = nodesBegin(); it.inRange(); ++it)
     {
@@ -432,6 +432,10 @@ void GeoMap::sortEdgesDirectly()
             {
                 std::stringstream s;
                 s << "sortEdgesDirectly: edges leave node " << (*it)->label() << " at identical angles!";
+                GeoMap::EdgePtr edge1 = edge(abs(dartAngles[i-1].second));
+                s << "  edge " << edge1->label() << " (" << description(*edge1) << ")";
+                GeoMap::EdgePtr edge2 = edge(abs(dartAngles[i].second));
+                s << "  edge " << edge2->label() << " (" << description(*edge2) << ")";
                 vigra_precondition(false, s.str());
             }
             sigmaMapping_[predecessor] = dartAngles[i].second;
@@ -1473,7 +1477,7 @@ bool GeoMap::checkConsistency()
             }
         }
 
-        Polygon poly((*it)->begin(), (*it)->end());
+        Vector2Polygon poly((*it)->begin(), (*it)->end());
         if(fabs((*it)->partialArea() - poly.partialArea()) > 1e-4)
         {
             std::cerr << "  Edge " << (*it)->label()
@@ -1735,7 +1739,7 @@ void removeEdgeFromLabelImage(
 
 GeoMap::EdgePtr GeoMap::mergeEdges(const GeoMap::Dart &dart)
 {
-    vigra_precondition(dart.edge(),
+    vigra_precondition(static_cast<bool>(dart.edge()),
                        "mergeEdges called on removed dart!");
     Dart d1(dart);
     d1.nextSigma();
@@ -1926,7 +1930,7 @@ void GeoMap::associatePixels(GeoMap::Face &face, const PixelList &pixels)
 
 GeoMap::FacePtr GeoMap::removeBridge(const GeoMap::Dart &dart)
 {
-    vigra_precondition(dart.edge(),
+    vigra_precondition(static_cast<bool>(dart.edge()),
                        "removeBridge called on removed dart!");
 
     GeoMap::Edge &edge(*dart.edge());
@@ -2002,7 +2006,7 @@ GeoMap::FacePtr GeoMap::removeBridge(const GeoMap::Dart &dart)
 
 GeoMap::FacePtr GeoMap::mergeFaces(const GeoMap::Dart &dart)
 {
-    vigra_precondition(dart.edge(),
+    vigra_precondition(static_cast<bool>(dart.edge()),
                        "mergeFaces called on removed dart!");
 
     GeoMap::Dart removedDart(dart);
@@ -2157,6 +2161,35 @@ void GeoMap::Node::setPosition(const Vector2 &p)
     }
 
     map_->nodeMap_.insert(PositionedNodeLabel(p, label_));
+}
+
+std::string description(GeoMap::Edge const &edge)
+{
+    std::stringstream s;
+    s.unsetf(std::ios::scientific);
+    s.precision(1);
+    s << edge.label();
+    //<< ", node " << edge.startNodeLabel() << " -> " << edge.endNodeLabel()
+    if(edge.isLoop())
+    {
+        double area = edge.partialArea();
+        if(area)
+            s << "self-loop with area " << area;
+        else
+            s << "empty self-loop";
+    }
+    else if(edge.isBridge())
+    {
+        s << "bridge in face " << edge.leftFaceLabel();
+    }
+    else
+    {
+        s << "between faces " << edge.leftFaceLabel()
+          << " and " << edge.rightFaceLabel();
+        s << ", partial area " << edge.partialArea();
+    }
+    s << ", length " << edge.length() << ", " << edge.size() << " points";
+    return s.str();
 }
 
 GeoMap::Face::AnchorIterator

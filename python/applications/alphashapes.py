@@ -195,7 +195,7 @@ def findCandidatesForPointCorrection(abm):
 
 def outputMarkedShapes(delaunayMap, fe, skipInnerEdges = True,
                        regionDepth = 50, edgeDepth = 49,
-                       capStyle = fig.capStyleRound, **kwargs):
+                       capStyle = fig.CapStyle.Round, **kwargs):
     """IIRC, this assumes that delaunayMap contains only triangles.
 
     Contiguous thick parts of the alpha shape will be exported as
@@ -215,7 +215,7 @@ def outputMarkedShapes(delaunayMap, fe, skipInnerEdges = True,
     if edgeDepth is None and not "lineWidth" in kwargs:
         faceAttr["lineWidth"] = 0
     faceAttr["depth"] = regionDepth
-    faceAttr["fillStyle"] = fig.fillStyleSolid
+    faceAttr["fillStyle"] = fig.FillStyle.Solid
     faceAttr["capStyle"] = capStyle
 
     print "- exporting marked regions as filled polygons..."

@@ -1,7 +1,7 @@
 import sys
 from weakref import ref
 from PyQt4 import QtCore
-import vigrapyqt4
+import vigra.pyqt
 
 class DartHighlighter(object):
     """The DartHighlighter class is attached to a viewer and a Map and
@@ -47,9 +47,9 @@ class DartHighlighter(object):
         if darts == None or not len(darts):
             return
 
-        self.eo = vigrapyqt4.EdgeOverlay([dart.edge() for dart in darts], color)
+        self.eo = vigra.pyqt.EdgeOverlay([dart.edge() for dart in darts], color)
         self.eo.width = 2
-        self.no = vigrapyqt4.PointOverlay(
+        self.no = vigra.pyqt.PointOverlay(
             [dart.startNode().position() for dart in darts], color, 3)
         self.color = color # used in the viewer's RMB menu
 

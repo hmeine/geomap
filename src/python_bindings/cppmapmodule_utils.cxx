@@ -14,6 +14,8 @@ using vigra::NumpyFImage;
 using vigra::TinyVector;
 using vigra::Diff2D;
 
+typedef vigra::NumpyArray<2, vigra::Singleband<npy_int32> >  NumpyIImage;
+
 struct EdgeProtectionPickleSuite : bp::pickle_suite
 {
 //     static bp::tuple getinitargs(EdgeProtection &ep)
@@ -86,11 +88,9 @@ pyCrackConnectionImage(NumpyFImage const &labels)
 #include "crackedgemap.hxx"
 
 std::auto_ptr<GeoMap>
-pyCrackEdgeGraph(NumpyFImage const &labels,
-                 bool eightConnectedRegions)
+pyCrackEdgeGraph(NumpyIImage const &labels, bool eightConnectedRegions)
 {
-    CrackEdgeMapGenerator cemg(
-        srcImageRange(labels), eightConnectedRegions);
+    CrackEdgeMapGenerator cemg(srcImageRange(labels), eightConnectedRegions);
     return cemg.result;
 }
 

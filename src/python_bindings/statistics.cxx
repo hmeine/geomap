@@ -7,7 +7,7 @@
 #include <vigra/splineimageview.hxx>
 
 
-#include "vigra/polygon.hxx"
+#include "polygon.hxx"
 #include "python_types.hxx"
 
 #include <vector>

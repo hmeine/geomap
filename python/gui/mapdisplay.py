@@ -1,9 +1,8 @@
 import sys, math
 import fig, figexport
-import vigra, vigrapyqt4
+import vigra, vigra.pyqt
 import maputils, flag_constants, tools, statistics
-from vigra import Rect2D, Vector2
-from geomap import simplifyPolygon, intPos, BoundingBox, contourPoly
+from geomap import simplifyPolygon, intPos, BoundingBox, contourPoly, Rect2D, Vector2
 from maputils import removeCruft
 from weakref import ref
 from PyQt4 import QtCore, QtGui
@@ -14,9 +13,6 @@ from roiselector import ROISelector
 
 # ui-generated base class:
 from displaysettings_ui import Ui_DisplaySettings
-
-assert bool(vigra.NBYTE) and not bool(vigra.BYTE), \
-       "this code relies on the fact that `normalize` can be either a bool or a PixelType"
 
 def findZoomFactor(srcSize, destSize):
     if destSize > srcSize:
@@ -32,8 +28,8 @@ def findZoomFactor(srcSize, destSize):
         result *= 2
     return result
 
-class MapFaces(vigrapyqt4.Overlay):
-    __base = vigrapyqt4.Overlay
+class MapFaces(vigra.pyqt.Overlay):
+    __base = vigra.pyqt.Overlay
 
     # TODO: remove _map (reuse from edgeOverlay)
 
@@ -145,12 +141,12 @@ class MapFaces(vigrapyqt4.Overlay):
                     else:
                         p.drawPolygon(qpa)
 
-class MapEdges(vigrapyqt4.Overlay):
+class MapEdges(vigra.pyqt.Overlay):
     __slots__ = ("colors", "protectedColor", "protectedWidth",
                  "_map", "_attachedHooks", "_removedEdgeLabel",
                  "_zoom", "_zoomedEdges")
 
-    __base = vigrapyqt4.Overlay
+    __base = vigra.pyqt.Overlay
     
     def __init__(self, map, color, width = 0,
                  protectedColor = None, protectedWidth = None):
@@ -345,8 +341,8 @@ class MapEdges(vigrapyqt4.Overlay):
                        bbox.intersects(edge.boundingBox()):
                     p.drawPolyline(self._getZoomedEdge(edge))
 
-class MapNodes(vigrapyqt4.Overlay):
-    __base = vigrapyqt4.Overlay
+class MapNodes(vigra.pyqt.Overlay):
+    __base = vigra.pyqt.Overlay
     
     def __init__(self, map, color, radius = 0.2, relativeRadius = True):
         self.__base.__init__(self, color = color)
@@ -582,7 +578,7 @@ class MapDisplay(QtGui.QMainWindow):
             self.setImage(preparedImage, normalize = False)
 
         self.image = preparedImage
-        self._imageWindow = vigrapyqt4.ImageWindow(self.image, vigra.BYTE, self)
+        self._imageWindow = vigra.pyqt.ImageWindow(self.image, vigra.BYTE, self)
         self._imageWindow.label.hide()
         self.setCentralWidget(self._imageWindow)
         self.viewer = self._imageWindow.viewer
@@ -920,8 +916,7 @@ class MapDisplay(QtGui.QMainWindow):
 
     def _setImage(self, image, normalize):
         self.image = image
-        self._imageWindow.replaceImage(
-            self.image, normalize and vigra.NBYTE or vigra.BYTE)
+        self._imageWindow.setImage(self.image, normalize = normalize)
 
     def setImage(self, image, normalize = None, role = None):
         """Replace displayed background image.  You may pass role as

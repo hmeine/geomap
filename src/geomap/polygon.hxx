@@ -1,5 +1,5 @@
-#ifndef VIGRA_POLYGON_HXX
-#define VIGRA_POLYGON_HXX
+#ifndef VIGRA_GEOMAP_POLYGON_HXX
+#define VIGRA_GEOMAP_POLYGON_HXX
 
 #include <vigra/box.hxx>
 #include <vigra/diff2d.hxx>
@@ -45,12 +45,12 @@ class PointArray
     : points_(b, e)
     {}
 
-    const_reference operator[](difference_type index) const
+    const_reference operator[](size_type index) const
     {
         return points_[index];
     }
 
-    reference operator[](difference_type index)
+    reference operator[](size_type index)
     {
         return points_[index];
     }
@@ -191,6 +191,11 @@ class PointArray
 
 /********************************************************************/
 
+template<class Point>
+double partialArea(const PointArray<Point> &polygon);
+    
+/********************************************************************/
+    
 template<class POINT>
 class Polygon : public PointArray<POINT>
 {
@@ -258,11 +263,7 @@ class Polygon : public PointArray<POINT>
     {
         if(!partialAreaValid_)
         {
-            partialArea_ = 0.0;
-            for(unsigned int i = 1; i < this->points_.size(); ++i)
-                partialArea_ += (this->points_[i][0]*this->points_[i-1][1] -
-                                 this->points_[i][1]*this->points_[i-1][0]);
-            partialArea_ /= 2.0;
+            partialArea_ = vigra::partialArea(*this);
             partialAreaValid_ = true;
         }
         return partialArea_;
@@ -692,6 +693,18 @@ Point centroid(const Polygon<Point> &polygon)
     return result / (3*a);
 }
 
+/********************************************************************/
+    
+template<class Point>
+double partialArea(const PointArray<Point> &polygon)
+{
+    double result = 0.0;
+    for(unsigned int i = 1; i < polygon.size(); ++i)
+        result += (polygon[i][0]*polygon[i-1][1] -
+                   polygon[i][1]*polygon[i-1][0]);
+    return result / 2.0;
+}
+    
 /********************************************************************/
 
 namespace detail {
@@ -2141,4 +2154,4 @@ void swap(vigra::Polygon<T> &a, vigra::Polygon<T> &b)
 
 } // namespace std
 
-#endif // VIGRA_POLYGON_HXX
+#endif // VIGRA_GEOMAP_POLYGON_HXX

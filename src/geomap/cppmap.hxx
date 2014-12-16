@@ -4,7 +4,7 @@
 #include "filteriterator.hxx"
 #include "labellut.hxx"
 #include "vigra/map2d.hxx"
-#include "vigra/polygon.hxx"
+#include "polygon.hxx"
 #include <vector>
 #include <list>
 #include <vigra/multi_array.hxx>
@@ -37,13 +37,13 @@ struct NotNull
 {
     bool operator()(const POINTER &p) const
     {
-        return p;
+        return static_cast<bool>(p);
     }
 };
 
 typedef vigra::TinyVector<double, 2>       Vector2;
 typedef vigra::PointArray<Vector2>         Vector2Array;
-typedef vigra::BBoxPolygon<Vector2>        Polygon;
+typedef vigra::BBoxPolygon<Vector2>        Vector2Polygon;
 
 typedef vigra::PointArray<vigra::Point2D> PixelList;
 
@@ -475,7 +475,7 @@ const CellLabel UNINITIALIZED_CELL_LABEL =
     vigra::NumericTraits<CellLabel>::max();
 
 class GeoMap::Edge
-: public Polygon, boost::noncopyable
+  : public Vector2Polygon, boost::noncopyable
 {
   public:
     typedef vigra::BBoxPolygon<Vector2> Base;
@@ -638,6 +638,8 @@ class GeoMap::Edge
         return *scanLines_;
     }
 };
+
+std::string description(GeoMap::Edge const &edge);
 
 class DartPointIter
 {
@@ -823,7 +825,7 @@ class GeoMap::Dart
             std::stringstream s;
             s << "Cannot operate on invalid dart " << label()
               << " belonging to removed edge!";
-            vigra_precondition(result, s.str());
+            vigra_precondition(static_cast<bool>(result), s.str());
         }
         return result;
     }
@@ -1003,7 +1005,7 @@ double angleTheta(double dy, double dx);
 double contourArea(const GeoMap::Dart &dart);
 double contourLength(const GeoMap::Dart &dart);
 double isoperimetricQuotient(const GeoMap::Dart &dart);
-Polygon contourPoly(const GeoMap::Dart &dart);
+Vector2Polygon contourPoly(const GeoMap::Dart &dart);
 
 /********************************************************************/
 /*                                                                  */

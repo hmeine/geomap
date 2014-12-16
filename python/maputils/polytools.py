@@ -401,7 +401,7 @@ if __name__ == "__main__":
             no.depth = 1
             no.lineWidth = 3
             if no.closed():
-                no.fillStyle = fig.fillStyleSolid
+                no.fillStyle = fig.FillStyle.Solid
                 no.fillColor = f.getColor(0.5)
             else:
                 no.forwardArrow = fig.Arrow()

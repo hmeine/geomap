@@ -1,0 +1,15 @@
+*~
+*.py[co]
+
+/build*/
+Makefile
+CMakeFiles/
+Release/
+Debug/
+
+*.so
+*.obj
+*.exe
+*.dll
+*.pdb
+*.ilk

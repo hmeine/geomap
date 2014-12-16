@@ -1,5 +1,13 @@
 #!/usr/bin/env python
-import copy, sys
+"""Sample frontend for GeoMap-based segmentation.  Computes inital
+segmentation using subpixel watersheds and creates a main window
+(cf. Workspace class).
+
+COMMANDLINE USAGE:
+
+workspace.py <image_filename> [gauss_sigma] [saddle_threshold]
+"""
+Import copy, sys
 from PyQt4 import QtCore, QtGui
 import vigra, geomap
 import mapdisplay, icons, maputils, statistics, flag_constants, tools
@@ -677,7 +685,12 @@ class Workspace(mapdisplay.MapDisplay):
         maputils.detachMapStats(map)
         self._pyramidCK = map.pyramidCK
 
+
 def main(filename, biScale = 1.6, saddleThreshold = 0.2):
+    """Creates an initial GeoMap ("level 0" of irregular pyramid) using
+    subpixel watersheds on a Gaussian gradient boundary indicator and
+    creates a Workspace from that."""
+
     import bi_utils
     img = vigra.readImage(filename)
     gm, grad = bi_utils.gaussianGradient(img, biScale)
@@ -685,6 +698,7 @@ def main(filename, biScale = 1.6, saddleThreshold = 0.2):
         gm, saddleThreshold = saddleThreshold)
 
     return Workspace(wsm, img, bi = gm)
+
 
 if __name__ == "__main__":
     #filename = "../../../Testimages/lenna_original_color.png"
@@ -695,6 +709,8 @@ if __name__ == "__main__":
         filename = sys.argv[1]
     if len(sys.argv) > 2:
         biScale = float(sys.argv[2])
+    if len(sys.argv) > 3:
+        saddleThreshold = float(sys.argv[3])
 
     app = QtGui.QApplication(sys.argv)
     w = main(filename, biScale)

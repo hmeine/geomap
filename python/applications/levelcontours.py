@@ -274,22 +274,18 @@ def marchingSquares(image, level = 0, variant = True, border = True,
         addNodeY = addNodeDirectY
 
     hNodes = vigra.Image(image.shape, numpy.uint32)
-    for y in range(image.height):
-        for x in range(image.width-1):
-            v1 = image[x,   y]
-            v2 = image[x+1, y]
-            if (v1 < level) != (v2 < level):
-                ofs = (level - v1)/(v2 - v1)
-                hNodes[x, y] = addNodeX(x, y, ofs).label()
+    v1 = image[:-1]
+    v2 = image[1:]
+    ofs = (level - v1)/(v2 - v1)
+    for x, y in numpy.transpose(numpy.nonzero((v1 < level) != (v2 < level))):
+        hNodes[x, y] = addNodeX(x, y, ofs).label()
 
     vNodes = vigra.Image(image.shape, numpy.uint32)
-    for y in range(image.height-1):
-        for x in range(image.width):
-            v1 = image[x, y]
-            v2 = image[x, y+1]
-            if (v1 < level) != (v2 < level):
-                ofs = (level - v1)/(v2 - v1)
-                vNodes[x, y] = addNodeY(x, y, ofs).label()
+    v1 = image[:,:-1]
+    v2 = image[:,1:]
+    ofs = (level - v1)/(v2 - v1)
+    for x, y in numpy.transpose(numpy.nonzero((v1 < level) != (v2 < level))):
+        vNodes[x, y] = addNodeY(x, y, ofs).label()
 
     nodes = (hNodes, vNodes, vNodes, hNodes)
     offsets = numpy.array(((0, 0), (0, 0), (1, 0), (0, 1)))
@@ -300,23 +296,25 @@ def marchingSquares(image, level = 0, variant = True, border = True,
     if isinstance(variant, bool):
         variant = None
 
-    for y in range(image.height-1):
-        for x in range(image.width-1):
-            config = int(image[x,   y  ] < level)   + \
-                     int(image[x+1, y  ] < level)*2 + \
-                     int(image[x,   y+1] < level)*4 + \
-                     int(image[x+1, y+1] < level)*8
-            connections = defaultConnections
-            if variant is not None and config in (6, 9):
-                if variant(x + 0.5, y + 0.5) < level:
-                    connections = connections2
-            for s, e in connections[
-                configurations[config]:configurations[config+1]]:
-                startNode = result.node(int(nodes[s][tuple(offsets[s] + (x, y))]))
-                endNode   = result.node(int(nodes[e][tuple(offsets[e] + (x, y))]))
-                if startNode != endNode:
-                    result.addEdge(startNode, endNode,
-                                   [startNode.position(), endNode.position()])
+    configurations = ((image[:-1,:-1] < level) +
+                      (image[ 1:,:-1] < level)*2 +
+                      (image[:-1, 1:] < level)*4 +
+                      (image[ 1:, 1:] < level)*8)
+    for x, y in numpy.transpose(numpy.nonzero(configurations)):
+        config = configurations[x,y]
+
+        connections = connections1
+        if variant is not None and config in (6, 9):
+            if variant(x + 0.5, y + 0.5) < level:
+                connections = connections2
+
+        for s, e in connections[
+            configurations[config]:configurations[config+1]]:
+            startNode = result.node(int(nodes[s][tuple(offsets[s] + (x, y))]))
+            endNode   = result.node(int(nodes[e][tuple(offsets[e] + (x, y))]))
+            if startNode != endNode:
+                result.addEdge(startNode, endNode,
+                               [startNode.position(), endNode.position()])
 
     maputils.mergeDegree2Nodes(result) # node suppression
     result = maputils.copyMapContents(result)[0] # compress edge labels

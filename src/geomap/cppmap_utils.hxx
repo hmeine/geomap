@@ -2,7 +2,7 @@
 #define CPPMAP_UTILS_HXX
 
 #include "cppmap.hxx"
-#include "vigra/polygon.hxx"
+#include "polygon.hxx"
 #include <boost/utility.hpp>
 #include <boost/bind.hpp>
 #include <vector>
