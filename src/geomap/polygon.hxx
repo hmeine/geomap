@@ -120,6 +120,11 @@ class PointArray
         return points_.back();
     }
 
+    void clear()
+    {
+        points_.clear();
+    }
+
     void push_back(const_reference v)
     {
         points_.push_back(v);
