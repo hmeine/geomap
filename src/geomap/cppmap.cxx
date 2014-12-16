@@ -1739,7 +1739,7 @@ void removeEdgeFromLabelImage(
 
 GeoMap::EdgePtr GeoMap::mergeEdges(const GeoMap::Dart &dart)
 {
-    vigra_precondition(dart.edge(),
+    vigra_precondition(static_cast<bool>(dart.edge()),
                        "mergeEdges called on removed dart!");
     Dart d1(dart);
     d1.nextSigma();
@@ -1930,7 +1930,7 @@ void GeoMap::associatePixels(GeoMap::Face &face, const PixelList &pixels)
 
 GeoMap::FacePtr GeoMap::removeBridge(const GeoMap::Dart &dart)
 {
-    vigra_precondition(dart.edge(),
+    vigra_precondition(static_cast<bool>(dart.edge()),
                        "removeBridge called on removed dart!");
 
     GeoMap::Edge &edge(*dart.edge());
@@ -2006,7 +2006,7 @@ GeoMap::FacePtr GeoMap::removeBridge(const GeoMap::Dart &dart)
 
 GeoMap::FacePtr GeoMap::mergeFaces(const GeoMap::Dart &dart)
 {
-    vigra_precondition(dart.edge(),
+    vigra_precondition(static_cast<bool>(dart.edge()),
                        "mergeFaces called on removed dart!");
 
     GeoMap::Dart removedDart(dart);

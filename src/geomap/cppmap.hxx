@@ -37,7 +37,7 @@ struct NotNull
 {
     bool operator()(const POINTER &p) const
     {
-        return p;
+        return static_cast<bool>(p);
     }
 };
 
@@ -825,7 +825,7 @@ class GeoMap::Dart
             std::stringstream s;
             s << "Cannot operate on invalid dart " << label()
               << " belonging to removed edge!";
-            vigra_precondition(result, s.str());
+            vigra_precondition(static_cast<bool>(result), s.str());
         }
         return result;
     }
