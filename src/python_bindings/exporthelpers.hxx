@@ -152,7 +152,7 @@ struct RangeIterWrapper
 /********************************************************************/
 
 // Attention! Always use Array__iter__ with
-// with_custodian_and_ward_postcall<0, 1) to prevent iterated
+// with_custodian_and_ward_postcall<0, 1> to prevent iterated
 // temporary arrays to be free'd!
 template<class Array>
 STLIterWrapper<typename Array::const_iterator>
@@ -163,7 +163,7 @@ Array__iter__(const Array &a)
 }
 
 // Attention! Always use Array__reviter__ with
-// with_custodian_and_ward_postcall<0, 1) to prevent iterated
+// with_custodian_and_ward_postcall<0, 1> to prevent iterated
 // temporary arrays to be free'd!
 template<class Array>
 STLIterWrapper<typename Array::const_reverse_iterator>
