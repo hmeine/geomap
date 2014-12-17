@@ -1801,7 +1801,7 @@ void defPolygon()
     typedef PythonPolygonBase::Base Vector2Array;
     typedef STLIterWrapper<Vector2Array::const_iterator>
         VectorIter;
-    defIter<VectorIter>("Vector2Iter");
+    defIter<VectorIter>("Vector2ArrayIter");
     typedef STLIterWrapper<Vector2Array::const_reverse_iterator>
         VectorRevIter;
     defIter<VectorRevIter>("Vector2RevIter");
