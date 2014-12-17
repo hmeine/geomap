@@ -376,7 +376,7 @@ GeoMap::EdgePtr GeoMap::addEdge(
     return edge(result->label());
 }
 
-GeoMap::FacePtr GeoMap::removeEdge(GeoMap::Dart &dart)
+GeoMap::FacePtr GeoMap::removeEdge(const GeoMap::Dart &dart)
 {
     if(mapInitialized())
     {
