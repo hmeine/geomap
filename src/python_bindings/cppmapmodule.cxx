@@ -600,7 +600,7 @@ struct GeoMapPickleSuite : bp::pickle_suite
                 bp::make_tuple(
                     (*it)->startNodeLabel(),
                     (*it)->endNodeLabel(),
-                    Polygon(**it)));
+                    Vector2Polygon(**it)));
         }
 
         return bp::make_tuple(nodePositions, edgeTuples, map.imageSize());
@@ -1083,7 +1083,7 @@ void defMap()
             .def("__repr__", &Node__repr__)
         ;
 
-        class_<GeoMap::Edge, bases<Polygon>, boost::noncopyable>(
+        class_<GeoMap::Edge, bases<Vector2Polygon>, boost::noncopyable>(
             "Edge",
             "Represents an edge within the GeoMap.  This class is\n"
             "derived from `Polygon`, so a GeoMap.Edge *is* a `Polygon` and\n"
