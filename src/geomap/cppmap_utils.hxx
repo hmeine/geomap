@@ -96,7 +96,7 @@ unsigned int removeEdges(
         GeoMap::EdgePtr
             edge = map.edge(*edgeLabelsBegin);
 
-        vigra_precondition(edge, "removeEdges: illegal edge label");
+        vigra_precondition(static_cast<bool>(edge), "removeEdges: illegal edge label");
 
         if(edge->isBridge())
         {
