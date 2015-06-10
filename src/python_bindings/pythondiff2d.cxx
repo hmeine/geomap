@@ -221,6 +221,7 @@ void defDiff2D()
         ;
     diff2d.attr("magnitude") = diff2d.attr("norm");
 
+#ifndef AVOID_DUPLICATE_DEFINITION_FROM_VIGRANUMPYCORE
     class_<Point2D, bases<Diff2D> >("Point2D")
         .def(init<int, int>())
         .def("__str__", &diff2StrPoint2D)
@@ -234,6 +235,7 @@ void defDiff2D()
         .def(self / double())
         .def_pickle(Diff2DPickleSuite<Point2D>())
         ;
+#endif
 
     class_<Size2D, bases<Diff2D> >("Size2D")
         .def(init<int, int>())
