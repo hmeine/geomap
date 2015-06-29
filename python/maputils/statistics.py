@@ -1,7 +1,7 @@
 import math, sys, string, copy, weakref
 import numpy, vigra.sampling, geomap
 from geomap import \
-     Vector2, FaceGrayStatistics, FaceRGBStatistics, \
+     FaceGrayStatistics, FaceRGBStatistics, \
      resamplePolygon, tangentList, tangentListGaussianReflective
 import sivtools, flag_constants
 
@@ -192,7 +192,7 @@ def superSample(face, level = 2):
     xRange = arange(bbox.begin()[0], bbox.end()[0], 1.0/level)
     for y in arange(bbox.begin()[1], bbox.end()[1], 1.0/level):
         for x in xRange:
-            pos = Vector2(x, y)
+            pos = (x, y)
             if face.contains(pos):
                 yield pos
 
@@ -1053,7 +1053,7 @@ class EdgeGradientStatistics(BoundaryIndicatorStatistics):
                     gradDir = gradSiv[dp()]
                     #gradDir /= gradDir.magnitude()
 
-                    segment = Vector2(-math.sin(theta), math.cos(theta))
+                    segment = (-math.sin(theta), math.cos(theta))
 
                     stats(numpy.dot(gradDir, segment), 1.0)
 
@@ -1153,12 +1153,12 @@ class PercentPointFunction(list):
         al = 0.0
         v1 = ss[0][0]
         iCDF = [(al, v1)]
-        cur = Vector2(v1, 0)
+        cur = (v1, 0)
         for v1, l, v2 in ss:
             if v1 > cur[0]:
                 al += cur[1]
                 iCDF.append((al, v1))
-                cur = Vector2(v1, l)
+                cur = (v1, l)
             else:
                 cur[1] += l
         if cur[1]:

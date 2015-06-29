@@ -3,7 +3,7 @@ from PyQt4 import QtCore, QtGui
 
 from vigra import readImage
 import vigra.pyqt
-from geomap import Vector2, Rect2D, Size2D, meshIter, BoundingBox, Polygon, simplifyPolygon, intPos, contourPoly
+from geomap import Rect2D, meshIter, BoundingBox, Polygon, simplifyPolygon, intPos, contourPoly
 from polytools import clipPoly
 import flag_constants
 
@@ -42,8 +42,8 @@ class FigExporter:
     For a discussion of the scaling/clipping, see documentation of
     __init__()."""
     
-    def __init__(self, scale = 30, roi = None, offset = Vector2(0.5, 0.5)):
-        """fe = FigExporter(90.0, BoundingBox(Vector2(10, 10), Vector2(50, 50)))
+    def __init__(self, scale = 30, roi = None, offset = (0.5, 0.5)):
+        """fe = FigExporter(90.0, BoundingBox((10, 10), (50, 50)))
 
         Initializes a FigExporter with the given scale and roi.
 
@@ -54,9 +54,9 @@ class FigExporter:
         clipping) and represents a range in the original image (before
         scaling).
 
-        An optional parameter offset (default: Vector2(0.5, 0.5)) is
+        An optional parameter offset (default: (0.5, 0.5)) is
         used to move all edges / points within the roi; this is
-        intended to make e.g. Vector2(14.1, 10.0) be a little to the
+        intended to make e.g. (14.1, 10.0) be a little to the
         right of the *center* of the pixel (14, 10).
 
         The transformation parameters are stored as properties scale,
@@ -67,13 +67,11 @@ class FigExporter:
         self.scale = scale
         self.roi = roi
         if type(roi) == Rect2D:
-            self.roi = BoundingBox(Vector2(*roi.upperLeft()),
-                                   Vector2(*roi.lowerRight()))
-        elif type(roi) == Size2D:
-            self.roi = BoundingBox(Vector2(0, 0), Vector2(*roi))
+            self.roi = BoundingBox(roi.upperLeft(),
+                                   roi.lowerRight())
         elif type(roi) == tuple:
             self.roi = BoundingBox(*roi)
-        self.offset = Vector2(*offset)
+        self.offset = numpy.array(offset)
 
     def position2Fig(self, pos):
         """fe.position2Fig(Vector2 pos) -> Vector2
@@ -197,7 +195,8 @@ class FigExporter:
         if rect is None:
             rect = Rect2D((labels or fill).size())
         elif not hasattr(rect, "upperLeft"):
-            rect = Rect2D(Size2D(rect[0], rect[1]))
+            w, h = rect
+            rect = Rect2D((w, h))
         
         if container == True:
             container = self.f
@@ -217,7 +216,7 @@ class FigExporter:
                 textX = (boxX1 + boxX2) / 2
                 textY = (boxY1 + boxY2) / 2
 
-                label = fig.Text(Vector2(textX, textY),
+                label = fig.Text(fig.Vector(textX, textY),
                                  str(labelType(labels[x, y])),
                                  alignment = fig.Alignment.Centered)
                 label.pos += (0, label.height / 2)
@@ -258,9 +257,9 @@ class FigExporter:
         
         if container == True:
             container = self.f
-        o = self.offset + attr.get('offset', Vector2(0,0))
+        o = self.offset + attr.get('offset', (0,0))
         if self.roi:
-            o = o - self.roi.begin() # don't modify in-place!
+            o -= self.roi.begin()
         pp = Polygon([(o + point) * self.scale for point in points])
         if simplifyEpsilon:
             pp = simplifyPolygon(pp, simplifyEpsilon)
@@ -300,7 +299,7 @@ class FigExporter:
                 polygon = Polygon(polygon)
 
         clipRect = BoundingBox(self.roi)
-        o = self.offset + attr.get('offset', Vector2(0,0))
+        o = self.offset + attr.get('offset', (0,0))
         clipRect.moveBy(-o)
 
         # handle all-or-none cases:
@@ -331,7 +330,7 @@ class FigExporter:
         By default, circles will be filled, but have lineWidth=0.
         To draw a transparent circle, call:
         
-        fi.addPointCircles([Vector2(5.2,5.3)], 2, penColor=fig.Color.Cyan,fillStyle=fig.FillStyle.None,lineWidth=1)
+        fi.addPointCircles([(5.2,5.3)], 2, penColor=fig.Color.Cyan,fillStyle=fig.FillStyle.None,lineWidth=1)
 
         If returnIndices is set to True (default: False), a list of
         (i, c) pairs is returned instead, where c is the fig.Circle
@@ -353,16 +352,16 @@ class FigExporter:
         else:
             result = compound
 
-        o = self.offset + attr.get('offset', Vector2(0,0))
+        o = self.offset + attr.get('offset', (0,0))
         o2 = self.roi and o - self.roi.begin() or o
         for i, point in enumerate(points):
             if self.roi:
-                radiusOff = Vector2(radius, radius)
+                radiusOff = (radius, radius)
                 circleBounds = BoundingBox(
                     o + point - radiusOff, o + point + radiusOff)
                 if not self.roi.contains(circleBounds):
                     continue # FIXME: add arcs if intersects
-            p = intPos((Vector2(point[0], point[1]) + o2) * self.scale)
+            p = intPos((numpy.array((point[0], point[1])) + o2) * self.scale)
             dc = fig.Circle(p, radius*self.scale)
             for a in attr:
                 if a != "offset":
@@ -380,7 +379,7 @@ class FigExporter:
         result = fig.Compound(container)
 
         for edgel in edgels:
-            pos = Vector2(edgel.x, edgel.y)
+            pos = numpy.array((edgel.x, edgel.y))
             c =  math.cos(edgel.orientation)*length/2
             s = -math.sin(edgel.orientation)*length/2
             self.addClippedPoly([pos+(c,s), pos-(c,s)],
@@ -438,8 +437,8 @@ class FigExporter:
         edges = edgeOverlay.originalEdges
         attr = dict(attr)
         self._setOverlayColor(edgeOverlay, "penColor", attr)
-        attr["offset"] = Vector2(edgeOverlay.offset[0] - 0.5,
-                                 edgeOverlay.offset[1] - 0.5)
+        attr["offset"] = (edgeOverlay.offset[0] - 0.5,
+                          edgeOverlay.offset[1] - 0.5)
 
         result = fig.Compound(container)
         for edge in edges:
@@ -457,7 +456,7 @@ class FigExporter:
         attr = dict(attr)
         self._setOverlayColor(circleOverlay, "penColor", attr)
             
-        o = self.offset + attr.get('offset', Vector2(0,0))
+        o = self.offset + attr.get('offset', (0,0))
         if self.roi:
             o = o - self.roi.begin() # don't modify in-place!
 
@@ -465,7 +464,7 @@ class FigExporter:
         for center, radius in circles:
             if self.roi and not self.roi.contains(center+o):
                 continue
-            p = intPos((Vector2(center[0], center[1]) + o) * self.scale)
+            p = intPos(((center[0], center[1]) + o) * self.scale)
             dc = fig.Circle(p, radius * self.scale)
             for a in attr:
                 setattr(dc, a, attr[a])
@@ -503,7 +502,7 @@ class FigExporter:
         the region to the origin, call
         
         fi.addMapEdges(map, penColor=fig.Color.Green, \
-             offset=Vector2(-13,-13), roi=BoundingBox(Vector2(13,13), Vector2(24,24)))
+             offset=(-13,-13), roi=BoundingBox((13,13), (24,24)))
         
         """
 
