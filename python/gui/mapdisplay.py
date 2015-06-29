@@ -3,7 +3,7 @@ import fig, figexport
 import vigra, vigra.pyqt
 import VigraQt, qimage2ndarray
 import maputils, flag_constants, tools, statistics
-from geomap import simplifyPolygon, intPos, BoundingBox, contourPoly, Rect2D, Vector2
+from geomap import simplifyPolygon, intPos, BoundingBox, contourPoly, Rect2D
 from maputils import removeCruft
 from weakref import ref
 from PyQt4 import QtCore, QtGui
@@ -109,10 +109,10 @@ class _py_MapFaces(VigraQt.Overlay):
         #p.drawPolygon(self._qpointarray, True, s, e-s)
 
         r = p.clipRegion().boundingRect()
-        bbox = BoundingBox(Vector2(r.left() / zoomFactor - 0.5,
-                                   r.top() / zoomFactor - 0.5),
-                           Vector2(r.right() / zoomFactor + 0.5,
-                                   r.bottom() / zoomFactor + 0.5))
+        bbox = BoundingBox((r.left() / zoomFactor - 0.5,
+                            r.top() / zoomFactor - 0.5),
+                           (r.right() / zoomFactor + 0.5,
+                            r.bottom() / zoomFactor + 0.5))
         map = self._map()
         if self.colors:
             try:
@@ -233,7 +233,7 @@ class _py_MapEdges(VigraQt.Overlay):
         """Zoom edge according to zoom level.  Does not do upperLeft()
         translation yet (only accounts for the pixel-center
         offset)."""
-        offset = Vector2(self._zoom / 2.0 - 0.5, self._zoom / 2.0 - 0.5)
+        offset = (self._zoom / 2.0 - 0.5, self._zoom / 2.0 - 0.5)
         origEdgePoints = (
             simplifyPolygon(edge * self._zoom, 0.1)
             + offset).roundToInteger()
@@ -317,10 +317,10 @@ class _py_MapEdges(VigraQt.Overlay):
         #self._setupPainter(p)
 
         r = p.clipRegion().boundingRect()
-        bbox = BoundingBox(Vector2(r.left() / self._zoom - 0.5,
-                                   r.top() / self._zoom - 0.5),
-                           Vector2(r.right() / self._zoom + 0.5,
-                                   r.bottom() / self._zoom + 0.5))
+        bbox = BoundingBox((r.left() / self._zoom - 0.5,
+                            r.top() / self._zoom - 0.5),
+                           (r.right() / self._zoom + 0.5,
+                            r.bottom() / self._zoom + 0.5))
         map = self._map()
 
         if self.colors:
@@ -381,8 +381,8 @@ class MapNodes(VigraQt.Overlay):
             return
         if self.relativeRadius:
             self.radius = int(self._zoom * self.origRadius + 0.5)
-        d0 = Vector2(0.5 * (self._zoom-1) - self.radius,
-                     0.5 * (self._zoom-1) - self.radius)
+        d0 = (0.5 * (self._zoom-1) - self.radius,
+              0.5 * (self._zoom-1) - self.radius)
         w = 2 * self.radius + 1
         self._elSize = QtCore.QSize(w, w)
         self._qpointlist = [None] * self._map().maxNodeLabel()
