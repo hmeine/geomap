@@ -624,9 +624,6 @@ class MapDisplay(QtGui.QMainWindow):
                      self.activateScissors)
         self.connect(self.ui.navigateAction, QtCore.SIGNAL("toggled(bool)"),
                      self.activateNavigator)
-        self.connect(self._imageWindow, QtCore.SIGNAL("captionChanged"),
-                     self.statusMessage)
-                     #self.statusBar(), QtCore.SLOT("message(const QString&)"))
 
         self.setWindowTitle("Map Display")
 
@@ -637,9 +634,9 @@ class MapDisplay(QtGui.QMainWindow):
 #                                    protectedWidth = 2)
         self.viewer.addOverlay(self.edgeOverlay)
         self.edgeOverlay.visible = self.ui.edgeDisplayAction.isChecked()
-        self.nodeOverlay = MapNodes(map, QtCore.Qt.blue)
-        self.viewer.addOverlay(self.nodeOverlay)
-        self.nodeOverlay.visible = self.ui.nodeDisplayAction.isChecked()
+        # self.nodeOverlay = MapNodes(map, QtCore.Qt.blue)
+        # self.viewer.addOverlay(self.nodeOverlay)
+        # self.nodeOverlay.visible = self.ui.nodeDisplayAction.isChecked()
         self._dh = DartHighlighter(map, self.viewer)
         self.dn = None
 
@@ -669,7 +666,7 @@ class MapDisplay(QtGui.QMainWindow):
         self.setTool(None)
         self.map = map
         self.edgeOverlay.setMap(map)
-        self.nodeOverlay.setMap(map)
+        #self.nodeOverlay.setMap(map)
         self._dh.setMap(map)
 
         updatedDisplayImage = None
@@ -742,6 +739,7 @@ class MapDisplay(QtGui.QMainWindow):
             self._setImage(self.image, normalize)
 
     def toggleNodeDisplay(self, onoff):
+        return # TEMP
         if self.nodeOverlay.visible != onoff:
             self.nodeOverlay.visible = onoff
             self.viewer.update()
@@ -756,6 +754,7 @@ class MapDisplay(QtGui.QMainWindow):
         self._setImage(self.image, normalize)
 
     def attachHooks(self):
+        return
         self.nodeOverlay.attachHooks()
         self.edgeOverlay.attachHooks()
         self._attachedHooks = (
@@ -766,6 +765,7 @@ class MapDisplay(QtGui.QMainWindow):
     def detachHooks(self):
         """Detaches / removes callbacks from the map's hooks.
         Returns True if successful, False if already detached."""
+        return
         results = (self.nodeOverlay.detachHooks(),
                    self.edgeOverlay.detachHooks())
 
