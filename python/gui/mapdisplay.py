@@ -98,11 +98,11 @@ class _py_MapFaces(VigraQt.Overlay):
     def setZoom(self, zoom):
         pass # zoom is managed via self.edgeOverlay
     
-    def draw(self, p):
+    def draw(self, p, rect):
         if not self._map():
             return
 
-        self._setupPainter(p)
+        #self._setupPainter(p)
 
         zoomFactor = self.edgeOverlay._zoom
 
@@ -387,7 +387,7 @@ class MapNodes(VigraQt.Overlay):
         self._elSize = QtCore.QSize(w, w)
         self._qpointlist = [None] * self._map().maxNodeLabel()
         for node in self._map().nodeIter():
-            ip = intPos(node.position() * self._zoom + d0)
+            ip = intPos(numpy.array(node.position()) * self._zoom + d0)
             self._qpointlist[node.label()] = QtCore.QPoint(ip[0], ip[1])
 
     def removeNode(self, node):
@@ -513,7 +513,7 @@ def addMapOverlay(fe, overlay, skipBorder = False, **attr):
                 attr["penColor"] = qtColor2figColor(overlay.color, fe.f)
             if overlay.fillColor:
                 attr["fillColor"] = qtColor2figColor(overlay.fillColor, fe.f)
-                attr["fillStyle"] = fig.fillStyleSolid
+                attr["fillStyle"] = fig.FillStyle.Solid
             result = fig.Compound(fe.f)
             for face in map.faceIter():
                 if face.flag(overlay.flags):
@@ -545,8 +545,8 @@ class MapDisplay(QtGui.QMainWindow):
     # PyQt widgets, any attribute may be used:
     __slots__ = ("tool", "viewer", "images", "image",
                  "map", "nodeOverlay", "edgeOverlay",
-                 "addOverlay", "replaceOverlay", "removeOverlay",
-                 "_togglingGUI", "_imageWindow", "_backgroundMode", "_normalizeStates",
+                 "addOverlay", "removeOverlay",
+                 "_togglingGUI", "_backgroundMode", "_normalizeStates",
                  "_faceMeans", "_attachedHooks",
                  "dn", "_dh")
     
@@ -564,12 +564,12 @@ class MapDisplay(QtGui.QMainWindow):
         # for backward compatibility:
         if hasattr(preparedImage, "imageSize") and hasattr(map, "width"):
             map, preparedImage = preparedImage, map
-        elif preparedImage == None:
+        elif preparedImage is None:
             preparedImage = map.labelImage()
-            if not preparedImage:
-                preparedImage = vigra.GrayImage(map.imageSize())
+            if preparedImage is None:
+                preparedImage = vigra.ScalarImage(map.imageSize())
 
-        self._imageWindow = None # setImage would norm. pass the image on
+        self.viewer = None # setImage would norm. pass the image on
         if hasattr(preparedImage, "orig"):
             self.images = {
                 "original" : preparedImage.view,
@@ -583,18 +583,15 @@ class MapDisplay(QtGui.QMainWindow):
             self.setImage(preparedImage, normalize = False)
 
         self.image = preparedImage
-        self._imageWindow = vigra.pyqt.ImageWindow(self.image, vigra.BYTE, self)
-        self._imageWindow.label.hide()
-        self.setCentralWidget(self._imageWindow)
-        self.viewer = self._imageWindow.viewer
+        self.viewer = VigraQt.OverlayViewer(self)
+        self.setCentralWidget(self.viewer)
+        self._setImage(self.image, normalize = False)
         self.viewer.autoZoom()
 
         # convenience:
         self.addOverlay = self.viewer.addOverlay
-        self.replaceOverlay = self.viewer.replaceOverlay
         self.removeOverlay = self.viewer.removeOverlay
-        self.overlays = self.viewer.overlays
-        self.applyExpression = self._imageWindow.applyExpression
+#        self.overlays = self.viewer.overlays
 
         self.map = map
         if not faceMeans and hasattr(map, "faceMeans"):
@@ -603,7 +600,7 @@ class MapDisplay(QtGui.QMainWindow):
         self._attachedHooks = None
 
         self._normalizeStates = [False, False, True, True, False]
-        if self.image.bands() == 3:
+        if self.image.channels == 3:
             self._backgroundMode = 1
             self.ui.displayColoredAction.setChecked(True)
         else:
@@ -633,9 +630,11 @@ class MapDisplay(QtGui.QMainWindow):
 
         self.setWindowTitle("Map Display")
 
-        self.edgeOverlay = MapEdges(map, QtCore.Qt.red,
-                                    protectedColor = QtCore.Qt.green,
-                                    protectedWidth = 2)
+        self.edgeOverlay = MapEdges(self.viewer)
+        self.edgeOverlay.setMap(map)
+        self.edgeOverlay.setPen(QtCore.Qt.red)
+#                                    protectedColor = QtCore.Qt.green,
+#                                    protectedWidth = 2)
         self.viewer.addOverlay(self.edgeOverlay)
         self.edgeOverlay.visible = self.ui.edgeDisplayAction.isChecked()
         self.nodeOverlay = MapNodes(map, QtCore.Qt.blue)
@@ -660,7 +659,7 @@ class MapDisplay(QtGui.QMainWindow):
 
     def _labelImage(self):
         result = self.map.labelImage()
-        if not result:
+        if result is None:
             result = maputils.drawLabelImage(self.map)
         return result
 
@@ -921,14 +920,18 @@ class MapDisplay(QtGui.QMainWindow):
 
     def _setImage(self, image, normalize):
         self.image = image
-        self._imageWindow.setImage(self.image, normalize = normalize)
+        if hasattr(image, 'qimage'):
+            qImage = image.qimage(normalize)
+        else:
+            qImage = qimage2ndarray.array2qimage(image, normalize)
+        self.viewer.setImage(qImage)
 
     def setImage(self, image, normalize = None, role = None):
         """Replace displayed background image.  You may pass role as
         one of ('original', 'colored', 'bi') to replace one of the
         predefined image slots (keyboard shortcuts 1-5)."""
         if role == None:
-            if image.bands() == 3:
+            if image.channels == 3:
                 self.images["original"] = vigra.transformImage(
 #                    image, "\l x: RGB2Lab(x)")[0]
                     image, "\l x: norm(x)/%r" % math.sqrt(3))
@@ -939,7 +942,7 @@ class MapDisplay(QtGui.QMainWindow):
         self._enableImageActions()
         if normalize == None:
             normalize = self._normalizeStates[self._backgroundMode]
-        if self._imageWindow and role == self.currentRole():
+        if self.viewer and role == self.currentRole():
             self._setImage(image, normalize)
 
     def highlight(self, darts):
@@ -980,7 +983,7 @@ class MapDisplay(QtGui.QMainWindow):
             bgFilename = False
 
         fe = figexport.exportImageWindow(
-            self._imageWindow, basepath, roi = roi, scale = scale,
+            self.viewer, basepath, roi = roi, scale = scale,
             bgFilename = bgFilename,
             overlayHandler = overlayHandler)
         
@@ -1028,7 +1031,7 @@ def simpleTest():
         a = hasApp
 
     import vigra, crackConvert
-    img = vigra.GrayImage(5, 5)
+    img = vigra.ScalarImage(5, 5)
     img.subImage((1,1), (4,4)).init(1)
     img[1,1] = 3
     cm = crackConvert.crackEdgeMap(img)
