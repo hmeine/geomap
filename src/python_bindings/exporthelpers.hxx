@@ -82,44 +82,6 @@ Array__setitem__(Array & a, int i, typename Array::value_type v)
 
 /********************************************************************/
 
-template<class ITERATOR>
-class STLIterWrapper
-{
-  public:
-    typedef ITERATOR Iterator;
-
-    STLIterWrapper(Iterator begin, Iterator end)
-    : begin_(begin),
-      end_(end)
-    {}
-
-        // purposely return reference to make export code use
-        // return_internal_reference
-        // (otherwise, iterated temporaries might be discarded)
-    STLIterWrapper &__iter__()
-    {
-        return *this;
-    }
-
-    unsigned int __len__() const
-    {
-        return end_ - begin_;
-    }
-
-    typename Iterator::value_type next()
-    {
-        if(begin_ == end_)
-        {
-            PyErr_SetString(PyExc_StopIteration, "");
-            boost::python::throw_error_already_set();
-        }
-        return *(begin_++);
-    }
-
-  protected:
-    Iterator begin_, end_;
-};
-
 template<class Iterator,
          class CallPolicies = boost::python::default_call_policies>
 struct RangeIterWrapper
@@ -148,30 +110,6 @@ struct RangeIterWrapper
         return *v++;
     }
 };
-
-/********************************************************************/
-
-// Attention! Always use Array__iter__ with
-// with_custodian_and_ward_postcall<0, 1> to prevent iterated
-// temporary arrays to be free'd!
-template<class Array>
-STLIterWrapper<typename Array::const_iterator>
-Array__iter__(const Array &a)
-{
-    return STLIterWrapper<typename Array::const_iterator>(
-        a.begin(), a.end());
-}
-
-// Attention! Always use Array__reviter__ with
-// with_custodian_and_ward_postcall<0, 1> to prevent iterated
-// temporary arrays to be free'd!
-template<class Array>
-STLIterWrapper<typename Array::const_reverse_iterator>
-Array__reviter__(const Array &a)
-{
-    return STLIterWrapper<typename Array::const_reverse_iterator>(
-        a.rbegin(), a.rend());
-}
 
 /********************************************************************/
 
