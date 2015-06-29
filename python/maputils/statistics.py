@@ -1483,7 +1483,7 @@ class EdgeContAngle(DetachableStatistics):
     def postMergeEdges(self, survivor):
         self.calcContAngle(survivor)
 
-from geomap import fitLine
+#from geomap import fitLine
 
 class EdgeCurvChange(DetachableStatistics):
     def __init__(self, map):
