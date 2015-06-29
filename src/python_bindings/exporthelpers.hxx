@@ -90,9 +90,9 @@ struct RangeIterWrapper
     RangeIterWrapper(const char *name, CallPolicies cp = CallPolicies())
     : boost::python::class_<Iterator>(name, boost::python::no_init)
     {
-        def("__iter__", (Iterator &(*)(Iterator &))&returnSelf,
-            boost::python::return_internal_reference<>());
-        def("next", &nextIterPos, cp);
+        this->def("__iter__", (Iterator &(*)(Iterator &))&returnSelf,
+				  boost::python::return_internal_reference<>());
+        this->def("next", &nextIterPos, cp);
     }
 
     static Iterator &returnSelf(Iterator &v)
