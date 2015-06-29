@@ -1,11 +1,14 @@
 import sys, math
 import fig, figexport
 import vigra, vigra.pyqt
+import VigraQt, qimage2ndarray
 import maputils, flag_constants, tools, statistics
 from geomap import simplifyPolygon, intPos, BoundingBox, contourPoly, Rect2D, Vector2
 from maputils import removeCruft
 from weakref import ref
 from PyQt4 import QtCore, QtGui
+
+from geomap_overlays import MapEdges, MapFaces
 
 from darthighlighter import DartHighlighter
 from dartnavigator import DartNavigator
@@ -28,8 +31,8 @@ def findZoomFactor(srcSize, destSize):
         result *= 2
     return result
 
-class MapFaces(vigra.pyqt.Overlay):
-    __base = vigra.pyqt.Overlay
+class _py_MapFaces(VigraQt.Overlay):
+    __base = VigraQt.Overlay
 
     # TODO: remove _map (reuse from edgeOverlay)
 
@@ -141,18 +144,20 @@ class MapFaces(vigra.pyqt.Overlay):
                     else:
                         p.drawPolygon(qpa)
 
-class MapEdges(vigra.pyqt.Overlay):
+class _py_MapEdges(VigraQt.Overlay):
     __slots__ = ("colors", "protectedColor", "protectedWidth",
                  "_map", "_attachedHooks", "_removedEdgeLabel",
                  "_zoom", "_zoomedEdges")
 
-    __base = vigra.pyqt.Overlay
+    __base = VigraQt.Overlay
     
-    def __init__(self, map, color, width = 0,
+    def __init__(self, viewer, map, color, width = 0,
                  protectedColor = None, protectedWidth = None):
-        self.__base.__init__(self, color = color, width = width)
+        self.__base.__init__(self, viewer)
         self.setMap(map)
         self.colors = None
+        self.color = color
+        self.width = width
         self.protectedColor = protectedColor
         self.protectedWidth = protectedWidth
         self._zoom = None
@@ -305,11 +310,11 @@ class MapEdges(vigra.pyqt.Overlay):
             result = self._calculateZoomedEdge(index, edge)
         return result
     
-    def draw(self, p):
+    def draw(self, p, rect = None):
         if not self._map():
             return
 
-        self._setupPainter(p)
+        #self._setupPainter(p)
 
         r = p.clipRegion().boundingRect()
         bbox = BoundingBox(Vector2(r.left() / self._zoom - 0.5,
@@ -341,8 +346,8 @@ class MapEdges(vigra.pyqt.Overlay):
                        bbox.intersects(edge.boundingBox()):
                     p.drawPolyline(self._getZoomedEdge(edge))
 
-class MapNodes(vigra.pyqt.Overlay):
-    __base = vigra.pyqt.Overlay
+class MapNodes(VigraQt.Overlay):
+    __base = VigraQt.Overlay
     
     def __init__(self, map, color, radius = 0.2, relativeRadius = True):
         self.__base.__init__(self, color = color)
@@ -421,11 +426,11 @@ class MapNodes(vigra.pyqt.Overlay):
         self.relativeRadius = relativeRadius
         self._qpointlist = None
 
-    def draw(self, p):
+    def draw(self, p, rect = None):
         if not self._qpointlist:
             self._calculatePoints()
 
-        self._setupPainter(p)
+        #self._setupPainter(p)
 
         if self.radius == 0:
             for point in self._qpointlist:
