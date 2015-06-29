@@ -6,6 +6,7 @@
 #include <boost/python.hpp>
 #include <boost/python/detail/api_placeholder.hpp>
 #include <boost/python/make_constructor.hpp>
+#include <boost/python/iterator.hpp>
 #include <vigra/gaussians.hxx>
 #include <vigra/linear_algebra.hxx>
 #include <cmath>
@@ -1799,12 +1800,6 @@ void defPolygon()
     typedef PythonPolygon::Base PythonPolygonBase;
 
     typedef PythonPolygonBase::Base Vector2Array;
-    typedef STLIterWrapper<Vector2Array::const_iterator>
-        VectorIter;
-    defIter<VectorIter>("Vector2ArrayIter");
-    typedef STLIterWrapper<Vector2Array::const_reverse_iterator>
-        VectorRevIter;
-    defIter<VectorRevIter>("Vector2RevIter");
     class_<Vector2Array>("Vector2Array")
         .def(init<Vector2Array>())
         //.def("__init__", make_constructor(&createPolygon<Vector2Array>))
@@ -1814,10 +1809,7 @@ void defPolygon()
         .def("__getitem__", &Array__getitem_slice__<Vector2Array>)
         .def("__getitem__", &Array__getitem__<Vector2Array>)
         .def("__setitem__", &Array__setitem__<Vector2Array>)
-        .def("__iter__",    &Array__iter__<Vector2Array>,
-             with_custodian_and_ward_postcall<0, 1>())
-        .def("__reviter__", &Array__reviter__<Vector2Array>,
-             with_custodian_and_ward_postcall<0, 1>())
+        .def("__iter__", iterator<Vector2Array const>())
         .def("insert", &insert<Vector2Array>)
         .def(self * double())
         .def(self + Vector2())
@@ -1827,12 +1819,6 @@ void defPolygon()
     register_ptr_to_python< std::auto_ptr<Vector2Array> >();
 
     typedef PointArray<Point2D> Point2DArray;
-    typedef STLIterWrapper<Point2DArray::const_iterator>
-        Point2DIter;
-    defIter<Point2DIter>("Point2DIter");
-    typedef STLIterWrapper<Point2DArray::const_reverse_iterator>
-        Point2DRevIter;
-    defIter<Point2DRevIter>("Point2DRevIter");
     class_<Point2DArray>("Point2DArray")
         .def(init<Point2DArray>())
         .def("reverse", &Point2DArray::reverse)
@@ -1840,10 +1826,7 @@ void defPolygon()
         .def("__getitem__", &Array__getitem_slice__<Point2DArray>)
         .def("__getitem__", &Array__getitem__<Point2DArray>)
         .def("__setitem__", &Array__setitem__<Point2DArray>)
-        .def("__iter__",    &Array__iter__<Point2DArray>,
-             with_custodian_and_ward_postcall<0, 1>())
-        .def("__reviter__", &Array__reviter__<Point2DArray>,
-             with_custodian_and_ward_postcall<0, 1>())
+        .def("__iter__", iterator<Point2DArray const>())
         .def("insert", &insert<Point2DArray>)
     ;
     register_ptr_to_python< std::auto_ptr<Point2DArray> >();
@@ -1921,7 +1904,7 @@ void defPolygon()
         .def("startIndex", &Scanlines::startIndex)
         .def("endIndex", &Scanlines::endIndex)
         .def("points", &createScanlinesIter,
-             with_custodian_and_ward_postcall<0, 1>())
+             with_custodian_and_ward_postcall<1, 0>())
     ;
 
     RangeIterWrapper<ScanlinesIter>("_ScanlinesIter");
