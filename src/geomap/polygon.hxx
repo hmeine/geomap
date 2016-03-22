@@ -6,6 +6,7 @@
 #include <vigra/gaussians.hxx>
 #include <vigra/splines.hxx>
 #include <vigra/linear_solve.hxx>
+#include <vigra/polynomial.hxx>
 #include <vector>
 #include <cmath>
 #include <algorithm>
