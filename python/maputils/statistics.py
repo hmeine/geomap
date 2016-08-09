@@ -1,5 +1,5 @@
 import math, sys, string, copy, weakref
-import numpy, vigra.sampling, geomap
+import numpy, vigra.sampling, vigra.filters, geomap
 from geomap import \
      FaceGrayStatistics, FaceRGBStatistics, \
      resamplePolygon, tangentList, tangentListGaussianReflective
@@ -1306,10 +1306,10 @@ def calcGradScaleSum(image, steps):
     gss = GrayImage(image.size())
     scale = 0.7
     for i in range(steps*2+1):
-        ti = vectorToTensor(gaussianGradientAsVector(image.subImage(0),scale))
+        ti = vigra.filters.vectorToTensor(vigra.filters.gaussianGradient(image.subImage(0),scale))
         if (image.bands()>1):
             for j in range(1,image.bands()):
-                ti += vectorToTensor(gaussianGradientAsVector(image.subImage(j),scale))
+                ti += vigra.filters.vectorToTensor(vigra.filters.gaussianGradient(image.subImage(j),scale))
         gm = numpy.sqrt(tensorTrace(ti))
         gm = (gm / gm.max()).clip(0, 1)
         gss += gm
@@ -1339,14 +1339,14 @@ class EdgeSpatialStability(BoundaryIndicatorStatistics):
         self._attachHooks()
 
 def calcGradProd(image, sigma1, sigma2):
-    ggv1 = gaussianGradientAsVector(image,sigma1)
-    ggv2 = gaussianGradientAsVector(image,sigma2)
+    ggv1 = vigra.filters.gaussianGradient(image,sigma1)
+    ggv2 = vigra.filters.gaussianGradient(image,sigma2)
     gp = transformImage(ggv1,ggv2,"\l g1,g2: norm(Vector(sqrt(max(g1[0]*g2[0],0)),sqrt(max(g1[1]*g2[1],0))))")
     return gp
 
 def calcColGradProd(image, sigma1, sigma2):
-    bandTensors1 = [vectorToTensor(gaussianGradientAsVector(image.subImage(i), sigma1)) for i in range(3)]
-    bandTensors2 = [vectorToTensor(gaussianGradientAsVector(image.subImage(i), sigma2)) for i in range(3)]
+    bandTensors1 = [vigra.filters.vectorToTensor(vigra.filters.gaussianGradient(image.subImage(i), sigma1)) for i in range(3)]
+    bandTensors2 = [vigra.filters.vectorToTensor(vigra.filters.gaussianGradient(image.subImage(i), sigma2)) for i in range(3)]
     colorTensor1 = bandTensors1[0] + bandTensors1[1] + bandTensors1[2]
     colorTensor2 = bandTensors2[0] + bandTensors2[1] + bandTensors2[2]
     cgm1 = tensorTrace(colorTensor1)

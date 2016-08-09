@@ -429,8 +429,8 @@ class Workspace(mapdisplay.MapDisplay):
         if not hasattr(map, attr):
             img = self.images.get("colored", self.images["original"])
             if self.colorSpace:
-                if img.bands() != 3:
-                    sys.stderr.write("WARNING: Color space '%s' requested but ignored; image has only %d band!\n" % (img.bands(), ))
+                if img.channels != 3:
+                    sys.stderr.write("WARNING: Color space '%s' requested but ignored; image has only %d band!\n" % (img.channels, ))
                 else:
                     rgbNames = self.colorSpaceNames[-3:]
                     if self.colorSpace in rgbNames:
