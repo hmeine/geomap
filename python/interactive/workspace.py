@@ -7,7 +7,7 @@ COMMANDLINE USAGE:
 
 workspace.py <image_filename> [gauss_sigma] [saddle_threshold]
 """
-Import copy, sys
+import copy, sys
 from PyQt4 import QtCore, QtGui
 import vigra, geomap
 import mapdisplay, icons, maputils, statistics, flag_constants, tools
