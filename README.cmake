@@ -4,4 +4,4 @@ subdirectory referenced by an appropriate CMakeLists.txt) and it will
 be compilable via VIGRA's build system.
 
 ATM, you seem to need "make geomap" since it is not part of the
-default build.
+default build.  ("make cellimage" is another extension target.)
