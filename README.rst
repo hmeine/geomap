@@ -7,7 +7,7 @@ The code was ported from boost::python to boost::python V2, from
 vigra/interactive to vigra/interactive2, partially to
 vigra/interactive3, and finally (at least much of it) to the current,
 released vigranumpy bindings.  Furthermore, the GUI stuff was ported
-from Qt3 to Qt4.
+from Qt3 to Qt4.  (And we could soon start the next port to Qt5.)
 
 Status
 ------
