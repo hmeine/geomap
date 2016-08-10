@@ -841,8 +841,8 @@ template <class IMAGEVIEW>
 void rungeKuttaStep1b(IMAGEVIEW const & image,
                       double x, double y, double s, double *xx, double *yy)
 {
-    xx = x;
-    yy = y;
+    *xx = x;
+    *yy = y;
     if(!image.isInside(x, y))
         return;
     double a = VIGRA_CSTD::atan2(-image.dy(x,y), image.dx(x,y));
@@ -877,16 +877,16 @@ void rungeKuttaStep1b(IMAGEVIEW const & image,
     dy = -VIGRA_CSTD::sin(a);
     double x4 = s*dx;
     double y4 = s*dy;
-    xx = x + x1 / 6.0 + x2 / 3.0 + x3 / 3.0 + x4 / 6.0;
-    yy = y + y1 / 6.0 + y2 / 3.0 + y3 / 3.0 + y4 / 6.0;
+    *xx = x + x1 / 6.0 + x2 / 3.0 + x3 / 3.0 + x4 / 6.0;
+    *yy = y + y1 / 6.0 + y2 / 3.0 + y3 / 3.0 + y4 / 6.0;
 }
 
 template <class IMAGEVIEW>
 void rungeKuttaStep2(IMAGEVIEW const & image,
                     double x, double y, double s, double a, double *xx, double *yy)
 {
-    xx = x;
-    yy = y;
+    *xx = x;
+    *yy = y;
     double dx = VIGRA_CSTD::cos(a);
     double dy = -VIGRA_CSTD::sin(a);
     if(!image.isInside(x, y))
@@ -943,8 +943,8 @@ void rungeKuttaStep2(IMAGEVIEW const & image,
     }
     double x4 = s*dx1;
     double y4 = s*dy1;
-    xx = x + x1 / 6.0 + x2 / 3.0 + x3 / 3.0 + x4 / 6.0;
-    yy = y + y1 / 6.0 + y2 / 3.0 + y3 / 3.0 + y4 / 6.0;
+    *xx = x + x1 / 6.0 + x2 / 3.0 + x3 / 3.0 + x4 / 6.0;
+    *yy = y + y1 / 6.0 + y2 / 3.0 + y3 / 3.0 + y4 / 6.0;
 }
 
 template <class IMAGEVIEW, class PVECTOR, class CVECTOR>
@@ -1042,11 +1042,7 @@ void findEdgelChain2(IMAGEVIEW const & image, IImage const & maxImage,
                     PVECTOR const & maxima, CVECTOR & chain,
                     double x, double y, double a, double epsilon)
 {
-    static int idx[] = {0, 1, 0, 1};
-    static int idy[] = {0, 0, 1, 1};
-    int w = image.width();
-    int h = image.height();
-    double d, dx, dy, x1, x2, x3, y1, y2, y3, mx, my, xx, yy, s, ss, a1, d1, d2;
+    double d, dx, dy, x1, x2, x3, y1, y2, y3, xx, yy, s, ss, a1, d1, d2;
     double ox = x, oy = y;
     // add initial edgel
     chain.push_back(Edgel(x, y, image(x, y), a));
