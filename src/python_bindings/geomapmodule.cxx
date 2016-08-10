@@ -16,6 +16,7 @@ void defPolygon();
 void defMap();
 void defMapStats();
 void defMapUtils();
+void defSPWS();
 void defDSL();
 void defStatistics();
 void defVectorConverters();
@@ -28,6 +29,7 @@ BOOST_PYTHON_MODULE_INIT(geomap)
     defMap();
     defMapStats();
     defMapUtils();
+	defSPWS();
     defDSL();
     defStatistics();
     defVectorConverters();

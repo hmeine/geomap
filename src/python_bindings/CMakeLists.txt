@@ -19,6 +19,7 @@ VIGRA_ADD_NUMPY_MODULE(geomap
     cppmapmodule_stats.cxx
     cppmapmodule.cxx
     geomapmodule.cxx
+    subpixel_watersheds.cxx
     dsl.cxx
   LIBRARIES
     libgeomap
