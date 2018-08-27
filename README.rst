@@ -41,3 +41,6 @@ documented):
 * Chordal Axis Transform (CAT) is in delaunay.py, too
 * a simple segmentation GUI / frontend is in workplace.py
 
+License
+-------
+Licensed under MIT license: [LICENSE.txt](LICENSE.txt)
