@@ -43,4 +43,4 @@ documented):
 
 License
 -------
-Licensed under MIT license: [LICENSE.txt](LICENSE.txt)
+Licensed under MIT license. See LICENSE.txt.
