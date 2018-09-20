@@ -280,7 +280,7 @@ class GeoMap
     void setEdgePreferences(std::auto_ptr<EdgePreferences> edgePreferences)
     {
         vigra_precondition(
-            splitInfo_.get(),
+            splitInfo_.get() != NULL,
             "setting edge preferences futile - splitting impossible");
         edgePreferences_ = edgePreferences;
     }
@@ -297,7 +297,7 @@ class GeoMap
 
     void initializeMap(bool initLabelImage = true);
     bool mapInitialized() const  { return faces_.size() > 0; }
-    bool hasLabelImage() const { return labelImage_; }
+    bool hasLabelImage() const { return labelImage_ != NULL; }
     void setHasLabelImage(bool onoff);
     const LabelLUT &faceLabelLUT() const { return faceLabelLUT_; }
 
