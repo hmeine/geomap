@@ -691,7 +691,8 @@ struct MergeDart
 
 void GeoMap::splitParallelEdges()
 {
-    vigra_precondition(splitInfo_.get(), "splitParallelEdges(): no planned splits (set splitEdges parameter of sortEdgesEventually?)");
+    vigra_precondition(splitInfo_.get() != NULL,
+      "splitParallelEdges(): no planned splits (set splitEdges parameter of sortEdgesEventually?)");
 
     // find split group positions within flat array [O(N_splits)]
     // (this is used for filling the mergeDarts during splitting)
@@ -705,7 +706,7 @@ void GeoMap::splitParallelEdges()
 
     std::sort(splitInfo_->begin(), splitInfo_->end());
 
-    bool hasPreferences = edgePreferences_.get();
+    bool hasPreferences = edgePreferences_.get() != NULL;
     if(hasPreferences)
     {
         vigra_invariant(edgePreferences_->size() == edges_.size(),
