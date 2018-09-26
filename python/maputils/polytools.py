@@ -1,5 +1,5 @@
 import vigra, geomap, numpy, math
-from geomap import Polygon, Vector2
+from geomap import Polygon
 
 # FIXME: computing bsd42044 1.5 SPWS (spline order 2)...
 # ...
@@ -265,11 +265,11 @@ class Line(object):
         bottom = (b.norm-top[0]*b.norm[0], b.dist-top[1]*b.norm[0])
         y = bottom[1]/bottom[0][1]
         x = top[1]-y*top[0][1]
-        return Vector2(x, y)
+        return (x, y)
 
     def dir(self):
         """Return direction vector."""
-        return Vector2(self.norm[1], -self.norm[0])
+        return (self.norm[1], -self.norm[0])
 
     def orthogonalDistance(self, point):
         """Return distance between given point and this line"""
@@ -292,7 +292,7 @@ class LineSegment(object):
     
     def norm(self):
         d = self.dir()
-        return Vector2(-d[1], d[0])
+        return (-d[1], d[0])
     
     def dist(self):
         """distance to origin"""
@@ -329,11 +329,11 @@ def shrinkPoly(poly, offset):
 def rotatePoly(poly, angle):
     """Rotate polygon by the given angle around the origin."""
     
-    unitX = Vector2(math.cos(angle), -math.sin(angle))
-    unitY = Vector2(math.sin(angle),  math.cos(angle))
+    unitX = (math.cos(angle), -math.sin(angle))
+    unitY = (math.sin(angle),  math.cos(angle))
     result = Polygon()
     for point in poly:
-        result.append(Vector2(numpy.dot(point, unitX), numpy.dot(point, unitY)))
+        result.append((numpy.dot(point, unitX), numpy.dot(point, unitY)))
     return result
 
 def subsetDigitization(poly, shift = None, size = None):
@@ -345,13 +345,13 @@ def subsetDigitization(poly, shift = None, size = None):
         size = (int(math.ceil(size[0]))+2,
                 int(math.ceil(size[1]))+2)
         if not shift:
-            shift = Vector2(0, 0)
-        shift = shift + Vector2(1, 1) - poly.boundingBox().begin()
+            shift = (0, 0)
+        shift = numpy.asarray(shift) + (1, 1) - poly.boundingBox().begin()
         poly = Polygon(poly + shift)
 
     result = vigra.GrayImage(size)
     for p in vigra.meshIter(size):
-        result[p] = poly.contains(Vector2(p[0], p[1])) and 1 or 0
+        result[p] = poly.contains((p[0], p[1])) and 1 or 0
     return result
 
 # --------------------------------------------------------------------

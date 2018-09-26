@@ -1,6 +1,11 @@
-from vigra import Vector2, Size2D, labelImage4
+#from vigra import labelImage4
 from geomap import Polygon
 import maputils
+import numpy
+
+def Vector2(x, y):
+    return numpy.array((x, y))
+Size2D = Vector2
 
 from geomap import GeoMap, contourPoly
 #from map import GeoMap

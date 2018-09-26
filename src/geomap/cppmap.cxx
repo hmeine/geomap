@@ -376,7 +376,7 @@ GeoMap::EdgePtr GeoMap::addEdge(
     return edge(result->label());
 }
 
-GeoMap::FacePtr GeoMap::removeEdge(GeoMap::Dart &dart)
+GeoMap::FacePtr GeoMap::removeEdge(const GeoMap::Dart &dart)
 {
     if(mapInitialized())
     {
@@ -2168,7 +2168,6 @@ std::string description(GeoMap::Edge const &edge)
     std::stringstream s;
     s.unsetf(std::ios::scientific);
     s.precision(1);
-    s << edge.label();
     //<< ", node " << edge.startNodeLabel() << " -> " << edge.endNodeLabel()
     if(edge.isLoop())
     {

@@ -1,10 +1,11 @@
-VIGRA_FIND_PACKAGE( Boost 1.40.0 COMPONENTS signals )
+VIGRA_FIND_PACKAGE( Boost 1.40.0 COMPONENTS signals2 )
 
 ADD_DEFINITIONS(-DNDEBUG)
+ADD_DEFINITIONS(-DAVOID_DUPLICATE_DEFINITION_FROM_VIGRANUMPYCORE)
 
 INCLUDE_DIRECTORIES(
   ${CMAKE_CURRENT_SOURCE_DIR}
-  ${sigcpp_INCLUDE_DIRS}
+  ${Boost_INCLUDE_DIRS}
   ../geomap)
 
 VIGRA_ADD_NUMPY_MODULE(geomap
@@ -17,11 +18,11 @@ VIGRA_ADD_NUMPY_MODULE(geomap
     cppmapmodule_stats.cxx
     cppmapmodule.cxx
     geomapmodule.cxx
+    subpixel_watersheds.cxx
     dsl.cxx
   LIBRARIES
     libgeomap
     vigranumpy_core
-    ${Boost_SIGNALS_LIBRARIES}
 )
 
 IF(PYTHON_PLATFORM MATCHES "^windows$")

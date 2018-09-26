@@ -29,16 +29,16 @@ def gradientTensor(img, scale):
     """Returns a 3-band image with gradient tensor summed over all
     bands.  For single-band images, this is equivalent to::
     
-      vigra.vectorToTensor(
-          vigra.gaussianGradientAsVector(img, scale)
+      vigra.filters.vectorToTensor(
+          vigra.filters.gaussianGradient(img, scale)
 
     (Otherwise, it is the sum of the same for all bands.)"""
     
     bandTensors = [
-        vigra.vectorToTensor(
-        vigra.gaussianGradientAsVector(img.subImage(i), scale))
-        for i in range(img.bands())]
-    if img.bands() > 1:
+        vigra.filters.vectorToTensor(
+        vigra.filters.gaussianGradient(img.subImage(i), scale))
+        for i in range(img.channels)]
+    if img.channels > 1:
         return sum(bandTensors[1:], bandTensors[0])
     return bandTensors[0]
 
@@ -70,21 +70,23 @@ def gaussianGradient(img, scale, sqrt = True):
     `colorGradient`, or of the usual `vigra.gaussianGradient` family
     for single-band images."""
     
-    if img.bands() > 1:
+    if img.channels > 1:
         return colorGradient(img, scale, sqrt)
 
-    grad = vigra.gaussianGradientAsVector(img, scale)
+    grad = vigra.filters.gaussianGradient(img, scale)
     if sqrt:
-        gm = vigra.norm(grad)
+        # FIXME: compute gm from grad for efficiency
+        gm = vigra.filters.gaussianGradientMagnitude(img, scale)
     else:
+        # FIXME: port to vigranumpy
         gm = vigra.transformImage(grad, "\l x: squaredNorm(x)")
     return gm, grad
 
 def structureTensor(img, innerScale, outerScale):
     """Returns structure tensor as 3-band image.  Equivalent to
-    vigra.gaussianSmoothing(gradientTensor(img, innerScale),
+    vigra.filters.gaussianSmoothing(gradientTensor(img, innerScale),
     outerScale)."""
-    return vigra.gaussianSmoothing(gradientTensor(img, innerScale), outerScale)
+    return vigra.filters.gaussianSmoothing(gradientTensor(img, innerScale), outerScale)
 
 def structureTensorFromGradient(grad, scale):
-    return vigra.gaussianSmoothing(vigra.vectorToTensor(grad), scale)
+    return vigra.filters.gaussianSmoothing(vigra.filters.vectorToTensor(grad), scale)

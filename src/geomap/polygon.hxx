@@ -6,6 +6,7 @@
 #include <vigra/gaussians.hxx>
 #include <vigra/splines.hxx>
 #include <vigra/linear_solve.hxx>
+#include <vigra/polynomial.hxx>
 #include <vector>
 #include <cmath>
 #include <algorithm>
@@ -118,6 +119,11 @@ class PointArray
     reference back()
     {
         return points_.back();
+    }
+
+    void clear()
+    {
+        points_.clear();
     }
 
     void push_back(const_reference v)

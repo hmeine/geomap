@@ -12,7 +12,7 @@ class EdgeProtection : boost::noncopyable
 {
   protected:
     boost::shared_ptr<GeoMap> map_;
-    std::vector<boost::signals::connection> connections_;
+    std::vector<boost::signals2::connection> connections_;
 
   public:
     EdgeProtection(boost::shared_ptr<GeoMap> map = boost::shared_ptr<GeoMap>())
@@ -96,7 +96,7 @@ unsigned int removeEdges(
         GeoMap::EdgePtr
             edge = map.edge(*edgeLabelsBegin);
 
-        vigra_precondition(edge, "removeEdges: illegal edge label");
+        vigra_precondition(static_cast<bool>(edge), "removeEdges: illegal edge label");
 
         if(edge->isBridge())
         {

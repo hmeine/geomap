@@ -270,7 +270,7 @@ class GeoMap
                            const SigmaAnchor &endNeighbor,
                            const Vector2Array &points, CellLabel label = 0);
     // will always return NULL if !mapInitialized():
-    FacePtr removeEdge(Dart &dart);
+    FacePtr removeEdge(const Dart &dart);
 
     void sortEdgesDirectly();
 

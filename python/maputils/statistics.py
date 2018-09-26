@@ -1,7 +1,7 @@
 import math, sys, string, copy, weakref
-import numpy, vigra.sampling, geomap
+import numpy, vigra.sampling, vigra.filters, geomap
 from geomap import \
-     Vector2, FaceGrayStatistics, FaceRGBStatistics, \
+     FaceGrayStatistics, FaceRGBStatistics, \
      resamplePolygon, tangentList, tangentListGaussianReflective
 import sivtools, flag_constants
 
@@ -192,7 +192,7 @@ def superSample(face, level = 2):
     xRange = arange(bbox.begin()[0], bbox.end()[0], 1.0/level)
     for y in arange(bbox.begin()[1], bbox.end()[1], 1.0/level):
         for x in xRange:
-            pos = Vector2(x, y)
+            pos = (x, y)
             if face.contains(pos):
                 yield pos
 
@@ -1053,7 +1053,7 @@ class EdgeGradientStatistics(BoundaryIndicatorStatistics):
                     gradDir = gradSiv[dp()]
                     #gradDir /= gradDir.magnitude()
 
-                    segment = Vector2(-math.sin(theta), math.cos(theta))
+                    segment = (-math.sin(theta), math.cos(theta))
 
                     stats(numpy.dot(gradDir, segment), 1.0)
 
@@ -1153,12 +1153,12 @@ class PercentPointFunction(list):
         al = 0.0
         v1 = ss[0][0]
         iCDF = [(al, v1)]
-        cur = Vector2(v1, 0)
+        cur = (v1, 0)
         for v1, l, v2 in ss:
             if v1 > cur[0]:
                 al += cur[1]
                 iCDF.append((al, v1))
-                cur = Vector2(v1, l)
+                cur = (v1, l)
             else:
                 cur[1] += l
         if cur[1]:
@@ -1306,10 +1306,10 @@ def calcGradScaleSum(image, steps):
     gss = GrayImage(image.size())
     scale = 0.7
     for i in range(steps*2+1):
-        ti = vectorToTensor(gaussianGradientAsVector(image.subImage(0),scale))
+        ti = vigra.filters.vectorToTensor(vigra.filters.gaussianGradient(image.subImage(0),scale))
         if (image.bands()>1):
             for j in range(1,image.bands()):
-                ti += vectorToTensor(gaussianGradientAsVector(image.subImage(j),scale))
+                ti += vigra.filters.vectorToTensor(vigra.filters.gaussianGradient(image.subImage(j),scale))
         gm = numpy.sqrt(tensorTrace(ti))
         gm = (gm / gm.max()).clip(0, 1)
         gss += gm
@@ -1339,14 +1339,14 @@ class EdgeSpatialStability(BoundaryIndicatorStatistics):
         self._attachHooks()
 
 def calcGradProd(image, sigma1, sigma2):
-    ggv1 = gaussianGradientAsVector(image,sigma1)
-    ggv2 = gaussianGradientAsVector(image,sigma2)
+    ggv1 = vigra.filters.gaussianGradient(image,sigma1)
+    ggv2 = vigra.filters.gaussianGradient(image,sigma2)
     gp = transformImage(ggv1,ggv2,"\l g1,g2: norm(Vector(sqrt(max(g1[0]*g2[0],0)),sqrt(max(g1[1]*g2[1],0))))")
     return gp
 
 def calcColGradProd(image, sigma1, sigma2):
-    bandTensors1 = [vectorToTensor(gaussianGradientAsVector(image.subImage(i), sigma1)) for i in range(3)]
-    bandTensors2 = [vectorToTensor(gaussianGradientAsVector(image.subImage(i), sigma2)) for i in range(3)]
+    bandTensors1 = [vigra.filters.vectorToTensor(vigra.filters.gaussianGradient(image.subImage(i), sigma1)) for i in range(3)]
+    bandTensors2 = [vigra.filters.vectorToTensor(vigra.filters.gaussianGradient(image.subImage(i), sigma2)) for i in range(3)]
     colorTensor1 = bandTensors1[0] + bandTensors1[1] + bandTensors1[2]
     colorTensor2 = bandTensors2[0] + bandTensors2[1] + bandTensors2[2]
     cgm1 = tensorTrace(colorTensor1)
@@ -1483,7 +1483,7 @@ class EdgeContAngle(DetachableStatistics):
     def postMergeEdges(self, survivor):
         self.calcContAngle(survivor)
 
-from geomap import fitLine
+#from geomap import fitLine
 
 class EdgeCurvChange(DetachableStatistics):
     def __init__(self, map):

@@ -209,8 +209,10 @@ void defVectorConverters()
     def("norm", &pyNorm<double>);
     scope().attr("magnitude") = scope().attr("norm"); // install alias
 
+#ifndef AVOID_DUPLICATE_DEFINITION_FROM_VIGRANUMPYCORE
     defineVectorFunctions(python::class_<Vector2>("Vector2")
                           .def(python::init<double, double>()));
     defineVectorFunctions(python::class_<Vector3>("Vector3")
                           .def(python::init<double, double, double>()));
+#endif
 }
