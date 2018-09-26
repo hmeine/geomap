@@ -12,7 +12,7 @@ class EdgeProtection : boost::noncopyable
 {
   protected:
     boost::shared_ptr<GeoMap> map_;
-    std::vector<boost::signals::connection> connections_;
+    std::vector<boost::signals2::connection> connections_;
 
   public:
     EdgeProtection(boost::shared_ptr<GeoMap> map = boost::shared_ptr<GeoMap>())

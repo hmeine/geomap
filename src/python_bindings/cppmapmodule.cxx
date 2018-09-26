@@ -191,7 +191,7 @@ class SimpleCallback
     }
 
   protected:
-    std::vector<boost::signals::connection> connections_;
+    std::vector<boost::signals2::connection> connections_;
 };
 
 class RemoveNodeCallback : public SimpleCallback
