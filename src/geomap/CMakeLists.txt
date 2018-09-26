@@ -1,5 +1,4 @@
-include(FindPkgConfig)
-PKG_CHECK_MODULES(sigcpp REQUIRED sigc++-2.0)
+VIGRA_FIND_PACKAGE( Boost 1.40.0 COMPONENTS signals )
 
 ADD_DEFINITIONS(-DNDEBUG)
 
@@ -13,7 +12,7 @@ ADD_LIBRARY(libgeomap ${LIBTYPE}
     crackedgemap.cxx
 )
 
-TARGET_LINK_LIBRARIES(libgeomap ${sigcpp_LIBRARIES})
+TARGET_LINK_LIBRARIES(libgeomap ${Boost_SIGNALS_LIBRARIES})
 
 INSTALL(TARGETS libgeomap
 #        EXPORT vigra-targets
