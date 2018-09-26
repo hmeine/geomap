@@ -1,17 +1,16 @@
-VIGRA_FIND_PACKAGE( Boost 1.40.0 COMPONENTS signals )
+VIGRA_FIND_PACKAGE( Boost 1.40.0 COMPONENTS signals2 )
 
 ADD_DEFINITIONS(-DNDEBUG)
 
 INCLUDE_DIRECTORIES(
-  ${CMAKE_CURRENT_SOURCE_DIR})
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  ${Boost_INCLUDE_DIRS})
 
 ADD_LIBRARY(libgeomap ${LIBTYPE}
     cppmap.cxx
     cppmap_utils.cxx
     crackedgemap.cxx
 )
-
-TARGET_LINK_LIBRARIES(libgeomap ${Boost_SIGNALS_LIBRARIES})
 
 INSTALL(TARGETS libgeomap
 #        EXPORT vigra-targets
