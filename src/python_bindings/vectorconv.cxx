@@ -35,7 +35,7 @@ PyObject * Vector__str__(Vector const & v)
             // should not happen, can only be created from C++ anyways:
             s << "<empty PythonVector>";
         }
-        return PyString_FromString(s.str().c_str());
+        return PyUnicode_FromString(s.str().c_str());
 }
 
 template <class Vector>
@@ -48,7 +48,7 @@ PyObject * Vector__repr__(Vector const & v)
         for(; i<v.size()-1; ++i)
             s << v[i] << ", ";
         s << v[i] << ")";
-        return PyString_FromString(s.str().c_str());
+        return PyUnicode_FromString(s.str().c_str());
 }
 
 template<class Vector>

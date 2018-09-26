@@ -59,7 +59,7 @@ PyObject * Box__repr__(Box const & b)
 
     s << "<BoundingBox " << b.begin() << ".." << b.end() << ">";
 
-    return PyString_FromString(s.str().c_str());
+    return PyUnicode_FromString(s.str().c_str());
 }
 
 template<class Box>
