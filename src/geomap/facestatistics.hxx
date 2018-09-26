@@ -457,7 +457,7 @@ class FaceColorStatistics
     }
 
     boost::shared_ptr<GeoMap> map_;
-    std::vector<boost::signals::connection> connections_;
+    std::vector<boost::signals2::connection> connections_;
     const OriginalImage originalImage_;
     std::vector<Functor *> functors_;
 
