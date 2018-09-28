@@ -8,7 +8,8 @@
 #include <vector>
 #include <list>
 #include <vigra/multi_array.hxx>
-#include <sigc++/sigc++.h>
+
+#include <boost/signals2/signal.hpp>
 #include <boost/utility.hpp> // boost::noncopyable
 #include <boost/math/special_functions/fpclassify.hpp> // boost::math::isnan (for Mac/Win!)
 
@@ -47,7 +48,7 @@ typedef vigra::BBoxPolygon<Vector2>        Vector2Polygon;
 
 typedef vigra::PointArray<vigra::Point2D> PixelList;
 
-// "accumulator" for libsigc++, which calls pre-operation
+// "accumulator" for boost::signals, which calls pre-operation
 // callbacks in order but cancels whenever a callback returns false
 struct interruptable_accumulator
 {
@@ -355,27 +356,51 @@ class GeoMap
     FacePtr removeBridge(const Dart &dart);
     FacePtr mergeFaces(const Dart &dart);
 
-        // callbacks using libsigc++ <http://libsigc.sourceforge.net/>:
-    sigc::signal<bool, Node &>::accumulated<interruptable_accumulator>
+    // callbacks using boost::signals:
+#ifndef BOOST_NO_VARIADIC_TEMPLATES
+    boost::signals2::signal<bool(Node &), interruptable_accumulator>
         removeNodeHook;
-    sigc::signal<bool, const Dart &>::accumulated<interruptable_accumulator>
+    boost::signals2::signal<bool(const Dart &), interruptable_accumulator>
         preMergeEdgesHook;
-    sigc::signal<void, Edge &>
+    boost::signals2::signal<void(Edge &)>
         postMergeEdgesHook;
-    sigc::signal<void, Edge &, unsigned int, Vector2 const &, bool>
+    boost::signals2::signal<void(Edge &, unsigned int, Vector2 const &, bool)>
         preSplitEdgeHook;
-    sigc::signal<void, Edge &, Edge &>
+    boost::signals2::signal<void(Edge &, Edge &)>
         postSplitEdgeHook;
-    sigc::signal<bool, const Dart &>::accumulated<interruptable_accumulator>
+    boost::signals2::signal<bool(const Dart &), interruptable_accumulator>
         preRemoveBridgeHook;
-    sigc::signal<void, Face &>
+    boost::signals2::signal<void(Face &)>
         postRemoveBridgeHook;
-    sigc::signal<bool, const Dart &>::accumulated<interruptable_accumulator>
+    boost::signals2::signal<bool(const Dart &), interruptable_accumulator>
         preMergeFacesHook;
-    sigc::signal<void, Face &>
+    boost::signals2::signal<void(Face &)>
         postMergeFacesHook;
-    sigc::signal<void, const Face &, const PixelList &>
+    boost::signals2::signal<void(const Face &, const PixelList &)>
         associatePixelsHook;
+#else
+    boost::signals2::signal1
+      <bool, Node &, interruptable_accumulator>
+        removeNodeHook;
+    boost::signals2::signal1<bool, const Dart &, interruptable_accumulator>
+        preMergeEdgesHook;
+    boost::signals2::signal1<void, Edge &>
+        postMergeEdgesHook;
+    boost::signals2::signal4<void, Edge &, unsigned int, Vector2 const &, bool>
+        preSplitEdgeHook;
+    boost::signals2::signal2<void, Edge &, Edge &>
+        postSplitEdgeHook;
+    boost::signals2::signal1<bool, const Dart &, interruptable_accumulator>
+        preRemoveBridgeHook;
+    boost::signals2::signal1<void, Face &>
+        postRemoveBridgeHook;
+    boost::signals2::signal1<bool, const Dart &, interruptable_accumulator>
+        preMergeFacesHook;
+    boost::signals2::signal1<void, Face &>
+        postMergeFacesHook;
+    boost::signals2::signal2<void, const Face &, const PixelList &>
+        associatePixelsHook;
+#endif
 };
 
 /********************************************************************/

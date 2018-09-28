@@ -4,6 +4,7 @@
 #include "cppmap.hxx"
 #include "polygon.hxx"
 #include <boost/utility.hpp>
+#include <boost/bind.hpp>
 #include <vector>
 #include <list>
 
@@ -11,7 +12,7 @@ class EdgeProtection : boost::noncopyable
 {
   protected:
     boost::shared_ptr<GeoMap> map_;
-    std::vector<sigc::connection> connections_;
+    std::vector<boost::signals2::connection> connections_;
 
   public:
     EdgeProtection(boost::shared_ptr<GeoMap> map = boost::shared_ptr<GeoMap>())
@@ -30,13 +31,13 @@ class EdgeProtection : boost::noncopyable
         vigra_precondition(!map_, "trying to attach to more than once?!");
         connections_.push_back(
             map->preMergeFacesHook.connect(
-                sigc::mem_fun(this, &EdgeProtection::preRemoveEdge)));
+                boost::bind(boost::mem_fn(&EdgeProtection::preRemoveEdge), this, _1)));
         connections_.push_back(
             map->preRemoveBridgeHook.connect(
-                sigc::mem_fun(this, &EdgeProtection::preRemoveEdge)));
+                boost::bind(boost::mem_fn(&EdgeProtection::preRemoveEdge), this, _1)));
         connections_.push_back(
             map->preMergeEdgesHook.connect(
-                sigc::mem_fun(this, &EdgeProtection::preMergeEdges)));
+                boost::bind(boost::mem_fn(&EdgeProtection::preMergeEdges), this, _1)));
         map_ = map;
     }
 
