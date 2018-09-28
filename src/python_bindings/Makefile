@@ -1,10 +1,12 @@
+
 PLATFORM = $(shell PATH=/software/Modules/bin:$(PATH) platform)
 curdir = .
 
 include ../Makefile.include
 
-# at KOGS, try: module add pkgconfig libsigc++
-LOCAL_CPPFLAGS = -I. -I../cellimage `pkg-config --cflags sigc++-2.0` \
+BOOST_SIGNALS_LIB := -lboost_signals
+
+LOCAL_CPPFLAGS = -I. -I../cellimage \
 	-I"`python -c 'import numpy; print numpy.get_include()'`"
 
 # define this if you have installed John Maddock's math_toolkit from
@@ -41,7 +43,7 @@ OBJS = \
 	dsl.lo \
 
 $(TARGET): $(OBJS)
-	$(LINKCXXMODULE) -o $(TARGET) $(OBJS) $(BOOST_PYTHON_LIB) `pkg-config --libs sigc++-2.0` vigranumpycore.so
+	$(LINKCXXMODULE) -o $(TARGET) $(OBJS) $(BOOST_PYTHON_LIB) $(BOOST_SIGNALS_LIB) vigranumpycore.so
 	test -s $(MODULE) || ln -s .libs/$(MODULE) .
 
 test: $(TARGET)
