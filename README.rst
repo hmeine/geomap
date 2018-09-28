@@ -1,13 +1,28 @@
+The GeoMap is a unified representation for segmentation results, which
+comprises both their geometry and topology.  The GeoMap is intended to be used
+not only for the *final* segmentation result, but in particular for intermediate
+working states of a complex segmentation process chain.  Hence, it offers
+operations that modify the tesselation, for instance merging two neighboring
+regions.  This particular implementation is using a polygonal representation,
+and consists of a core C++ library, Python bindings, and more complex operations
+(and GUI components) being implemented in Python only.
+
+A list of corresponding scientific publications can be found at:
+http://www.citeulike.org/user/hans_meine/tag/geomap
+
 This repository contains ten years worth of GeoMap code.
 
-History
--------
+Code History
+------------
 
 The code was ported from boost::python to boost::python V2, from
 vigra/interactive to vigra/interactive2, partially to
 vigra/interactive3, and finally (at least much of it) to the current,
 released vigranumpy bindings.  Furthermore, the GUI stuff was ported
 from Qt3 to Qt4.  (And we could soon start the next port to Qt5.)
+The code was initially managed with CVS, then in Subversion, Mercurial,
+and now Git.  It was always tried to preserve the history during
+conversion, but of course chances are that it suffered.
 
 Status
 ------
