@@ -21,9 +21,15 @@ void defDSL();
 void defStatistics();
 void defVectorConverters();
 
-BOOST_PYTHON_MODULE_INIT(geomap)
+int _import_numpy_array()
 {
     import_array();
+    return 0;
+}
+
+BOOST_PYTHON_MODULE_INIT(geomap)
+{
+    _import_numpy_array();
     defDiff2D();
     defPolygon();
     defMap();
