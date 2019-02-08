@@ -1,5 +1,34 @@
 """tools - module with interactive GeoMap tools"""
 
+##########################################################################
+#
+#                Copyright 2007-2019 by Hans Meine
+#
+#     Permission is hereby granted, free of charge, to any person
+#     obtaining a copy of this software and associated documentation
+#     files (the "Software"), to deal in the Software without
+#     restriction, including without limitation the rights to use,
+#     copy, modify, merge, publish, distribute, sublicense, and/or
+#     sell copies of the Software, and to permit persons to whom the
+#     Software is furnished to do so, subject to the following
+#     conditions:
+#
+#     The above copyright notice and this permission notice shall be
+#     included in all copies or substantial portions of the
+#     Software.
+#
+#     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND
+#     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+#     OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+#     NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+#     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+#     WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+#     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+#     OTHER DEALINGS IN THE SOFTWARE.
+#
+##########################################################################
+
+
 import sys
 from PyQt4 import QtCore, QtGui
 import geomap, maputils
@@ -63,7 +92,7 @@ class ManualClassifier(QImageViewerTool):
     Faces can be clicked to toggle their class (LMB/MMB for
     forward/backward cycling through classes), or strokes can be used
     to transfer the class of a face to its neighbors."""
-    
+
     __slots__ = ("manual",
                  "_map", "_classes", "_classMask", "_overlays",
                  "_enabled", "_pressed",
@@ -273,7 +302,7 @@ class SeedSelector(QImageViewerTool):
             self.emit(QtCore.SIGNAL("seedRemoved"), seed)
             if self.map and self.markFlags:
                 self.map.faceAt((x, y)).setFlag(self.markFlags, False)
-        
+
         self.overlay.setPoints(self.seeds)
         viewer.update()
         return True
@@ -368,7 +397,7 @@ from flag_constants import CURRENT_CONTOUR, SCISSOR_PROTECTION, BORDER_PROTECTIO
 
 class LiveWire(object):
     """Represents a live wire path and manages path search.
-    
+
     The LiveWire class does not only represent a single live wire
     path, but also performs the complete path search in a dynamic
     programming fashion, i.e. finding the optimal paths to all
@@ -490,7 +519,7 @@ class LiveWire(object):
         `nodeLabel` (i.e. pathDarts(nodeLabel)) passes endNodeLabel,
         return this (e.g. loop closing) path segment, else return
         None. """
-        
+
         if self._nodePaths[nodeLabel]:
             result = []
             for dart in self.pathDarts(nodeLabel):
@@ -565,7 +594,7 @@ class IntelligentScissors(QImageViewerTool):
     def stopCurrentContour(self):
         """Called when the current contour is stopped, e.g. with
         middle MB (cancel) or with a LMB double click (confirm)."""
-        
+
         self.stopLiveWire()
 
         #updateViewer(self.currentPathBounds)
@@ -605,7 +634,7 @@ class IntelligentScissors(QImageViewerTool):
                 self.stopLiveWire()
                 self._protectPath(self._liveWire.pathDarts())
                 self._startNodeLabel = self._liveWire.endNodeLabel()
-        
+
         o = EdgeOverlay([], QtCore.Qt.yellow, 2)
         self._viewer.replaceOverlay(o, self._overlay)
         self._overlay = o

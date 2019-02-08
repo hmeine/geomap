@@ -1,3 +1,31 @@
+##########################################################################
+#
+#                Copyright 2007-2019 by Hans Meine
+#
+#     Permission is hereby granted, free of charge, to any person
+#     obtaining a copy of this software and associated documentation
+#     files (the "Software"), to deal in the Software without
+#     restriction, including without limitation the rights to use,
+#     copy, modify, merge, publish, distribute, sublicense, and/or
+#     sell copies of the Software, and to permit persons to whom the
+#     Software is furnished to do so, subject to the following
+#     conditions:
+#
+#     The above copyright notice and this permission notice shall be
+#     included in all copies or substantial portions of the
+#     Software.
+#
+#     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND
+#     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+#     OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+#     NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+#     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+#     WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+#     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+#     OTHER DEALINGS IN THE SOFTWARE.
+#
+##########################################################################
+
 import sys, math
 import fig, figexport
 import vigra, vigra.pyqt
@@ -57,7 +85,7 @@ class _py_MapFaces(VigraQt.Overlay):
         `face` may be an int, an Face object, or a tuple/list
         of one of the two.  (Passing multiple faces results in only
         one call to viewer.update(ROI).)"""
-        
+
         if isinstance(face, (tuple, list)):
             roi = QtCore.QRect()
             for face in face:
@@ -97,7 +125,7 @@ class _py_MapFaces(VigraQt.Overlay):
 
     def setZoom(self, zoom):
         pass # zoom is managed via self.edgeOverlay
-    
+
     def draw(self, p, rect):
         if not self._map():
             return
@@ -150,7 +178,7 @@ class _py_MapEdges(VigraQt.Overlay):
                  "_zoom", "_zoomedEdges")
 
     __base = VigraQt.Overlay
-    
+
     def __init__(self, viewer, map, color, width = 0,
                  protectedColor = None, protectedWidth = None):
         self.__base.__init__(self, viewer)
@@ -191,7 +219,7 @@ class _py_MapEdges(VigraQt.Overlay):
         viewer.  `edge` may be an int, an Edge object, or a tuple/list
         of one of the two.  (Passing multiple edges results in only
         one call to viewer.update(ROI).)"""
-        
+
         if not self.colors:
             self.colors = [self.color] * self._map().maxEdgeLabel()
 
@@ -218,7 +246,7 @@ class _py_MapEdges(VigraQt.Overlay):
         `edge` may be an int, an Edge object, or a tuple/list
         of one of the two.  (Passing multiple edges results in only
         one call to viewer.update(ROI).)"""
-        
+
         if isinstance(edge, (tuple, list)):
             roi = QtCore.QRect()
             for edge in edge:
@@ -309,7 +337,7 @@ class _py_MapEdges(VigraQt.Overlay):
         if result == None:
             result = self._calculateZoomedEdge(index, edge)
         return result
-    
+
     def draw(self, p, rect = None):
         if not self._map():
             return
@@ -348,7 +376,7 @@ class _py_MapEdges(VigraQt.Overlay):
 
 class MapNodes(VigraQt.Overlay):
     __base = VigraQt.Overlay
-    
+
     def __init__(self, map, color, radius = 0.2, relativeRadius = True):
         self.__base.__init__(self, color = color)
         self.setMap(map)
@@ -420,7 +448,7 @@ class MapNodes(VigraQt.Overlay):
         * display pixels if relativeRadius == False
         * image pixels   if relativeRadius == True
         """
-        
+
         self.origRadius = radius
         self.radius = radius
         self.relativeRadius = relativeRadius
@@ -549,7 +577,7 @@ class MapDisplay(QtGui.QMainWindow):
                  "_togglingGUI", "_backgroundMode", "_normalizeStates",
                  "_faceMeans", "_attachedHooks",
                  "dn", "_dh")
-    
+
     def __init__(self, map, preparedImage = None, immediateShow = True,
                  faceMeans = None):
         self.__base.__init__(self)
@@ -773,7 +801,7 @@ class MapDisplay(QtGui.QMainWindow):
             for h in self._attachedHooks:
                 h.disconnect()
             self._attachedHooks = None
-            
+
             if results == (True, True):
                 return True
         else:
@@ -986,7 +1014,7 @@ class MapDisplay(QtGui.QMainWindow):
             self.viewer, basepath, roi = roi, scale = scale,
             bgFilename = bgFilename,
             overlayHandler = overlayHandler)
-        
+
         if faceMeans in (None, True):
             faceMeans = self._faceMeans
 
@@ -994,7 +1022,7 @@ class MapDisplay(QtGui.QMainWindow):
             fe.addMapFaces(
                 self.map, faceMeans, similarity, depth = 900)
             fe.f.save()
-        
+
         return fe
 
     def saveEPS(self, basepath, *args, **kwargs):

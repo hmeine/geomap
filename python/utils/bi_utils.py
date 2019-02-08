@@ -1,3 +1,31 @@
+##########################################################################
+#
+#                Copyright 2007-2019 by Hans Meine
+#
+#     Permission is hereby granted, free of charge, to any person
+#     obtaining a copy of this software and associated documentation
+#     files (the "Software"), to deal in the Software without
+#     restriction, including without limitation the rights to use,
+#     copy, modify, merge, publish, distribute, sublicense, and/or
+#     sell copies of the Software, and to permit persons to whom the
+#     Software is furnished to do so, subject to the following
+#     conditions:
+#
+#     The above copyright notice and this permission notice shall be
+#     included in all copies or substantial portions of the
+#     Software.
+#
+#     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND
+#     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+#     OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+#     NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+#     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+#     WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+#     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+#     OTHER DEALINGS IN THE SOFTWARE.
+#
+##########################################################################
+
 import vigra
 
 def tensor2Gradient(tensor):
@@ -18,7 +46,7 @@ def gaussianHessian(image, sigma):
 def gm2Gradient(gm, sigma):
     """'reverse-engineer' gradient vector image from scalar image
     via Hessian from Gaussian derivative filters of given scale"""
-    
+
     # create vectors in direction of negative curvature:
     er = vigra.tensorEigenRepresentation(
         vigra.gaussianHessian(gm, sigma))
@@ -28,12 +56,12 @@ def gm2Gradient(gm, sigma):
 def gradientTensor(img, scale):
     """Returns a 3-band image with gradient tensor summed over all
     bands.  For single-band images, this is equivalent to::
-    
+
       vigra.filters.vectorToTensor(
           vigra.filters.gaussianGradient(img, scale)
 
     (Otherwise, it is the sum of the same for all bands.)"""
-    
+
     bandTensors = [
         vigra.filters.vectorToTensor(
         vigra.filters.gaussianGradient(img.subImage(i), scale))
@@ -52,7 +80,7 @@ def colorGradient(img, scale, sqrt = True):
     If `sqrt` is set to False, returns (gm2, grad) instead, i.e. does
     not apply sqrt to the first image (slight optimization if you
     don't need the gm image)."""
-    
+
     colorTensor = gradientTensor(img, scale)
     # gm2 := sum of squared magnitudes of grad. in each channel
     gm2 = vigra.tensorTrace(colorTensor)
@@ -69,7 +97,7 @@ def gaussianGradient(img, scale, sqrt = True):
     """Return (gm, grad) tuple, which is either the result of
     `colorGradient`, or of the usual `vigra.gaussianGradient` family
     for single-band images."""
-    
+
     if img.channels > 1:
         return colorGradient(img, scale, sqrt)
 

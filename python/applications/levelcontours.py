@@ -1,3 +1,31 @@
+##########################################################################
+#
+#                Copyright 2007-2019 by Hans Meine
+#
+#     Permission is hereby granted, free of charge, to any person
+#     obtaining a copy of this software and associated documentation
+#     files (the "Software"), to deal in the Software without
+#     restriction, including without limitation the rights to use,
+#     copy, modify, merge, publish, distribute, sublicense, and/or
+#     sell copies of the Software, and to permit persons to whom the
+#     Software is furnished to do so, subject to the following
+#     conditions:
+#
+#     The above copyright notice and this permission notice shall be
+#     included in all copies or substantial portions of the
+#     Software.
+#
+#     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND
+#     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+#     OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+#     NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+#     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+#     WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+#     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+#     OTHER DEALINGS IN THE SOFTWARE.
+#
+##########################################################################
+
 import sys, copy
 import numpy, vigra, geomap, maputils, flag_constants, progress
 from geomap import Vector2, Point2D
@@ -23,7 +51,7 @@ def findZeroCrossingsOnGrid(siv, level, minDist = 0.1):
         if not existing(p, minDist2):
             result.append(p)
             existing.insert(p, True)
-    
+
     for y in range(siv.height()-1):
         for x in range(siv.width()-1):
             coeff = siv.coefficients(x, y)
@@ -61,14 +89,14 @@ def predictorStep(siv, pos, h):
     Step distance h from pos in direction of tangent (perpendicular
     to gradient).  Returns None if that point is outside the
     SplineImageView."""
-    
+
     return pos + h*tangentDir(siv, pos)
 
 def correctorStep(siv, level, pos, epsilon = 1e-8):
     """Perform corrector step, i.e. perform 1D iterative Newton method in
     direction of gradient in order to return to zero level (with
     accuracy given by epsilon)."""
-    
+
     x, y = pos
     n = Vector2(siv.dx(x, y), siv.dy(x, y))
     n /= numpy.linalg.norm(n)
@@ -77,7 +105,7 @@ def correctorStep(siv, level, pos, epsilon = 1e-8):
         value = siv(x, y) - level
         if abs(value) < epsilon:
             break
-        
+
         g = numpy.dot(Vector2(siv.dx(x, y), siv.dy(x, y)), n)
         if not g:
             sys.stderr.write("WARNING: correctorStep: zero gradient!\n")
@@ -90,7 +118,7 @@ def correctorStep(siv, level, pos, epsilon = 1e-8):
 
         x += correction[0]
         y += correction[1]
-        
+
         if not siv.isInside(x, y):
             return None # out of range
 
@@ -120,7 +148,7 @@ def predictorCorrectorStep(siv, level, pos, h, epsilon):
 def followContour(siv, level, geomap, nodeLabel, h):
     correctorEpsilon = 1e-6
     nodeCrossingDist = 0.01
-    
+
     #global pos, ip, poly, startNode, diff, npos, nip, intersection
     startNode = geomap.node(nodeLabel)
     pos = startNode.position()
@@ -166,7 +194,7 @@ def followContour(siv, level, geomap, nodeLabel, h):
 
 def levelSetMap(image, level = 0, sigma = None):
     siv = hasattr(image, "siv") and image.siv or vigra.SplineImageView3(image)
-    
+
     zc = findZeroCrossingsOnGrid(siv, level)
     result = geomap.GeoMap(zc, [], image.size())
 
@@ -187,7 +215,7 @@ def levelSetMap(image, level = 0, sigma = None):
     result.sortEdgesEventually(0.4, 0.01)
     result.initializeMap()
     return result
-    
+
 # --------------------------------------------------------------------
 
 def marchingSquares(image, level = 0, variant = True, border = True,
@@ -220,13 +248,13 @@ def marchingSquares(image, level = 0, variant = True, border = True,
     If markOuter is != 0, the faces above(outer == 1) / below(outer == -1)
     the threshold are marked with the OUTER_FACE flag (this only works
     if the map is initialized)."""
-    
+
     connections1 = ((1, 0), (0, 2), (1, 2), (3, 1), (3, 0), (0, 2), (3, 1), (3, 2), (2, 3), (1, 0), (2, 3), (0, 3), (1, 3), (2, 1), (2, 0), (0, 1))
     connections2 = ((1, 0), (0, 2), (1, 2), (3, 1), (3, 0), (0, 1), (3, 2), (3, 2), (2, 3), (1, 3), (2, 0), (0, 3), (1, 3), (2, 1), (2, 0), (0, 1))
     configurations = (0, 0, 1, 2, 3, 4, 5, 7, 8, 9, 11, 12, 13, 14, 15, 16, 16)
 
     result = geomap.GeoMap(image.shape)
-    
+
     def addNodeDirectX(x, y, ofs):
         pos = Vector2(x+ofs, y)
         # out of three successive pixels, the middle one may be the

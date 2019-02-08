@@ -1,3 +1,31 @@
+##########################################################################
+#
+#                Copyright 2007-2019 by Hans Meine
+#
+#     Permission is hereby granted, free of charge, to any person
+#     obtaining a copy of this software and associated documentation
+#     files (the "Software"), to deal in the Software without
+#     restriction, including without limitation the rights to use,
+#     copy, modify, merge, publish, distribute, sublicense, and/or
+#     sell copies of the Software, and to permit persons to whom the
+#     Software is furnished to do so, subject to the following
+#     conditions:
+#
+#     The above copyright notice and this permission notice shall be
+#     included in all copies or substantial portions of the
+#     Software.
+#
+#     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND
+#     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+#     OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+#     NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+#     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+#     WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+#     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+#     OTHER DEALINGS IN THE SOFTWARE.
+#
+##########################################################################
+
 import os, sys, fig, math
 from PyQt4 import QtCore, QtGui
 
@@ -41,7 +69,7 @@ class FigExporter:
 
     For a discussion of the scaling/clipping, see documentation of
     __init__()."""
-    
+
     def __init__(self, scale = 30, roi = None, offset = (0.5, 0.5)):
         """fe = FigExporter(90.0, BoundingBox((10, 10), (50, 50)))
 
@@ -62,7 +90,7 @@ class FigExporter:
         The transformation parameters are stored as properties scale,
         roi, and offset, and these settings can be queried or even
         changed at any time (between adding objects)."""
-        
+
         self.f = fig.File()
         self.scale = scale
         self.roi = roi
@@ -95,7 +123,7 @@ class FigExporter:
         Adds a rectangle around the given roi (ignoring fe.offset).
         If roi == None (default), the roi of the FigExporter itself is used.
         The fig.PolyBox object is returned."""
-        
+
         assert roi or self.roi, "addROIRect(): no ROI given!?"
 
         if container == True:
@@ -150,7 +178,7 @@ class FigExporter:
         BoundingBox positioned at the origin.
 
         Returns the pair (bgImage, bgRect) of both added fig objects."""
-        
+
         if not params.has_key("roi") and not self.roi:
             size = readImage(bgImageFilename).size()
             params["roi"] = Rect2D(size)
@@ -159,7 +187,7 @@ class FigExporter:
 
         if not params.has_key("depth"):
             params["depth"] = 1
-        
+
         bgRect = self.addROIRect(**params)
 
         bgImage = fig.PictureBBox(0, 0, 1, 1, bgImageFilename)
@@ -177,7 +205,7 @@ class FigExporter:
         parameter), the image file is opened (using readImage) and its
         size is used to initialize a BoundingBox positioned at the
         origin.  Returns the fig.PictureBBox object."""
-        
+
         bgImage, bgRect = self.addBackgroundWithFrame(
             filename, container, **params)
         if container == True:
@@ -190,18 +218,18 @@ class FigExporter:
                        container = True, labelType = int, **attr):
         """The default label size looks good with 1cm^2 pixels
         (scale = 450)."""
-        
+
         assert rect or labels or fill
         if rect is None:
             rect = Rect2D((labels or fill).size())
         elif not hasattr(rect, "upperLeft"):
             w, h = rect
             rect = Rect2D((w, h))
-        
+
         if container == True:
             container = self.f
         result = fig.Compound(container)
-        
+
         for x, y in meshIter(rect):
             boxX1 = (x - rect.left()) * self.scale
             boxY1 = (y - rect.top()) * self.scale
@@ -228,7 +256,7 @@ class FigExporter:
             if fill:
                 pixelRect.fillStyle = fig.FillStyle.Solid
                 pixelRect.fillColor = self.f.getColor(int(fill[x, y]))
-                    
+
             result.append(pixelRect)
         return result
 
@@ -254,7 +282,7 @@ class FigExporter:
         is called on the *scaled* polygon (i.e. the default is to
         simplify the polygon to 0.5 fig units, which are integer
         anyways)."""
-        
+
         if container == True:
             container = self.f
         o = self.offset + attr.get('offset', (0,0))
@@ -326,17 +354,17 @@ class FigExporter:
         of setting properties (depth, penColor, lineStyle, lineWidth,
         ...) on all resulting objects via keyword arguments
         (cf. documentation of the FigExporter class).
-        
+
         By default, circles will be filled, but have lineWidth=0.
         To draw a transparent circle, call:
-        
+
         fi.addPointCircles([(5.2,5.3)], 2, penColor=fig.Color.Cyan,fillStyle=fig.FillStyle.None,lineWidth=1)
 
         If returnIndices is set to True (default: False), a list of
         (i, c) pairs is returned instead, where c is the fig.Circle
         object, and i is the index of the corresponding position in
         points."""
-        
+
         if container == True:
             container = self.f
 
@@ -414,7 +442,7 @@ class FigExporter:
         """See addPointCircles(), this function simply takes the
         points and radius from a PointOverlay object for your
         convenience."""
-        
+
         points = pointOverlay.originalPoints
         radius = float(pointOverlay.origRadius)
         if not pointOverlay.relativeRadius:
@@ -423,7 +451,7 @@ class FigExporter:
         attr = dict(attr)
         self._setOverlayColor(pointOverlay, "fillColor", attr)
         attr["lineWidth"] = attr.get("lineWidth", 0)
-        
+
         return self.addPointCircles(points, radius, container = container, **attr)
 
     def addEdgeOverlay(self, edgeOverlay, container = True, **attr):
@@ -455,7 +483,7 @@ class FigExporter:
         circles = circleOverlay.originalCircles
         attr = dict(attr)
         self._setOverlayColor(circleOverlay, "penColor", attr)
-            
+
         o = self.offset + attr.get('offset', (0,0))
         if self.roi:
             o = o - self.roi.begin() # don't modify in-place!
@@ -482,7 +510,7 @@ class FigExporter:
         If the optional parameter returnNodes is set to True, a list
         of (node, circleObject) pairs is returned, similar to the
         returnIndices parameter of addPointCircles()."""
-        
+
         points = [node.position() for node in map.nodeIter()]
         result = self.addPointCircles(
             points, radius, returnIndices = returnNodes, container = container, **attr)
@@ -497,13 +525,13 @@ class FigExporter:
         see addClippedPoly).  If no penColor is given, only edges with
         a valid 'color' attribute are exported (can be either a fig or
         a Qt color).
-        
+
         For example, to draw only a subregion, and shift the upper left of
         the region to the origin, call
-        
+
         fi.addMapEdges(map, penColor=fig.Color.Green, \
              offset=(-13,-13), roi=BoundingBox((13,13), (24,24)))
-        
+
         """
 
         if container == True:
@@ -663,7 +691,7 @@ def exportImageWindow(
     Overlays are saved using the given overlayHandler.  The default
     handler (addStandardOverlay) can handle the standard vigrapyqt4
     point, edge, and circle overlays."""
-    
+
     figFilename = basepath + ".fig"
     pngFilename = basepath + "_bg.png"
 
@@ -676,7 +704,7 @@ def exportImageWindow(
         roi = Rect2D(*roi)
     elif type(roi) == str:
         roi = Rect2D(*fig.parseGeometry(roi))
-    
+
     if bgFilename == None:
         # create .png background
         image, normalize = w.getDisplay()

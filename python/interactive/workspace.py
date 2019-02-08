@@ -7,6 +7,35 @@ COMMANDLINE USAGE:
 
 workspace.py <image_filename> [gauss_sigma] [saddle_threshold]
 """
+
+##########################################################################
+#
+#                Copyright 2007-2019 by Hans Meine
+#
+#     Permission is hereby granted, free of charge, to any person
+#     obtaining a copy of this software and associated documentation
+#     files (the "Software"), to deal in the Software without
+#     restriction, including without limitation the rights to use,
+#     copy, modify, merge, publish, distribute, sublicense, and/or
+#     sell copies of the Software, and to permit persons to whom the
+#     Software is furnished to do so, subject to the following
+#     conditions:
+#
+#     The above copyright notice and this permission notice shall be
+#     included in all copies or substantial portions of the
+#     Software.
+#
+#     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND
+#     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+#     OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+#     NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+#     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+#     WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+#     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+#     OTHER DEALINGS IN THE SOFTWARE.
+#
+##########################################################################
+
 import copy, sys
 from PyQt4 import QtCore, QtGui
 import vigra, geomap
@@ -38,10 +67,10 @@ class PyramidContractionKernel(statistics.DetachableStatistics):
     """Represents a merge tree annotated with the number of remaining
     faces.  Thus, it can be used to compute a contraction kernel that
     encodes all merges up to a specific pyramid level / face count."""
-    
+
     __base = statistics.DetachableStatistics
     __slots__ = ("ck", "_mergedFaceLabels")
-    
+
     def __init__(self, map):
         self.__base.__init__(self, map)
         self.ck = [None] * map.maxFaceLabel()
@@ -147,7 +176,7 @@ class ScissorsProtection(object):
         self.workspace = workspace
         self.contour = []
         #self.closed # see TODO below
-        
+
         level0 = workspace._level0
         mergedEdges = workspace.map.mergedEdges
         for dart in contour:
@@ -201,7 +230,7 @@ class Workspace(mapdisplay.MapDisplay):
                  "_mapRestartAction", "_levelSlider",
                  "_manualBaseMapFaceCount", "_estimatedApexFaceCount",
                  "_history", "_activeTool", "colorSpace")
-    
+
     def __init__(self, level0, originalImage, bi = None):
         self.__base.__init__(self, copy.deepcopy(level0), originalImage)
         self._level0 = level0
@@ -250,7 +279,7 @@ class Workspace(mapdisplay.MapDisplay):
         l.addWidget(cmChooser)
         cml.setBuddy(cmChooser)
         self._cmChooser = cmChooser
-        
+
         csl = QtGui.QLabel("C&olor space:", automaticOptions)
         l.addWidget(csl)
         csChooser = QtGui.QComboBox(automaticOptions)
@@ -266,7 +295,7 @@ class Workspace(mapdisplay.MapDisplay):
         self.dynamicCheckBox.setChecked(self.dynamicCosts)
         self.connect(self.dynamicCheckBox, QtCore.SIGNAL("toggled(bool)"),
                      self.setDynamicCosts)
-        
+
         l.addItem(QtGui.QSpacerItem(
             10, 1, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum))
         self._imageWindow._layout.insertWidget(0, automaticOptions)

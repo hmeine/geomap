@@ -1,3 +1,31 @@
+##########################################################################
+#
+#                Copyright 2007-2019 by Hans Meine
+#
+#     Permission is hereby granted, free of charge, to any person
+#     obtaining a copy of this software and associated documentation
+#     files (the "Software"), to deal in the Software without
+#     restriction, including without limitation the rights to use,
+#     copy, modify, merge, publish, distribute, sublicense, and/or
+#     sell copies of the Software, and to permit persons to whom the
+#     Software is furnished to do so, subject to the following
+#     conditions:
+#
+#     The above copyright notice and this permission notice shall be
+#     included in all copies or substantial portions of the
+#     Software.
+#
+#     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND
+#     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+#     OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+#     NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+#     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+#     WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+#     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+#     OTHER DEALINGS IN THE SOFTWARE.
+#
+##########################################################################
+
 import vigra, geomap, numpy, math
 from geomap import Polygon
 
@@ -26,7 +54,7 @@ def maxDistIter(polygon, maxDist):
             for i in range(1, segmentCount):
                 yield p + segment*i/segmentCount
         yield p
-        
+
 # --------------------------------------------------------------------
 
 LEFT = 1
@@ -42,7 +70,7 @@ def clipPoly(polygon, clipRect, closeAtBorder = None):
     enter again, leave, ...).  Polygon segments crossing clipRect's
     borders are cut, such that the resulting polyons get new endpoints
     exactly on the border."""
-    
+
     result = []
 
 #     print "clipPoly(%s..%s)" % (clipRect.begin(), clipRect.end())
@@ -212,7 +240,7 @@ def clipPoly(polygon, clipRect, closeAtBorder = None):
                 break
             poly = result
         return result
-    
+
     lastPoly = None
     prevPoly = None
     prevOutside = None
@@ -254,7 +282,7 @@ class Line(object):
 
     def isParallel(self, other):
         return abs(numpy.dot(self.norm, other.norm)) == 1.0
-    
+
     def intersect(self, other):
         assert not self.isParallel(other)
         if abs(self.norm[0]) > abs(other.norm[0]):
@@ -284,20 +312,20 @@ class LineSegment(object):
     def __init__(self, p1, p2):
         self.p1 = p1
         self.p2 = p2
-    
+
     def dir(self):
         result = self.p2 - self.p1
         result /= result.magnitude()
         return result
-    
+
     def norm(self):
         d = self.dir()
         return (-d[1], d[0])
-    
+
     def dist(self):
         """distance to origin"""
         return numpy.dot(self.p1, self.norm())
-    
+
     def line(self):
         return Line(self.norm(), self.dist())
 
@@ -328,7 +356,7 @@ def shrinkPoly(poly, offset):
 
 def rotatePoly(poly, angle):
     """Rotate polygon by the given angle around the origin."""
-    
+
     unitX = (math.cos(angle), -math.sin(angle))
     unitY = (math.sin(angle),  math.cos(angle))
     result = Polygon()

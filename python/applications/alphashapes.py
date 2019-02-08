@@ -1,3 +1,31 @@
+##########################################################################
+#
+#                Copyright 2007-2019 by Hans Meine
+#
+#     Permission is hereby granted, free of charge, to any person
+#     obtaining a copy of this software and associated documentation
+#     files (the "Software"), to deal in the Software without
+#     restriction, including without limitation the rights to use,
+#     copy, modify, merge, publish, distribute, sublicense, and/or
+#     sell copies of the Software, and to permit persons to whom the
+#     Software is furnished to do so, subject to the following
+#     conditions:
+#
+#     The above copyright notice and this permission notice shall be
+#     included in all copies or substantial portions of the
+#     Software.
+#
+#     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND
+#     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+#     OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+#     NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+#     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+#     WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+#     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+#     OTHER DEALINGS IN THE SOFTWARE.
+#
+##########################################################################
+
 import fig, delaunay, math, numpy, vigra, geomap, crackConvert
 from geomap import Polygon, Vector2
 from flag_constants import BORDER_PROTECTION, ALL_PROTECTION, ALPHA_MARK
@@ -5,7 +33,7 @@ from maputils import nodeAtBorder
 
 __all__ = ["extractMapPoints", "midCrackPoints", "samplingPoints",
            "maxSegmentLength",
-           
+
            "markAlphaShapes", "removeUnmarkedEdges", "alphaBetaMap",
            "findCandidatesForPointCorrection",
 
@@ -85,7 +113,7 @@ def markAlphaShapes(delaunayMap, alpha, beta = 0.0):
             if (squaredNorm(edge.dart().nextSigma()[1]-midPoint) >= radius2 and
                 squaredNorm(edge.dart().nextAlpha().nextSigma()[1]-midPoint) >= radius2):
                 edge.setFlag(ALPHA_MARK)
-    
+
     print "  %d/%d edges and %d/%d faces marked." % (
         sum([edge.flag(ALPHA_MARK) and 1 or 0 for edge in delaunayMap.edgeIter()]), delaunayMap.edgeCount,
         sum([face.flag(ALPHA_MARK) and 1 or 0 for face in delaunayMap.faceIter()]), delaunayMap.faceCount)
@@ -285,7 +313,7 @@ def outputMarkedShapes(delaunayMap, fe, skipInnerEdges = True,
             # continue in the other direction:
             poly.reverse()
             dart = edge.dart().nextAlpha()
-            
+
             drawing = True
             while drawing:
                 drawing = False
@@ -378,7 +406,7 @@ def alphaShapeThinning(dm):
         dart.nextPhi()
         if isSimple(dart.edge()):
             heappush(border, (-dart.edge().length(), dart.edge()))
-    
+
     return changedCount
 
 # --------------------------------------------------------------------

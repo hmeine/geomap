@@ -1,3 +1,31 @@
+##########################################################################
+#
+#                Copyright 2007-2019 by Hans Meine
+#
+#     Permission is hereby granted, free of charge, to any person
+#     obtaining a copy of this software and associated documentation
+#     files (the "Software"), to deal in the Software without
+#     restriction, including without limitation the rights to use,
+#     copy, modify, merge, publish, distribute, sublicense, and/or
+#     sell copies of the Software, and to permit persons to whom the
+#     Software is furnished to do so, subject to the following
+#     conditions:
+#
+#     The above copyright notice and this permission notice shall be
+#     included in all copies or substantial portions of the
+#     Software.
+#
+#     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND
+#     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+#     OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+#     NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+#     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+#     WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+#     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+#     OTHER DEALINGS IN THE SOFTWARE.
+#
+##########################################################################
+
 from geomap import composeTangentLists, Polygon
 
 class Path(list):
@@ -12,7 +40,7 @@ class Path(list):
         Reverses a path represented as a list of Dart objects.
         (list.reverse() is called and all darts are switched with
         nextAlpha().)"""
-        
+
         for dart in self:
             dart.nextAlpha()
         super(Path, self).reverse()
@@ -35,7 +63,7 @@ class Path(list):
         Returns an iterator over all points in this path.
         (Skipping the first points of all darts except the first,
         since they are supposed to be duplicates.)"""
-        
+
         yield self[0][0]
         for dart in self:
             pit = iter(dart); pit.next() # skip first point
@@ -138,9 +166,9 @@ def allContinuations(startDart, length, klass = Path):
 
     Returns a list of Path objects representing all possible paths of
     the given length (number of darts) starting with the given dart that
-    
+
     * do not contain an edge with BORDER_PROTECTION and
-    
+
     * do not contain a direct pair of opposite darts
       (i.e. loops are allowed, but no "U-turns").
 

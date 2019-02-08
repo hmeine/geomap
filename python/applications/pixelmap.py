@@ -1,3 +1,31 @@
+##########################################################################
+#
+#                Copyright 2007-2019 by Hans Meine
+#
+#     Permission is hereby granted, free of charge, to any person
+#     obtaining a copy of this software and associated documentation
+#     files (the "Software"), to deal in the Software without
+#     restriction, including without limitation the rights to use,
+#     copy, modify, merge, publish, distribute, sublicense, and/or
+#     sell copies of the Software, and to permit persons to whom the
+#     Software is furnished to do so, subject to the following
+#     conditions:
+#
+#     The above copyright notice and this permission notice shall be
+#     included in all copies or substantial portions of the
+#     Software.
+#
+#     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND
+#     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+#     OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+#     NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+#     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+#     WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+#     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+#     OTHER DEALINGS IN THE SOFTWARE.
+#
+##########################################################################
+
 import vigra, geomap, crackConvert
 import cellimage
 from geomap import Vector2, Size2D, Point2D, Rect2D
@@ -86,7 +114,7 @@ def pixelMap2subPixelMap(pixelMap, scale = 1.0, offset = Vector2(0, 0),
             endNeighbor = edges[neighbor.edgeLabel()].dart()
             if neighbor == neighbor.edge().end:
                 endNeighbor.nextAlpha()
-                
+
         newEdge = result.addEdge(startNeighbor, endNeighbor, points)
         edges[edge.label] = newEdge
 
@@ -116,7 +144,7 @@ def crackEdges2MidCracks(subpixelMap):
 
     Note that this is done in a brutal way; the resulting map will
     fail checkConsistency()."""
-    
+
     for edge in subpixelMap.edgeIter():
         p = geomap.Polygon()
         p.append(edge[0])
@@ -131,7 +159,7 @@ def cannyEdgeMap(image, scale, thresh):
     Returns a subpixel-GeoMap object containing thinned canny edges
     obtained from cannyEdgeImage(image, scale, thresh).
     (Internally creates a pixel GeoMap first.)"""
-    
+
     edgeImage = vigra.analysis.cannyEdgeImageWithThinning(image, scale, thresh, 1)
     pixelMap = cellimage.GeoMap(edgeImage, 0, cellimage.CellType.Line)
     spmap = pixelMap2subPixelMap(
@@ -174,7 +202,7 @@ def pixelWatershedMap(biImage, crackEdges = 4, midCracks = False):
     If midCracks is True, the resulting edges consist of the
     connected midpoints of the cracks, not of the crack segments
     themselves (this parameter is ignored if crackEdges == 0)."""
-    
+
     if crackEdges:
         print "- Union-Find watershed segmentation..."
         lab, count = getattr(vigra, 'watershedUnionFind' + str(crackEdges))(biImage)
