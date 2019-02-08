@@ -1,3 +1,31 @@
+##########################################################################
+#
+#                Copyright 2007-2019 by Hans Meine
+#
+#     Permission is hereby granted, free of charge, to any person
+#     obtaining a copy of this software and associated documentation
+#     files (the "Software"), to deal in the Software without
+#     restriction, including without limitation the rights to use,
+#     copy, modify, merge, publish, distribute, sublicense, and/or
+#     sell copies of the Software, and to permit persons to whom the
+#     Software is furnished to do so, subject to the following
+#     conditions:
+#
+#     The above copyright notice and this permission notice shall be
+#     included in all copies or substantial portions of the
+#     Software.
+#
+#     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND
+#     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+#     OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+#     NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+#     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+#     WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+#     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+#     OTHER DEALINGS IN THE SOFTWARE.
+#
+##########################################################################
+
 import sys, time, copy
 from geomap import GeoMap, crackConnectionImage, crackEdgeGraph
 import vigra
@@ -16,7 +44,7 @@ def crackEdgeMap(labelImage, initLabelImage = True,
     result = crackEdgeGraph(labelImage, eightConnectedRegions = eightConnectedRegions)
     result.sortEdgesDirectly()
     result.initializeMap(initLabelImage)
-    
+
     # mark the border edges:
     assert result.face(0).holeCount() == 1, "infinite face should have exactly one contour, not %d!?" % result.face(0).holeCount()
     for dart in result.face(0).holeContours().next().phiOrbit():
@@ -152,7 +180,7 @@ def followEdge(crackConnectionImage, pos, direction):
 
             if not connection & CONN_ALL4:
                 connection &= ~CONN_MAYBE_NODE
-                
+
             crackConnectionImage[pos] = connection
             continue
         elif connection & CONN_NODE:
@@ -201,7 +229,7 @@ def pyCrackEdgeGraph(labelImage, eightConnectedRegions = True,
                 cc[x,y] = conn | CONN_MAYBE_NODE
             if conn & CONN_DIAG:
                 cc[x,y] = conn | CONN_MAYBE_NODE
-    
+
     nodeImage = ScalarImage(cc.size())
     # nodeImage encoding: each pixel's higher 28 bits encode the
     # (label + 1) of a node that has been inserted into the resulting

@@ -1,4 +1,32 @@
 # -*- coding: iso-8859-1 -*-
+##########################################################################
+#
+#                Copyright 2007-2019 by Hans Meine
+#
+#     Permission is hereby granted, free of charge, to any person
+#     obtaining a copy of this software and associated documentation
+#     files (the "Software"), to deal in the Software without
+#     restriction, including without limitation the rights to use,
+#     copy, modify, merge, publish, distribute, sublicense, and/or
+#     sell copies of the Software, and to permit persons to whom the
+#     Software is furnished to do so, subject to the following
+#     conditions:
+#
+#     The above copyright notice and this permission notice shall be
+#     included in all copies or substantial portions of the
+#     Software.
+#
+#     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND
+#     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+#     OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+#     NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+#     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+#     WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+#     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+#     OTHER DEALINGS IN THE SOFTWARE.
+#
+##########################################################################
+
 
 """(Constrained) Delaunay Triangulation and Chordal Axis Transform
 
@@ -74,7 +102,7 @@ def _pointInHole(polygon, level = 2):
     result = geomap.centroid(polygon)
     if polygon.contains(result):
         return result
-    
+
     result = []
     bbox = polygon.boundingBox()
     midPoint = (bbox.begin() + bbox.end())/2
@@ -167,7 +195,7 @@ def delaunayMap(points, imageSize = (0, 0)):
     if len(points) < 3:
         raise ValueError, \
               "cannot compute Delaunay Triangulation of less than three points"
-    
+
     if triangle:
         nodePositions, edges = triangle.delaunay(points)
         sigma = None
@@ -181,7 +209,7 @@ def delaunayToVoronoi(delaunayMap, clipAtBorder = True):
     Internally, this uses `maputils.dualMap` with an appropriate
     definition of node positions (triangle circumcenters).
     Additionally, a special border handling is needed."""
-    
+
     def createInfiniteNode(dm, edge, voronoiMap, sn, en):
         if sn is not None:
             existingNode = sn
@@ -296,10 +324,10 @@ def fakedConstrainedDelaunayMap(polygons, imageSize, extraPoints = [],
         points.extend(list(polygon))
         del points[-1]
         jumpPoints.append(len(points))
-    
+
     print "- performing Delaunay Triangulation (%d points)..." % len(points)
     nodePositions, edges, sigma = geomap.delaunay(points)
-    
+
     print "- storing result in a GeoMap..."
     result = _delaunayMapFromData(nodePositions, edges, imageSize, sigma)
 
@@ -348,7 +376,7 @@ def fakedConstrainedDelaunayMap(polygons, imageSize, extraPoints = [],
                     #sys.stdout.write(".")
                     #sys.stdout.flush()
         sys.stdout.write("\n")
-    
+
     return result
 
 def faceCDTMap(face, imageSize,
@@ -360,7 +388,7 @@ def faceCDTMap(face, imageSize,
     `face` should be a GeoMap.Face object, and all its contours will
     be extracted.  `mapSize` is used to initialize the GeoMap with the
     resulting edges.
-      
+
     Optional keyword parameters:
 
     simplifyEpsilon
@@ -445,7 +473,7 @@ def chordStrengthProfile(delaunayMap, startDart = None, cs = None):
            not startDart.leftFace().flag(OUTER_FACE), \
            "expecting startDart to be on the shape's contour," \
            "with the inner triangles on the left"
-    
+
     if not cs:
         cs = calculateChordStrengths(delaunayMap)
 
@@ -625,7 +653,7 @@ def catMap(delaunayMap,
 
     If you want to use the rectified CAT (with weak chords being
     suppressed), you would use removeWeakChords before calling catMap:
-    
+
     >>> del2 = copy.copy(del1) # if you want to keep the original
     >>> removeWeakChords(del2)
     >>> rcat2 = delaunay.catMap(del2)
@@ -684,10 +712,10 @@ def catMap(delaunayMap,
                 chords.append(dart)
             else:
                 bl += dart.edge().length()
-        
+
         boundaryLength[face.label()] = bl
         faceChords[face.label()] = chords
-        
+
         # classify into terminal, sleeve, and junction triangles:
         if len(chords) < 2:
             faceType[face.label()] = "T"
@@ -707,7 +735,7 @@ def catMap(delaunayMap,
     for face in delaunayMap.faceIter(skipInfinite = True):
         if face.flag(OUTER_FACE):
             continue
-        
+
         if faceType[face.label()] != "S":
             #print faceType[face.label()] + "-triangle", face.label()
             for dart in faceChords[face.label()]:
@@ -767,7 +795,7 @@ def catMap(delaunayMap,
                     nodeLabel[nextFace.label()] = nodeLabel[face.label()]
                     result.removeIsolatedNode(endNode)
                     continue
-                
+
                 sleeve = result.addEdge(
                     startNode, endNode, edgePoints)
                 sleeve.setFlag(flags)
@@ -933,7 +961,7 @@ def pruneBySubtendedLength(skelMap, delaunayMap = None,
       pruneBySubtendedLength(catMap, delMap, minLength = 3)
       pruneBySubtendedLength(catMap, delMap, ratio = 0.02)
       pruneBySubtendedLength(catMap) # use default: 1%"""
-    
+
     changed = True
     result = 0
 
@@ -966,7 +994,7 @@ def pruneBySubtendedLength(skelMap, delaunayMap = None,
         subtendedBoundaryLength = skelMap.subtendedLengths[edge.label()]
         if subtendedBoundaryLength >= minLength:
             continue
-        
+
         dart = edge.dart()
         if dart.startNode().hasMinDegree(2):
             dart.nextAlpha()
@@ -982,7 +1010,7 @@ def pruneBySubtendedLength(skelMap, delaunayMap = None,
             continue
 
         # (dart now belongs to a barb, startNode().degree() == 1)
-        
+
         neighbor = dart.clone().nextPhi()
         skelMap.subtendedLengths[neighbor.edgeLabel()] \
             += subtendedBoundaryLength
@@ -999,7 +1027,7 @@ def pruneBySubtendedLength(skelMap, delaunayMap = None,
                     del chordLabels[i]
                     break
             assert sleeve == dart.edgeLabel()
-            
+
             if delaunayMap and dart.endNode().hasMinDegree(3):
                 dart.endNode().setPosition(
                     rectifiedJunctionNodePosition(
@@ -1048,7 +1076,7 @@ def circumCircle(p1, p2, p3):
 
     Returns the center and radius of the circumcircle of the given
     three points."""
-    
+
     p1sm = squaredNorm(p1)
     x1 = p1[0]
     y1 = p1[1]
@@ -1099,7 +1127,7 @@ def calculateTriangleCircumcircles(delaunayMap):
     Returns a list of circumcircles for each face in the delaunayMap
     (with the face labels as indices).  Entries for faces marked with
     the OUTER_FACE flag are set to None."""
-    
+
     result = [None] * delaunayMap.maxFaceLabel()
     for triangle in delaunayMap.faceIter(skipInfinite = True):
         if triangle.flag(OUTER_FACE):

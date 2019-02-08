@@ -1,5 +1,33 @@
 """maputils - general (i.e.topological) GeoMap utilities and segmentation algorithms"""
 
+##########################################################################
+#
+#                Copyright 2007-2019 by Hans Meine
+#
+#     Permission is hereby granted, free of charge, to any person
+#     obtaining a copy of this software and associated documentation
+#     files (the "Software"), to deal in the Software without
+#     restriction, including without limitation the rights to use,
+#     copy, modify, merge, publish, distribute, sublicense, and/or
+#     sell copies of the Software, and to permit persons to whom the
+#     Software is furnished to do so, subject to the following
+#     conditions:
+#
+#     The above copyright notice and this permission notice shall be
+#     included in all copies or substantial portions of the
+#     Software.
+#
+#     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND
+#     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+#     OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+#     NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+#     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+#     WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+#     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+#     OTHER DEALINGS IN THE SOFTWARE.
+#
+##########################################################################
+
 import numpy, vigra, geomap, sys, math, time, weakref, copy
 
 import flag_constants, progress, sivtools
@@ -15,7 +43,7 @@ def protectFace(face, protect = True, flag = flag_constants.PROTECTED_FACE):
     Subsequently, sets the CONTOUR_PROTECTION of each edge in the
     contours of `face` iff either of the adjacent faces is
     protected."""
-    
+
     face.setFlag(flag, protect)
     for dart in contourDarts(face):
         dart.edge().setFlag(flag_constants.CONTOUR_PROTECTION,
@@ -151,7 +179,7 @@ def subpixelWatershedData(spws, biSIV, filter = None, mask = None,
     Each found edge polygon is simplified using simplifyPolygon with
     perpendicularDistEpsilon = 0.1 and maxStep = 0.1 (use the optional
     parameters with the same names to change the default)."""
-    
+
     sys.stdout.write("- finding critical points..\n")
     c = time.clock()
 
@@ -332,7 +360,7 @@ def subpixelWatershedMap(
 
     """`boundaryIndicator` should be an image with e.g. a gradient
     magnitude.
-    
+
     If `mask` is False, all pixels are searched for critical
     points.  By default (mask == None), pixels below saddleThreshold/2
     are skipped.
@@ -385,7 +413,7 @@ def subpixelWatershedMap(
         spws, siv, filter, mask,
         minSaddleDist = ssMinDist,
         perpendicularDistEpsilon = perpendicularDistEpsilon, maxStep = maxStep)
-    
+
     spwsMap = subpixelWatershedMapFromData(
         maxima, flowlines, boundaryIndicator.shape,
         borderConnectionDist = borderConnectionDist,
@@ -414,14 +442,14 @@ def addFlowLinesToMap(edges, map, imageSize = None,
     * Some artifact flowlines will be recognized and not added:
 
       * Self-loops with area zero are not added.
-    
+
       * Flowlines whose saddles are within `minSaddleBorderDist` of the
         image border are presumed to be parallel to the border and are
         not added at all.
 
       * Flowlines that are *entirely* within `minMaxBorderDist` of the
         image border are handled the same (i.e. also discarded).
-        
+
     * Flowlines that partially run outside the image are clipped (at a
       `minSaddleBorderDist` border within the image range), and only
       the part containing the saddle point will be added to the map.
@@ -436,7 +464,7 @@ def addFlowLinesToMap(edges, map, imageSize = None,
     Returns list of edgeTuples that were not added to the GeoMap.
     This includes clipped parts of flowlines, with node labels
     etc. set to None."""
-    
+
     # Node 0 conflicts with our special handling of 0 values:
     if map.maxNodeLabel():
         assert not map.node(0), \
@@ -571,7 +599,7 @@ def addFlowLinesToMap(edges, map, imageSize = None,
             abs(points.partialArea()) < minLoopArea):
             result.append(edgeTuple)
             continue
-        
+
         assert startNode and endNode
         map.addEdge(startNode, endNode, points, edgeLabel)
 
@@ -585,25 +613,25 @@ def mapFromEdges(edges, imageSize):
     """Quickly create a GeoMap from a set of edges, i.e. derive nodes
     from edge endpoints.  Returns a GeoMap that is not yet
     initialized, i.e. `GeoMap.edgesSorted()` will return False."""
-    
+
     def getNode(map, position):
         node = map.nearestNode(position, 0.001)
         if not node:
             node = map.addNode(position)
         return node
-    
+
     result = geomap.GeoMap([], [], imageSize)
     for edge in edges:
         sn = getNode(result, edge[0])
         en = getNode(result, edge[-1])
         result.addEdge(sn, en, edge)
-    
+
     return result
 
 def gridMap(gridSize = (10, 10), firstPos = (0.5, 0.5),
             dist = (1, 1), imageSize = None):
     """Create a GeoMap representing a rectangular grid."""
-    
+
     xDist = (dist[0], 0)
     yDist = (0, dist[1])
     if not imageSize:
@@ -665,7 +693,7 @@ def connectBorderNodes(map, epsilon,
     through the pixel centers, i.e. from 0/0 to w-1/h-1 (where w,h =
     map.imageSize()).  Otherwise, the border will run around the pixel
     facets, i.e. be 0.5 larger in each direction."""
-    
+
     dist = aroundPixels and 0.5 or 0.0
     x1, y1 = -dist, -dist
     x2, y2 = map.imageSize()[0] - 1 + dist, map.imageSize()[1] - 1 + dist
@@ -803,10 +831,10 @@ def copyMapContents(sourceMap, destMap = None, edgeTransform = None):
 
     assert sourceMap.edgesSorted() or not destMap.edgesSorted(), \
            "refraining from inserting unsorted edges into sorted map!"
-    
+
     nodes = [None] * sourceMap.maxNodeLabel()
     # for better edgeTransform support, nodes are added on-the-fly now
-    
+
     edges = [None] * sourceMap.maxEdgeLabel()
     for edge in sourceMap.edgeIter():
         geometry = edge
@@ -822,7 +850,7 @@ def copyMapContents(sourceMap, destMap = None, edgeTransform = None):
         elif not startNeighbor.isIsolated():
             if edgeTransform:
                 assert geometry[0] == startNeighbor.position(), "copyMapContents: edgeTransform leads to inconsistent node positions!"
-            
+
             neighbor = edge.dart()
             while neighbor.nextSigma().edgeLabel() > edge.label() \
                       or neighbor.label() == -edge.label() \
@@ -841,7 +869,7 @@ def copyMapContents(sourceMap, destMap = None, edgeTransform = None):
         elif not endNeighbor.isIsolated():
             if edgeTransform:
                 assert geometry[-1] == endNeighbor.position(), "copyMapContents: edgeTransform leads to inconsistent node positions!"
-            
+
             neighbor = edge.dart().nextAlpha()
             while neighbor.nextSigma().edgeLabel() > edge.label() \
                       or neighbor.label() == edge.label() \
@@ -875,7 +903,7 @@ def copyMap(sourceMap, edgeTransform = None):
 
     2) Transforming edges, i.e. passing an `edgeTransform` that
        changes (e.g. smoothes) each Edge's geometry.
-    
+
     This function cannot be used with an edgeTransform that returns
     None for any edge, since there must be a bijection between source
     and target Faces (it might be possible to lift this requirement
@@ -906,7 +934,7 @@ def detachMapStats(map, verbose = False):
 
     if map is None:
         return
-    
+
     for a in map.__dict__:
         o = getattr(map, a)
         if hasattr(o, "detachHooks"):
@@ -991,11 +1019,11 @@ def drawLabelImage(aMap, scale = 1, verbose = True):
 def checkLabelConsistencyThoroughly(aMap):
     """Call `checkLabelConsistency` and additionally check that the
     labels are at the correct position (using `drawLabelImage`)."""
-    
+
     class AssertRightLabel(object):
         def __init__(self):
             self.correct = True
-        
+
         def __call__(self, label, shouldBe):
             if label >= 0:
                 self.correct = self.correct and (label == shouldBe)
@@ -1035,7 +1063,7 @@ def checkCachedPropertyConsistency(aMap):
                 area += edge.partialArea()
             else:
                 area -= edge.partialArea()
-        
+
         if face.label() and bbox != face.boundingBox():
             sys.stderr.write("Face %d has cached bounding box %s instead of %s!\n" % (
                 face.label(), face.boundingBox(), bbox))
@@ -1102,7 +1130,7 @@ def degree2Nodes(map):
 
 def removeCruft(map, what = 3, doChecks = False):
     """removeCruft(map, what = 3, doChecks = False)
-    
+
     `what` is a bit-combination of
     1: for the removal of degree 0-nodes (default)
     2: removal of degree 2-nodes (default)
@@ -1118,7 +1146,7 @@ def removeCruft(map, what = 3, doChecks = False):
 
     Consider using the following specialized functions with more
     meaningful names instead:
-    
+
     - `removeIsolatedNodes`
     - `mergeDegree2Nodes`
     - `removeBridges`
@@ -1193,7 +1221,7 @@ def removeSmallRegions(
     map, minArea = None, minPixelArea = None, costMeasure = None):
     """Merge faces whose area is < minArea with any neighor.
     Alternatively, pixelArea() is compared with minPixelArea.
-    
+
     If there is more than one neighbor sharing an unprotected edge
     with the face, it must be decided which neighbor to merge into.
     If no `costMeasure` has been passed for this decision, an
@@ -1220,7 +1248,7 @@ def removeSmallRegions(
             if not fl in seen:
                 seen[fl] = True
                 neighbors.append(dart)
-        
+
         if len(neighbors) > 1:
             if not costMeasure:
                 sys.stderr.write("WARNING: removeSmallRegions() makes random decision about neighbor\n  which %s is to be merged into!\n" % face)
@@ -1259,7 +1287,7 @@ def mergeFacesByLabel(map, label1, label2, mergeDegree2Nodes = True):
     common dart of these labels.
 
     Returns the surviving face (or None if no common edge was found)."""
-    
+
     face1 = map.face(label1)
     face2 = map.face(label2)
     assert face1, "mergeFacesByLabel: face with label1 = %d does not exist!" % (label1, )
@@ -1279,11 +1307,11 @@ class History(list):
     >>> history = LiveHistory(map1)
     >>> someExpensiveAnalysisMethod(map1) # modify map1 via Euler ops
     >>> history.replay(map2)"""
-    
+
     @staticmethod
     def load(filename):
         return History(eval(file(filename).read()))
-    
+
     def save(self, filename):
         import pprint
         f = file(filename, "w")
@@ -1304,7 +1332,7 @@ class History(list):
 
     def replay(self, map, careful = False, verbose = True):
         result = 0
-        
+
 #         counter = 20
         for opName, param in self:
             if careful and not map.checkConsistency():# or not checkLabelConsistency(map)
@@ -1333,7 +1361,7 @@ class LiveHistory(History):
     via Euler operation callbacks."""
 
     __slots__ = ("_map", "_op")
-    
+
     _mergeFaces = 'mergeFaces'
     _removeBridge = 'removeBridge'
     _mergeEdges = 'mergeEdges'
@@ -1341,7 +1369,7 @@ class LiveHistory(History):
     def __init__(self, map):
         self._map = weakref.ref(map) # only needed for pickle support
         self._attachHooks()
-    
+
     def _attachHooks(self):
         self._attachedHooks = (
             self._map().addMergeFacesCallbacks(self.preMergeFaces, self.confirm),
@@ -1359,19 +1387,19 @@ class LiveHistory(History):
     def detachHooks(self):
         for cb in self._attachedHooks:
             cb.disconnect()
-    
+
     def preMergeFaces(self, dart):
         self._op = (self._mergeFaces, dart.label())
         return True
-    
+
     def preRemoveBridge(self, dart):
         self._op = (self._removeBridge, dart.label())
         return True
-    
+
     def preMergeEdges(self, dart):
         self._op = (self._mergeEdges, dart.label())
         return True
-    
+
     def confirm(self, *args):
         self.append(self._op)
 
@@ -1396,7 +1424,7 @@ class AutomaticMethodBase(object):
         """Ensure that the next `mergeStep()` really performs a merge
         operation.  This also means that `nextCost()` /
         `nextEdgeLabel()` return the corresponding valid values."""
-        
+
         q = self._queue
         map = self._map
         while q and not map.edge(q.top()[0]):
@@ -1407,11 +1435,11 @@ class AutomaticMethodBase(object):
         of the merge operation that would be performed next by
         `mergeStep()` (for SRG, return the label of the face being
         associated next).
-        
+
         Note that `mergeStep` does not always perform a step (i.e. the
         edge at the front of the internal priority queue might have
         been removed already); see `ensureValidNext()`."""
-        
+
         self._ensureValidNext()
         return self._queue.top()[0]
 
@@ -1461,7 +1489,7 @@ class AutomaticRegionMerger(AutomaticMethodBase):
         mergeCostMeasure depends on the face statistics and the
         internal cost queue should be updated accordingly after a
         merge, which possibly changed the statistics."""
-        
+
         self._map = map
         self._mergeCostMeasure = mergeCostMeasure
         self._step = 0
@@ -1481,18 +1509,18 @@ class AutomaticRegionMerger(AutomaticMethodBase):
                 cost = mergeCostMeasure(edge.dart())
                 if cost is not None:
                     q.insert(edge.label(), cost)
-        
+
         self._queue = q
         self._costLog = None
 
     def mergeStep(self):
         """Fetch next edge from cost queue and remove it from the map.
-        
+
         If the edge is protected or nonexistent, do nothing and return
         None (i.e. not every call results in a merge step!).  Else,
         return the surviving Face and increment the step counter
         (cf. step())."""
-        
+
         edgeLabel, mergeCost = self._queue.pop()
         edge = self._map.edge(edgeLabel)
         if not edge or edge.flag(flag_constants.ALL_PROTECTION):
@@ -1543,7 +1571,7 @@ def thresholdMergeCost(map, mergeCostMeasure, maxCost, costs = None, q = None):
     If the optional argument costs is given, it should be a mutable
     sequence which is append()ed the costs of each performed
     operation."""
-    
+
     arm = AutomaticRegionMerger(map, mergeCostMeasure, q)
     arm._costLog = costs
 
@@ -1595,7 +1623,7 @@ def classifyFacesFromLabelImage(map, labelImage):
     """Given a labelImage, returns the label of each Face within that
     image.  This assumes that each region contains only pixels of the
     same label; otherwise an assertion will be triggered."""
-    
+
     import statistics
     faceStats = statistics.FaceColorStatistics(map, labelImage)
     faceStats.detachHooks()
@@ -1618,7 +1646,7 @@ def applyFaceClassification(map, faceClasses, ignoreNone = True):
     If `ignoreNone` is set (default), faces classified with `None`
     values will be ignored (i.e. not merged with neighbors that are
     also assigned None).
-    
+
     `classifyFacesFromLabelImage` creates a suitable sequence (but
     there are better, more direct ways)."""
 
@@ -1654,7 +1682,7 @@ def pointInFace(face, level = 2):
     classification of GeoMap Faces such that it can be applied to
     another GeoMap with different face labels, or even with slightly
     changed boundary geometry."""
-    
+
     sl = face.scanLines()
     for y in range(sl.startIndex(), sl.endIndex()):
         inside = 0
@@ -1734,7 +1762,7 @@ def neighborFaces(face):
 
     Generator function which yields exactly one dart for each adjacent
     face (even in case of multiple common edges)."""
-    
+
     seen = {face.label(): True}
     for dart in contourDarts(face):
         fl = dart.rightFaceLabel()
@@ -1775,7 +1803,7 @@ def showHomotopyTree(face, indentation = ""):
     Prints homotopy tree to stdout, starting with a given face
     as root.  You can also pass a GeoMap as parameter, in which case
     the tree will start with its infinite face."""
-    
+
     if not hasattr(face, "label"):
         face = face.face(0)
     print indentation + str(face)
@@ -1790,7 +1818,7 @@ def edgeAtBorder(edge):
 def nonBorderEdges(map):
     """Iterate over all edges that do not have the BORDER_PROTECTION
     flag."""
-    
+
     for edge in map.edgeIter():
         if not edge.flag(flag_constants.BORDER_PROTECTION):
             yield edge
@@ -1798,7 +1826,7 @@ def nonBorderEdges(map):
 def nonBackgroundFaces(map):
     """Iterate over all faces that do not have the BACKGROUND_FACE (=
     OUTER_FACE) flag."""
-    
+
     for face in map.faceIter():
         if not face.flag(flag_constants.BACKGROUND_FACE):
             yield face
@@ -1823,7 +1851,7 @@ def mapValidEdges(function, geomap, default = None, skipBorder = False):
     Note that due to the analogy to the builtin `map`, the order of the
     arguments is different to most other functions within this module,
     which usually have the geomap as first argument."""
-    
+
     result = [default] * geomap.maxEdgeLabel()
     for edge in \
             skipBorder and nonBorderEdges(geomap) or geomap.edgeIter():
@@ -1838,7 +1866,7 @@ def mapValidFaces(function, geomap, default = None):
     Note that due to the analogy to the builtin `map`, the order of the
     arguments is different to most other functions within this module,
     which usually have the geomap as first argument."""
-    
+
     result = [default] * geomap.maxFaceLabel()
     for face in geomap.faceIter():
         result[face.label()] = function(face)
@@ -1848,7 +1876,7 @@ def mapValidDarts(function, geomap, default = None):
     """Similar to `mapValidEdges`, but calls function for each Dart
     with positive label.  Especially useful to create edgeCosts for
     passing e.g. to `minimumSpanningTree`."""
-    
+
     result = [default] * geomap.maxEdgeLabel()
     for edge in geomap.edgeIter():
         result[edge.label()] = function(edge.dart())
@@ -1961,13 +1989,13 @@ def seededRegionGrowingStatic(map, faceLabels, edgeCosts):
                 cost = edgeCosts[dart.edgeLabel()]
                 if cost != None:
                     heappush(heap, (cost, dart.label()))
-    
+
     return faceLabels
 
 class StandardCostQueue(object):
     """Wrapper around the standard heappush/pop, implementing the
     DynamicCostQueue API."""
-    
+
     def __init__(self):
         self.heap = []
 
@@ -1996,16 +2024,16 @@ class SeededRegionGrowing(AutomaticMethodBase):
     merging all non-seed faces into the growing seed regions until
     only these are left (or no more merges are possible, e.g. due to
     edge protection)."""
-    
+
     __slots__ = ["_map", "_mergeCostMeasure", "_costLog",
                  "_neighborSkipFlags"]
-    
+
     def __init__(self, map, mergeCostMeasure,
                  dynamic = True, stupidInit = False):
         self._map = map
         self._mergeCostMeasure = mergeCostMeasure
         self._step = 0
-        
+
         for face in map.faceIter():
             face.setFlag(flag_constants.SRG_BORDER, False)
 
@@ -2239,7 +2267,7 @@ def dualMap(map, edgeLabels = None, nodePositions = None, midPoints = None,
 
     if edgeLabels is None:
         edgeLabels = map.edgeIter()
-    
+
     for edge in sorted(edgeLabels):
         if not hasattr(edge, "label"):
             edge = map.edge(edge)
@@ -2261,7 +2289,7 @@ def dualMap(map, edgeLabels = None, nodePositions = None, midPoints = None,
                 dp.gotoArcLength(edge.length()/2)
                 poly.insert(1, dp())
             result.addEdge(sn, en, poly, label = edge.label())
-    
+
     removeIsolatedNodes(result)
     if initializeMap:
         result.initializeMap(False)
@@ -2278,4 +2306,4 @@ def mst2map(mst, map):
 # --------------------------------------------------------------------
 
 # if __name__ == '__main__':
-    
+

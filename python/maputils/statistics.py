@@ -1,3 +1,31 @@
+##########################################################################
+#
+#                Copyright 2007-2019 by Hans Meine
+#
+#     Permission is hereby granted, free of charge, to any person
+#     obtaining a copy of this software and associated documentation
+#     files (the "Software"), to deal in the Software without
+#     restriction, including without limitation the rights to use,
+#     copy, modify, merge, publish, distribute, sublicense, and/or
+#     sell copies of the Software, and to permit persons to whom the
+#     Software is furnished to do so, subject to the following
+#     conditions:
+#
+#     The above copyright notice and this permission notice shall be
+#     included in all copies or substantial portions of the
+#     Software.
+#
+#     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND
+#     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+#     OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+#     NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+#     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+#     WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+#     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+#     OTHER DEALINGS IN THE SOFTWARE.
+#
+##########################################################################
+
 import math, sys, string, copy, weakref
 import numpy, vigra.sampling, vigra.filters, geomap
 from geomap import \
@@ -20,9 +48,9 @@ class DetachableStatistics(object):
     This then allows proper pickle support (cf. `__getstate__` /
     `__setstate__`, which manage the map and the reconnection of the
     hooks)."""
-    
+
     __slots__ = ["_attachedHooks", "_map"]
-    
+
     def __init__(self, map):
         # prevent cycles if this is an attribute of the map:
         self._map = weakref.ref(map) # only needed for pickle support
@@ -119,7 +147,7 @@ def safeSqrt(variance):
 
 class FaceMeanFunctor(object):
     __slots__ = ["pixelCount", "sum", "sum2", "defaultValue"]
-    
+
     def __init__(self, defaultValue):
         self.pixelCount = None
         self.defaultValue = defaultValue
@@ -509,7 +537,7 @@ class FaceColorHistogram(DynamicFaceStatistics):
 
 class DynamicEdgeStatistics(DetachableStatistics):
     __slots__ = []
-    
+
     def _attachHooks(self):
         self._attachedHooks = (self._map().addMergeEdgesCallbacks(
             self.preMergeEdges, self.postMergeEdges), )
@@ -518,7 +546,7 @@ def mergedEdgeCostWeightedByLength(edge1, cost1, edge2, cost2):
     """Combiner function for `StaticEdgeCosts`.  Defines the cost for
     a merged edge as the average of the costs from the merged edges,
     weighted by their lengths."""
-    
+
     l1 = edge1.length()
     l2 = edge2.length()
     return (cost1*l1 + cost2*l2)/(l1+l2)
@@ -532,7 +560,7 @@ class StaticEdgeCosts(DetachableStatistics):
     mergeEdges operations are blocked in order to guarantee sensible
     results (i.e. passing the problem to the calling algorithm).
     If a combiner is given, it is called with four parameters::
-    
+
       mergedCost = combiner(edge1, cost1, edge2, cost2)
 
     and must return a combined cost.  An example of a suitable
@@ -580,13 +608,13 @@ class StaticEdgeCosts(DetachableStatistics):
             return True
         except TypeError: # i.e. combiner cannot handle "None" costs
             return False
-    
+
     def postMergeEdges(self, survivor):
         self._costs[survivor.label()] = self._mergedCost
 
     def blockMergeEdges(self, dart):
         return False
-    
+
     def __call__(self, dart):
         return self._costs[dart.edgeLabel()]
 
@@ -606,19 +634,19 @@ class MergedEdges(DynamicEdgeStatistics):
 
     __slots__ = ["_labelLUT",
                  "_merged"]
-    
+
     def __init__(self, map):
         DynamicEdgeStatistics.__init__(self, map)
         self._labelLUT = geomap.LabelLUT(map.maxEdgeLabel())
         self._attachHooks()
-    
+
     def preMergeEdges(self, dart):
         self._merged = dart.clone().nextSigma().edgeLabel()
         return True
-    
+
     def postMergeEdges(self, survivor):
         self._labelLUT.relabel(self._merged, survivor.label())
-    
+
     def __getitem__(self, edge):
         """Returns list of all edges of original map of which the
         given edge of the current map is composed."""
@@ -648,13 +676,13 @@ class DynamicEdgeIndices(DetachableStatistics):
     __base = DetachableStatistics
     __slots__ = ["_indices",
                  "_mergedIndices", "_newIndices1", "_newIndices2", "_mergeLabels"]
-    
+
     def __init__(self, map):
         DetachableStatistics.__init__(self, map)
         self._indices = [None] * map.maxEdgeLabel()
         for edge in map.edgeIter():
             self._indices[edge.label()] = []
-    
+
     def _attachHooks(self):
         self._attachedHooks = (
             self._map().addMergeEdgesCallbacks(self.preMergeEdges,
@@ -684,7 +712,7 @@ class DynamicEdgeIndices(DetachableStatistics):
     def preMergeEdges(self, dart):
         # dart belongs to the surviving edge and starts at the merged
         # node:
-        
+
         edge1 = dart.edge()
         edge2 = dart.clone().nextSigma().edge()
         self._mergeLabels = (edge1.label(), edge2.label())
@@ -735,14 +763,14 @@ class WatershedStatistics(DynamicEdgeIndices):
     __slots__ = ["_passValues", "_indices", "_gmSiv",
                  "_basinDepth",
                  "_mergedPV"]
-    
+
     def __init__(self, map, flowlines, gmSiv):
         self.__base.__init__(self, map)
         self._passValues = [None] * map.maxEdgeLabel()
         for edge in map.edgeIter():
             if edge.flag(flag_constants.BORDER_PROTECTION):
                 continue
-            
+
             flowline = flowlines[edge.label()]
             saddleIndex = flowline[3]
 
@@ -753,7 +781,7 @@ class WatershedStatistics(DynamicEdgeIndices):
             if len(edge) != len(flowline[2]) and edge[1] == flowline[2][0]:
                 assert flowline[0] <= 0
                 saddleIndex += 1
-            
+
             self._passValues[edge.label()] = gmSiv[edge[saddleIndex]]
             self._indices[edge.label()].append(saddleIndex)
 
@@ -791,7 +819,7 @@ class WatershedStatistics(DynamicEdgeIndices):
     def preMergeEdges(self, dart):
         if not self.__base.preMergeEdges(self, dart):
             return False
-        
+
         edge1 = dart.edge()
         edge2 = dart.clone().nextSigma().edge()
 
@@ -821,7 +849,7 @@ class WatershedStatistics(DynamicEdgeIndices):
     def _resetPassValue(self, edge):
         # SIV cannot be pickled:
         assert self._gmSiv, "cannot find correct passvalue after edge splitting without SplineImageView!"
-        
+
         ind = self._indices[edge.label()]
         if ind:
             self._passValues[edge.label()] = min([
@@ -832,7 +860,7 @@ class WatershedStatistics(DynamicEdgeIndices):
 
     def postSplitEdge(self, oldEdge, newEdge):
         DynamicEdgeIndices.postSplitEdge(self, oldEdge, newEdge)
-        
+
         self._resetPassValue(oldEdge)
         self._passValues.append(None)
         self._resetPassValue(newEdge)
@@ -872,7 +900,7 @@ class WatershedBasinStatistics(DetachableStatistics):
     __base = DetachableStatistics
     __slots__ = ["_basinDepth",
                  "_mergedDepth"]
-    
+
     def __init__(self, map, minima, gmSiv):
         self.__base.__init__(self, map)
 
@@ -967,7 +995,7 @@ class BoundaryIndicatorStatistics(DynamicEdgeStatistics):
     __base = DynamicEdgeStatistics
     __slots__ = ["_functors",
                  "_mergedStats"]
-    
+
     def __init__(self, map):
         DynamicEdgeStatistics.__init__(self, map)
         self._functors = [None] * map.maxEdgeLabel()
@@ -1010,7 +1038,7 @@ class EdgeGradientStatistics(BoundaryIndicatorStatistics):
 
     __base = BoundaryIndicatorStatistics
     __slots__ = ["_Functor"]
-    
+
     def __init__(self, map, gradSiv, resample = 0.1, tangents = None,
                  Functor = geomap.PolylineStatistics):
         """Init statistics for each edge.  Possible values for Functor
@@ -1031,14 +1059,14 @@ class EdgeGradientStatistics(BoundaryIndicatorStatistics):
         weighting already happened during the tangents computation
         (and the arclengths between tangent samples would be
         inappropriate here)."""
-        
+
         BoundaryIndicatorStatistics.__init__(self, map)
         self._Functor = Functor
 
         if tangents and resample:
             sys.stderr.write("EdgeGradientStatistics: cannot resample tangents. resample argument (%s) ignored.\n" % (
                 resample == 0.1 and "default = 0.1" or resample, ))
-        
+
         for edge in map.edgeIter():
             if not tangents:
                 poly = resample and resamplePolygon(edge, resample) or edge
@@ -1171,7 +1199,7 @@ class PercentPointFunction(list):
     @staticmethod
     def splitVert(arcLengthList):
         values = [v for al, v in arcLengthList]
-        
+
         result = list(arcLengthList) # copy
         prevV = None
         for v in values:
@@ -1186,7 +1214,7 @@ class PercentPointFunction(list):
                     splitAl = al1+(al2-al1)*(v-v1)/(v2-v1)
                     result.insert(i, (splitAl, v))
                 i += 1
-        
+
         return result
 
     @staticmethod
@@ -1194,7 +1222,7 @@ class PercentPointFunction(list):
         """Returns a list of (v1, width, v2) for each piecewise linear
         segment in the given arcLengthList (i.e. length(result) ==
         len(arcLengthList)-1)."""
-        
+
         result = []
         for i in range(1, len(arcLengthList)):
             al1, v1 = arcLengthList[i-1]
@@ -1451,7 +1479,7 @@ class EdgeContAngle(DetachableStatistics):
         self.attrName = _makeAttrName("contAngle_%s" % (self.length))
         for edge in map.edgeIter():
             self.calcContAngle(edge)
-        
+
         self._attachedHooks = (map.addMergeFacesCallbacks(
             None, self.postMergeEdges), )
 
@@ -1598,7 +1626,7 @@ def calculateTangentListsGaussianReflective(map, sigma, diff=0.0):
     running tangentListGaussianReflective on it with the given
     parameters.  Note that all edges which are too small will have an
     empty 'tangents' list."""
-    
+
     result = [None] * map.maxEdgeLabel()
     for edge in map.edgeIter():
         try:
@@ -1619,7 +1647,7 @@ class EdgeTangents(DynamicEdgeStatistics):
 
     __slots__ = ["tangents",
                  "_mergedTangents", "_mergeLabels"]
-    
+
     def __init__(self, map, tangents):
         DynamicEdgeStatistics.__init__(self, map)
         self.tangents = tangents

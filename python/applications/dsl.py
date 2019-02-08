@@ -1,3 +1,31 @@
+##########################################################################
+#
+#                Copyright 2007-2019 by Hans Meine
+#
+#     Permission is hereby granted, free of charge, to any person
+#     obtaining a copy of this software and associated documentation
+#     files (the "Software"), to deal in the Software without
+#     restriction, including without limitation the rights to use,
+#     copy, modify, merge, publish, distribute, sublicense, and/or
+#     sell copies of the Software, and to permit persons to whom the
+#     Software is furnished to do so, subject to the following
+#     conditions:
+#
+#     The above copyright notice and this permission notice shall be
+#     included in all copies or substantial portions of the
+#     Software.
+#
+#     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND
+#     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+#     OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+#     NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+#     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+#     WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+#     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+#     OTHER DEALINGS IN THE SOFTWARE.
+#
+##########################################################################
+
 import copy
 from vigra import Point2D, Vector2, Rational, sq
 
@@ -7,14 +35,14 @@ def freeman(crackEdge):
     Returns freeman codes for each polyline segment in the given
     crackEdge polygon.  Uses mathematical orientation, i.e. the code
     meaning is:
-    
+
     0: diff = ( 1,  0)
     1: diff = ( 0,  1)
     2: diff = (-1,  0)
     3: diff = ( 0, -1)
 
     Effect unspecified if crackEdge is not a crack edge polygon."""
-    
+
     result = [None] * (len(crackEdge)-1)
     it = iter(crackEdge)
     prev = it.next()
@@ -125,44 +153,44 @@ class PyDigitalStraightLine(object):
         self.b = b
         self.pos = pos
         self.is8Connected = True
-    
+
     def slope(self):
         return Rational(self.a, self.b)
-    
+
     def axisIntercept(self, leaningType = 0):
         """dsl.axisIntercept(leaningType = 0)
-        
+
         leaningType means:
         0: center line
         1: lower leaning line
         2: upper leaning line"""
-        
+
         pos = Rational(self.pos, 1)
         if leaningType == 0:
             pos += Rational(self.width()-1, 2)
         elif leaningType == 1:
             pos += self.width()-1
         return -pos / self.b
-    
+
     def __call__(self, x, y):
         return self.a*x - self.b*y
-    
+
     def __getinitargs__(self):
         return (self.a, self.b, self.pos)
-    
+
     def contains(self, x, y):
         v = self(x, y) - self.pos
         return 0 <= v < self.width()
-    
+
     def width(self):
         if self.is8Connected:
             return max(abs(self.a), abs(self.b))
         else:
             return abs(self.a) + abs(self.b)
-    
+
     def __repr__(self):
         return "PyDigitalStraightLine(%d, %d, %d)" % (self.a, self.b, self.pos)
-    
+
     def addPoint(self, x, y):
         """works only for 8-connected lines in 1st octant"""
         assert self.is8Connected and (0 <= self.a <= self.b)
@@ -172,7 +200,7 @@ class PyDigitalStraightLine(object):
         if 0 <= v < width:
             #print "point already inside:", self, point
             return True # point is within DSL
-        
+
         above = True
         if v == -1:
             #print "point above"
@@ -221,7 +249,7 @@ class PyDigitalStraightLine(object):
         else:
             # ensure new point is on upper leaning line:
             self.pos = self(x, y) - self.width() + 1
-        
+
         if not self.contains(x, y):
             #print self, v, point
             assert self.contains(x, y), \
@@ -232,14 +260,14 @@ class PyDigitalStraightLine(object):
 
     def mirrorX(self):
         self.a = -self.a
-    
+
     def mirrorY(self):
         self.mirrorX()
         self.mirrorXY()
-    
+
     def mirrorXY(self):
         self.pos = 1-self.width()-self.pos
-    
+
     def convertToFourConnected(self):
         assert self.is8Connected, "DSL should not be converted twice"
         self.b = self.b - self.a
@@ -349,7 +377,7 @@ def crackEdgeTangent(freemanCodes, pointIndex, closed):
     dsl, ofs = geomap.tangentDSL(freemanCodes, pointIndex, closed)
     if not ofs:
         return dsl, ofs
-    
+
     dsl = dsl.convertToFourConnected()
 
     fc1 = freemanCodes[pointIndex - ofs]
@@ -358,7 +386,7 @@ def crackEdgeTangent(freemanCodes, pointIndex, closed):
         fc2 = freemanCodes[crackIndex % count]
         if fc2 != fc1:
             break
-    
+
     q = quadrant(fc1, fc2)
     if q == 0:
         pass
@@ -375,7 +403,7 @@ def quadrant(fc1, fc2):
 
     Given the two different freeman codes fc1 and fc2, returns the
     number of the respective quadrant."""
-    
+
     if fc2 < fc1:
         fc1, fc2 = fc2, fc1
     if fc1 > 0:
@@ -416,7 +444,7 @@ def offset2(freemanCodes, pointIndex, closed = True):
     results.  The RMSE of the points' radii in the circle example from
     __main__ is 0.4 percent lower, so this is the default / used in
     euclideanPath. ;-)"""
-    
+
     if closed:
         pointIndex = pointIndex % len(freemanCodes)
 
@@ -467,7 +495,7 @@ class DSLExperiment(object):
         self.code1 = None
         self.code2 = None
         self.freeman2Diff = reverse and freeman2Diff8ConnThirdQuadrant or freeman2Diff8ConnFirstQuadrant
-    
+
     def __call__(self, code, plot = True):
         if self.dsl == None:
             self.dsl = DigitalStraightLine(code % 2 and 1 or 0, 1, 0)
@@ -482,7 +510,7 @@ class DSLExperiment(object):
             self.points.append(newPos)
             return self.plot(plot)
         return False
-    
+
     def plot(self, plot = True):
         result = True
         for point in self.points:
@@ -502,7 +530,7 @@ if __name__ == "__main__":
     dsl.addPoint(-2, -1)
 
     from vigra import GrayImage, norm, meshIter
-    
+
     gimg = GrayImage(50, 50)
     for p in meshIter(gimg.size()):
         gimg[p] = norm(p - Point2D(25, 25)) < 20 and 255 or 0
