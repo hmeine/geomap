@@ -10,6 +10,12 @@ INCLUDE_DIRECTORIES(
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${Boost_INCLUDE_DIRS})
 
+IF(vigra_SOURCE_DIR)
+    INCLUDE_DIRECTORIES(${vigra_SOURCE_DIR}/include)
+ELSE()
+    INCLUDE_DIRECTORIES(${vigra_INCLUDE_DIR})
+ENDIF()
+
 ADD_LIBRARY(libgeomap ${LIBTYPE}
     cppmap.cxx
     cppmap_utils.cxx
