@@ -12,6 +12,11 @@ ADD_LIBRARY(libgeomap ${LIBTYPE}
     crackedgemap.cxx
 )
 
+SET(libgeomap_OUTPUT_NAME "libgeomap" CACHE STRING "geomap core library output name")
+
+SET_TARGET_PROPERTIES(libgeomap PROPERTIES
+    OUTPUT_NAME ${libgeomap_OUTPUT_NAME})
+
 INSTALL(TARGETS libgeomap
 #        EXPORT vigra-targets
         RUNTIME DESTINATION bin
